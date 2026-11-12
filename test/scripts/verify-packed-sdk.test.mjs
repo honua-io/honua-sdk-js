@@ -87,6 +87,64 @@ test("accepts a complete installed package manifest", (t) => {
   );
 });
 
+const nativeEntrypoint = { subpath: "./geoparquet/node", tier: "experimental" };
+
+function nativePackageFixture(t) {
+  const fixture = packageFixture(t);
+  fixture.packageJson.exports[nativeEntrypoint.subpath] = {
+    types: "./plugin.d.ts",
+    node: "./plugin.js",
+  };
+  return {
+    packageRoot: fixture.root,
+    packageJson: fixture.packageJson,
+    entrypoints: [...entrypoints, nativeEntrypoint],
+  };
+}
+
+test("accepts the installed Node-only export and includes it in runtime and type probes", (t) => {
+  const fixture = nativePackageFixture(t);
+  assert.deepEqual(validateInstalledManifest(fixture), []);
+  assert.match(runtimeSmokeSource("@honua/sdk-js", fixture.entrypoints), /@honua\/sdk-js\/geoparquet\/node/);
+  assert.match(typeSmokeSource("@honua/sdk-js", fixture.entrypoints), /@honua\/sdk-js\/geoparquet\/node/);
+});
+
+test("rejects browser or default fallbacks on the installed Node-only export", (t) => {
+  for (const condition of ["default", "browser"]) {
+    const fixture = nativePackageFixture(t);
+    fixture.packageJson.exports[nativeEntrypoint.subpath][condition] = "./plugin.js";
+    assert.deepEqual(validateInstalledManifest(fixture), [
+      "./geoparquet/node installed export must declare exactly node and types",
+    ]);
+  }
+});
+
+test("validates Node-only runtime and declaration targets without weakening ordinary exports", (t) => {
+  const fixture = nativePackageFixture(t);
+  fixture.packageJson.exports[nativeEntrypoint.subpath].node = "../outside.js";
+  fs.rmSync(path.join(fixture.packageRoot, "plugin.d.ts"));
+  delete fixture.packageJson.exports["./honua"].default;
+  fixture.packageJson.exports["./honua"].node = "./honua.js";
+  assert.deepEqual(validateInstalledManifest(fixture), [
+    "./honua installed export has no default target",
+    "./plugin installed types target is missing: ./plugin.d.ts",
+    "./geoparquet/node installed node target escapes the package: ../outside.js",
+    "./geoparquet/node installed types target is missing: ./plugin.d.ts",
+  ]);
+});
+
+test("rejects missing or nested Node-only runtime targets", (t) => {
+  for (const node of ["./missing.js", { import: "./plugin.js" }]) {
+    const fixture = nativePackageFixture(t);
+    fixture.packageJson.exports[nativeEntrypoint.subpath].node = node;
+    assert.deepEqual(validateInstalledManifest(fixture), [
+      typeof node === "string"
+        ? "./geoparquet/node installed node target is missing: ./missing.js"
+        : "./geoparquet/node installed export has no node target",
+    ]);
+  }
+});
+
 test("reports entrypoint-level missing runtime and declaration targets", (t) => {
   const fixture = packageFixture(t);
   fs.rmSync(path.join(fixture.root, "honua.js"));

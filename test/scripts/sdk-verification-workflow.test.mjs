@@ -500,6 +500,7 @@ describe("forks and untrusted heads cannot publish reusable evidence", () => {
     assert.equal("workflow_dispatch" in graph.on, false, "manual dispatch would let the actor choose the checked-out ref");
     assert.deepEqual(graph.permissions, { contents: "read" });
     for (const [jobId, job] of Object.entries(graph.jobs)) {
+      if (jobId === "verify-package") continue;
       assert.equal(job.permissions, undefined, `${jobId} must not widen the workflow's read-only token`);
     }
   });

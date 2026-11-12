@@ -259,6 +259,13 @@ jobs:
     if: vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 80
+    # Job permissions replace the workflow default. contents:read resolves tags
+    # and commits. actions:read is the Actions REST permission for publication
+    # recovery run and job reads; a contents-only installation token returns 403.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     env:
       HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       # Derived-artifact decoupling (#677): every gate that binds committed
@@ -568,6 +575,8 @@ jobs:
         run: npm run build
 
       - name: Verify packed SDK migration cohort with default npm resolution
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:prepared
 
       - name: Upload migration cohort receipt and installed lock
@@ -632,6 +641,9 @@ jobs:
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
+
+      - name: Native Node GeoParquet installed consumer
+        run: npm run verify:node-geoparquet:prepared
 
       - name: Split package verification
         run: npm run verify:split-packages:prepared

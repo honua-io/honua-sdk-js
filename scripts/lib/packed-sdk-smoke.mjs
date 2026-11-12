@@ -29,7 +29,11 @@ export function validateInstalledManifest({ packageRoot, packageJson, entrypoint
 
   for (const entrypoint of entrypoints) {
     const exported = packageJson.exports?.[entrypoint.subpath];
-    for (const condition of ["default", "types"]) {
+    const runtimeCondition = entrypoint.subpath === "./geoparquet/node" ? "node" : "default";
+    if (runtimeCondition === "node" && Object.keys(exported ?? {}).sort().join(",") !== "node,types") {
+      failures.push(`${entrypoint.subpath} installed export must declare exactly node and types`);
+    }
+    for (const condition of [runtimeCondition, "types"]) {
       const target = exportTarget(exported, condition);
       if (typeof target !== "string") {
         failures.push(`${entrypoint.subpath} installed export has no ${condition} target`);
