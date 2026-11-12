@@ -851,3 +851,22 @@ correlation is preserved end-to-end.
   supported as long as they satisfy the `MaplibreMap` method shape.
 - `popupFactory` keeps the popup dependency on the host side; omit it
   when the app does not call `runtime.bindPopup`.
+
+## OGC vector tile discovery
+
+For sources discovered with `protocol: "ogc-tiles"`, automatic mounting uses the
+advertised WebMercatorQuad MVT item template. Discovery follows same-origin
+vector tileset list and metadata links, and normalizes `{tileMatrix}`,
+`{tileRow}`, and `{tileCol}` to MapLibre's `{z}`, `{y}`, and `{x}`. It does not
+infer an XYZ template from the service root. Unsupported matrix sets or missing
+item metadata leave the source available for inspection; automatic mounting
+reports the missing metadata before changing the map. An optional tileset
+metadata request failure likewise leaves other collections discoverable.
+
+Pass `sourceLayer` with the internal MVT layer name when mounting vector tiles.
+The collection identifier alone does not establish that name. Plan and mount
+failures identify missing item templates and missing `sourceLayer` separately.
+
+The `connect-source-descriptor` contract version in release metadata tracks the
+normalized discovery cache projection. Version 4 invalidates older cached
+descriptors so discovery can populate the vector item template.

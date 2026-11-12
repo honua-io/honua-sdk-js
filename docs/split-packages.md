@@ -234,6 +234,13 @@ The bundle gate separately checks the actual generated validator path is absent
 from focused HonuaClient, connect, createHonua and FeatureLayerCompat consumers;
 existing optional renderer and RPC exclusion guards remain enforced.
 
+`@honua/app-platform` installs its statically imported Terra Draw, MapLibre draw
+adapter, and PMTiles runtime dependencies automatically. Browser component
+consumers do not need to add those packages manually. Applications still supply
+`maplibre-gl` when using the MapLibre integration. The package verification gate
+bundles the web-components entrypoint from a clean external consumer to check
+this dependency closure.
+
 ### Conditional exports in the sample matrix
 
 `samples/dist/capability-sample-matrix.v2.json` records the full package export
