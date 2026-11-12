@@ -33,8 +33,8 @@ function pollingOptions(input) {
   return { attempts, delayMs };
 }
 
-export async function loadExactReleasePleasePullRequest(repository, request) {
-  const rest = await findCurrentReleasePleasePullRequest(repository, request);
+export async function loadExactReleasePleasePullRequest(repository, request, headRefName = RELEASE_PLEASE_HEAD) {
+  const rest = await findCurrentReleasePleasePullRequest(repository, request, headRefName);
   if (!rest) return null;
   const current = await loadCurrentPullRequestDisposition(
     { repository, pullRequestNumber: rest.pullRequestNumber },
