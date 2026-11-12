@@ -130,6 +130,12 @@ describe("connect() — raw OGC API Tiles discovery", () => {
               links: [
                 {
                   rel: "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector",
+                  type: "text/html",
+                  href: "/tiles/collections/buildings/tiles.html",
+                },
+                {
+                  rel: "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector",
+                  type: "application/json",
                   href: "/tiles/collections/buildings/tiles",
                 },
               ],
@@ -166,67 +172,92 @@ describe("connect() — raw OGC API Tiles discovery", () => {
     expect(requests).toHaveLength(4);
   });
 
-  it.each([false, true])("follows advertised list and metadata links; optional failure=%s", async (failMetadata) => {
-    const requests: string[] = [];
-    const fetchFn: typeof fetch = vi.fn(async (input, init) => {
-      const path = new URL(new Request(input, init).url).pathname;
-      requests.push(path);
-      if (path === "/tiles") return json(tilesLanding);
-      if (path === "/tiles/conformance") return json(tilesConformance);
-      if (path === "/tiles/collections")
-        return json({
-          collections: [
-            {
-              id: "buildings",
-              links: [{ rel: "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector", href: "/published/vector" }],
-            },
-            { id: "imagery" },
-          ],
-        });
-      if (path === "/published/vector")
-        return json({
-          tilesets: [
-            {
-              dataType: "vector",
-              tileMatrixSetURI: "http://www.opengis.net/def/tilematrixset/OGC/1.0/WebMercatorQuad",
-              links: [{ rel: "self", type: "application/json", href: "./mercator.json" }],
-            },
-          ],
-        });
-      if (path === "/published/mercator.json")
-        return failMetadata
-          ? new Response("unavailable", { status: 404 })
-          : json({
-              dataType: "vector",
-              tileMatrixSetId: "WebMercatorQuad",
-              links: [
-                {
-                  rel: "item",
-                  type: "application/vnd.mapbox-vector-tile",
-                  href: "./mvt/{tileMatrix}/{tileRow}/{tileCol}",
-                },
-              ],
-            });
-      throw new Error(`Unexpected request ${path}`);
-    });
-    const connection = await connect({
-      endpoint: "https://tiles.example/tiles",
-      protocol: "ogc-tiles",
-      authorizationScopeFingerprint: "anonymous",
-      clientOptions: { fetchFn },
-    });
-    expect(connection.dataset.sourceIds()).toEqual(["buildings", "imagery"]);
-    expect(connection.source("buildings").descriptor.locator.tileUrlTemplate).toBe(
-      failMetadata ? undefined : "https://tiles.example/published/mvt/{z}/{y}/{x}",
-    );
-    expect(requests).toEqual([
-      "/tiles",
-      "/tiles/conformance",
-      "/tiles/collections",
-      "/published/vector",
-      "/published/mercator.json",
-    ]);
-  });
+  it.each(["available", "missing", "aborted"])(
+    "follows advertised list and metadata links; metadata=%s",
+    async (metadata) => {
+      const requests: string[] = [];
+      const controller = new AbortController();
+      const fetchFn: typeof fetch = vi.fn(async (input, init) => {
+        const path = new URL(new Request(input, init).url).pathname;
+        requests.push(path);
+        if (path === "/tiles") return json(tilesLanding);
+        if (path === "/tiles/conformance") return json(tilesConformance);
+        if (path === "/tiles/collections")
+          return json({
+            collections: [
+              {
+                id: "buildings",
+                links: [{ rel: "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector", href: "/published/vector" }],
+              },
+              { id: "imagery" },
+            ],
+          });
+        if (path === "/published/vector")
+          return json({
+            tilesets: [
+              {
+                dataType: "vector",
+                tileMatrixSetURI: "http://www.opengis.net/def/tilematrixset/OGC/1.0/WebMercatorQuad",
+                links: [{ rel: "self", type: "application/json", href: "./mercator.json" }],
+              },
+              {
+                dataType: "vector",
+                tileMatrixSetId: "WebMercatorQuad",
+                links: [
+                  {
+                    rel: "item",
+                    type: "application/vnd.mapbox-vector-tile",
+                    href: "/fallback/{tileMatrix}/{tileRow}/{tileCol}",
+                  },
+                ],
+              },
+            ],
+          });
+        if (path === "/published/mercator.json") {
+          if (metadata === "aborted") controller.abort();
+          return metadata !== "available"
+            ? new Response("unavailable", { status: 404 })
+            : json({
+                dataType: "vector",
+                tileMatrixSetId: "WebMercatorQuad",
+                links: [
+                  {
+                    rel: "item",
+                    type: "application/vnd.mapbox-vector-tile",
+                    href: "./mvt/{tileMatrix}/{tileRow}/{tileCol}",
+                  },
+                ],
+              });
+        }
+        throw new Error(`Unexpected request ${path}`);
+      });
+      const connecting = connect({
+        endpoint: "https://tiles.example/tiles",
+        signal: controller.signal,
+        protocol: "ogc-tiles",
+        authorizationScopeFingerprint: "anonymous",
+        clientOptions: { fetchFn },
+      });
+      if (metadata === "aborted") {
+        await expect(connecting).rejects.toBeInstanceOf(HonuaAbortError);
+        return;
+      }
+      const connection = await connecting;
+      expect(connection.dataset.sourceIds()).toEqual(["buildings", "imagery"]);
+      expect(connection.source("buildings").descriptor.locator.tileUrlTemplate).toBe(
+        metadata === "missing"
+          ? "https://tiles.example/fallback/{z}/{y}/{x}"
+          : "https://tiles.example/published/mvt/{z}/{y}/{x}",
+      );
+      expect(requests).toEqual([
+        "/tiles",
+        "/tiles/conformance",
+        "/tiles/collections",
+        "/published/vector",
+        "/published/mercator.json",
+      ]);
+    },
+  );
 
   it("discovers no render capabilities when Tiles conformance is absent", async () => {
     const connection = await connect({
