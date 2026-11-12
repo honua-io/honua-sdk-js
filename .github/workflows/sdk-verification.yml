@@ -753,6 +753,9 @@ jobs:
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
 
+      - name: Native Node GeoParquet installed consumer
+        run: npm run verify:node-geoparquet:prepared
+
       - name: Split package verification
         run: npm run verify:split-packages:prepared
 

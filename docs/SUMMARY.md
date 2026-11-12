@@ -72,7 +72,7 @@
 * [Generated App Runtime (`@honua/sdk-js/generated-app`)](generated-app-runtime.md)
 * [Provider-pluggable geocoding and routing](geocoding-routing-providers.md)
 * [`@honua/geometry` — client-side geometry operations](geometry.md)
-* [GeoParquet / DuckDB-WASM source](geoparquet.md)
+* [GeoParquet / DuckDB source](geoparquet.md)
 * [Geoprocessing with OGC API Processes and Esri GPServer](geoprocessing.md)
 * [`@honua/sdk-js` reference guide](guide.md)
 * [Kepler.gl analytics workspace bridge (experimental)](kepler-workspace-bridge.md)
