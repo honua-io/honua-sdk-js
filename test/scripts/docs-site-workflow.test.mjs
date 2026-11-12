@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -174,7 +174,17 @@ test("only the reporter may write issues, and it does not execute repository cod
   );
   assert.equal(reporter.includes("github.run_id"), false);
   assert.equal(reporterScript.includes(TITLE), true);
+  assert.equal(reporterScript.includes("search/issues"), false);
+  assert.equal(reporterScript.includes("search"), false);
+  assert.equal(workflow.includes("search/issues"), false);
 });
+
+const REPO = "honua-io/honua-sdk-js";
+const FIRST_PAGE = `repos/${REPO}/issues?state=all&per_page=100&page=1`;
+const NEXT_URL =
+  "https://api.github.com/repositories/1171771524/issues?state=all&per_page=100&page=2&after=Y3Vyc29yOnYyOpLPAAABoaw1SkDPAAAAAXMTsjE%3D";
+const SECOND_PAGE =
+  "repositories/1171771524/issues?state=all&per_page=100&page=2&after=Y3Vyc29yOnYyOpLPAAABoaw1SkDPAAAAAXMTsjE%3D";
 
 const fakeGh = `#!/bin/bash
 set -euo pipefail
@@ -192,7 +202,15 @@ while [[ $# -gt 0 ]]; do
     --method|-X) method="$2"; shift 2 ;;
     --input) input="$2"; shift 2 ;;
     --raw-field|-f) fields+=("$2"); shift 2 ;;
-    *) endpoint="$1"; shift ;;
+    --include|-i) shift ;;
+    *)
+      if [[ "$1" == -* ]]; then
+        echo "unexpected gh flag: $1" >&2
+        exit 2
+      fi
+      endpoint="$1"
+      shift
+      ;;
   esac
 done
 body=""
@@ -205,8 +223,14 @@ if [[ \${#fields[@]} -gt 0 ]]; then
 fi
 jq -nc --arg method "$method" --arg endpoint "$endpoint" --arg body "$body" --argjson fields "$field_json" \\
   '{method:$method, endpoint:$endpoint, body:$body, fields:$fields}' >> "$GH_FAKE_LOG"
-if [[ "$method" == "GET" && "$endpoint" == "search/issues" ]]; then
-  cat "$GH_SEARCH_FILE"
+if [[ "$endpoint" == *search* ]]; then
+  echo "search endpoint used: $endpoint" >&2
+  exit 2
+fi
+if [[ "$method" == "GET" ]]; then
+  page_file="$GH_PAGES_DIR/$endpoint"
+  [[ -f "$page_file" ]] || { echo "unscripted issue page: $endpoint" >&2; exit 2; }
+  cat "$page_file"
   exit 0
 fi
 if [[ "$method" == "POST" || "$method" == "PATCH" ]]; then
@@ -217,21 +241,30 @@ echo "unexpected gh api call: $method $endpoint" >&2
 exit 2
 `;
 
-function runReport(env, search) {
+function issuePage(issues, nextUrl) {
+  const link = nextUrl === undefined ? "" : `Link: <${nextUrl}>; rel="next"\n`;
+  return `HTTP/2.0 200 OK\n${link}Content-Type: application/json\n\n${JSON.stringify(issues)}\n`;
+}
+
+function runReport(env, pages) {
   const dir = mkdtempSync(path.join(tmpdir(), "docs-site-report-"));
   const bin = path.join(dir, "gh");
   const log = path.join(dir, "calls.jsonl");
-  const searchFile = path.join(dir, "search.json");
+  const pagesDir = path.join(dir, "pages");
   writeFileSync(bin, fakeGh);
   chmodSync(bin, 0o755);
   writeFileSync(log, "");
-  writeFileSync(searchFile, JSON.stringify(search));
+  for (const [endpoint, raw] of Object.entries(pages)) {
+    const file = path.join(pagesDir, endpoint);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, raw);
+  }
   const result = spawnSync("bash", ["-c", reporterScript], {
     encoding: "utf8",
     env: {
       PATH: `${dir}:${process.env.PATH}`,
       GH_FAKE_LOG: log,
-      GH_SEARCH_FILE: searchFile,
+      GH_PAGES_DIR: pagesDir,
       GH_TOKEN: "test-token",
       ...env,
     },
@@ -247,35 +280,41 @@ const identity = {
   GITHUB_SERVER_URL: "https://github.com",
 };
 
+function assertNoSearch(report) {
+  assert.equal(
+    report.calls.some((call) => call.endpoint.includes("search")),
+    false,
+  );
+}
+
 test("a failed build opens one exact-title issue with both results and the run URL", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    { incomplete_results: false, items: [{ number: 9, title: "Docs site notes", state: "open" }] },
+    { [FIRST_PAGE]: issuePage([{ number: 9, title: "Docs site notes", state: "open" }]) },
   );
   assert.equal(report.status, 0, report.stderr);
   assert.equal(report.calls.length, 2);
   assert.equal(report.calls[0].method, "GET");
-  assert.equal(report.calls[0].endpoint, "search/issues");
-  assert.ok(report.calls[0].fields.includes(`q=repo:honua-io/honua-sdk-js is:issue in:title "${TITLE}"`));
-  assert.ok(report.calls[0].fields.includes("per_page=100"));
+  assert.equal(report.calls[0].endpoint, FIRST_PAGE);
+  assert.deepEqual(report.calls[0].fields, []);
   assert.equal(report.calls[1].method, "POST");
   assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues");
   assert.deepEqual(JSON.parse(report.calls[1].body), {
     title: TITLE,
     body: "Build result: failure\nDeploy result: skipped\nRun: https://github.com/honua-io/honua-sdk-js/actions/runs/4242",
   });
+  assertNoSearch(report);
 });
 
 test("a failed deploy updates the oldest exact-title issue and does not create another", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "success", DEPLOY_RESULT: "failure" },
     {
-      incomplete_results: false,
-      items: [
+      [FIRST_PAGE]: issuePage([
         { number: 15, title: TITLE, state: "open", pull_request: { url: "https://github.com/example/1" } },
         { number: 40, title: TITLE, state: "closed" },
         { number: 12, title: TITLE, state: "closed" },
-      ],
+      ]),
     },
   );
   assert.equal(report.status, 0, report.stderr);
@@ -287,32 +326,90 @@ test("a failed deploy updates the oldest exact-title issue and does not create a
     body: "Build result: success\nDeploy result: failure\nRun: https://github.com/honua-io/honua-sdk-js/actions/runs/4242",
     state: "open",
   });
+  assertNoSearch(report);
 });
 
-test("an incomplete search with a known issue still updates that issue", () => {
+test("a match on a later issue page updates that issue and does not use search", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "failure" },
-    { incomplete_results: true, items: [{ number: 7, title: TITLE, state: "open" }] },
+    {
+      [FIRST_PAGE]: issuePage([{ number: 90, title: "Docs site notes" }], NEXT_URL),
+      [SECOND_PAGE]: issuePage([{ number: 7, title: TITLE, state: "closed" }]),
+    },
   );
   assert.equal(report.status, 0, report.stderr);
-  assert.equal(report.calls[1].method, "PATCH");
-  assert.equal(report.calls[1].endpoint, "repos/honua-io/honua-sdk-js/issues/7");
-  assert.equal(JSON.parse(report.calls[1].body).body.includes("Build result: failure"), true);
-  assert.equal(JSON.parse(report.calls[1].body).body.includes("Deploy result: failure"), true);
+  assert.deepEqual(
+    report.calls.slice(0, 2).map((call) => call.endpoint),
+    [FIRST_PAGE, SECOND_PAGE],
+  );
+  assert.equal(report.calls[2].method, "PATCH");
+  assert.equal(report.calls[2].endpoint, "repos/honua-io/honua-sdk-js/issues/7");
+  const body = JSON.parse(report.calls[2].body);
+  assert.equal(body.state, "open");
+  assert.equal(body.body.includes("Build result: failure"), true);
+  assert.equal(body.body.includes("Deploy result: failure"), true);
+  assertNoSearch(report);
 });
 
-test("an incomplete search without an exact title refuses to create a duplicate", () => {
+test("the oldest exact title on a later page wins over a newer match", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
-    { incomplete_results: true, items: [{ number: 3, title: "other", state: "open" }] },
+    {
+      [FIRST_PAGE]: issuePage(
+        [
+          { number: 4, title: TITLE, pull_request: { url: "https://github.com/example/4" } },
+          { number: 40, title: TITLE, state: "open" },
+        ],
+        NEXT_URL,
+      ),
+      [SECOND_PAGE]: issuePage([
+        { number: 12, title: TITLE, state: "closed" },
+        { number: 18, title: "other" },
+      ]),
+    },
+  );
+  assert.equal(report.status, 0, report.stderr);
+  assert.equal(report.calls.length, 3);
+  assert.equal(report.calls[2].method, "PATCH");
+  assert.equal(report.calls[2].endpoint, "repos/honua-io/honua-sdk-js/issues/12");
+  assertNoSearch(report);
+});
+
+test("a malformed later page refuses to create a duplicate", () => {
+  const report = runReport(
+    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
+    {
+      [FIRST_PAGE]: issuePage([{ number: 3, title: "other" }], NEXT_URL),
+      [SECOND_PAGE]: "HTTP/2.0 200 OK\nContent-Type: application/json\n\n{\"message\":\"unavailable\"}\n",
+    },
+  );
+  assert.notEqual(report.status, 0);
+  assert.deepEqual(report.calls.map((call) => call.method), ["GET", "GET"]);
+  assert.deepEqual(
+    report.calls.map((call) => call.endpoint),
+    [FIRST_PAGE, SECOND_PAGE],
+  );
+  assertNoSearch(report);
+});
+
+test("an untrusted next link refuses to create a duplicate", () => {
+  const report = runReport(
+    { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped" },
+    {
+      [FIRST_PAGE]: issuePage(
+        [{ number: 3, title: "other" }],
+        "https://evil.example/repos/honua-io/honua-sdk-js/issues?state=all&per_page=100&page=2",
+      ),
+    },
   );
   assert.equal(report.status, 1);
-  assert.match(report.stderr, /refusing to create a duplicate/u);
+  assert.match(report.stderr, /invalid next issue page link/u);
   assert.deepEqual(report.calls.map((call) => call.method), ["GET"]);
+  assertNoSearch(report);
 });
 
 test("rejected API inputs never reach gh", () => {
-  const search = { incomplete_results: false, items: [] };
+  const pages = { [FIRST_PAGE]: issuePage([]) };
   const cases = [
     { BUILD_RESULT: "failed", DEPLOY_RESULT: "skipped" },
     { BUILD_RESULT: "failure", DEPLOY_RESULT: "error" },
@@ -324,18 +421,20 @@ test("rejected API inputs never reach gh", () => {
   for (const override of cases) {
     const report = runReport(
       { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "skipped", ...override },
-      search,
+      pages,
     );
     assert.equal(report.status, 1, `${JSON.stringify(override)}\n${report.stderr}`);
     assert.deepEqual(report.calls, []);
   }
 });
 
-test("a search response without an issue list fails closed", () => {
+test("an issue list response without an issue array fails closed", () => {
   const report = runReport(
     { ...identity, BUILD_RESULT: "failure", DEPLOY_RESULT: "failure" },
-    { message: "unavailable" },
+    { [FIRST_PAGE]: "HTTP/2.0 200 OK\nContent-Type: application/json\n\n{\"message\":\"unavailable\"}\n" },
   );
   assert.notEqual(report.status, 0);
   assert.deepEqual(report.calls.map((call) => call.method), ["GET"]);
+  assert.equal(report.calls[0].endpoint, FIRST_PAGE);
+  assertNoSearch(report);
 });
