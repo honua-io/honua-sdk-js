@@ -12,9 +12,9 @@ const inputs = () => ({
   maturity: readJson("config/component-qualification.v1.json"),
   bundleBudgets: readJson("bundle-budgets.json"),
 });
-const build = (value, now = "2026-08-15T00:00:00.000Z") =>
+const build = (value, now = Date.parse(value.evidence.observedAt)) =>
   buildAppPlatformReferenceQualification(value, {
-    now: Date.parse(now),
+    now,
     fileExists: (relative) => fs.existsSync(path.join(ROOT, relative)),
     readText: (relative) => fs.readFileSync(path.join(ROOT, relative), "utf8"),
   });
@@ -67,7 +67,10 @@ test("rejects empty and unknown explicit reference-gate claims", () => {
 });
 
 test("rejects stale evidence rather than preserving a previously passing projection", () => {
-  const result = build(inputs(), "2026-11-13T00:00:00.000Z");
+  const value = inputs();
+  const expiry = Date.parse(value.evidence.expiresAt);
+  assert.deepEqual(build(value, expiry).failures, []);
+  const result = build(value, expiry + 1);
   assert.ok(result.failures.includes("reference qualification evidence is stale"));
 });
 
@@ -85,7 +88,7 @@ test("rejects missing files, source-only packed imports, and bundle-budget drift
   value.evidence.components[0].unit = ["test/does-not-exist.test.ts"];
   value.evidence.budgets.find((budget) => budget.id === "bundle-gzip").limit += 1;
   const result = buildAppPlatformReferenceQualification(value, {
-    now: Date.parse("2026-08-15T00:00:00.000Z"),
+    now: Date.parse(value.evidence.observedAt),
     fileExists: (relative) => relative !== "test/does-not-exist.test.ts",
     readText: () => 'import "../src/web-components/index.js";',
   });
