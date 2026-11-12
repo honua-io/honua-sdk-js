@@ -55,7 +55,7 @@ export class StacCogAssetSession {
     if (!options || typeof options.decoderFactory !== "function") {
       throw new HonuaCogError("decoder-failed", "A caller-injected COG decoder factory is required.");
     }
-    const fetchFn = options.fetchFn ?? globalThis.fetch;
+    const fetchFn = options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     if (typeof fetchFn !== "function") {
       throw new HonuaCogError("cors-unavailable", "No Fetch implementation is available for bounded COG ranges.");
     }

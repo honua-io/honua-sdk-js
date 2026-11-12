@@ -25,6 +25,7 @@ import {
   stacStaticTraversalPolicyIdentity,
   validateCachedStacStaticInspection,
 } from "./connect-stac-static.js";
+import { isOgcVectorTileTemplate } from "./core/ogc-vector-tile-template.js";
 export type {
   StacAssetCandidate,
   StacAssetCandidateMetadata,
@@ -1921,6 +1922,12 @@ function validateSnapshotLocator(
     return;
   }
   if (target.protocol === "ogc-records" || target.protocol === "ogc-tiles" || target.protocol === "ogc-maps") {
+    if (
+      locator.tileUrlTemplate !== undefined &&
+      (target.protocol !== "ogc-tiles" || !isOgcVectorTileTemplate(locator.tileUrlTemplate))
+    ) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached OGC vector tile template is invalid.");
+    }
     if (
       locator.url !== target.clientBaseUrl ||
       locator.basePath !== (target.ogcBasePath ?? "") ||

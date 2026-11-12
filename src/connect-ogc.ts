@@ -1,5 +1,6 @@
 /** Internal raw OGC API Records metadata projection for connect(). */
 
+import { discoverOgcVectorTemplate } from "./connect-ogc-vector-template.js";
 import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.js";
 import type {
   DiscoveryCacheIdentity,
@@ -11,6 +12,7 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceLocator } fr
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import { mapWithConcurrency } from "./core/map-with-concurrency.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
 import type {
@@ -171,20 +173,7 @@ export interface OgcRenderDiscoveryResult {
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
 }
 
-/**
- * Discover a raw (third-party) OGC API Tiles service and project every
- * advertised data collection into a reviewed render-only tileset source.
- *
- * Threads the discovered service-root `basePath` through the Tiles wire
- * methods the same way OGC API Records threads its root, so exactly the same
- * reviewed `Source` executes whether the tiles are served by the Honua facade
- * (`/ogc/tiles`) or a third-party root. Performs three bounded metadata
- * requests — landing, conformance, and the OGC API Common collections list —
- * and derives effective capabilities only from advertised conformance
- * intersected against the render-only Tiles adapter surface (`render`,
- * `tiles`); a service that advertises no Tiles conformance discovers a
- * structured `not-advertised` decision rather than an adapter default.
- */
+/** Discover render-only collections, probing optional vector metadata for at most four collections concurrently. */
 export async function discoverOgcTilesSources(
   client: HonuaClient,
   identity: DiscoveryCacheIdentity,
@@ -201,7 +190,7 @@ export async function discoverOgcTilesSources(
     client.listOgcCollections({ ...request, layout: ogcCollectionsLayout(basePath) }),
   ]);
   throwIfAborted(options.signal);
-  return projectRenderSources(
+  const discovered = projectRenderSources(
     "ogc-tiles",
     TILES_ADAPTER_SCOPE,
     identity.endpoint,
@@ -212,6 +201,21 @@ export async function discoverOgcTilesSources(
     collections,
     "OGC API Tiles",
   );
+  const supportsTiles = negotiateOgcCapabilities("ogc-tiles", conformance).has("tiles");
+  const candidates = discovered.sources.map((source, index) => ({
+    source,
+    collection: collections.collections[index]!,
+  }));
+  const sources = await mapWithConcurrency(candidates, 4, async ({ source, collection }) => {
+    throwIfAborted(options.signal);
+    const tileUrlTemplate = supportsTiles
+      ? await discoverOgcVectorTemplate(client, collection, { basePath, signal: options.signal })
+      : undefined;
+    return tileUrlTemplate
+      ? Object.freeze({ ...source, locator: Object.freeze({ ...source.locator, tileUrlTemplate }) })
+      : source;
+  });
+  return Object.freeze({ ...discovered, sources: Object.freeze(sources) });
 }
 
 /**
