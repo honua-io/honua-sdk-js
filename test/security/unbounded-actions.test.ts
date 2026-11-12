@@ -60,7 +60,6 @@ import type {
 import {
   DEFAULT_MAX_EMBEDDED_BYTES,
   DEFAULT_MAX_PACKAGE_BYTES,
-  HONUA_MAP_DOCUMENT_FORMAT_V1,
   type HonuaMapDocument,
   HonuaMapDocumentError,
   exportMapDocument,
@@ -73,7 +72,7 @@ import {
   HonuaStudioLifecycleClient,
   isHonuaStudioError,
 } from "../../src/studio/index.js";
-import { recordingClient } from "./harness.js";
+import { baseMapDocument, recordingClient } from "./harness.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Pagination caps
@@ -229,31 +228,6 @@ describe("unbounded actions :: poll bounds", () => {
 // Export byte budgets
 // ───────────────────────────────────────────────────────────────────────────
 
-function basePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
-  return {
-    mapPackageId: "pkg-1425-bounds",
-    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
-    status: "Ready",
-    sourceBindings: [
-      {
-        sourceId: "parcels",
-        protocol: "ogc_features",
-        locator: { url: "https://gis.example.test/ogc/collections/parcels" },
-        attribution: "City of Example",
-      },
-    ],
-    mapSpec: {
-      version: 8,
-      sources: {},
-      layers: [{ id: "parcels-fill", type: "fill", source: "parcels", paint: { "fill-color": "#cccccc" } }],
-    },
-    initialView: { center: [-122.4, 37.8], zoom: 11 },
-    attribution: [{ text: "City of Example", url: "https://example.test/credits", required: true }],
-    provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
-    ...overrides,
-  } as HonuaMapDocument;
-}
-
 /**
  * An inline GeoJSON body of at least `bytes` serialized bytes.
  *
@@ -283,7 +257,7 @@ describe("unbounded actions :: export budgets", () => {
     // dataset as GeoJSON. The artifact stops being a description of sources and
     // becomes a dataset nobody can afford to open, and the agent, having no
     // sense of scale, will do it with a million features as readily as ten.
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       mapSpec: {
         version: 8,
         sources: { bulk: { type: "geojson", data: inlineFeatures(DEFAULT_MAX_EMBEDDED_BYTES + 1) } },
@@ -306,7 +280,7 @@ describe("unbounded actions :: export budgets", () => {
     for (let index = 0; index * chunkBytes < DEFAULT_MAX_PACKAGE_BYTES + chunkBytes; index += 1) {
       sources[`bulk-${index}`] = { type: "geojson", data: inlineFeatures(chunkBytes) };
     }
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       mapSpec: {
         version: 8,
         sources,
@@ -324,7 +298,7 @@ describe("unbounded actions :: export budgets", () => {
     // holder, which carries no `data` or `features` key of its own, so the
     // per-value budget was a no-op on the reading side and an inline body the
     // exporter refuses at 256 KiB imported clean.
-    const envelope = exportMapDocument(basePackage(), { exportedAt: "2026-01-02T00:00:00.000Z" });
+    const envelope = exportMapDocument(baseMapDocument(), { exportedAt: "2026-01-02T00:00:00.000Z" });
     const inflated = {
       ...envelope,
       mapPackage: {
