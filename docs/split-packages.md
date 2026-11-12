@@ -233,3 +233,16 @@ budgets are recorded in the [installed First Map report](./installed-first-map-b
 The bundle gate separately checks the actual generated validator path is absent
 from focused HonuaClient, connect, createHonua and FeatureLayerCompat consumers;
 existing optional renderer and RPC exclusion guards remain enforced.
+
+### Conditional exports in the sample matrix
+
+`samples/dist/capability-sample-matrix.v2.json` records the full package export
+inventory, including the `node` condition on `./geoparquet/node`. It never
+substitutes a browser `default` target for a Node-only module. Its coverage states
+continue to require the same qualification evidence as other entrypoints.
+
+Existing site handoffs consume the v1 compatibility matrix. That projection
+contains only exports with a `default` target; its entrypoint dimensions and gap
+inventory use the same subset. It retains the digest of the complete package
+export input. Use v2 for the complete conditional export inventory. The published
+v1 schema and archived handoff integrity bindings remain unchanged.

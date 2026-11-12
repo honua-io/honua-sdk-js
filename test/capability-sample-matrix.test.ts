@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   collectQualificationEvidence,
   generateCapabilitySampleMatrix,
+  projectLegacyCapabilitySampleMatrix,
   validateCapabilitySampleMatrix,
   validateQualificationRunInventory,
 } from "../scripts/sample-contract.mjs";
@@ -559,6 +560,22 @@ describe("capability-to-sample matrix contract", () => {
       node: "./dist/src/geoparquet/node.js",
     };
     expect(entry?.targets).toEqual(nativeTargets);
+    expect(matrix).toMatchObject({ format: "honua.site.sdk-capability-sample-matrix.v2", schemaVersion: 2 });
+    const legacy = projectLegacyCapabilitySampleMatrix(matrix);
+    expect(legacy).toMatchObject({ format: "honua.site.sdk-capability-sample-matrix.v1", schemaVersion: 1 });
+    expect(legacy.inputs).toEqual(matrix.inputs);
+    expect(legacy.packageEntrypoints).toHaveLength(matrix.packageEntrypoints.length - 1);
+    expect(legacy.dimensions.packageEntrypoints).toEqual(legacy.packageEntrypoints.map((item) => item.subpath));
+    expect(legacy.dimensions.packageEntrypoints).not.toContain("./geoparquet/node");
+    expect(
+      legacy.gaps.some((gap) => gap.targetType === "package-entrypoint" && gap.targetId === "./geoparquet/node"),
+    ).toBe(false);
+    expect(matrix.dimensions.packageEntrypoints).toContain("./geoparquet/node");
+    await expect(validateCapabilitySampleMatrix(legacy, inputs)).resolves.toBeUndefined();
+    const invalidLegacy = structuredClone(matrix);
+    invalidLegacy.format = "honua.site.sdk-capability-sample-matrix.v1";
+    invalidLegacy.schemaVersion = 1;
+    await expect(validateCapabilitySampleMatrix(invalidLegacy)).rejects.toThrow();
     await expect(validateCapabilitySampleMatrix(matrix, inputs)).resolves.toBeUndefined();
     for (const targets of [
       { types: "./dist/src/geoparquet/node.d.ts", default: "./dist/src/geoparquet/node.js" },

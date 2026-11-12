@@ -468,20 +468,15 @@
         "replacement": { "$ref": "#/$defs/nonEmptyString" },
         "targets": {
           "type": "object",
-          "required": ["types"],
-          "oneOf": [{ "required": ["default"] }, { "required": ["node"] }],
+          "required": ["types", "default"],
           "properties": {
             "types": { "type": "string", "pattern": "^\\./dist/.+\\.d\\.ts$" },
-            "default": { "type": "string", "pattern": "^\\./dist/.+\\.js$" },
-            "node": { "type": "string", "pattern": "^\\./dist/.+\\.js$" }
+            "default": { "type": "string", "pattern": "^\\./dist/.+\\.js$" }
           },
           "additionalProperties": false
         },
         "coverage": { "$ref": "#/$defs/coverage" }
       },
-      "if": { "properties": { "subpath": { "const": "./geoparquet/node" } } },
-      "then": { "properties": { "targets": { "required": ["node"] } } },
-      "else": { "properties": { "targets": { "required": ["default"] } } },
       "additionalProperties": false
     },
     "gap": {
