@@ -11,6 +11,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  migrationCohortDiagnostic,
+  migrationCohortFetch,
+  migrationGitHubToken,
+} from "./lib/migration-cohort-github.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 import { publicResolverEnv } from "./verify-client-pair-install.mjs";
 import { attestationsUrl, decodeAttestationStatement, PROVENANCE_PREDICATE_TYPE, verifyPublishedRelease } from "./verify-published-release.mjs";
@@ -295,10 +300,11 @@ export async function recoverSdkPublicationRef({ item, tag, commit, proof, fetch
 }
 
 export async function verifyMigrationPublication(item, sdkPublication, networkFetch = fetch) {
+  const request = (url, init = {}) => migrationCohortFetch(url, init, { fetchImpl: networkFetch });
   const migrate = item.name === MIGRATE;
   const repository = `honua-io/${migrate ? "honua-migrate" : "honua-sdk-js"}`;
   const tag = `${migrate ? "javascript" : "js-sdk"}-v${item.version}`;
-  const response = await networkFetch(`https://api.github.com/repos/${repository}/commits/${tag}`, {
+  const response = await request(`https://api.github.com/repos/${repository}/commits/${tag}`, {
     signal: AbortSignal.timeout(30_000),
     headers: { Accept: "application/vnd.github+json" },
   });
@@ -308,8 +314,10 @@ export async function verifyMigrationPublication(item, sdkPublication, networkFe
   // Re-verification must authenticate the same registry bytes used to discover
   // the recovery invocation; do not learn a ref from a second mutable response.
   const responses = new Map();
-  const fetchImpl = async (url) => {
-    if (!responses.has(url)) responses.set(url, await networkFetch(url, { signal: AbortSignal.timeout(60_000) }));
+  const fetchImpl = async (url, init = {}) => {
+    if (!responses.has(url)) {
+      responses.set(url, await request(url, { signal: AbortSignal.timeout(60_000), ...init }));
+    }
     return responses.get(url).clone();
   };
   const target = { id: item.name, npmName: item.name, version: item.version, tag, commit: sha,
@@ -356,6 +364,7 @@ export async function verifyMigrationCohort(argv) {
     sdkVersion: manifest.version, migrateVersion, observedAt: new Date().toISOString(),
     nodeVersion: process.version, publications: [] };
   try {
+    migrationGitHubToken();
     fs.writeFileSync(path.join(consumer, "package.json"), JSON.stringify({
       name: "honua-migration-cohort-consumer", version: "0.0.0", private: true, type: "module",
     }));
@@ -406,7 +415,7 @@ export async function verifyMigrationCohort(argv) {
     receipt.cli = { canonicalExit: 0, legacyExit: 0, stdout: canonical.stdout, legacyWarning: legacy.stderr };
     receipt.status = "passed";
   } catch (error) {
-    receipt.error = error instanceof Error ? error.message : String(error);
+    receipt.error = migrationCohortDiagnostic(error);
     throw error;
   } finally {
     fs.writeFileSync(destination, `${JSON.stringify(receipt, null, 2)}\n`);
@@ -417,7 +426,7 @@ export async function verifyMigrationCohort(argv) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   verifyMigrationCohort(process.argv.slice(2)).catch((error) => {
-    process.stderr.write(`${error.message}\n`);
+    process.stderr.write(`${migrationCohortDiagnostic(error)}\n`);
     process.exitCode = 1;
   });
 }
