@@ -222,7 +222,9 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /gh run list[\s\S]*--event pull_request/u);
     assert.match(workflow, /\.headSha == \$generated/u);
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
-    assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
+    assert.match(workflow, /\["SDK CI","PR issue disposition","Security"\]/u);
+    assert.doesNotMatch(workflow, /expected_workflows='[^']*Schema sync gate/u);
+    assert.match(workflow, /"\$attached" -eq "\$expected_count"/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
     const mergeWait = workflow.slice(
       workflow.indexOf("- name: Wait for exact regeneration validation"),

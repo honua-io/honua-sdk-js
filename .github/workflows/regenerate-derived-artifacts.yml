@@ -902,7 +902,10 @@ jobs:
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
-          expected_workflows='["SDK CI","PR issue disposition","Schema sync gate","Security"]'
+          # Schema sync gate is path-filtered on pull requests and a regeneration PR can never
+          # touch the vendored schema tree (see the publish allowlist), so it never attaches here.
+          expected_workflows='["SDK CI","PR issue disposition","Security"]'
+          expected_count="$(jq length <<<"$expected_workflows")"
           for attempt in {1..30}; do
             runs="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
@@ -921,7 +924,7 @@ jobs:
             done < <(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<<"$matching")
             attached="$(jq 'map(.workflowName) | unique | length' <<<"$matching")"
             held="$(jq '[.[] | select(.conclusion == "action_required")] | length' <<<"$matching")"
-            if [[ "$attached" -eq 4 && "$held" -eq 0 ]]; then
+            if [[ "$attached" -eq "$expected_count" && "$held" -eq 0 ]]; then
               break
             fi
             if (( attempt == 30 )); then
