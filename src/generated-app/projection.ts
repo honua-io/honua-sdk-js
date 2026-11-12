@@ -18,7 +18,7 @@ import {
   type HonuaGeneratedAppFieldBinding,
   type HonuaGeneratedAppManifest,
   type HonuaGeneratedAppManifestArtifact,
-  type HonuaGeneratedAppPackage,
+  type HonuaGeneratedAppVersion,
   type HonuaGeneratedAppWidget,
 } from "./manifest.js";
 
@@ -59,18 +59,18 @@ export function createGeneratedAppManifestArtifact(
   };
 }
 
-export function projectAppPackageToGeneratedAppManifest(
-  pkg: HonuaGeneratedAppPackage,
+export function projectAppVersionToGeneratedAppManifest(
+  pkg: HonuaGeneratedAppVersion,
   options: { readonly mapPackage?: HonuaMapDocument } = {},
 ): HonuaGeneratedAppManifest {
   const artifact = pkg.manifest_artifact ?? pkg.manifestArtifact;
   if (!artifact) {
     throw new HonuaGeneratedAppError(
       "missing-manifest-artifact",
-      "AppPackage is missing manifest_artifact for generated-app preview",
+      "App version is missing manifest_artifact for generated-app preview",
       {
         stage: "projection",
-        detail: { appId: pkg.id, path: "AppPackage.manifest_artifact" },
+        detail: { appId: pkg.id, path: "AppVersion.manifest_artifact" },
       },
     );
   }
@@ -152,10 +152,14 @@ export function projectMapDocumentToGeneratedAppManifest(
 ): HonuaGeneratedAppManifest {
   const sourceId = options.sourceId ?? mapPackage.sourceBindings[0]?.sourceId;
   if (!sourceId) {
-    throw new HonuaGeneratedAppError("missing-binding", "MapPackage projection requires at least one source binding", {
-      stage: "projection",
-      detail: { appId: options.appId, path: "MapPackage.sourceBindings" },
-    });
+    throw new HonuaGeneratedAppError(
+      "missing-binding",
+      "Map document projection requires at least one source binding",
+      {
+        stage: "projection",
+        detail: { appId: options.appId, path: "MapDocument.sourceBindings" },
+      },
+    );
   }
 
   const bindings = {
@@ -251,7 +255,7 @@ function extractManifestArtifact(
           stage: "projection",
           detail: {
             appId,
-            path: "AppPackage.manifest_artifact.artifactKind",
+            path: "AppVersion.manifest_artifact.artifactKind",
             expected: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND,
             received: manifestArtifact.artifactKind,
           },
@@ -266,7 +270,7 @@ function extractManifestArtifact(
           stage: "projection",
           detail: {
             appId,
-            path: "AppPackage.manifest_artifact.artifactVersion",
+            path: "AppVersion.manifest_artifact.artifactVersion",
             expected: HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION,
             received: manifestArtifact.artifactVersion,
           },

@@ -74,7 +74,7 @@ export class MapWorkspaceController {
   #viewHandle: ViewHandle | undefined;
   #disposeMap: (() => void) | undefined;
   #activeIntentId: string | undefined;
-  // Bumped on every loadPackage() / refine() / dispose() entry. The
+  // Bumped on every loadMapDocument() / refine() / dispose() entry. The
   // operation captures it before awaiting and only commits state when
   // the captured value still matches at resolution time. Parallel
   // loads or refinements thereby cannot let an older `MapPackage`
@@ -118,9 +118,9 @@ export class MapWorkspaceController {
    * a newer load arrives discards its locally-built runtime/context
    * instead of overwriting the newer state.
    */
-  public async loadPackage(pkg: HonuaMapDocument): Promise<HonuaMapRuntime> {
+  public async loadMapDocument(pkg: HonuaMapDocument): Promise<HonuaMapRuntime> {
     if (!this.#loadOptions) {
-      throw new HonuaOperatorMapError("loadPackage requires loadOptions on the controller", {
+      throw new HonuaOperatorMapError("loadMapDocument requires loadOptions on the controller", {
         detail: { mapPackageId: pkg.mapPackageId },
       });
     }
@@ -186,7 +186,7 @@ export class MapWorkspaceController {
           const wrapped =
             error instanceof HonuaOperatorMapError
               ? error
-              : new HonuaOperatorMapError("map package load failed", {
+              : new HonuaOperatorMapError("map document load failed", {
                   cause: error,
                   detail: { mapPackageId: pkg.mapPackageId },
                 });
@@ -206,7 +206,7 @@ export class MapWorkspaceController {
    */
   public async refine(prompt: string, signal?: AbortSignal): Promise<HonuaMapDocument> {
     if (!this.#runtime) {
-      throw new HonuaOperatorMapError("refine called before loadPackage");
+      throw new HonuaOperatorMapError("refine called before loadMapDocument");
     }
     if (!this.#activeIntentId) {
       throw new HonuaOperatorMapError("refine requires bindIntent before invocation");
@@ -227,7 +227,7 @@ export class MapWorkspaceController {
             // mutate a stale or replaced runtime.
             return next;
           }
-          await ownRuntime.updatePackage(next);
+          await ownRuntime.updateMapDocument(next);
           if (gen !== this.#opGeneration || this.#runtime !== ownRuntime) {
             return next;
           }
@@ -282,7 +282,7 @@ export class MapWorkspaceController {
 
   #assertRuntime(): HonuaMapRuntime {
     if (!this.#runtime) {
-      throw new HonuaOperatorMapError("operation requires a loaded MapPackage");
+      throw new HonuaOperatorMapError("operation requires a loaded map document");
     }
     return this.#runtime;
   }

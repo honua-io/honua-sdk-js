@@ -111,7 +111,7 @@ function schemaErrorToDiagnostic(error: SchemaValidationError): Omit<HonuaMapDoc
   const missing = error.params?.missingProperty;
   const fullPath = missing ? (path ? `${path}.${missing}` : missing) : path;
   const detail = { schemaPath: error.schemaPath, keyword: error.keyword, params: error.params };
-  const message = `MapPackage does not satisfy honua-map-package.v1 at ${fullPath || "(root)"}${
+  const message = `Map document does not satisfy honua-map-package.v1 at ${fullPath || "(root)"}${
     error.message ? `: ${error.message}` : ""
   }.`;
   return { code: schemaErrorCode(fullPath, missing), severity: "error", message, path: fullPath || undefined, detail };
@@ -158,7 +158,7 @@ export function validateMapDocument(
     diagnostics.push({
       code: "invalid-package",
       severity: "error",
-      message: "MapPackage response must be a JSON object.",
+      message: "Map document response must be a JSON object.",
     });
     return { mapPackage: undefined, diagnostics, valid: false };
   }
@@ -342,7 +342,7 @@ function validateLifecycle(
     add({
       code: "expired-package",
       severity: "error",
-      message: "MapPackage status is Expired.",
+      message: "Map document status is Expired.",
       path: "status",
       detail: { status: pkg.status },
     });
@@ -353,7 +353,7 @@ function validateLifecycle(
     add({
       code: "expired-package",
       severity: "error",
-      message: "MapPackage expiresAt is in the past.",
+      message: "Map document expiresAt is in the past.",
       path: "expiresAt",
       detail: { expiresAt: pkg.expiresAt },
     });
@@ -366,7 +366,7 @@ function validateLifecycle(
     add({
       code: "stale-package",
       severity: "warning",
-      message: "MapPackage is older than the configured freshness budget.",
+      message: "Map document is older than the configured freshness budget.",
       path: pkg.updatedAt ? "updatedAt" : "createdAt",
       detail: { ageMs: nowMs - updatedAt, maxAgeMs: options.maxAgeMs },
     });

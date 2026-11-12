@@ -1,14 +1,17 @@
 {
   "$comment": "Exceptions for test/vocabulary-public-names.test.ts. Policy: honua-server docs/concepts/domain/README.md and scripts/ci/retired-terms.v1.json. Every exported name containing a retired term must be listed here; shrink these lists, do not grow them.",
   "renamed": {
-    "reason": "Pre-vocabulary names renamed outright in #2348 (old -> new). The product is unreleased, so there are no deprecated aliases; none of these may be exported again.",
+    "reason": "Pre-vocabulary names renamed outright in #2348 (old -> new), mirrored in docs/vocabulary-renames.md. The product is unreleased, so there are no deprecated aliases; none of these may be exported again.",
     "names": {
+      "AppPackage": "AppVersion",
       "BoundedMapPackageFetchCache": "BoundedMapDocumentFetchCache",
       "createMapPackageServerSentEventsTransport": "createMapDocumentServerSentEventsTransport",
       "decodeMapPackageRealtimeMessage": "decodeMapDocumentRealtimeMessage",
       "DEFAULT_MAP_PACKAGE_CACHE_LIMIT": "DEFAULT_MAP_DOCUMENT_CACHE_LIMIT",
       "DEFAULT_MAP_PACKAGE_PATH_PREFIX": "DEFAULT_MAP_DOCUMENT_PATH_PREFIX",
+      "DEFAULT_MAX_PACKAGE_BYTES": "DEFAULT_MAX_MAP_DOCUMENT_BYTES",
       "defaultMapPackagePath": "defaultMapDocumentPath",
+      "diffPackages": "diffMapDocuments",
       "encodeMapPackageRealtimeUrl": "encodeMapDocumentRealtimeUrl",
       "exportMapPackage": "exportMapDocument",
       "ExportMapPackageOptions": "ExportMapDocumentOptions",
@@ -23,6 +26,7 @@
       "HonuaApiTokenCreateRequest": "HonuaApiKeyCreateRequest",
       "HonuaApiTokensClient": "HonuaApiKeysClient",
       "HonuaCreateHostedMapRequest": "HonuaCreateSavedMapRequest",
+      "HonuaGeneratedAppPackage": "HonuaGeneratedAppVersion",
       "HonuaHostedMap": "HonuaSavedMap",
       "HonuaHostedMapsClient": "HonuaSavedMapsClient",
       "HonuaHostedMapSummary": "HonuaSavedMapSummary",
@@ -103,6 +107,7 @@
       "MapPackageServerSentEventsTransportOptions": "MapDocumentServerSentEventsTransportOptions",
       "MapPackageWatchEvent": "MapDocumentWatchEvent",
       "MapPackageWatchHandle": "MapDocumentWatchHandle",
+      "projectAppPackageToGeneratedAppManifest": "projectAppVersionToGeneratedAppManifest",
       "projectMapPackageToGeneratedAppManifest": "projectMapDocumentToGeneratedAppManifest",
       "ProjectMapPackageToGeneratedAppManifestOptions": "ProjectMapDocumentToGeneratedAppManifestOptions",
       "readMapPackageRealtimeAdvertisement": "readMapDocumentRealtimeAdvertisement",
@@ -180,7 +185,6 @@
   "pendingRename": {
     "reason": "Retired terms in beta and deprecated-forwarder surfaces (app and scene state stores, operator shell, Kepler bridge, Studio content listing, server workspace route) not yet renamed; follow-up renames rename them outright, with no deprecated aliases.",
     "names": [
-      "AppPackage",
       "BuilderWorkspaceController",
       "BuilderWorkspaceControllerOptions",
       "BuilderWorkspaceEvent",
@@ -218,7 +222,6 @@
       "HonuaAppWorkspaceSourceState",
       "HonuaAppWorkspaceState",
       "HonuaAppWorkspaceTableModel",
-      "HonuaGeneratedAppPackage",
       "HonuaSavedWorkspaceAnalysisOutput",
       "HonuaSavedWorkspaceCreateOptions",
       "HonuaSavedWorkspaceDocument",
@@ -279,7 +282,6 @@
       "createSceneWorkspace",
       "emptySceneWorkspaceState",
       "hydrateHonuaSavedWorkspaceState",
-      "projectAppPackageToGeneratedAppManifest",
       "reattachHonuaSavedWorkspaceArtifacts",
       "reduceSceneWorkspaceState",
       "sceneWorkspaceIntentFromAdapterEvent",

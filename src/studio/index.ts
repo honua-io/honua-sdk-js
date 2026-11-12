@@ -161,7 +161,7 @@ export type {
 export { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "../runtime/map-package.js";
 export type { HonuaMapDocument, HonuaMapDocumentFormat } from "../runtime/map-package.js";
 export { HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 } from "../generated-app/manifest.js";
-export type { HonuaGeneratedAppManifest, HonuaGeneratedAppPackage } from "../generated-app/manifest.js";
+export type { HonuaGeneratedAppManifest, HonuaGeneratedAppVersion } from "../generated-app/manifest.js";
 
 export {
   HONUA_STUDIO_PROBLEM_TYPE,

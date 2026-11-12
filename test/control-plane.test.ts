@@ -304,7 +304,7 @@ describe("control-plane client", () => {
         ),
     );
 
-    const hostedMapPackage = await controlPlane.savedMaps.getPackageLocator("map-ops");
+    const hostedMapPackage = await controlPlane.savedMaps.getMapDocumentLocator("map-ops");
     expect(hostedMapPackage).toEqual({
       supported: true,
       value: { path: "/api/v1/admin/maps/map-ops/package" },

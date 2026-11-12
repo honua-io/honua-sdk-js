@@ -39,7 +39,7 @@
  * preserved through the open `[extra: string]: unknown` index signature,
  * no parallel validation logic.
  *
- * `AppPackage` is forward-declared as a stub until the canonical server
+ * `AppVersion` is forward-declared as a stub until the canonical server
  * shape is delivered alongside the `HonuaClient` operator transport.
  *
  * @module
@@ -164,7 +164,7 @@ export interface ArtifactRef {
  * the `HonuaClient` operator transport ticket lands. Until then in-repo
  * fixtures drive `BuilderWorkspaceController` and its tests.
  */
-export interface AppPackage {
+export interface AppVersion {
   readonly id: string;
   readonly version: string;
   readonly assets: ReadonlyArray<ArtifactRef>;
@@ -186,7 +186,7 @@ export interface ExecutionResult {
   readonly kind: ExecutionResultKind;
   readonly summary?: string;
   readonly mapPackage?: HonuaMapDocument;
-  readonly appPackage?: AppPackage;
+  readonly appPackage?: AppVersion;
   readonly artifacts?: ReadonlyArray<ArtifactRef>;
   readonly provenance?: ReadonlyArray<ProvenanceRecord>;
   readonly [extra: string]: unknown;

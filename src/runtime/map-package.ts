@@ -6,7 +6,7 @@
  * Field names mirror the server's camelCase JSON; see
  * `/honua-server/docs/developer/AI_OPERATOR_CONTRACT.md#MapPackage` for the
  * authoritative definition. The runtime preserves unknown fields on the
- * package through `updatePackage` so minor additive changes do not break
+ * package through `updateMapDocument` so minor additive changes do not break
  * callers.
  *
  * @module
@@ -254,7 +254,7 @@ export interface HonuaMapDocumentProvenance {
 /**
  * v1 MapPackage shape — mirrors the draft server type in
  * `/home/makani/honua-server/src/Honua.Core/Features/Geoprocessing/Domain/MapPackage.cs`.
- * Unknown fields are preserved through `updatePackage` round-trip so
+ * Unknown fields are preserved through `updateMapDocument` round-trip so
  * minor additive changes do not break runtime consumers.
  */
 export interface HonuaMapDocument {

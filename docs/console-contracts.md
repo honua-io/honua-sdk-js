@@ -56,7 +56,7 @@ state derived from a projection.
 | Content item wire shape | **server-owned** | `honua-server` |
 | Sharing / embed / provenance wire shapes | **server-owned** | `honua-server`, RBAC API (`#1162`) |
 | Map document (`honua_map_package.v1`) | **server-owned** | `honua-server`; typed in SDK `@honua/sdk-js/runtime` (`HonuaMapDocument`) |
-| Generated AppPackage + manifest artifact | **server-owned** | `honua-server` builder; typed in `@honua/sdk-js/generated-app` |
+| Generated AppVersion + manifest artifact | **server-owned** | `honua-server` builder; typed in `@honua/sdk-js/generated-app` |
 | Dashboard / report package wire shape | **server-owned** | `honua-server` |
 | `HonuaConsoleContentItem` / `HonuaConsoleMetadata` / `HonuaConsoleSharing` / `HonuaConsoleEmbed` / `HonuaConsoleProvenance` | **SDK-projected** | `src/console/content.ts` |
 | `HonuaVegaLiteSpec` subset + `assert`/`is`/`normalize` | **SDK-projected** | `src/console/vega-lite.ts` |

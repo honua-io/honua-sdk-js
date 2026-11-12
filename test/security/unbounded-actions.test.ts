@@ -59,7 +59,7 @@ import type {
 } from "../../src/realtime/index.js";
 import {
   DEFAULT_MAX_EMBEDDED_BYTES,
-  DEFAULT_MAX_PACKAGE_BYTES,
+  DEFAULT_MAX_MAP_DOCUMENT_BYTES,
   HONUA_MAP_DOCUMENT_FORMAT_V1,
   type HonuaMapDocument,
   HonuaMapDocumentError,
@@ -303,7 +303,7 @@ describe("unbounded actions :: export budgets", () => {
     // per-value budget alone is not a budget.
     const chunkBytes = Math.floor(DEFAULT_MAX_EMBEDDED_BYTES / 2);
     const sources: Record<string, unknown> = {};
-    for (let index = 0; index * chunkBytes < DEFAULT_MAX_PACKAGE_BYTES + chunkBytes; index += 1) {
+    for (let index = 0; index * chunkBytes < DEFAULT_MAX_MAP_DOCUMENT_BYTES + chunkBytes; index += 1) {
       sources[`bulk-${index}`] = { type: "geojson", data: inlineFeatures(chunkBytes) };
     }
     const pkg = basePackage({
@@ -314,7 +314,9 @@ describe("unbounded actions :: export budgets", () => {
       },
     } as Partial<HonuaMapDocument>);
 
-    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(new RegExp(String(DEFAULT_MAX_PACKAGE_BYTES)));
+    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(
+      new RegExp(String(DEFAULT_MAX_MAP_DOCUMENT_BYTES)),
+    );
   });
 
   it("re-applies the per-value budget at every path on import, not only at the root", () => {

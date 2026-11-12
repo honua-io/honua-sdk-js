@@ -43,7 +43,7 @@ before touching the pin, playgrounds, capability keys or sample fixtures.
   `test/vocabulary-public-names.test.ts` fails on a new export carrying a retired term; its
   exceptions file (`test/fixtures/vocabulary/`) only shrinks. The product is unreleased, so rename
   outright: no deprecated aliases, re-exports or shims for the old name. Add the old -> new pair to
-  the fixture's `renamed` list. Leave server wire fields, error codes and format ids unchanged.
+  the fixture's `renamed` list and to `docs/vocabulary-renames.md`. Leave server wire fields, error codes and format ids unchanged.
 - Migration CLI scripts (`scan:arcgis`, `migrate:arcgis`, ...) build first and run
   `dist/src/migration/cli.js`.
 

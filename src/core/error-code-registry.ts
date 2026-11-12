@@ -697,13 +697,13 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     "app",
     "validation",
     false,
-    "Generated app map widget requires a MapPackage",
+    "Generated app map widget requires a map document",
   ),
   "app.map-package-mismatch": classification(
     "app",
     "validation",
     false,
-    "Generated app MapPackage does not match its manifest",
+    "Generated app map document does not match its manifest",
   ),
   "app.missing-widget": classification(
     "app",

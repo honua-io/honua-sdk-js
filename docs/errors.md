@@ -373,8 +373,8 @@ classification is conservatively non-retryable.
 | `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
 | `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
 | `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
-| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
-| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a map document |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app map document does not match its manifest |
 | `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
 | `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
 | `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |

@@ -1,5 +1,5 @@
 /**
- * Diff primitives for incremental `updatePackage` application.
+ * Diff primitives for incremental `updateMapDocument` application.
  *
  * The runtime uses stable IDs (`sourceId`, `layer.id`) as the diff key
  * and falls back to a full `map.setStyle` only when structural change
@@ -31,7 +31,7 @@ export interface MapDocumentDiff {
   structuralReason?: string;
 }
 
-export function diffPackages(previous: HonuaMapDocument, next: HonuaMapDocument): MapDocumentDiff {
+export function diffMapDocuments(previous: HonuaMapDocument, next: HonuaMapDocument): MapDocumentDiff {
   const prevBindings = new Map(previous.sourceBindings.map((b) => [b.sourceId, b]));
   const nextBindings = new Map(next.sourceBindings.map((b) => [b.sourceId, b]));
 

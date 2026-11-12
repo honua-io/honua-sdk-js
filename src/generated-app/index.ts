@@ -32,7 +32,7 @@ export type {
   HonuaGeneratedAppManifestArtifactVersion,
   HonuaGeneratedAppManifestFormat,
   HonuaGeneratedAppMapWidget,
-  HonuaGeneratedAppPackage,
+  HonuaGeneratedAppVersion,
   HonuaGeneratedAppProfile,
   HonuaGeneratedAppTableWidget,
   HonuaGeneratedAppWidget,
@@ -43,7 +43,7 @@ export type {
 export {
   assertGeneratedAppManifest,
   createGeneratedAppManifestArtifact,
-  projectAppPackageToGeneratedAppManifest,
+  projectAppVersionToGeneratedAppManifest,
   projectBuildSpecToGeneratedAppManifest,
   projectMapDocumentToGeneratedAppManifest,
 } from "./projection.js";

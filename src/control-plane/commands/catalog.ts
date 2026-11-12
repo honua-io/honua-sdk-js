@@ -261,13 +261,13 @@ export interface MapDocumentPublishInput {
 /** `POST /packages` — publish a map package version. */
 export const mapDocumentPublishCommand: HonuaCommand<MapDocumentPublishInput, HonuaPublishMapDocumentResponse> = {
   id: "map-package.publish",
-  title: "Publish a map package",
-  description: "Publish a map package version. Approval and visibility remain server-side decisions.",
+  title: "Publish a map document",
+  description: "Publish a map document version. Approval and visibility remain server-side decisions.",
   mode: "action",
   resourceKind: "map-package",
   inputSchema: {
     type: "object",
-    description: "The map package to publish and where it belongs.",
+    description: "The map document to publish and where it belongs.",
     properties: {
       mapId: { type: "string", minLength: 1, description: "Hosted map the package version belongs to." },
       workspaceId: { type: "string", minLength: 1, description: "Owning workspace." },
@@ -297,7 +297,7 @@ export const mapDocumentPublishCommand: HonuaCommand<MapDocumentPublishInput, Ho
     return {
       method: "POST",
       path: "/packages",
-      summary: input.mapId ? `Publish a package version for map ${input.mapId}` : "Publish a map package version",
+      summary: input.mapId ? `Publish a map document version for map ${input.mapId}` : "Publish a map document version",
       resourceRef: {
         type: "map-package",
         ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),

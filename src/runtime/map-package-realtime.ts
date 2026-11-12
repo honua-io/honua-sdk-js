@@ -327,7 +327,7 @@ export function redactMapDocumentRealtimeUrl(input: string | URL): string {
 export function decodeMapDocumentRealtimeMessage(payload: unknown): MapDocumentRealtimeMessage {
   const event = unwrapRealtimeEnvelope(payload);
   const rawType = typeof event.type === "string" ? event.type : typeof event.kind === "string" ? event.kind : undefined;
-  if (!rawType) throw new Error("MapPackage realtime message is missing type.");
+  if (!rawType) throw new Error("Map document realtime message is missing type.");
 
   const base = realtimeMessageBase(event);
   switch (rawType) {
@@ -358,14 +358,14 @@ export function decodeMapDocumentRealtimeMessage(payload: unknown): MapDocumentR
       return {
         ...base,
         type: "reload-required",
-        reason: typeof event.reason === "string" ? event.reason : "MapPackage update requires a full style reload.",
+        reason: typeof event.reason === "string" ? event.reason : "Map document update requires a full style reload.",
         ...(hasRealtimeUpdate(event) ? { update: decodeRealtimeUpdate(event) } : {}),
       };
     case "error":
       return {
         ...base,
         type: "error",
-        error: event.error ?? event.message ?? "MapPackage realtime channel error.",
+        error: event.error ?? event.message ?? "Map document realtime channel error.",
         ...(typeof event.code === "string" ? { code: event.code } : {}),
         ...(typeof event.terminal === "boolean" ? { terminal: event.terminal } : {}),
         ...(typeof event.retryAfterMs === "number" ? { retryAfterMs: event.retryAfterMs } : {}),
@@ -378,7 +378,7 @@ export function decodeMapDocumentRealtimeMessage(payload: unknown): MapDocumentR
         ...(typeof event.retryAfterMs === "number" ? { retryAfterMs: event.retryAfterMs } : {}),
       };
     default:
-      throw new Error(`Unsupported MapPackage realtime message type "${rawType}".`);
+      throw new Error(`Unsupported map document realtime message type "${rawType}".`);
   }
 }
 
@@ -443,7 +443,7 @@ function isEventSourceClosed(source: MapDocumentRealtimeEventSource): boolean {
 }
 
 function unwrapRealtimeEnvelope(payload: unknown): Record<string, unknown> {
-  if (!isRecord(payload)) throw new Error("MapPackage realtime message must be a JSON object.");
+  if (!isRecord(payload)) throw new Error("Map document realtime message must be a JSON object.");
   if (isRecord(payload.event)) return payload.event;
   if (isRecord(payload.message)) return payload.message;
   if (isRecord(payload.mapPackageWatch)) return payload.mapPackageWatch;
@@ -507,7 +507,7 @@ function decodeRealtimeUpdate(event: Record<string, unknown>): MapDocumentRealti
     };
   }
 
-  throw new Error("MapPackage realtime update must include package, patch, or refetch payload.");
+  throw new Error("Map document realtime update must include package, patch, or refetch payload.");
 }
 
 function normalizeAdvertisement(value: unknown): MapDocumentRealtimeAdvertisement | undefined {

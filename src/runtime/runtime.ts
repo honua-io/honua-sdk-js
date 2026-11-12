@@ -26,7 +26,7 @@ import type {
 } from "../interactions/hit-test.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import { type MapDocumentDiff, diffPackages } from "./diff.js";
+import { type MapDocumentDiff, diffMapDocuments } from "./diff.js";
 import { HonuaMapDocumentError } from "./errors.js";
 import { type LegendEntry, buildLegend } from "./legend.js";
 import type { HonuaMapDocument, HonuaMapDocumentPopupBinding } from "./map-package.js";
@@ -135,7 +135,7 @@ export type HonuaRuntimeEventListener = (event: HonuaRuntimeEvent) => void;
 // ── Options ──────────────────────────────────────────────────
 
 /**
- * Result of a reload pass produced by the loader. `updatePackage` uses
+ * Result of a reload pass produced by the loader. `updateMapDocument` uses
  * this to replace the runtime's dataset / honuaMap on structural
  * refresh, so `runtime.dataset` and `runtime.honuaMap` observe changes
  * to `sourceBindings[]` instead of going stale.
@@ -228,7 +228,7 @@ export class HonuaMapRuntime {
 
   /**
    * The `HonuaMap` owning the current package's sources and layers. The
-   * reference is replaced after every successful `updatePackage` call so
+   * reference is replaced after every successful `updateMapDocument` call so
    * consumers always observe the live source and layer specs rather than
    * the ones captured at first load.
    */
@@ -238,7 +238,7 @@ export class HonuaMapRuntime {
 
   /**
    * The `Dataset` bound to the current package's source bindings. The
-   * reference is replaced after every successful `updatePackage` call so
+   * reference is replaced after every successful `updateMapDocument` call so
    * a source-binding locator or filter change is visible through
    * `runtime.dataset.source(id)`.
    */
@@ -876,7 +876,7 @@ export class HonuaMapRuntime {
     const resolved = binding ?? popupBindingForSource(this.#packageRef.current, sourceId);
     if (!resolved) {
       throw new HonuaMapDocumentError(
-        `no popupBinding found for layer "${layerId}"; supply a binding argument or add one to MapPackage.popupBindings`,
+        `no popupBinding found for layer "${layerId}"; supply a binding argument or add one to MapDocument.popupBindings`,
         { packageId: this.#packageRef.current.mapPackageId, stage: "popup", detail: { layerId } },
       );
     }
@@ -948,13 +948,13 @@ export class HonuaMapRuntime {
    * incrementally when safe; falls back to `map.setStyle` for structural
    * changes. Preserves unknown fields from `next` on round-trip.
    */
-  public async updatePackage(next: HonuaMapDocument): Promise<void> {
+  public async updateMapDocument(next: HonuaMapDocument): Promise<void> {
     this.#assertLive();
     const span = this.#startSpan("update", next.mapPackageId, { previousId: this.#packageRef.current.mapPackageId });
     try {
       if (next.format !== this.#packageRef.current.format) {
         throw new HonuaMapDocumentError(
-          `updatePackage: format "${next.format}" is incompatible with "${this.#packageRef.current.format}"`,
+          `updateMapDocument: format "${next.format}" is incompatible with "${this.#packageRef.current.format}"`,
           {
             packageId: next.mapPackageId,
             stage: "update",
@@ -963,7 +963,7 @@ export class HonuaMapRuntime {
         );
       }
 
-      let diff = diffPackages(this.#packageRef.current, next);
+      let diff = diffMapDocuments(this.#packageRef.current, next);
 
       const reload = await this.#reload(next);
       const composedStructuralReason = diff.incremental
@@ -1009,7 +1009,7 @@ export class HonuaMapRuntime {
     } catch (error) {
       this.#finishSpan(span, error);
       if (error instanceof HonuaMapDocumentError) throw error;
-      throw new HonuaMapDocumentError("updatePackage failed", {
+      throw new HonuaMapDocumentError("updateMapDocument failed", {
         packageId: next.mapPackageId,
         stage: "update",
         cause: error,

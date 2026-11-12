@@ -219,7 +219,7 @@ describe("command receipts", () => {
     expect(receipt.plan).toEqual({
       method: "POST",
       path: "/packages",
-      summary: "Publish a package version for map map-ops",
+      summary: "Publish a map document version for map map-ops",
       resourceRef: { type: "map-package" },
     });
     expect(receipt.output).toBeUndefined();

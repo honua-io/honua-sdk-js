@@ -15,7 +15,7 @@
  *   popupFactory: () => new maplibregl.Popup(),
  * });
  * runtime.setLayerVisibility("parcels-fill", false);
- * await runtime.updatePackage(nextPkg);
+ * await runtime.updateMapDocument(nextPkg);
  * ```
  *
  * @packageDocumentation
@@ -104,7 +104,7 @@ export type {
 
 export {
   DEFAULT_MAX_EMBEDDED_BYTES,
-  DEFAULT_MAX_PACKAGE_BYTES,
+  DEFAULT_MAX_MAP_DOCUMENT_BYTES,
   HONUA_MAP_DOCUMENT_EXPORT_KIND_V1,
   exportMapDocument,
   importMapDocument,
@@ -284,7 +284,7 @@ export type {
   QueryTileViewportRequestResult,
 } from "./query-tiles.js";
 
-export { diffPackages } from "./diff.js";
+export { diffMapDocuments } from "./diff.js";
 export type { MapDocumentDiff } from "./diff.js";
 
 export {

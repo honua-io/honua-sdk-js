@@ -12,7 +12,7 @@ import type { HonuaOperatorError } from "../errors.js";
 import type {
   AnalysisIntent,
   AnalysisPlan,
-  AppPackage,
+  AppVersion,
   ApprovalDecision,
   BuilderIntent,
   BuilderPlan,
@@ -35,8 +35,8 @@ export type WorkspaceEvent =
   | { kind: "execution-dismissed"; executionId: string }
   | { kind: "map-loaded"; pkg: HonuaMapDocument }
   | { kind: "map-refined"; pkg: HonuaMapDocument }
-  | { kind: "app-loaded"; pkg: AppPackage }
-  | { kind: "app-refined"; pkg: AppPackage }
+  | { kind: "app-loaded"; pkg: AppVersion }
+  | { kind: "app-refined"; pkg: AppVersion }
   | { kind: "approval-required"; decision: ApprovalDecision }
   | { kind: "approval-resolved"; decision: ApprovalDecision }
   | { kind: "error"; error: HonuaOperatorError; recoverable: boolean };

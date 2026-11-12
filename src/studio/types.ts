@@ -25,7 +25,7 @@ import type {
   HonuaGeneratedAppDataBinding,
   HonuaGeneratedAppFieldBinding,
   HonuaGeneratedAppLayout,
-  HonuaGeneratedAppPackage,
+  HonuaGeneratedAppVersion,
 } from "../generated-app/manifest.js";
 import type { HonuaMapDocument, HonuaMapDocumentStatus } from "../runtime/map-package.js";
 
@@ -283,7 +283,7 @@ export interface StudioPackageFamilyShapes {
   readonly dashboard: HonuaDashboardPackage;
   readonly report: HonuaReportPackage;
   readonly form: HonuaFormPackage;
-  readonly app: HonuaGeneratedAppPackage;
+  readonly app: HonuaGeneratedAppVersion;
   readonly workflow: HonuaWorkflowPackage;
   readonly gp: HonuaGPPackage;
   readonly etl: HonuaETLPackage;

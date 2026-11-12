@@ -171,7 +171,7 @@ export async function fetchMapDocument(
 
   if (response.status === 304) {
     if (!cached) {
-      throw new HonuaMapDocumentError("MapPackage fetch returned 304 without an SDK cache entry", {
+      throw new HonuaMapDocumentError("Map document fetch returned 304 without an SDK cache entry", {
         stage: "fetch",
         detail: { path },
       });
@@ -197,7 +197,7 @@ export async function fetchMapDocument(
   const diagnostics = [...resolved.diagnostics, ...validation.diagnostics];
 
   if (hasMapDocumentDiagnosticErrors(diagnostics) && options.allowInvalid !== true) {
-    throw new HonuaMapDocumentError("MapPackage validation failed", {
+    throw new HonuaMapDocumentError("Map document validation failed", {
       packageId: packageIdFromUnknown(mapPackage),
       stage: "validate",
       detail: { diagnostics, path },
@@ -272,7 +272,7 @@ export function resolveMapDocumentPath(locator: MapDocumentLocator, resolvePath?
   if (direct) return direct;
   const id = locator.packageId ?? locator.id;
   if (!id) {
-    throw new HonuaMapDocumentError("MapPackage locator requires id, packageId, path, url, or href", {
+    throw new HonuaMapDocumentError("Map document locator requires id, packageId, path, url, or href", {
       stage: "fetch",
       detail: { locator },
     });
@@ -426,7 +426,7 @@ async function parseJsonBody(response: Response, path: string): Promise<unknown>
   try {
     return await response.json();
   } catch (cause) {
-    throw new HonuaMapDocumentError("MapPackage fetch response was not valid JSON", {
+    throw new HonuaMapDocumentError("Map document fetch response was not valid JSON", {
       stage: "fetch",
       detail: { path },
       cause,

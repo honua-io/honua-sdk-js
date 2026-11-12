@@ -80,8 +80,8 @@ describe("watchMapDocument realtime", () => {
         return { close };
       },
     };
-    const updatePackage = vi.fn(async () => {});
-    const runtime = { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime;
+    const updateMapDocument = vi.fn(async () => {});
+    const runtime = { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime;
 
     const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
@@ -113,8 +113,8 @@ describe("watchMapDocument realtime", () => {
     });
     await flushPromises();
 
-    expect(updatePackage).toHaveBeenCalledTimes(1);
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledTimes(1);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
     expect(events.map((event) => event.type)).toContain("connected");
     expect(events.filter((event) => event.type === "updated")).toHaveLength(1);
 
@@ -140,12 +140,12 @@ describe("watchMapDocument realtime", () => {
     });
     const events: MapDocumentWatchEvent[] = [];
     const sources: MockMapPackageEventSource[] = [];
-    const updatePackage = vi.fn(async () => {});
+    const updateMapDocument = vi.fn(async () => {});
 
     const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
       initialPackage: initial,
-      runtime: { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime,
+      runtime: { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime,
       immediate: false,
       realtime: {
         eventSourceFactory(url, init) {
@@ -176,7 +176,7 @@ describe("watchMapDocument realtime", () => {
     await flushPromises();
 
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "connected", advertised: true })]));
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
 
     handle.dispose();
     expect(source?.closed).toBe(true);
@@ -277,12 +277,12 @@ describe("watchMapDocument realtime", () => {
         return { close: vi.fn() };
       },
     };
-    const updatePackage = vi.fn(async () => {});
+    const updateMapDocument = vi.fn(async () => {});
 
     const handle = watchMapDocument("pkg-001", {
       client: makeClient(fetchFn),
       initialPackage: initial,
-      runtime: { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime,
+      runtime: { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime,
       immediate: false,
       realtime: { transport, reconnect: false },
       onEvent: (event) => {
@@ -300,7 +300,7 @@ describe("watchMapDocument realtime", () => {
     await flushPromises();
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "fallback", mode: "polling", reason: "AUTH" }),

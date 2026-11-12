@@ -286,7 +286,7 @@ export async function createHonuaApp<T = Record<string, unknown>>(
             emit({
               type: "degraded",
               stage: "watch",
-              reason: "MapPackage watch reported an error.",
+              reason: "Map document watch reported an error.",
               error: event.error,
             });
           }
@@ -611,7 +611,7 @@ function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMap
     case "maplibre-geojson":
     case "ogc-coverages":
     case "wcs":
-      throw new HonuaMapDocumentError(`SourceDescriptor protocol "${protocol}" cannot be projected to a MapPackage`, {
+      throw new HonuaMapDocumentError(`SourceDescriptor protocol "${protocol}" cannot be projected to a map document`, {
         stage: "source-bind",
       });
   }

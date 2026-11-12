@@ -80,7 +80,7 @@ export const HONUA_MAP_DOCUMENT_EXPORT_KIND_V1 = "honua.map-package.export.v1" a
 export const DEFAULT_MAX_EMBEDDED_BYTES = 256 * 1024;
 
 /** Default budget for the whole serialized envelope. 4 MiB. */
-export const DEFAULT_MAX_PACKAGE_BYTES = 4 * 1024 * 1024;
+export const DEFAULT_MAX_MAP_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
 /**
  * A portable map artifact.
@@ -115,7 +115,7 @@ export interface ExportMapDocumentOptions {
   readonly credentials?: "strip" | "reject";
   /** Per-value inline-data budget in bytes. Defaults to {@link DEFAULT_MAX_EMBEDDED_BYTES}. */
   readonly maxEmbeddedBytes?: number;
-  /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_PACKAGE_BYTES}. */
+  /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_MAP_DOCUMENT_BYTES}. */
   readonly maxPackageBytes?: number;
   /** Timestamp stamped on the envelope. Defaults to now. */
   readonly exportedAt?: string | Date;
@@ -130,7 +130,7 @@ export interface ExportMapDocumentOptions {
 export interface ImportMapDocumentOptions {
   /** Per-value inline-data budget in bytes. Defaults to {@link DEFAULT_MAX_EMBEDDED_BYTES}. */
   readonly maxEmbeddedBytes?: number;
-  /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_PACKAGE_BYTES}. */
+  /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_MAP_DOCUMENT_BYTES}. */
   readonly maxPackageBytes?: number;
   /**
    * Skip the stamped-fingerprint comparison. Only for callers that knowingly
@@ -164,13 +164,13 @@ export function exportMapDocument(
 ): HonuaMapDocumentExport {
   const packageId = typeof pkg?.mapPackageId === "string" ? pkg.mapPackageId : undefined;
   const maxEmbeddedBytes = normalizeBudget(options.maxEmbeddedBytes, DEFAULT_MAX_EMBEDDED_BYTES);
-  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_PACKAGE_BYTES);
+  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
   const rejectCredentials = options.credentials === "reject";
 
   if (options.allowInvalid !== true) {
     const validation = validateMapDocument(pkg);
     if (hasMapDocumentDiagnosticErrors(validation.diagnostics)) {
-      throw new HonuaMapDocumentError("MapPackage does not validate; refusing to export a non-portable artifact.", {
+      throw new HonuaMapDocumentError("Map document does not validate; refusing to export a non-portable artifact.", {
         packageId,
         stage: "export",
         detail: { diagnostics: validation.diagnostics.filter((d) => d.severity === "error") },
@@ -187,7 +187,7 @@ export function exportMapDocument(
   }) as HonuaMapDocument | undefined;
 
   if (sanitizedOrMarker === undefined || typeof sanitizedOrMarker !== "object") {
-    throw new HonuaMapDocumentError("MapPackage did not survive export sanitization.", {
+    throw new HonuaMapDocumentError("Map document did not survive export sanitization.", {
       packageId,
       stage: "export",
       detail: { redactions },
@@ -208,7 +208,7 @@ export function exportMapDocument(
     const postSanitization = validateMapDocument(sanitized);
     if (hasMapDocumentDiagnosticErrors(postSanitization.diagnostics)) {
       throw new HonuaMapDocumentError(
-        "Withholding credential material left a MapPackage that no longer satisfies its schema; refusing to export an artifact its own importer would reject.",
+        "Withholding credential material left a map document that no longer satisfies its schema; refusing to export an artifact its own importer would reject.",
         {
           packageId,
           stage: "export",
@@ -236,7 +236,7 @@ export function exportMapDocument(
   // Layer two: the finished bytes are re-scanned. Reaching here with credential
   // material means the projection above has a bug, and failing closed is the
   // only honest response.
-  assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Exported MapPackage");
+  assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Exported map document");
   return envelope;
 }
 
@@ -250,28 +250,28 @@ export function exportMapDocument(
  */
 export function importMapDocument(value: unknown, options: ImportMapDocumentOptions = {}): ImportMapDocumentResult {
   if (!isRecord(value)) {
-    throw new HonuaMapDocumentError("MapPackage export must be a JSON object.", { stage: "import" });
+    throw new HonuaMapDocumentError("Map document export must be a JSON object.", { stage: "import" });
   }
   if (value.kind !== HONUA_MAP_DOCUMENT_EXPORT_KIND_V1) {
-    throw new HonuaMapDocumentError(`MapPackage export kind must be "${HONUA_MAP_DOCUMENT_EXPORT_KIND_V1}".`, {
+    throw new HonuaMapDocumentError(`Map document export kind must be "${HONUA_MAP_DOCUMENT_EXPORT_KIND_V1}".`, {
       stage: "import",
       detail: { expected: HONUA_MAP_DOCUMENT_EXPORT_KIND_V1, received: value.kind },
     });
   }
   if (value.format !== HONUA_MAP_DOCUMENT_FORMAT_V1) {
-    throw new HonuaMapDocumentError(`MapPackage export format must be "${HONUA_MAP_DOCUMENT_FORMAT_V1}".`, {
+    throw new HonuaMapDocumentError(`Map document export format must be "${HONUA_MAP_DOCUMENT_FORMAT_V1}".`, {
       stage: "import",
       detail: { expected: HONUA_MAP_DOCUMENT_FORMAT_V1, received: value.format },
     });
   }
   if (!isRecord(value.mapPackage)) {
-    throw new HonuaMapDocumentError("MapPackage export is missing its mapPackage body.", { stage: "import" });
+    throw new HonuaMapDocumentError("Map document export is missing its mapPackage body.", { stage: "import" });
   }
 
   const mapPackage = value.mapPackage as unknown as HonuaMapDocument;
   const packageId = typeof mapPackage.mapPackageId === "string" ? mapPackage.mapPackageId : undefined;
   const maxEmbeddedBytes = normalizeBudget(options.maxEmbeddedBytes, DEFAULT_MAX_EMBEDDED_BYTES);
-  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_PACKAGE_BYTES);
+  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
 
   const serialized = JSON.stringify(value);
   assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "import");
@@ -281,7 +281,7 @@ export function importMapDocument(value: unknown, options: ImportMapDocumentOpti
   // body the exporter refuses. Both guards are load-bearing and independent --
   // one refuses a forged publication claim, the other an oversized payload.
   assertEmbeddedDataWithinBudgetDeep(mapPackage, "mapPackage", maxEmbeddedBytes, packageId);
-  assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported MapPackage");
+  assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported map document");
 
   const fingerprint = mapDocumentFingerprint(mapPackage);
   if (options.skipFingerprintCheck !== true) {
@@ -293,7 +293,7 @@ export function importMapDocument(value: unknown, options: ImportMapDocumentOpti
     // it. Callers that knowingly rewrote the package pass `skipFingerprintCheck`.
     if (typeof value.fingerprint !== "string" || value.fingerprint.length === 0) {
       throw new HonuaMapDocumentError(
-        "MapPackage export is missing its fingerprint stamp; pass skipFingerprintCheck to accept an unstamped envelope.",
+        "Map document export is missing its fingerprint stamp; pass skipFingerprintCheck to accept an unstamped envelope.",
         {
           packageId,
           stage: "import",
@@ -302,7 +302,7 @@ export function importMapDocument(value: unknown, options: ImportMapDocumentOpti
       );
     }
     if (value.fingerprint !== fingerprint) {
-      throw new HonuaMapDocumentError("MapPackage export fingerprint does not match its body.", {
+      throw new HonuaMapDocumentError("Map document export fingerprint does not match its body.", {
         packageId,
         stage: "import",
         detail: { stamped: value.fingerprint, recomputed: fingerprint },
@@ -312,7 +312,7 @@ export function importMapDocument(value: unknown, options: ImportMapDocumentOpti
 
   const validation = validateMapDocument(mapPackage);
   if (options.allowInvalid !== true && hasMapDocumentDiagnosticErrors(validation.diagnostics)) {
-    throw new HonuaMapDocumentError("Imported MapPackage does not validate.", {
+    throw new HonuaMapDocumentError("Imported map document does not validate.", {
       packageId,
       stage: "import",
       detail: { diagnostics: validation.diagnostics.filter((d) => d.severity === "error") },
@@ -472,7 +472,7 @@ function assertNoPublicationPointers(envelope: Record<string, unknown>, packageI
   if (offending.length === 0) return;
   offending.sort();
   throw new HonuaMapDocumentError(
-    `MapPackage export carries location pointer(s): ${offending.join(", ")}. A portable map artifact describes a map; it cannot assert where that map is hosted or published, because nothing in it records whether the map was ever persisted.`,
+    `Map document export carries location pointer(s): ${offending.join(", ")}. A portable map artifact describes a map; it cannot assert where that map is hosted or published, because nothing in it records whether the map was ever persisted.`,
     { packageId, stage: "import", detail: { properties: offending } },
   );
 }
@@ -549,7 +549,7 @@ function sanitizeString(value: string, path: string, ctx: SanitizeContext): unkn
     // false positive on every base64 icon or misses a percent-escaped secret.
     if (byteLength(value) > ctx.maxEmbeddedBytes) {
       throw new HonuaMapDocumentError(
-        `Inline data at ${path} exceeds the ${ctx.maxEmbeddedBytes}-byte export budget; a portable map package references data, it does not carry it.`,
+        `Inline data at ${path} exceeds the ${ctx.maxEmbeddedBytes}-byte export budget; a portable map document references data, it does not carry it.`,
         {
           packageId: ctx.packageId,
           stage: "export",
@@ -629,7 +629,7 @@ function assertEmbeddedDataWithinBudget(
     const bytes = jsonByteLength(inline);
     if (bytes <= maxEmbeddedBytes) continue;
     throw new HonuaMapDocumentError(
-      `Inline data at ${path}.${key} is ${bytes} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map package references data, it does not carry it.`,
+      `Inline data at ${path}.${key} is ${bytes} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map document references data, it does not carry it.`,
       { packageId, stage, detail: { path: `${path}.${key}`, bytes, maxEmbeddedBytes } },
     );
   }
@@ -664,7 +664,7 @@ function assertEmbeddedDataWithinBudgetDeep(
     if (typeof node === "string") {
       if (isDataUri(node) && byteLength(node) > maxEmbeddedBytes) {
         throw new HonuaMapDocumentError(
-          `Inline data at ${path} is ${byteLength(node)} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map package references data, it does not carry it.`,
+          `Inline data at ${path} is ${byteLength(node)} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map document references data, it does not carry it.`,
           {
             packageId,
             stage: "import",
@@ -694,7 +694,7 @@ function assertWithinPackageBudget(
 ): void {
   const bytes = byteLength(serialized);
   if (bytes <= maxPackageBytes) return;
-  throw new HonuaMapDocumentError(`MapPackage export is ${bytes} bytes, over the ${maxPackageBytes}-byte budget.`, {
+  throw new HonuaMapDocumentError(`Map document export is ${bytes} bytes, over the ${maxPackageBytes}-byte budget.`, {
     packageId,
     stage,
     detail: { bytes, maxPackageBytes },

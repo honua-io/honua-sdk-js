@@ -156,11 +156,11 @@ export interface HonuaGeneratedAppAssetRef {
 }
 
 /**
- * Structural `AppPackage` subset the SDK generated-app projection consumes.
+ * Structural `AppVersion` subset the SDK generated-app projection consumes.
  * The canonical server object remains authoritative; this interface only names
  * the `manifest_artifact` bridge and stable package identity the browser needs.
  */
-export interface HonuaGeneratedAppPackage {
+export interface HonuaGeneratedAppVersion {
   readonly id: string;
   readonly version: string;
   readonly assets?: ReadonlyArray<HonuaGeneratedAppAssetRef>;

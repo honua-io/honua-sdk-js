@@ -105,7 +105,7 @@ const controlPlane = createHonuaControlPlane({ client });
 const maps = await controlPlane.savedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
 
 if (maps.supported && maps.value.items[0]) {
-  const locator = await controlPlane.savedMaps.getPackageLocator(maps.value.items[0].id);
+  const locator = await controlPlane.savedMaps.getMapDocumentLocator(maps.value.items[0].id);
   if (locator.supported) {
     await loadMapDocumentFromId(locator.value, maplibreMap, { client });
   }

@@ -10877,8 +10877,8 @@ classification is conservatively non-retryable.
 | `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
 | `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
 | `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
-| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
-| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a map document |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app map document does not match its manifest |
 | `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
 | `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
 | `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |
@@ -12230,7 +12230,7 @@ const runtime = await loadMapDocument(pkg, map, {
 
 runtime.setLayerVisibility("parcels-fill", true);
 runtime.bindPopup("parcels-fill");
-await runtime.updatePackage(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
+await runtime.updateMapDocument(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
 runtime.dispose();
 ```
 
@@ -12238,7 +12238,7 @@ runtime.dispose();
 - Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
   [`docs/source-binding-alignment.md`](./source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
 - `HonuaMapDocument` format tag: `honua_map_package.v1`. The loader throws
-  `HonuaMapDocumentError { stage: "load" }` on any other value, and `updatePackage` rejects format
+  `HonuaMapDocumentError { stage: "load" }` on any other value, and `updateMapDocument` rejects format
   mismatches without mutating the map.
 
 Binding failures throw `HonuaMapDocumentError` with a `stage` of
@@ -12261,7 +12261,7 @@ entries (now carrying optional `sourceId`) for per-source attribution. Full comp
 ## Generated App Preview Runtime
 
 `@honua/sdk-js/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
-canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
+canonical `BuildSpec`, `AppVersion.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
@@ -14719,7 +14719,7 @@ const runtime = await loadMapDocument(pkg, map, {
 
 runtime.setLayerVisibility("parcels-fill", false);
 const legend = runtime.getLegend();
-await runtime.updatePackage(nextPkg);
+await runtime.updateMapDocument(nextPkg);
 runtime.dispose();
 ```
 
@@ -14731,7 +14731,7 @@ runtime.dispose();
 | `loadMapDocumentFromId(idOrLocator, map, opts)` | `Promise<LoadMapDocumentFromIdResult>` | Builder-style helper: fetches a hosted package, then delegates to `loadMapDocument`. The result includes the runtime plus fetch diagnostics/cache state. |
 | `watchMapDocument(idOrLocator, opts)` | `MapDocumentWatchHandle` | Opt-in polling watcher with `dispose()` and `refresh()`. It reuses `fetchMapDocument`, reports structural updates that require full style reload, and can apply updates to an existing `HonuaMapRuntime`. |
 | `validateMapDocument(pkg, opts)` | `ValidateMapDocumentResult` | Returns typed diagnostics for format/version, missing sources, unsupported protocols, stale/expired packages, and style-ref target mismatches. |
-| `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updatePackage`, `on`, `reportSourceError`, `dispose`. |
+| `HonuaMapRuntime` | class | `map`, `honuaMap`, `dataset`, `mapPackage`, `composedStyle`, `getLegend`, `setLayerVisibility`, `bindPopup`, `setViewState`, `updateMapDocument`, `on`, `reportSourceError`, `dispose`. |
 | `runtime.hitTest(input, opts)` | `Promise<HonuaHitTestResult>` | Renderer-neutral hit-test wrapper over MapLibre `queryRenderedFeatures`. Returns normalized pointer location, source-qualified feature identities, raw rendered features, geometry/properties when supplied by the renderer, optional detail payloads, and typed degraded states for unsupported or partial renderer data. |
 | `runtime.onPointer(handler, opts)` | `{ remove() }` | Subscribes to `"click"`, `"dblclick"`, or `"mousemove"` and invokes `hitTest` for each pointer event. |
 | `HonuaMapDocument` | type | v1 package shape. `format` is gated against `HONUA_MAP_DOCUMENT_FORMAT_V1` (`"honua_map_package.v1"`). |
@@ -14747,7 +14747,7 @@ runtime.dispose();
 | `buildMapLibreQueryTileSourceSpec`, `buildQueryTileJson`, `buildQueryTileUrlTemplate`, `buildQueryTileUrl` | functions | Build TileJSON and MapLibre `vector` source specs from `QueryTileSourceDescriptor`. See [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 | `QueryTileRequestController`, `queryTilesForViewport`, `diagnoseQueryTileSourceSupport` | class / functions | Opt-in viewport tile lifecycle helper with abortable requests, bounded cache, diagnostics, and unsupported-protocol/fallback reporting. |
 | `hitTestMap`, `normalizePointerEvent`, `normalizeHitTestFeatures`, `createQueryTileDetailLoader` | functions | Framework-neutral interaction helpers exported from `@honua/sdk-js/interactions`; useful for apps that do not load a full `HonuaMapRuntime`. |
-| `diffPackages`, `MapDocumentDiff` | function / type | Stable-id diff used by `updatePackage`. |
+| `diffMapDocuments`, `MapDocumentDiff` | function / type | Stable-id diff used by `updateMapDocument`. |
 | `buildLegend`, `LegendEntry` | function / type | Shared with operator components. |
 | `bindPopup`, `defaultPopupRenderer`, `PopupFactory`, `PopupRenderer` | function / types | The default DOM renderer is intentionally unstyled — rich popups belong in operator components. |
 
@@ -14825,7 +14825,7 @@ Supported source inputs include common native MapLibre source entries and Honua
 custom source entries for GeoServices, OGC Features, WMS, and WMTS. Query-tile
 sources can be created with `buildMapLibreQueryTileSourceSpec()`, while hosted
 map document source bindings should continue to flow through `loadMapDocument()`
-or `updatePackage()` when server state is the source of truth.
+or `updateMapDocument()` when server state is the source of truth.
 
 The mutation helpers validate source specs, layer specs, style expressions,
 filters, layer ordering, and duplicate/missing IDs before mutating the map.
@@ -14996,12 +14996,12 @@ map.on("click", async (event) => {
 - `pkg.format` must equal `HONUA_MAP_DOCUMENT_FORMAT_V1`
   (`"honua_map_package.v1"`). The loader throws
   `HonuaMapDocumentError { stage: "load" }` for any other value.
-- `updatePackage(next)` throws `HonuaMapDocumentError { stage: "update" }`
+- `updateMapDocument(next)` throws `HonuaMapDocumentError { stage: "update" }`
   when `next.format` does not match the already-loaded format so
   version mismatches surface at the call site rather than silently
   corrupting the map.
 - Unknown fields on `HonuaMapDocument` (and on each `SourceBinding`
-  locator) are preserved on round-trip through `updatePackage`, so
+  locator) are preserved on round-trip through `updateMapDocument`, so
   minor additive changes on the server do not force a runtime bump.
 
 ## Source binding projection
@@ -15151,7 +15151,7 @@ style lookup reports an error instead of substituting previously cached styling.
 | `bindSelectionToExploration(layerId, view, options?)` / `syncSelectionFromExploration(layerId, view, options?)` | Bridges runtime layer interactions to `ExplorationContext` selection and reflects source-qualified shared selection back into MapLibre feature-state. |
 | `layerSelectionTarget(layerId, id)` / `setFeatureStateForTarget(target, state)` / `getFeatureStateForTarget(target)` / `removeFeatureStateForTarget(target, key?)` | Converts layer + feature id pairs into source-qualified targets and applies feature-state using either runtime targets or `ExplorationContext` source-qualified targets. |
 | `setViewState(view)` | If `view.bbox` is supplied and `map.fitBounds` exists, fits the bounds (`animate: false` by default). Otherwise falls back to `map.jumpTo` for `center` / `zoom` / `pitch` / `bearing`. A final fallback applies `pkg.initialView.bbox` when no input is given. |
-| `updatePackage(next)` | See the Update lifecycle section. |
+| `updateMapDocument(next)` | See the Update lifecycle section. |
 | `on(listener)` | Subscribes to `HonuaRuntimeEvent`. Returns a `{ remove() }` handle. |
 | `dispose()` | Clears popup bindings, removes every layer and source owned by the composed style via `honuaMap.clear()` + `map.removeLayer` / `map.removeSource`, emits `disposed`, and rejects subsequent mutating calls. Idempotent. |
 
@@ -15164,12 +15164,12 @@ those lower-level primitives directly when they need custom behavior.
 
 ## Update lifecycle
 
-`updatePackage(next)` does three things in order:
+`updateMapDocument(next)` does three things in order:
 
 1. **Format gate.** `next.format` must match the currently loaded
    format, or the call throws `HonuaMapDocumentError { stage: "update" }`
    before any map mutation.
-2. **Diff.** `diffPackages(previous, next)` produces a
+2. **Diff.** `diffMapDocuments(previous, next)` produces a
    `MapDocumentDiff` keyed by stable ids:
    - Added / removed / changed source bindings (locator, filter,
      attribution, or protocol differences).
@@ -15229,7 +15229,7 @@ handle. `runtime.on(...)` handles every subsequent event.
 | `{ type: "package-loaded", packageId }` | After the first `setStyle` + initial view apply succeed. Fired last, once per successful load. |
 | `{ type: "source-ready", sourceId }` | Once per source id produced by the contract `Dataset`, fired synchronously just before `package-loaded`. |
 | `{ type: "source-error", sourceId, error }` | Per-source binding or query-time failure. Under `sourceErrorPolicy: "tolerant"` the loader emits one `source-error` per source whose bind-time projection / spec-build / eager materialization threw; the runtime fans this through the listener chain right after `source-ready` and before `package-loaded`, with telemetry observing a `source-bind` error span. Consumers that fan a query out across the dataset broadcast query-time rejections through `runtime.reportSourceError(sourceId, error)`, which emits the same event so listeners do not have to subscribe to a parallel error channel. |
-| `{ type: "package-updated", packageId, diff }` | After `updatePackage` completes (both incremental and full-`setStyle` paths). |
+| `{ type: "package-updated", packageId, diff }` | After `updateMapDocument` completes (both incremental and full-`setStyle` paths). |
 | `{ type: "layer-rendered", layerId }` | Declared for MapLibre render callbacks bridged by the host. The runtime itself does not fire it today. |
 | `{ type: "disposed", packageId }` | Once inside `dispose()`, just before listeners are cleared. |
 
@@ -15244,7 +15244,7 @@ pipeline.
 `{ packageId, stage, detail, cause }`. Stages:
 
 - `load` — format validation, `mapSpec` missing, unknown loader error.
-- `update` — `updatePackage` format mismatch or unhandled error.
+- `update` — `updateMapDocument` format mismatch or unhandled error.
 - `style-compose` — missing style-ref body with no resolver, theme
   resolver threw, general composition failure.
 - `source-bind` — unknown protocol, missing locator, duplicate source
@@ -15804,7 +15804,7 @@ exactly as on `HonuaMapDocument`. A loader refuses any other value.
 | dashboard | `HONUA_DASHBOARD_PACKAGE_FORMAT_V1` | `honua_dashboard_package.v1` | `HonuaDashboardPackage` | experimental, Studio-authored |
 | report | `HONUA_REPORT_PACKAGE_FORMAT_V1` | `honua_report_package.v1` | `HonuaReportPackage` | experimental (stub) |
 | form | `HONUA_FORM_PACKAGE_FORMAT_V1` | `honua_form_package.v1` | `HonuaFormPackage` | experimental (stub) |
-| app | — (uses `HonuaGeneratedAppPackage.version`) | — | `HonuaGeneratedAppPackage` | re-exported |
+| app | — (uses `HonuaGeneratedAppVersion.version`) | — | `HonuaGeneratedAppVersion` | re-exported |
 | workflow | `HONUA_WORKFLOW_PACKAGE_FORMAT_V1` | `honua_workflow_package.v1` | `HonuaWorkflowPackage` | experimental (stub) |
 | gp | `HONUA_GP_PACKAGE_FORMAT_V1` | `honua_gp_package.v1` | `HonuaGPPackage` | experimental (stub) |
 | etl | `HONUA_ETL_PACKAGE_FORMAT_V1` | `honua_etl_package.v1` | `HonuaETLPackage` | experimental (stub) |

@@ -214,7 +214,7 @@ export class HonuaSavedMapsClient {
     });
   }
 
-  public async getPackage(
+  public async getMapDocument(
     mapId: string,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<HonuaMapDocument>> {
@@ -227,7 +227,7 @@ export class HonuaSavedMapsClient {
     );
   }
 
-  public async getPackageLocator(
+  public async getMapDocumentLocator(
     mapId: string,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<{ readonly path: string }>> {

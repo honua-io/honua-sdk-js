@@ -1,6 +1,6 @@
 /**
  * `BuilderWorkspaceController` — mirrors `MapWorkspaceController` for an
- * `AppPackage`. The controller does not execute the app; it surfaces a
+ * `AppVersion`. The controller does not execute the app; it surfaces a
  * `PreviewHandle` carrying the bundle URL the embedder mounts inside an
  * `<iframe sandbox>`.
  *
@@ -11,7 +11,7 @@ import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { HonuaOperatorAppError } from "../errors.js";
 import type { OperatorTelemetry } from "../telemetry.js";
-import type { AppPackage, ArtifactRef } from "../workspace/types.js";
+import type { AppVersion, ArtifactRef } from "../workspace/types.js";
 import { ListenerBag, type Unsubscribe, withTelemetrySpan } from "./base.js";
 
 export interface PreviewHandle {
@@ -21,8 +21,8 @@ export interface PreviewHandle {
 }
 
 export type BuilderWorkspaceEvent =
-  | { kind: "package-loaded"; pkg: AppPackage }
-  | { kind: "package-refined"; pkg: AppPackage }
+  | { kind: "package-loaded"; pkg: AppVersion }
+  | { kind: "package-refined"; pkg: AppVersion }
   | { kind: "map-bound"; pkg: HonuaMapDocument }
   | { kind: "error"; error: HonuaOperatorAppError };
 
@@ -31,13 +31,13 @@ export interface BuilderWorkspaceControllerOptions {
   telemetry?: OperatorTelemetry;
   /**
    * Optional adapter that picks the entry-point URL out of an
-   * `AppPackage`. Defaults to the first asset whose `kind === "app-package"`,
+   * `AppVersion`. Defaults to the first asset whose `kind === "app-package"`,
    * falling back to the first asset with a `url`.
    */
-  resolveEntryUrl?: (pkg: AppPackage) => string | undefined;
+  resolveEntryUrl?: (pkg: AppVersion) => string | undefined;
 }
 
-const defaultEntryUrl = (pkg: AppPackage): string | undefined => {
+const defaultEntryUrl = (pkg: AppVersion): string | undefined => {
   const appAsset = pkg.assets.find((asset) => asset.kind === "app-package" && asset.url);
   if (appAsset?.url) return appAsset.url;
   return pkg.assets.find((asset) => asset.url)?.url;
@@ -46,13 +46,13 @@ const defaultEntryUrl = (pkg: AppPackage): string | undefined => {
 export class BuilderWorkspaceController {
   readonly #client: OperatorClient;
   readonly #telemetry: OperatorTelemetry | undefined;
-  readonly #resolveEntryUrl: (pkg: AppPackage) => string | undefined;
+  readonly #resolveEntryUrl: (pkg: AppVersion) => string | undefined;
   readonly #bag = new ListenerBag<BuilderWorkspaceEvent>();
-  #pkg: AppPackage | undefined;
+  #pkg: AppVersion | undefined;
   #boundMap: HonuaMapDocument | undefined;
   #activeIntentId: string | undefined;
   // Same generation pattern as the other controllers: bumped on
-  // every loadPackage()/refine()/dispose(), captured by each
+  // every loadAppVersion()/refine()/dispose(), captured by each
   // operation, and consulted at resolution time so an older
   // refineApp() cannot overwrite a newer package.
   #opGeneration = 0;
@@ -63,7 +63,7 @@ export class BuilderWorkspaceController {
     this.#resolveEntryUrl = options.resolveEntryUrl ?? defaultEntryUrl;
   }
 
-  public get appPackage(): AppPackage | undefined {
+  public get appVersion(): AppVersion | undefined {
     return this.#pkg;
   }
 
@@ -75,7 +75,7 @@ export class BuilderWorkspaceController {
     this.#activeIntentId = intentId;
   }
 
-  public async loadPackage(pkg: AppPackage): Promise<void> {
+  public async loadAppVersion(pkg: AppVersion): Promise<void> {
     const gen = ++this.#opGeneration;
     // Clear the prior map binding eagerly so the next preview() call
     // never returns a previous execution's map. The workspace re-binds
@@ -96,14 +96,14 @@ export class BuilderWorkspaceController {
     );
   }
 
-  public bindMapPackage(pkg: HonuaMapDocument): void {
+  public bindMapDocument(pkg: HonuaMapDocument): void {
     this.#boundMap = pkg;
     this.#bag.emit({ kind: "map-bound", pkg });
   }
 
   public preview(): PreviewHandle {
     if (!this.#pkg) {
-      throw new HonuaOperatorAppError("preview called before loadPackage");
+      throw new HonuaOperatorAppError("preview called before loadAppVersion");
     }
     return {
       url: this.#resolveEntryUrl(this.#pkg),
@@ -112,7 +112,7 @@ export class BuilderWorkspaceController {
     };
   }
 
-  public async refine(prompt: string, signal?: AbortSignal): Promise<AppPackage> {
+  public async refine(prompt: string, signal?: AbortSignal): Promise<AppVersion> {
     if (!this.#activeIntentId) {
       throw new HonuaOperatorAppError("refine requires bindIntent before invocation");
     }

@@ -440,7 +440,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
   );
 
   it(
-    "tolerant reload: failure / recovery between updatePackage calls forces structural setStyle",
+    "tolerant reload: failure / recovery between updateMapDocument calls forces structural setStyle",
     { timeout: 30_000 },
     async () => {
       // Regression: previously detectUnpatchableLayerChange only compared
@@ -494,7 +494,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       // spy now refusing ogc-overlay at bind time, the reload's composed
       // style drops the layer + source. The runtime must detect the
       // composed-shape change and fall back to setStyle.
-      await runtime.updatePackage(pkg);
+      await runtime.updateMapDocument(pkg);
 
       expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
       expect(runtime.composedStyle.sources).not.toHaveProperty("ogc-overlay");
@@ -505,7 +505,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       // the source/layer — must again force structural fallback.
       map._calls.length = 0;
       failOgcOnReload = false;
-      await runtime.updatePackage(pkg);
+      await runtime.updateMapDocument(pkg);
 
       expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
       expect(runtime.composedStyle.sources).toHaveProperty("ogc-overlay");

@@ -110,6 +110,7 @@
 * [Studio package parity: MCP, QGIS, and Console](studio-package-parity.md)
 * [terra-draw sketch binding (`@honua/sdk-js/runtime`)](terra-draw-sketch.md)
 * [Unified agent host configuration](unified-agent-host-configuration.md)
+* [Vocabulary renames](vocabulary-renames.md)
 * [Walkthrough: search STAC and open an asset](walkthroughs/search-stac-and-open-assets.md)
 * [Choose server pushdown or bounded browser execution](walkthroughs/server-or-browser-columnar.md)
 * [From a STAC asset to a bounded COG render](walkthroughs/stac-to-cog-raster.md)

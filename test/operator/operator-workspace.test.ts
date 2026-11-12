@@ -5,7 +5,7 @@ import type { IJobRun, JobProgress, JobSnapshot, JobSnapshotListener, JobStatus 
 import {
   type AnalysisIntent,
   type AnalysisPlan,
-  type AppPackage,
+  type AppVersion,
   type ApprovalDecision,
   type ChatChunk,
   type ExecutionResult,
@@ -170,7 +170,7 @@ function makeMapPackage(): HonuaMapDocument {
   };
 }
 
-function makeAppPackage(): AppPackage {
+function makeAppVersion(): AppVersion {
   return {
     id: "app-1",
     version: "1",
@@ -216,7 +216,7 @@ function makeOperatorClient(): OperatorClient {
     kind: "analysis",
     summary: "Shelter map composed",
     mapPackage: makeMapPackage(),
-    appPackage: makeAppPackage(),
+    appPackage: makeAppVersion(),
   };
   return {
     operator: {
@@ -240,7 +240,7 @@ function makeOperatorClient(): OperatorClient {
         return makeMapPackage();
       },
       async refineApp() {
-        return makeAppPackage();
+        return makeAppVersion();
       },
       async getApproval() {
         return makeDecision("pending");
@@ -339,7 +339,7 @@ function makeDismissingClient(): OperatorClient {
         return makeMapPackage();
       },
       async refineApp() {
-        return makeAppPackage();
+        return makeAppVersion();
       },
       async getApproval() {
         return makeDecision("pending");
@@ -493,7 +493,7 @@ describe("OperatorWorkspace", () => {
     });
 
     workspace.map?.bindIntent("intent-refine");
-    await workspace.map!.loadPackage(makeMapPackage());
+    await workspace.map!.loadMapDocument(makeMapPackage());
     expect(workspace.map?.exploration?.datasetId).toBe("operator-map");
     expect(workspace.map?.exploration?.sourceIds).toEqual(["tiles"]);
 
@@ -528,7 +528,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -568,7 +568,7 @@ describe("OperatorWorkspace", () => {
     workspace.on((event) => events.push(event));
 
     workspace.map?.bindIntent("intent-factory");
-    await expect(workspace.map!.loadPackage(makeMapPackage())).rejects.toMatchObject({
+    await expect(workspace.map!.loadMapDocument(makeMapPackage())).rejects.toMatchObject({
       name: "HonuaOperatorMapError",
       cause: factoryFailure,
     });
@@ -647,7 +647,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -719,7 +719,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -784,7 +784,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -857,7 +857,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -885,7 +885,7 @@ describe("OperatorWorkspace", () => {
     workspace.dispose();
   });
 
-  it("does not let a slow map loadPackage overwrite a newer load's runtime", async () => {
+  it("does not let a slow map loadMapDocument overwrite a newer load's runtime", async () => {
     const mapA = makeMockMap();
     const mapB = makeMockMap();
     const pkgA: HonuaMapDocument = { ...makeMapPackage(), mapPackageId: "pkg-A" };
@@ -933,8 +933,8 @@ describe("OperatorWorkspace", () => {
     workspace.on((event) => events.push(event));
     workspace.map?.bindIntent("intent-1");
 
-    const slow = workspace.map!.loadPackage(pkgA).catch((error: unknown) => error);
-    const fast = workspace.map!.loadPackage(pkgB);
+    const slow = workspace.map!.loadMapDocument(pkgA).catch((error: unknown) => error);
+    const fast = workspace.map!.loadMapDocument(pkgB);
     const fastRuntime = await fast;
     expect(workspace.map?.exploration?.datasetId).toBe("pkg-B");
     expect(workspace.map?.runtime).toBe(fastRuntime);
@@ -996,7 +996,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval(operationId) {
           if (operationId === "op-A") return aGate;
@@ -1041,9 +1041,9 @@ describe("OperatorWorkspace", () => {
       kind: "analysis",
       summary: "first",
       mapPackage: makeMapPackage(),
-      appPackage: makeAppPackage(),
+      appPackage: makeAppVersion(),
     };
-    const secondAppPkg: AppPackage = { ...makeAppPackage(), id: "app-2" };
+    const secondAppPkg: AppVersion = { ...makeAppVersion(), id: "app-2" };
     const secondResult: ExecutionResult = {
       kind: "analysis",
       summary: "second (app-only)",
@@ -1074,7 +1074,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -1108,7 +1108,7 @@ describe("OperatorWorkspace", () => {
     await workspace.execution.start(makePlan("intent-1"));
     await waitForEvent(events.slice(events.findIndex((event) => event.kind === "app-loaded") + 1), "app-loaded");
     await flushMicrotasks();
-    expect(workspace.builder.appPackage?.id).toBe("app-2");
+    expect(workspace.builder.appVersion?.id).toBe("app-2");
     expect(workspace.builder.preview().mapPackage).toBeUndefined();
 
     workspace.dispose();
@@ -1159,7 +1159,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           throw typedError;
@@ -1203,7 +1203,7 @@ describe("OperatorWorkspace", () => {
     });
     workspace.map?.bindIntent("intent-leak");
 
-    await expect(workspace.map!.loadPackage(makeMapPackage())).rejects.toMatchObject({
+    await expect(workspace.map!.loadMapDocument(makeMapPackage())).rejects.toMatchObject({
       name: "HonuaOperatorMapError",
     });
     expect(factoryDisposed).toBe(1);
@@ -1253,7 +1253,7 @@ describe("OperatorWorkspace", () => {
           return makeMapPackage();
         },
         async refineApp() {
-          return makeAppPackage();
+          return makeAppVersion();
         },
         async getApproval() {
           return makeDecision("pending");
@@ -1376,7 +1376,7 @@ function makeClientWithRun(run: IJobRun<ExecutionResult>): OperatorClient {
         return makeMapPackage();
       },
       async refineApp() {
-        return makeAppPackage();
+        return makeAppVersion();
       },
       async getApproval() {
         return makeDecision("pending");
@@ -1410,7 +1410,7 @@ function makeFailingSubmitClient(failure: Error): OperatorClient {
         return makeMapPackage();
       },
       async refineApp() {
-        return makeAppPackage();
+        return makeAppVersion();
       },
       async getApproval() {
         return makeDecision("pending");
@@ -1444,7 +1444,7 @@ function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
         return refined;
       },
       async refineApp() {
-        return makeAppPackage();
+        return makeAppVersion();
       },
       async getApproval() {
         return makeDecision("pending");

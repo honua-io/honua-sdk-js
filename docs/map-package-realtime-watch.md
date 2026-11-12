@@ -126,7 +126,7 @@ Duplicate application is avoided with three guards:
 - `eventId` values are remembered for recent realtime update messages.
 - `sequence` values at or below the last applied realtime update are ignored.
 - The package fingerprint is compared before `updated` is emitted or
-  `runtime.updatePackage` is called.
+  `runtime.updateMapDocument` is called.
 
 `dispose()` aborts active fetches, aborts the realtime subscription signal,
 closes the transport handle, clears reconnect/stale/debounce timers, and emits

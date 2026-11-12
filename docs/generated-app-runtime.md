@@ -8,7 +8,7 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 The generated-app subpath is the SDK browser projection for the first
 AI-generated operations dashboard proof. It consumes a versioned manifest from
-`AppPackage.manifest_artifact`, hydrates the referenced `HonuaMapDocument` through
+`AppVersion.manifest_artifact`, hydrates the referenced `HonuaMapDocument` through
 `@honua/sdk-js/runtime`, and binds map, table/list, count, chart, and filter
 widgets through one `ExplorationContext`.
 
@@ -28,8 +28,8 @@ import {
 | --- | --- | --- |
 | `HONUA_GENERATED_APP_MANIFEST_FORMAT_V1` | `honua_generated_app_manifest.v1` | Version gate for the browser manifest shape. |
 | `HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1` | `operations-dashboard.v1` | Narrow proof profile. Other generated-app profiles are rejected with `HonuaGeneratedAppError { code: "unsupported-profile" }`. |
-| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND` | `honua.generated-app.manifest` | `AppPackage.manifest_artifact.artifactKind`. |
-| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION` | `1` | `AppPackage.manifest_artifact.artifactVersion`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND` | `honua.generated-app.manifest` | `AppVersion.manifest_artifact.artifactKind`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION` | `1` | `AppVersion.manifest_artifact.artifactVersion`. |
 
 The proof profile requires these widget kinds:
 
@@ -59,8 +59,8 @@ the browser-safe projection of canonical builder/package output.
 | `BuildSpec.layout.widgets` / `BuildSpec.widgets` | `manifest.layout.widgets` | Widget ids and bindings consumed by `loadGeneratedAppRuntime`. |
 | `BuildSpec.bindings` | `manifest.bindings` | Field bindings such as `primaryKey`, `titleField`, `categoryField`, `filterField`, `tableFields`, `searchFields`, and `layerId`. |
 | `BuildSpec.initialState` | `manifest.initialState` | Optional initial `ExplorationState` seed. |
-| `AppPackage.id` / `AppPackage.version` | `manifest.appId` / `manifest.version` fallback | `projectAppPackageToGeneratedAppManifest` fills these when the artifact omits them. |
-| `AppPackage.manifest_artifact` / `AppPackage.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
+| `AppVersion.id` / `AppVersion.version` | `manifest.appId` / `manifest.version` fallback | `projectAppVersionToGeneratedAppManifest` fills these when the artifact omits them. |
+| `AppVersion.manifest_artifact` / `AppVersion.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
 | `MapPackage.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app package. |
 | `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapDocument`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
 | `MapPackage.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
@@ -172,8 +172,8 @@ const diagnostic = {
   name: "HonuaGeneratedAppError",
   code: "missing-manifest-artifact",
   stage: "projection",
-  message: "AppPackage is missing manifest_artifact for generated-app preview",
-  detail: { path: "AppPackage.manifest_artifact" }
+  message: "App version is missing manifest_artifact for generated-app preview",
+  detail: { path: "AppVersion.manifest_artifact" }
 };
 ```
 

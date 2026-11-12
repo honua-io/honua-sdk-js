@@ -57,8 +57,8 @@ import type {
   HonuaGeneratedAppFilterWidget,
   HonuaGeneratedAppManifest,
   HonuaGeneratedAppMapWidget,
-  HonuaGeneratedAppPackage,
   HonuaGeneratedAppTableWidget,
+  HonuaGeneratedAppVersion,
   HonuaGeneratedAppWidget,
 } from "./manifest.js";
 import {
@@ -67,7 +67,7 @@ import {
   assertGeneratedAppManifest,
   clampGeneratedAppManifest,
   clampGeneratedAppPreviewLimit,
-  projectAppPackageToGeneratedAppManifest,
+  projectAppVersionToGeneratedAppManifest,
 } from "./projection.js";
 
 export type HonuaGeneratedAppFeatureInput<TAttributes extends Record<string, unknown> = Record<string, unknown>> =
@@ -114,7 +114,7 @@ export interface HonuaGeneratedAppLoadOptions<TAttributes extends Record<string,
 
 export interface HonuaGeneratedAppPreviewInput {
   readonly manifest?: HonuaGeneratedAppManifest;
-  readonly appPackage?: HonuaGeneratedAppPackage;
+  readonly appPackage?: HonuaGeneratedAppVersion;
   readonly mapPackage?: HonuaMapDocument;
 }
 
@@ -288,7 +288,7 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
 
   if (mapWidget) {
     if (!mapPackage) {
-      throw new HonuaGeneratedAppError("missing-map-package", "generated-app map widget requires a MapPackage", {
+      throw new HonuaGeneratedAppError("missing-map-package", "generated-app map widget requires a map document", {
         stage: "load",
         detail: { appId: manifest.appId, widgetId: mapWidget.id, path: "GeneratedAppManifest.mapPackage" },
       });
@@ -419,7 +419,7 @@ export async function previewGeneratedApp<TAttributes extends Record<string, unk
   let manifest = input.manifest;
   try {
     if (!manifest && input.appPackage) {
-      manifest = projectAppPackageToGeneratedAppManifest(input.appPackage, {
+      manifest = projectAppVersionToGeneratedAppManifest(input.appPackage, {
         mapPackage: input.mapPackage ?? options.mapPackage,
       });
     }
@@ -832,7 +832,7 @@ async function loadFeaturesFromMapRuntime(
 ): Promise<ReadonlyArray<HonuaGeneratedAppFeatureInput>> {
   const source = mapRuntime?.dataset.source(manifest.data.sourceId);
   if (!source) {
-    throw new HonuaGeneratedAppError("missing-binding", "generated-app source is not available from the MapPackage", {
+    throw new HonuaGeneratedAppError("missing-binding", "generated-app source is not available from the map document", {
       stage: "load",
       detail: {
         appId: manifest.appId,
@@ -949,7 +949,7 @@ function assertMapPackageMatchesManifest(
   if (!manifest.mapPackageId || !mapPackage || manifest.mapPackageId === mapPackage.mapPackageId) return;
   throw new HonuaGeneratedAppError(
     "map-package-mismatch",
-    `generated-app MapPackage "${mapPackage.mapPackageId}" does not match manifest mapPackageId "${manifest.mapPackageId}"`,
+    `generated-app map document "${mapPackage.mapPackageId}" does not match manifest mapPackageId "${manifest.mapPackageId}"`,
     {
       stage: "load",
       detail: {

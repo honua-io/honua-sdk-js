@@ -144,6 +144,8 @@ describe("docs and examples use the current names", () => {
   const SKIPPED = new Set(["node_modules", "dist", "decisions"]);
 
   const DOC_FILE = /\.(md|ts|tsx|mjs|html)$/;
+  // The one doc that lists the old names, as the migration table.
+  const RENAMES_DOC = path.join("docs", "vocabulary-renames.md");
 
   function documentFiles(entry: string): string[] {
     const full = path.join(ROOT, entry);
@@ -156,9 +158,18 @@ describe("docs and examples use the current names", () => {
 
   it("never names a renamed pre-vocabulary name", () => {
     const pattern = new RegExp(`\\b(${[...renamed.keys()].join("|")})\\b`);
-    const offenders = DOC_ROOTS.flatMap(documentFiles).filter((file) =>
-      pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
+    const offenders = DOC_ROOTS.flatMap(documentFiles).filter(
+      (file) => file !== RENAMES_DOC && pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("lists every renamed export in the vocabulary renames doc", () => {
+    const doc = readFileSync(path.join(ROOT, RENAMES_DOC), "utf8");
+    const listed = new Map(
+      [...doc.matchAll(/^\| `(\w+)` \| `(\w+)` \|$/gm)].map((match) => [match[1], match[2]] as const),
+    );
+    const missing = [...renamed].filter(([old, next]) => listed.get(old) !== next).map(([old]) => old);
+    expect(missing).toEqual([]);
   });
 });

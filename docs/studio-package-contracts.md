@@ -63,7 +63,7 @@ exactly as on `HonuaMapDocument`. A loader refuses any other value.
 | dashboard | `HONUA_DASHBOARD_PACKAGE_FORMAT_V1` | `honua_dashboard_package.v1` | `HonuaDashboardPackage` | experimental, Studio-authored |
 | report | `HONUA_REPORT_PACKAGE_FORMAT_V1` | `honua_report_package.v1` | `HonuaReportPackage` | experimental (stub) |
 | form | `HONUA_FORM_PACKAGE_FORMAT_V1` | `honua_form_package.v1` | `HonuaFormPackage` | experimental (stub) |
-| app | — (uses `HonuaGeneratedAppPackage.version`) | — | `HonuaGeneratedAppPackage` | re-exported |
+| app | — (uses `HonuaGeneratedAppVersion.version`) | — | `HonuaGeneratedAppVersion` | re-exported |
 | workflow | `HONUA_WORKFLOW_PACKAGE_FORMAT_V1` | `honua_workflow_package.v1` | `HonuaWorkflowPackage` | experimental (stub) |
 | gp | `HONUA_GP_PACKAGE_FORMAT_V1` | `honua_gp_package.v1` | `HonuaGPPackage` | experimental (stub) |
 | etl | `HONUA_ETL_PACKAGE_FORMAT_V1` | `honua_etl_package.v1` | `HonuaETLPackage` | experimental (stub) |

@@ -123,8 +123,8 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
   const client = useHonuaClient();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [contextValue, setContextValue] = useState<HonuaMapContextValue>({ runtime: null, map: null });
-  // The package reference last handed to load/updatePackage — lets us route
-  // subsequent package changes through `updatePackage` instead of reloading.
+  // The package reference last handed to load/updateMapDocument — lets us route
+  // subsequent package changes through `updateMapDocument` instead of reloading.
   const appliedPackageRef = useRef<HonuaMapDocument | null>(null);
 
   useEffect(() => {
@@ -183,17 +183,17 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
       setContextValue({ runtime: null, map: null });
     };
     // Recreate only when the client, external map, or maplibre module changes.
-    // Package-content changes are handled by the effect below via updatePackage.
+    // Package-content changes are handled by the effect below via updateMapDocument.
     // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally excludes mapPackage/options to avoid map re-creation.
   }, [client, externalMap, mapLibre]);
 
-  // Route package changes to updatePackage without tearing down the map.
+  // Route package changes to updateMapDocument without tearing down the map.
   useEffect(() => {
     const runtime = contextValue.runtime;
     if (!runtime) return;
     if (appliedPackageRef.current === mapPackage) return;
     appliedPackageRef.current = mapPackage;
-    runtime.updatePackage(mapPackage).catch((error) => onError?.(error));
+    runtime.updateMapDocument(mapPackage).catch((error) => onError?.(error));
     // biome-ignore lint/correctness/useExhaustiveDependencies: onError is a callback prop; re-running on its identity is undesirable.
   }, [contextValue.runtime, mapPackage]);
 

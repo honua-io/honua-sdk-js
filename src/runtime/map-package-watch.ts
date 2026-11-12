@@ -1,4 +1,4 @@
-import { type MapDocumentDiff, diffPackages } from "./diff.js";
+import { type MapDocumentDiff, diffMapDocuments } from "./diff.js";
 import { HonuaMapDocumentError } from "./errors.js";
 import {
   type FetchMapDocumentOptions,
@@ -215,19 +215,19 @@ export function watchMapDocument(
         return;
       }
 
-      const diff = previousPackage ? diffPackages(previousPackage, result.mapPackage) : undefined;
+      const diff = previousPackage ? diffMapDocuments(previousPackage, result.mapPackage) : undefined;
       if (diff && (reloadReason || !diff.incremental)) {
         emit({
           type: "reload-required",
           result,
           diff,
-          reason: reloadReason ?? diff.structuralReason ?? "MapPackage update requires a full style reload.",
+          reason: reloadReason ?? diff.structuralReason ?? "Map document update requires a full style reload.",
         });
       }
 
       const shouldApply = Boolean(options.runtime) && options.applyUpdates !== false;
       if (shouldApply) {
-        await options.runtime?.updatePackage(result.mapPackage);
+        await options.runtime?.updateMapDocument(result.mapPackage);
       }
       previousPackage = result.mapPackage;
       lastFetchedPackage = result.mapPackage;
@@ -630,7 +630,7 @@ export function watchMapDocument(
       now: options.now,
     });
     if (hasMapDocumentDiagnosticErrors(validation.diagnostics) && options.allowInvalid !== true) {
-      throw new HonuaMapDocumentError("MapPackage validation failed", {
+      throw new HonuaMapDocumentError("Map document validation failed", {
         packageId: mapPackage.mapPackageId,
         stage: "validate",
         detail: { diagnostics: validation.diagnostics, path },
@@ -654,7 +654,7 @@ export function watchMapDocument(
     if (!expected || expected === message.packageId) return true;
     emit({
       type: "error",
-      error: new HonuaMapDocumentError("MapPackage realtime message packageId does not match watcher locator", {
+      error: new HonuaMapDocumentError("Map document realtime message packageId does not match watcher locator", {
         packageId: message.packageId,
         stage: "fetch",
         detail: { expectedPackageId: expected },

@@ -106,7 +106,7 @@ export interface LoadMapDocumentOptions {
    * `source-ready` / `package-loaded` emissions so callers can observe
    * the initial lifecycle without race-binding through
    * `runtime.on(...)`. Equivalent to calling `runtime.on(listener)`
-   * immediately after construction. Subsequent events (updatePackage,
+   * immediately after construction. Subsequent events (updateMapDocument,
    * disposed, …) also flow through this listener.
    */
   onEvent?: HonuaRuntimeEventListener;
@@ -469,7 +469,7 @@ function emitSourceBindFailure(
 function assertPackageFormat(pkg: HonuaMapDocument): void {
   if (pkg.format !== HONUA_MAP_DOCUMENT_FORMAT_V1) {
     throw new HonuaMapDocumentError(
-      `unsupported MapPackage format "${String(pkg.format)}"; runtime supports "${HONUA_MAP_DOCUMENT_FORMAT_V1}"`,
+      `unsupported map document format "${String(pkg.format)}"; runtime supports "${HONUA_MAP_DOCUMENT_FORMAT_V1}"`,
       {
         packageId: pkg.mapPackageId,
         stage: "load",
@@ -478,13 +478,13 @@ function assertPackageFormat(pkg: HonuaMapDocument): void {
     );
   }
   if (!Array.isArray(pkg.sourceBindings)) {
-    throw new HonuaMapDocumentError("MapPackage.sourceBindings must be an array", {
+    throw new HonuaMapDocumentError("MapDocument.sourceBindings must be an array", {
       packageId: pkg.mapPackageId,
       stage: "load",
     });
   }
   if (!pkg.mapSpec || typeof pkg.mapSpec !== "object") {
-    throw new HonuaMapDocumentError("MapPackage.mapSpec is required", {
+    throw new HonuaMapDocumentError("MapDocument.mapSpec is required", {
       packageId: pkg.mapPackageId,
       stage: "load",
     });

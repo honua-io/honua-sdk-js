@@ -308,7 +308,7 @@ const runtime = await loadMapDocument(pkg, map, {
 
 runtime.setLayerVisibility("parcels-fill", true);
 runtime.bindPopup("parcels-fill");
-await runtime.updatePackage(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
+await runtime.updateMapDocument(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
 runtime.dispose();
 ```
 
@@ -316,7 +316,7 @@ runtime.dispose();
 - Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
   [`docs/source-binding-alignment.md`](./source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
 - `HonuaMapDocument` format tag: `honua_map_package.v1`. The loader throws
-  `HonuaMapDocumentError { stage: "load" }` on any other value, and `updatePackage` rejects format
+  `HonuaMapDocumentError { stage: "load" }` on any other value, and `updateMapDocument` rejects format
   mismatches without mutating the map.
 
 Binding failures throw `HonuaMapDocumentError` with a `stage` of
@@ -339,7 +339,7 @@ entries (now carrying optional `sourceId`) for per-source attribution. Full comp
 ## Generated App Preview Runtime
 
 `@honua/sdk-js/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
-canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
+canonical `BuildSpec`, `AppVersion.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
