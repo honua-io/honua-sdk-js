@@ -12,6 +12,10 @@ an opt-in build target that produces five focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
 
+The experimental `@honua/sdk-js/geoparquet/node` factory ships only in the
+canonical SDK. Its `node` export condition excludes browser resolution; the
+optional `@duckdb/node-api` peer is absent from all five split packages.
+
 ## Runtime tarball ownership and limits
 
 The main SDK tarball ships compiled runtime modules and declarations, the two

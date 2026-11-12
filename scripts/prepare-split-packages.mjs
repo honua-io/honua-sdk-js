@@ -778,6 +778,10 @@ function writePackageJson(packageRoot, overrides) {
     engines: publishedEngines,
   };
 
+  if (packageJson.dependencies?.["@duckdb/node-api"] || packageJson.peerDependencies?.["@duckdb/node-api"]) {
+    throw new Error("Native GeoParquet belongs only to the canonical SDK Node entrypoint");
+  }
+
   fs.writeFileSync(
     path.join(packageRoot, "package.json"),
     `${JSON.stringify(packageJson, null, 2)}\n`,
