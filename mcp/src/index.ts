@@ -9,6 +9,7 @@ import { isMainEntrypoint } from "./entrypoint.js";
 
 import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map-control.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
+import { registerSdkSkills } from "./resources/sdk-skills.js";
 import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
 import * as adminInstallLocal from "./tools/admin-install-local.js";
@@ -333,6 +334,8 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 
   // ── Resources ──────────────────────────────────────────────────
 
+  registerSdkSkills(server);
+
   server.resource("services-catalog", servicesResource.uri, async (_uri) => servicesResource.read(client));
 
   server.resource(
@@ -356,6 +359,7 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 /** Bootstrap-only MCP surface for a laptop that does not have Honua yet. */
 export function createBootstrapServer(): McpServer {
   const server = new McpServer({ name: "honua-bootstrap", version: SERVER_VERSION });
+  registerSdkSkills(server);
   registerLocalInstallTool(server);
   return server;
 }
