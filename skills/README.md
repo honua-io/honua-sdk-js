@@ -21,6 +21,8 @@ are not stored in this repository.
 
 ## Install
 
+- **Claude Code plugin:** `/plugin marketplace add honua-io/honua-sdk-js`, then
+  `/plugin install honua-sdk@honua-sdk-js`.
 - **Copy a skill:** copy `skills/<name>/` into `~/.claude/skills/` (personal) or
   `.claude/skills/` (project). Agents that read `.agents/skills/` take the same
   directories.
