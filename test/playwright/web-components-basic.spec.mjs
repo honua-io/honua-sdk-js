@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { startWebComponentsFixtureServer } from "../fixtures/web-components-host/mock-server.mjs";
+import { contrast } from "../contrast.ts";
 
 test.setTimeout(90_000);
 
@@ -634,4 +635,64 @@ test("filter builder combines extent and time, escapes labels and preserves edit
     expect(await control.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     if (process.env.HONUA_FILTER_SCREENSHOT) await control.screenshot({ path: process.env.HONUA_FILTER_SCREENSHOT });
   } finally { await server.close(); }
+});
+
+const darkThemeTokens = {
+  "--honua-ui-bg": "#0b1d28",
+  "--honua-ui-surface": "#132c39",
+  "--honua-ui-fg": "#e7eef2",
+  "--honua-ui-muted": "#a8bdc8",
+  "--honua-ui-border": "#3b5866",
+  "--honua-ui-accent": "#1d4ed8",
+  "--honua-ui-accent-fg": "#ffffff",
+};
+
+async function featureTableTextContrast(table) {
+  const colors = await table.evaluate((element) => {
+    const hex = (color) =>
+      `#${color
+        .match(/\d+/g)
+        .slice(0, 3)
+        .map((channel) => Number(channel).toString(16).padStart(2, "0"))
+        .join("")}`;
+    const colorsOf = (cell) => {
+      const style = getComputedStyle(cell);
+      return { foreground: hex(style.color), background: hex(style.backgroundColor) };
+    };
+    return {
+      header: colorsOf(element.shadowRoot.querySelector("th")),
+      selectedCell: colorsOf(element.shadowRoot.querySelector('tr[aria-selected="true"] td')),
+    };
+  });
+  return {
+    header: contrast(colors.header.foreground, colors.header.background),
+    selectedCell: contrast(colors.selectedCell.foreground, colors.selectedCell.background),
+  };
+}
+
+test("feature table headers and selected rows stay readable in light and dark themes", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    const table = page.locator("honua-feature-table");
+    await table.locator("tbody tr[data-feature-id='102']").focus();
+    await page.keyboard.press("Enter");
+    await expect(table.locator("tbody tr[aria-selected='true']")).toHaveCount(1);
+
+    const light = await featureTableTextContrast(table);
+    expect(light.header).toBeGreaterThanOrEqual(4.5);
+    expect(light.selectedCell).toBeGreaterThanOrEqual(4.5);
+
+    await table.evaluate((element, tokens) => {
+      for (const [name, value] of Object.entries(tokens)) element.style.setProperty(name, value);
+    }, darkThemeTokens);
+
+    const dark = await featureTableTextContrast(table);
+    expect(dark.header).toBeGreaterThanOrEqual(4.5);
+    expect(dark.selectedCell).toBeGreaterThanOrEqual(4.5);
+  } finally {
+    await server.close();
+  }
 });
