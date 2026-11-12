@@ -185,7 +185,7 @@ export async function fetchMapDocument(
   const styleRefResolver =
     options.resolveStyleRef ??
     (options.disableDefaultStyleRefResolver ? undefined : createOgcStyleRefResolver({ client: options.client }));
-  const resolved = await resolveMapPackageStyleRefs(rawPackage, {
+  const resolved = await resolveMapDocumentStyleRefs(rawPackage, {
     ...(styleRefResolver ? { resolveStyleRef: styleRefResolver } : {}),
     requireStyleRefResolution: options.requireStyleRefResolution === true,
   });
@@ -288,7 +288,7 @@ export function mapDocumentFingerprint(pkg: HonuaMapDocument): string {
   return stableFingerprint(pkg);
 }
 
-async function resolveMapPackageStyleRefs(
+async function resolveMapDocumentStyleRefs(
   value: unknown,
   options: {
     readonly resolveStyleRef?: StyleRefResolver;

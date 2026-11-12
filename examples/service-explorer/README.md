@@ -102,10 +102,10 @@ import { loadMapDocumentFromId } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://cloud.honua.io", apiKey: process.env.HONUA_API_KEY });
 const controlPlane = createHonuaControlPlane({ client });
-const maps = await controlPlane.hostedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
+const maps = await controlPlane.savedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
 
 if (maps.supported && maps.value.items[0]) {
-  const locator = await controlPlane.hostedMaps.getPackageLocator(maps.value.items[0].id);
+  const locator = await controlPlane.savedMaps.getPackageLocator(maps.value.items[0].id);
   if (locator.supported) {
     await loadMapDocumentFromId(locator.value, maplibreMap, { client });
   }

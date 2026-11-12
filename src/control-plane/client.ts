@@ -48,10 +48,10 @@ export class HonuaControlPlaneClient {
   readonly #client: HonuaClient;
   readonly #basePath: string;
 
-  public readonly hostedMaps: HonuaSavedMapsClient;
-  public readonly packages: HonuaMapDocumentsClient;
+  public readonly savedMaps: HonuaSavedMapsClient;
+  public readonly mapDocuments: HonuaMapDocumentsClient;
   public readonly imports: HonuaImportsClient;
-  public readonly tokens: HonuaApiKeysClient;
+  public readonly apiKeys: HonuaApiKeysClient;
   public readonly workspaces: HonuaWorkspacesClient;
   public readonly connections: HonuaConnectionsClient;
   public readonly sharing: HonuaSharingClient;
@@ -59,10 +59,10 @@ export class HonuaControlPlaneClient {
   public constructor(options: HonuaControlPlaneClientOptions) {
     this.#client = options.client;
     this.#basePath = normalizeBasePath(options.basePath ?? HONUA_CONTROL_PLANE_BASE_PATH);
-    this.hostedMaps = new HonuaSavedMapsClient(this);
-    this.packages = new HonuaMapDocumentsClient(this);
+    this.savedMaps = new HonuaSavedMapsClient(this);
+    this.mapDocuments = new HonuaMapDocumentsClient(this);
     this.imports = new HonuaImportsClient(this);
-    this.tokens = new HonuaApiKeysClient(this);
+    this.apiKeys = new HonuaApiKeysClient(this);
     this.workspaces = new HonuaWorkspacesClient(this);
     this.connections = new HonuaConnectionsClient(this);
     this.sharing = new HonuaSharingClient(this);

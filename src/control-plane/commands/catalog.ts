@@ -306,7 +306,7 @@ export const mapDocumentPublishCommand: HonuaCommand<MapDocumentPublishInput, Ho
   },
   async execute(context) {
     const { input } = context;
-    const result = await context.controlPlane.packages.publish(
+    const result = await context.controlPlane.mapDocuments.publish(
       {
         package: input.package,
         ...(input.intent ? { intent: input.intent } : {}),

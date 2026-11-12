@@ -12,7 +12,7 @@ import {
   MAP_DOCUMENT_REALTIME_CHANNEL_V1,
   createMapDocumentServerSentEventsTransport,
   readMapDocumentRealtimeAdvertisement,
-  redactMapPackageRealtimeUrl,
+  redactMapDocumentRealtimeUrl,
 } from "./map-package-realtime.js";
 import type {
   MapDocumentRealtimeCheckpoint,
@@ -318,7 +318,7 @@ export function watchMapDocument(
             if (disposed) return;
             reconnectAttempt = 0;
             armRealtimeStaleTimer(source);
-            const eventUrl = info.url ? redactMapPackageRealtimeUrl(info.url) : source.url;
+            const eventUrl = info.url ? redactMapDocumentRealtimeUrl(info.url) : source.url;
             emit({
               type: "connected",
               transport: info.transport,
@@ -595,7 +595,7 @@ export function watchMapDocument(
     if (advertisedUrlGuard) {
       return { type: "unsupported", reason: advertisedUrlGuard, fallback: advertisedFallback };
     }
-    const publicUrl = redactMapPackageRealtimeUrl(url);
+    const publicUrl = redactMapDocumentRealtimeUrl(url);
 
     return {
       type: "available",

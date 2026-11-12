@@ -95,21 +95,21 @@ export type MapDocumentRealtimeMessage =
   | MapDocumentRealtimeErrorMessage
   | MapDocumentRealtimeDisconnectedMessage;
 
-export interface MapPackageRealtimeConnectionInfo {
+export interface MapDocumentRealtimeConnectionInfo {
   readonly channel?: string;
   readonly transport: MapDocumentRealtimeTransportKind;
   readonly url?: string;
 }
 
-export interface MapPackageRealtimeDisconnectInfo {
+export interface MapDocumentRealtimeDisconnectInfo {
   readonly reason?: string;
   readonly retryAfterMs?: number;
 }
 
 export interface MapDocumentRealtimeObserver {
-  connected(info: MapPackageRealtimeConnectionInfo): void;
+  connected(info: MapDocumentRealtimeConnectionInfo): void;
   message(message: MapDocumentRealtimeMessage): void;
-  disconnected(info?: MapPackageRealtimeDisconnectInfo): void;
+  disconnected(info?: MapDocumentRealtimeDisconnectInfo): void;
   error(error: unknown): void;
 }
 
@@ -218,7 +218,7 @@ export function createMapDocumentServerSentEventsTransport(
     kind: "sse",
     subscribe(request, observer): MapDocumentRealtimeSubscriptionHandle {
       const encoded = encodeMapDocumentRealtimeUrl(new URL(options.url, request.client.serverBaseUrl), request);
-      applyMapPackageRealtimeAuth(encoded, options.auth);
+      applyMapDocumentRealtimeAuth(encoded, options.auth);
       const source = createEventSource(resolveEventSourceUrl(options.url, encoded), options);
       const listeners: Array<readonly [string, (event: MessageEvent<string>) => void]> = [];
       let closed = false;
@@ -239,7 +239,7 @@ export function createMapDocumentServerSentEventsTransport(
           observer.connected({
             channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1,
             transport: "sse",
-            url: redactMapPackageRealtimeUrl(encoded),
+            url: redactMapDocumentRealtimeUrl(encoded),
           });
         }
       };
@@ -303,7 +303,7 @@ export function encodeMapDocumentRealtimeUrl(url: URL, request: MapDocumentRealt
   return url;
 }
 
-export function redactMapPackageRealtimeUrl(input: string | URL): string {
+export function redactMapDocumentRealtimeUrl(input: string | URL): string {
   const text = String(input);
   try {
     const url = new URL(text, "https://honua.invalid");
@@ -428,7 +428,7 @@ function createEventSource(
   return new EventSourceCtor(url, { withCredentials: options.withCredentials });
 }
 
-function applyMapPackageRealtimeAuth(url: URL, auth: MapDocumentRealtimeAuth | undefined): void {
+function applyMapDocumentRealtimeAuth(url: URL, auth: MapDocumentRealtimeAuth | undefined): void {
   if (!auth || auth.kind !== "query-token") return;
   url.searchParams.set(auth.parameterName ?? "access_token", auth.token);
 }
