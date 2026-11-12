@@ -297,7 +297,7 @@ export async function mountAutomaticSourceToMapLibre<T>(
       `The strategy plan has no eligible selection. ${plan.diagnostics
         .filter((diagnostic) => diagnostic.code !== "protocol-mismatch")
         .map((diagnostic) => `${diagnostic.strategy}: ${diagnostic.message}`)
-        .join(" ")}`,
+        .join(" ")}`.trimEnd(),
       {
         sourceId: plan.sourceId,
         diagnostics: plan.diagnostics,

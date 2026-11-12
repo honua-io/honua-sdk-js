@@ -56,7 +56,77 @@ function rawTilesFetch(onRequest?: (request: Request) => void): typeof fetch {
   });
 }
 
+function pendingCollectionMetadata() {
+  const pending = new Map<number, () => void>();
+  const collections = Array.from({ length: 6 }, (_, index) => ({
+    id: String(index),
+    links: [{ rel: "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector", href: `/metadata/${index}` }],
+  }));
+  const fetchFn: typeof fetch = vi.fn(async (input, init) => {
+    const path = new URL(new Request(input, init).url).pathname;
+    if (path === "/tiles") return json(tilesLanding);
+    if (path === "/tiles/conformance") return json(tilesConformance);
+    if (path === "/tiles/collections") return json({ collections });
+    const index = Number(path.split("/").at(-1));
+    await new Promise<void>((resolve) => pending.set(index, resolve));
+    return json({
+      tilesets: [
+        {
+          dataType: "vector",
+          tileMatrixSetId: "WebMercatorQuad",
+          links: [
+            {
+              rel: "item",
+              type: "application/vnd.mapbox-vector-tile",
+              href: `/render/${index}/{tileMatrix}/{tileRow}/{tileCol}`,
+            },
+          ],
+        },
+      ],
+    });
+  });
+  return {
+    pending,
+    options: {
+      endpoint: "https://tiles.example/tiles",
+      protocol: "ogc-tiles" as const,
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn },
+    },
+  };
+}
+
 describe("connect() — raw OGC API Tiles discovery", () => {
+  it("bounds metadata concurrency and preserves every collection in advertised order", async () => {
+    const { pending, options } = pendingCollectionMetadata();
+    const discovery = connect(options);
+    await vi.waitFor(() => expect([...pending.keys()]).toEqual([0, 1, 2, 3]));
+    pending.get(3)!();
+    await vi.waitFor(() => expect(pending.has(4)).toBe(true));
+    pending.get(4)!();
+    await vi.waitFor(() => expect(pending.has(5)).toBe(true));
+    for (const index of [5, 2, 1, 0]) pending.get(index)!();
+    const connection = await discovery;
+    expect(connection.dataset.sourceIds()).toEqual(["0", "1", "2", "3", "4", "5"]);
+    for (const index of connection.dataset.sourceIds()) {
+      expect(connection.source(index).descriptor.locator.tileUrlTemplate).toBe(
+        `https://tiles.example/render/${index}/{z}/{y}/{x}`,
+      );
+    }
+  });
+
+  it("aborts concurrent metadata discovery without starting queued collections", async () => {
+    const { pending, options } = pendingCollectionMetadata();
+    const controller = new AbortController();
+    const discovery = connect({ ...options, signal: controller.signal });
+    const rejected = expect(discovery).rejects.toBeInstanceOf(HonuaAbortError);
+    await vi.waitFor(() => expect(pending.size).toBe(4));
+    controller.abort();
+    for (const resolve of pending.values()) resolve();
+    await rejected;
+    expect([...pending.keys()]).toEqual([0, 1, 2, 3]);
+  });
+
   it("threads the discovered service root through the Tiles adapter and fetches a raw tile", async () => {
     const requests: string[] = [];
     const fetchFn = rawTilesFetch((request) => requests.push(new URL(request.url).pathname));

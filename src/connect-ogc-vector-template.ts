@@ -1,5 +1,6 @@
-import { isSafeBrowserTileEndpoint } from "./core/browser-tile-endpoint.js";
 /** Internal discovery of native renderer templates from advertised OGC links. */
+
+import { isSafeBrowserTileEndpoint } from "./core/browser-tile-endpoint.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError } from "./core/errors.js";
 import { isOgcVectorTileTemplate } from "./core/ogc-vector-tile-template.js";
