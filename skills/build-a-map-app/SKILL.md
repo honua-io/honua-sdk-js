@@ -101,14 +101,15 @@ async function page(offset: number) {
     if (!rings?.length) return [];
     return [{ type: "Feature" as const, properties: { ...row.attributes }, geometry: { type: "Polygon" as const, coordinates: rings } }];
   });
-  return { features, fetched: rows.length };
+  return { features, fetched: rows.length, more: result.exceededTransferLimit };
 }
 
 const features = [];
-for (let offset = 0; ; offset += PAGE) {
+for (let offset = 0; ; ) {
   const batch = await page(offset);
   features.push(...batch.features);
-  if (batch.fetched < PAGE) break;                                // count fetched rows, not drawable ones
+  offset += batch.fetched;                                        // the server may cap a page below PAGE
+  if (batch.fetched === 0 || (!batch.more && batch.fetched < PAGE)) break;   // count fetched rows, not drawable ones
 }
 map.addSource("big", { type: "geojson", data: { type: "FeatureCollection", features } });
 map.addLayer({ id: "big", type: "fill", source: "big", paint: { "fill-color": "#000", "fill-opacity": 0.05, "fill-outline-color": "#333" } });
@@ -128,9 +129,9 @@ Layer toggles: set visibility on every style layer whose `source` is the
 mounted `sourceId`. Do not rely on the layer id alone.
 
 ```ts
-function setVisible(sourceId: string, visible: boolean) {
+function setVisibility(sourceId: string, visibility: "visible" | "none") {
   for (const layer of map.getStyle().layers) {
-    if ("source" in layer && layer.source === sourceId) map.setLayoutProperty(layer.id, "visibility", visible ? "visible" : "none");
+    if ("source" in layer && layer.source === sourceId) map.setLayoutProperty(layer.id, "visibility", visibility);
   }
 }
 ```
