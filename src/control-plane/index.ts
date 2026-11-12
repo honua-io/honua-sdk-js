@@ -109,5 +109,3 @@ export type {
 } from "./types.js";
 
 export * from "./dataset-import/index.js";
-
-export * from "./deprecated-names.js";

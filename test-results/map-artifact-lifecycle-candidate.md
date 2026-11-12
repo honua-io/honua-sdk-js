@@ -49,7 +49,7 @@ Not met.
 
 | Check | Verdict | Evidence |
 | --- | --- | --- |
-| `portable-fixture-valid-and-export-roundtrip` | pass | Installed `validateMapPackage` passes; `exportMapPackage`/`importMapPackage` round-trip with a deterministic fingerprint. |
+| `portable-fixture-valid-and-export-roundtrip` | pass | Installed `validateMapDocument` passes; `exportMapDocument`/`importMapDocument` round-trip with a deterministic fingerprint. |
 | `js-sdk-reads-same-version` | pass | Installed `HonuaStudioLifecycleClient` returns the same hash and canonical body. |
 | `studio-client-reads-and-reopens-same-version` | pass | Studio's `StudioLifecycleClient` gets the same hash and body, and reopens. |
 | `mcp-js-studio-byte-identical-version-payload` | pass | MCP save, JS REST and Studio all return byte-identical body JSON. |

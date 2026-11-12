@@ -92,7 +92,7 @@ describe("HonuaInMemoryWebComponentController.moveLayer", () => {
   });
 });
 
-describe("layersFromMapPackage opacity extraction", () => {
+describe("layersFromMapDocument opacity extraction", () => {
   it("reads literal numeric paint opacity and ignores expressions", () => {
     const layers = layersFromMapDocument([
       { id: "fill", type: "fill", paint: { "fill-opacity": 0.35 } },

@@ -191,7 +191,7 @@ describe("MapPackage round-trip validation (incompatible basemap + layer)", () =
     // Clear, typed runtime error — not a raw MapLibre/HonuaMap string throw.
     expect(error).toBeInstanceOf(HonuaMapDocumentError);
     const typed = error as HonuaMapDocumentError;
-    expect(typed.name).toBe("HonuaMapPackageError");
+    expect(typed.name).toBe("HonuaMapDocumentError");
     expect(typed.stage).toBe("load");
     expect(typed.packageId).toBe("pkg-incompatible-overlay");
     // The wrapped cause must name the offending source so hosts can act on it.

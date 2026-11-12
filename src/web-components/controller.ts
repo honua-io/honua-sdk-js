@@ -802,8 +802,3 @@ function legendId(label: string, index: number): string {
   );
   return slug ? `${slug}-${index}` : `legend-${index}`;
 }
-
-/** @deprecated Use layersFromMapDocument. Removed in the next minor. */
-export const layersFromMapPackage = layersFromMapDocument;
-/** @deprecated Use legendFromMapDocument. Removed in the next minor. */
-export const legendFromMapPackage = legendFromMapDocument;

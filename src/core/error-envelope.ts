@@ -435,7 +435,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaJobFailedError",
   "HonuaMapLibreRasterStrategyError",
   "HonuaMapLibreSourceAdapterError",
-  "HonuaMapPackageError",
+  "HonuaMapDocumentError",
   "HonuaNetworkError",
   "HonuaOfflineRegionError",
   "HonuaOfflineEditQueueError",

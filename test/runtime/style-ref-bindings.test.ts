@@ -149,7 +149,7 @@ describe("live shared style render bindings", () => {
       const client = new HonuaClient({ baseUrl: "https://honua.test", fetchFn: async () => response(doc) });
       const pkg = mapPackage();
       await expect(applyStyleRefs(pkg.mapSpec, pkg, createOgcStyleRefResolver({ client }))).rejects.toMatchObject({
-        name: "HonuaMapPackageError",
+        name: "HonuaMapDocumentError",
         stage: "style-compose",
       });
     },
@@ -172,7 +172,7 @@ describe("live shared style render bindings", () => {
       );
       const resolver = vi.fn(async () => ({ places: {}, places__outline: {} }));
       await expect(applyStyleRefs(pkg.mapSpec, pkg, resolver)).rejects.toMatchObject({
-        name: "HonuaMapPackageError",
+        name: "HonuaMapDocumentError",
         stage: "style-compose",
       });
       expect(resolver).not.toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe("live shared style render bindings", () => {
     const pkg = mapPackage();
     await expect(
       applyStyleRefs(pkg.mapSpec, pkg, async () => ({ "catalog-fill": { paint: { "fill-color": "green" } } })),
-    ).rejects.toMatchObject({ name: "HonuaMapPackageError", stage: "style-compose" });
+    ).rejects.toMatchObject({ name: "HonuaMapDocumentError", stage: "style-compose" });
   });
 
   test("package 304 still resolves live catalog changes and reports refreshed for runtime watchers", async () => {
@@ -242,7 +242,7 @@ describe("live shared style render bindings", () => {
     await fetchMapDocument("published-map", { client });
     cached = true;
     await expect(fetchMapDocument("published-map", { client })).rejects.toMatchObject({
-      name: "HonuaMapPackageError",
+      name: "HonuaMapDocumentError",
       stage: "validate",
     });
   });

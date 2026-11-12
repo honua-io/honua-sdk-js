@@ -131,6 +131,3 @@ export function fromMapDocumentValidation(
 ): StudioPackageValidationResponse<HonuaMapDocument> {
   return toStudioValidationResponse<HonuaMapDocument>(result, "mapPackage");
 }
-
-/** @deprecated Use fromMapDocumentValidation. Removed in the next minor. */
-export const fromMapPackageValidation = fromMapDocumentValidation;

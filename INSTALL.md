@@ -46,7 +46,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
 | `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
-| `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
+| `@honua/sdk-js/runtime` | MapLibre map document runtime (`loadMapDocument`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
 | `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
 | `@honua/sdk-js/geocoding` | Geocoding adapters |
@@ -183,7 +183,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | **6.4.1 or newer within major 6** (`^6.4.1`). Every SDK release since `0.1.12` declares this range and refuses affected 5.x and early 6.x peers; older published SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
+| MapLibre map document runtime (`@honua/sdk-js/runtime`) | **6.4.1 or newer within major 6** (`^6.4.1`). Every SDK release since `0.1.12` declares this range and refuses affected 5.x and early 6.x peers; older published SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
@@ -259,8 +259,8 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
   escape hatch.
 - [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md) — round-trip mapping between
   `SourceDescriptor` and the server `SourceBinding` document.
-- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage(...)` and `HonuaMapRuntime`
-  for the MapLibre GL JS-first `MapPackage` runtime.
+- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapDocument(...)` and `HonuaMapRuntime`
+  for the MapLibre GL JS-first map document runtime.
 
 ## Esri Migration
 

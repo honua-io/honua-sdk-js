@@ -334,8 +334,3 @@ export function clampGeneratedAppWidgets(
 ): ReadonlyArray<HonuaGeneratedAppWidget> {
   return widgets.length > HONUA_GENERATED_APP_MAX_WIDGETS ? widgets.slice(0, HONUA_GENERATED_APP_MAX_WIDGETS) : widgets;
 }
-
-/** @deprecated Use projectMapDocumentToGeneratedAppManifest. Removed in the next minor. */
-export const projectMapPackageToGeneratedAppManifest = projectMapDocumentToGeneratedAppManifest;
-/** @deprecated Use ProjectMapDocumentToGeneratedAppManifestOptions. Removed in the next minor. */
-export type ProjectMapPackageToGeneratedAppManifestOptions = ProjectMapDocumentToGeneratedAppManifestOptions;

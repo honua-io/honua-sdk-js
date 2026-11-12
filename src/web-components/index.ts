@@ -122,9 +122,7 @@ export {
   createHonuaWebComponentController,
   createHonuaWebComponentControllerFromRuntime,
   layersFromMapDocument,
-  layersFromMapPackage,
   legendFromMapDocument,
-  legendFromMapPackage,
 } from "./controller.js";
 
 export {

@@ -28,8 +28,13 @@ interface ExceptionGroup {
   readonly names: readonly string[];
 }
 
+interface RenamedNames {
+  readonly reason: string;
+  readonly names: Readonly<Record<string, string>>;
+}
+
 interface RetiredNameExceptions {
-  readonly deprecatedAliases: ExceptionGroup;
+  readonly renamed: RenamedNames;
   readonly foreignFormat: ExceptionGroup;
   readonly technicalWorkspace: ExceptionGroup;
   readonly pendingRename: ExceptionGroup;
@@ -43,9 +48,9 @@ interface ExportedName {
 const exceptions = JSON.parse(
   readFileSync(path.join(ROOT, "test/fixtures/vocabulary/retired-name-exceptions.json"), "utf8"),
 ) as RetiredNameExceptions;
-const deprecatedAliases = new Set(exceptions.deprecatedAliases.names);
+// Old names renamed outright (no deprecated aliases): old -> new.
+const renamed = new Map(Object.entries(exceptions.renamed.names));
 const allowed = new Set([
-  ...exceptions.deprecatedAliases.names,
   ...exceptions.foreignFormat.names,
   ...exceptions.technicalWorkspace.names,
   ...exceptions.pendingRename.names,
@@ -70,7 +75,7 @@ function entrypointSources(): Map<string, string> {
   return sources;
 }
 
-function collectExports(): { checker: ts.TypeChecker; names: Map<string, ExportedName[]> } {
+function collectExports(): Map<string, ExportedName[]> {
   const sources = entrypointSources();
   const program = ts.createProgram([...sources.values()], {
     module: ts.ModuleKind.NodeNext,
@@ -92,26 +97,14 @@ function collectExports(): { checker: ts.TypeChecker; names: Map<string, Exporte
       names.set(symbol.name, entries);
     }
   }
-  return { checker, names };
-}
-
-function deprecationReplacement(checker: ts.TypeChecker, symbol: ts.Symbol): string | undefined {
-  const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
-  for (const declaration of target.declarations ?? []) {
-    const tag = ts.getJSDocTags(declaration).find((candidate) => candidate.tagName.text === "deprecated");
-    const text = typeof tag?.comment === "string" ? tag.comment : ts.getTextOfJSDocComment(tag?.comment);
-    const replacement = text?.match(/^Use (\w+)\./)?.[1];
-    if (replacement) return replacement;
-  }
-  return undefined;
+  return names;
 }
 
 describe("public names use the Honua vocabulary", () => {
-  let checker: ts.TypeChecker;
   let exported: Map<string, ExportedName[]>;
 
   beforeAll(() => {
-    ({ checker, names: exported } = collectExports());
+    exported = collectExports();
   }, 120_000);
 
   it("exports no retired term outside the reviewed exceptions", () => {
@@ -124,31 +117,30 @@ describe("public names use the Honua vocabulary", () => {
     expect(stale).toEqual([]);
   });
 
-  it("marks every deprecated alias with a vocabulary-clean replacement from the same entrypoint", () => {
-    const problems: string[] = [];
-    for (const name of deprecatedAliases) {
-      for (const { entrypoint, symbol } of exported.get(name) ?? []) {
-        const replacement = deprecationReplacement(checker, symbol);
-        const sameEntrypoint = exported.get(replacement ?? "")?.some((entry) => entry.entrypoint === entrypoint);
-        if (!replacement || containsRetiredTerm(replacement) || !sameEntrypoint) problems.push(`${entrypoint} ${name}`);
-      }
-    }
+  it("exports none of the renamed pre-vocabulary names", () => {
+    const stillExported = [...renamed.keys()].filter((name) => exported.has(name));
+    expect(stillExported).toEqual([]);
+  });
+
+  it("exports every replacement name with no retired term", () => {
+    const problems = [...renamed].filter(([, next]) => !exported.has(next) || containsRetiredTerm(next));
     expect(problems).toEqual([]);
   });
 
-  it("keeps deprecated value aliases identical to their replacements", async () => {
-    const runtime = (await import("../src/runtime/index.js")) as Record<string, unknown>;
-    const controlPlane = (await import("../src/control-plane/index.js")) as Record<string, unknown>;
-    expect(runtime.loadMapPackage).toBe(runtime.loadMapDocument);
-    expect(runtime.HonuaMapPackageError).toBe(runtime.HonuaMapDocumentError);
-    expect(runtime.HONUA_MAP_PACKAGE_FORMAT_V1).toBe(runtime.HONUA_MAP_DOCUMENT_FORMAT_V1);
-    expect(controlPlane.HonuaApiTokensClient).toBe(controlPlane.HonuaApiKeysClient);
-    expect(controlPlane.HonuaHostedMapsClient).toBe(controlPlane.HonuaSavedMapsClient);
+  it("keeps the renamed value exports off the runtime modules", async () => {
+    const modules = await Promise.all([
+      import("../src/runtime/index.js"),
+      import("../src/control-plane/index.js"),
+      import("../src/studio/index.js"),
+      import("../src/generated-app/index.js"),
+    ]);
+    const leaked = modules.flatMap((module) => [...renamed.keys()].filter((name) => name in module));
+    expect(leaked).toEqual([]);
   });
 });
 
 describe("docs and examples use the current names", () => {
-  const DOC_ROOTS = ["README.md", "docs", "examples"];
+  const DOC_ROOTS = ["README.md", "INSTALL.md", "docs", "examples"];
   const SKIPPED = new Set(["node_modules", "dist", "decisions"]);
 
   const DOC_FILE = /\.(md|ts|tsx|mjs|html)$/;
@@ -162,8 +154,8 @@ describe("docs and examples use the current names", () => {
       .flatMap((child) => documentFiles(path.join(entry, child)));
   }
 
-  it("never names a deprecated alias", () => {
-    const pattern = new RegExp(`\\b(${[...deprecatedAliases].join("|")})\\b`);
+  it("never names a renamed pre-vocabulary name", () => {
+    const pattern = new RegExp(`\\b(${[...renamed.keys()].join("|")})\\b`);
     const offenders = DOC_ROOTS.flatMap(documentFiles).filter((file) =>
       pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
     );

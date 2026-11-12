@@ -372,5 +372,3 @@ export type {
   HonuaOnlineBasemapMap,
   HonuaOnlineBasemapBindingOptions,
 } from "./online-basemap.js";
-
-export * from "./deprecated-names.js";

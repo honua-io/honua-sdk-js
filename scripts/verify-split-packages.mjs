@@ -325,7 +325,7 @@ import {
 import { DECK_GL_ADAPTER_CONTRACT_VERSION, bindGeoArrowPointBatchToDeckGl } from "@honua/sdk/deckgl";
 import { KEPLER_BRIDGE_CONTRACT_VERSION, projectResultToKeplerDataset } from "@honua/sdk/kepler";
 import { validateHonuaStyle } from "@honua/sdk/style";
-import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
+import { loadMapDocument, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
   REALTIME_DURABLE_CHECKPOINT_VERSION,
   createResumableRealtimeSubscription,
@@ -851,8 +851,8 @@ if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")
   throw new Error("validateHonuaStyle export missing from @honua/sdk/style");
-if (typeof loadMapPackage !== "function")
-  throw new Error("loadMapPackage export missing from @honua/sdk/runtime");
+if (typeof loadMapDocument !== "function")
+  throw new Error("loadMapDocument export missing from @honua/sdk/runtime");
 if (typeof validateRuntimeStyleSpec !== "function")
   throw new Error("validateRuntimeStyleSpec export missing from @honua/sdk/runtime");
 if (typeof createResumableRealtimeSubscription !== "function")

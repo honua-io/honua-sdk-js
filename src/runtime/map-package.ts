@@ -16,8 +16,6 @@ import type { HonuaStyleSpecification } from "../style/specification.js";
 
 /** Canonical format string for the v1 MapPackage shape. */
 export const HONUA_MAP_DOCUMENT_FORMAT_V1 = "honua_map_package.v1" as const;
-/** @deprecated Use HONUA_MAP_DOCUMENT_FORMAT_V1. Removed in the next minor. */
-export const HONUA_MAP_PACKAGE_FORMAT_V1 = HONUA_MAP_DOCUMENT_FORMAT_V1;
 
 /** Canonical format string for the v1 MapPackage shape. */
 export type HonuaMapDocumentFormat = typeof HONUA_MAP_DOCUMENT_FORMAT_V1;

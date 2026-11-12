@@ -61,7 +61,7 @@ export class HonuaMapDocumentError extends HonuaSdkError {
       requestId: options.requestId,
       context: mergeHonuaErrorContext(options.context, { packageId: options.packageId, stage: options.stage }),
     });
-    this.name = "HonuaMapPackageError";
+    this.name = "HonuaMapDocumentError";
     this.packageId = options.packageId;
     this.stage = options.stage;
     this.detail = options.detail;

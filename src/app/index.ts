@@ -656,10 +656,3 @@ export type {
   MapDocumentWatchHandle,
   MaplibreMap,
 };
-export type {
-  MapPackageFetchCache,
-  MapPackageLocator,
-  MapPackagePathResolver,
-  MapPackageWatchEvent,
-  MapPackageWatchHandle,
-} from "../runtime/deprecated-names.js";

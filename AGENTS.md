@@ -41,8 +41,9 @@ before touching the pin, playgrounds, capability keys or sample fixtures.
 - Vocabulary: exported names, docs and error messages use the Honua vocabulary (honua-server
   `docs/concepts/domain/README.md`, shared policy `scripts/ci/retired-terms.v1.json`).
   `test/vocabulary-public-names.test.ts` fails on a new export carrying a retired term; its
-  exceptions file (`test/fixtures/vocabulary/`) only shrinks. Rename with a deprecated alias for one
-  release; leave server wire fields, error codes and format ids unchanged.
+  exceptions file (`test/fixtures/vocabulary/`) only shrinks. The product is unreleased, so rename
+  outright: no deprecated aliases, re-exports or shims for the old name. Add the old -> new pair to
+  the fixture's `renamed` list. Leave server wire fields, error codes and format ids unchanged.
 - Migration CLI scripts (`scan:arcgis`, `migrate:arcgis`, ...) build first and run
   `dist/src/migration/cli.js`.
 

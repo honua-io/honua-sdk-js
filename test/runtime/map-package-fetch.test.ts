@@ -66,7 +66,7 @@ describe("fetchMapDocument", () => {
     );
 
     await expect(fetchMapDocument("bad", { client })).rejects.toMatchObject({
-      name: "HonuaMapPackageError",
+      name: "HonuaMapDocumentError",
       stage: "validate",
       detail: {
         diagnostics: expect.arrayContaining([

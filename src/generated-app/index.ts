@@ -46,12 +46,10 @@ export {
   projectAppPackageToGeneratedAppManifest,
   projectBuildSpecToGeneratedAppManifest,
   projectMapDocumentToGeneratedAppManifest,
-  projectMapPackageToGeneratedAppManifest,
 } from "./projection.js";
 export type {
   ProjectBuildSpecToGeneratedAppManifestOptions,
   ProjectMapDocumentToGeneratedAppManifestOptions,
-  ProjectMapPackageToGeneratedAppManifestOptions,
 } from "./projection.js";
 
 export { HonuaGeneratedAppError, toGeneratedAppDiagnostic } from "./errors.js";
