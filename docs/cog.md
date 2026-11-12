@@ -149,3 +149,7 @@ overview-source-pixel, encoded-byte, canvas-dimension, and diagnostic-history
 ceilings. Callers may tighten them or raise them only within hard SDK limits.
 This S2 bridge does not select assets in UI, cache decoded pixels, perform
 raster analytics, or supply a GeoTIFF implementation.
+
+Browser sessions use the native global `fetch` by default; injecting `fetchFn` is optional.
+The asset host must allow the browser origin and Range requests through CORS and
+expose `Content-Range` so bounded reads can validate each response.
