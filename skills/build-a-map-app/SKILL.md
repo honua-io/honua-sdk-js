@@ -82,7 +82,7 @@ first 10,000. Zoom in somewhere and the layer is empty. Page through the layer
 with the SDK and add the features to the map yourself:
 
 ```ts
-type Row = { attributes?: Record<string, unknown>; properties?: Record<string, unknown>; geometry?: { rings?: number[][][] } };
+type Row = { attributes: Record<string, unknown>; geometry?: { rings?: number[][][] } };
 const PAGE = 10_000;
 const big = await honua.connect("<server>/rest/services/<service>/FeatureServer/<layer id>");
 
@@ -95,18 +95,20 @@ async function page(offset: number) {
     orderBy: [{ field: "<object id field>", direction: "asc" }],   // stable order across pages
     pagination: { offset, limit: PAGE },
   });
-  return (result.features as Row[]).flatMap((row) => {
+  const rows = result.features as Row[];
+  const features = rows.flatMap((row) => {
     const rings = row.geometry?.rings;
     if (!rings?.length) return [];
-    return [{ type: "Feature" as const, properties: { ...(row.attributes ?? row.properties) }, geometry: { type: "Polygon" as const, coordinates: rings } }];
+    return [{ type: "Feature" as const, properties: { ...row.attributes }, geometry: { type: "Polygon" as const, coordinates: rings } }];
   });
+  return { features, fetched: rows.length };
 }
 
 const features = [];
 for (let offset = 0; ; offset += PAGE) {
   const batch = await page(offset);
-  features.push(...batch);
-  if (batch.length < PAGE) break;
+  features.push(...batch.features);
+  if (batch.fetched < PAGE) break;                                // count fetched rows, not drawable ones
 }
 map.addSource("big", { type: "geojson", data: { type: "FeatureCollection", features } });
 map.addLayer({ id: "big", type: "fill", source: "big", paint: { "fill-color": "#000", "fill-opacity": 0.05, "fill-outline-color": "#333" } });
@@ -137,14 +139,16 @@ Click details: read the key from the clicked feature, query the feature
 service for the full record, then query overlays with the record's geometry:
 
 ```ts
-import { spatialIntersects } from "@honua/sdk-js";
+import { queryFilter, spatialIntersects } from "@honua/sdk-js";
 
 map.on("click", "big", async (event) => {
-  const key = String(event.features?.[0]?.properties?.["<key field>"] ?? "");
-  const record = (await big.query({ where: `<key field> = '${key}'`, outFields: ["*"], outSr: 4326 })).features[0];
-  const within = spatialIntersects(record.geometry);
+  const key = event.features?.[0]?.properties?.["<key field>"];
+  if (key === undefined) return;
+  const record = (await big.query({ filter: queryFilter.eq("<key field>", key), outFields: ["*"], outSr: 4326 })).features[0];
+  if (!record?.geometry) return;
+  const within = spatialIntersects({ ...record.geometry });
   const overlay = await zoning.query({ spatialFilter: within, outFields: ["<overlay field>"], returnGeometry: false });
-  // GeoServices rows carry `attributes`; OGC API rows carry `properties`.
+  const values = overlay.features.map((f) => f.attributes["<overlay field>"]);
 });
 ```
 
