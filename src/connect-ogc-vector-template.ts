@@ -3,16 +3,19 @@ import { isSafeBrowserTileEndpoint } from "./core/browser-tile-endpoint.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError } from "./core/errors.js";
 import { isOgcVectorTileTemplate } from "./core/ogc-vector-tile-template.js";
-import type { HonuaOgcCollectionSummary, HonuaOgcTilesetMetadata, HonuaOgcTilesetsResponse } from "./core/types.js";
+import type {
+  HonuaOgcCollectionSummary,
+  HonuaOgcLink,
+  HonuaOgcTilesetMetadata,
+  HonuaOgcTilesetsResponse,
+} from "./core/types.js";
 
 export async function discoverOgcVectorTemplate(
   client: HonuaClient,
   collection: HonuaOgcCollectionSummary,
   options: { basePath: string; signal?: AbortSignal },
 ): Promise<string | undefined> {
-  const link = collection.links?.find(
-    (entry) => entry.rel === "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector",
-  );
+  const link = jsonLink(collection.links, "http://www.opengis.net/def/rel/ogc/1.0/tilesets-vector");
   if (!link) return undefined;
   const collectionUrl = `${client.serverBaseUrl}${options.basePath}/collections/${encodeURIComponent(collection.id)}`;
   try {
@@ -42,18 +45,32 @@ async function resolveTilesetTemplate(
   summary: HonuaOgcTilesetMetadata,
   options: { listUrl: URL; signal?: AbortSignal },
 ): Promise<string | undefined> {
-  const direct = itemTemplate(summary, options.listUrl.href);
-  if (direct) return direct;
-  const link = summary.links?.find((entry) => entry.rel === "self" && entry.type === "application/json");
-  const detailUrl = link && metadataUrl(link.href, options.listUrl.href);
-  if (!detailUrl) return undefined;
-  const detail = await client.pipelineRequestJson<HonuaOgcTilesetMetadata>(
-    "GET",
-    detailUrl.pathname + detailUrl.search,
-    undefined,
-    options.signal,
+  try {
+    const direct = itemTemplate(summary, options.listUrl.href);
+    if (direct) return direct;
+    const link = jsonLink(summary.links, "self");
+    const detailUrl = link && metadataUrl(link.href, options.listUrl.href);
+    if (!detailUrl) return undefined;
+    const detail = await client.pipelineRequestJson<HonuaOgcTilesetMetadata>(
+      "GET",
+      detailUrl.pathname + detailUrl.search,
+      undefined,
+      options.signal,
+    );
+    return isWebMercatorVector(detail) ? itemTemplate(detail, detailUrl.href) : undefined;
+  } catch (error) {
+    if (options.signal?.aborted || error instanceof HonuaAbortError)
+      throw new HonuaAbortError("OGC tile discovery aborted.");
+    return undefined;
+  }
+}
+
+function jsonLink(links: HonuaOgcLink[] | undefined, relation: string): HonuaOgcLink | undefined {
+  const candidates = links?.filter((entry) => entry.rel === relation);
+  return (
+    candidates?.find((entry) => entry.type?.split(";")[0]?.trim().toLowerCase() === "application/json") ??
+    candidates?.find((entry) => !entry.type)
   );
-  return isWebMercatorVector(detail) ? itemTemplate(detail, detailUrl.href) : undefined;
 }
 
 function metadataUrl(href: string, base: string): URL | undefined {
