@@ -163,6 +163,7 @@ function createSdkPackage() {
   for (const moduleName of [
     "connect-cache-data",
     "connect-constants",
+    "connect-ogc-vector-template",
     "connect-endpoint",
     "connect-pmtiles-cache-validation",
     "connect-pmtiles-inspection",
@@ -679,6 +680,10 @@ function createAppPlatformPackage() {
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
       ...geometryRuntimeDependencies(),
+      // Static web-component imports must resolve in a clean consumer install.
+      "terra-draw": rootPackageJson.devDependencies["terra-draw"],
+      "terra-draw-maplibre-gl-adapter": rootPackageJson.devDependencies["terra-draw-maplibre-gl-adapter"],
+      pmtiles: rootPackageJson.devDependencies.pmtiles,
     },
     peerDependencies: {
       "@honua/sdk": version,
@@ -705,6 +710,7 @@ function createAppPlatformPackage() {
       "(control-plane, collaboration, share, operate, replica-sync).",
       "",
       "`maplibre-gl` and `cesium` are optional peer dependencies.",
+      "Drawing and PMTiles runtime dependencies are installed automatically.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
@@ -777,6 +783,10 @@ function writePackageJson(packageRoot, overrides) {
     sideEffects: overrides.sideEffects,
     engines: publishedEngines,
   };
+
+  if (packageJson.dependencies?.["@duckdb/node-api"] || packageJson.peerDependencies?.["@duckdb/node-api"]) {
+    throw new Error("Native GeoParquet belongs only to the canonical SDK Node entrypoint");
+  }
 
   fs.writeFileSync(
     path.join(packageRoot, "package.json"),

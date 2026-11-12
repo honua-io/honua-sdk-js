@@ -19,6 +19,7 @@ import {
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
+  projectLegacyCapabilitySampleMatrix,
   validateLegacyVisualReceiptArchive,
   validateSiteConsumerFixtureV3,
   validateSiteConsumerFixtureV4,
@@ -129,7 +130,7 @@ describe("honua-site consumer handoff", () => {
           qualifiedJourneys: 4,
           canonicalRoutes: 26,
           legacyRoutes: 20,
-          gaps: inputs.matrix.gaps.length,
+          gaps: projectLegacyCapabilitySampleMatrix(inputs.matrix).gaps.length,
         },
       });
       // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,

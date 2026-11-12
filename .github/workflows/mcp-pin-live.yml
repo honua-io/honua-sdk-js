@@ -23,6 +23,12 @@ jobs:
   verify-pin:
     name: Resolve the pinned candidate from the public registry
     runs-on: ubuntu-latest
+    # Job permissions replace the workflow default. actions:read is required
+    # for publication-recovery run and job reads.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -43,6 +49,8 @@ jobs:
         run: npm run verify:client-pair:registry
 
       - name: Verify the published migration cohort and installed forwarding surfaces
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:registry
 
       - name: Upload migration cohort receipt and installed lock

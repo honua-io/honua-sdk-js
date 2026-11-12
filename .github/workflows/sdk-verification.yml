@@ -53,6 +53,8 @@ on:
 # Read-only for every job, and this workflow is `pull_request`, never
 # `pull_request_target` (REQ-008): a fork's code therefore never executes with a
 # write token and can never publish evidence anything downstream trusts.
+# verify-package replaces this grant with actions:read for migration-cohort
+# recovery. Other jobs keep contents:read only.
 permissions:
   contents: read
 
@@ -202,7 +204,7 @@ jobs:
         run: npm ci
 
       - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
 
       - name: Test SDK publication workflow execution
         run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
@@ -666,6 +668,12 @@ jobs:
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Job permissions replace the workflow grant. actions:read covers recovery
+    # run and job reads; contents:read stays for tag and commit resolution.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     env:
       HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
     steps:
@@ -704,6 +712,8 @@ jobs:
           npx playwright install chromium
 
       - name: Verify packed SDK migration cohort with default npm resolution
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:prepared
 
       - name: Upload migration cohort receipt and installed lock
@@ -742,6 +752,9 @@ jobs:
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
+
+      - name: Native Node GeoParquet installed consumer
+        run: npm run verify:node-geoparquet:prepared
 
       - name: Split package verification
         run: npm run verify:split-packages:prepared

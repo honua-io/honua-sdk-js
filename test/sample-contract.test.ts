@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,6 +34,7 @@ import {
   migrateCatalogV1ToV2,
   parseJsonDocument,
   publishesGoldenVisualWindow,
+  readGeneratedOutputs,
   refreshOverlayLiveExpiry,
   reviewedLiveProducer,
   unrenewableGoldenVisualPaths,
@@ -1459,6 +1462,26 @@ describe("sample publication contract", () => {
     ).rejects.toThrow("is broken or missing");
   }, 80_000);
 
+  it("reports missing generated files as drift without masking other read errors", async () => {
+    const root = await mkdtemp(join(tmpdir(), "honua-generated-drift-"));
+    try {
+      await writeFile(join(root, "existing.json"), "existing");
+      const expected = new Map([
+        ["existing.json", "existing"],
+        ["new.json", "new"],
+      ]);
+      const actual = await readGeneratedOutputs(expected.keys(), root);
+      const drift = generatedOutputDrift(expected, actual);
+      expect(drift).toEqual(["new.json"]);
+      expect(() => validateGeneratedOutputDrift(drift)).toThrow(/new.json has drifted/u);
+      expect(() => validateGeneratedOutputDrift(drift, { relaxed: true })).not.toThrow();
+      await mkdir(join(root, "directory.json"));
+      await expect(readGeneratedOutputs(["directory.json"], root)).rejects.toMatchObject({ code: "EISDIR" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   // This test calls generatedOutputs() twice (current + bumped-version
   // catalogs), roughly doubling the file's already-doubled four-journey I/O
   // budget; give it its own headroom rather than inflating every other test
@@ -1486,6 +1509,7 @@ describe("sample publication contract", () => {
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/capability-sample-matrix.v2.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
@@ -1511,6 +1535,7 @@ describe("sample publication contract", () => {
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/capability-sample-matrix.v2.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       fixturePath,

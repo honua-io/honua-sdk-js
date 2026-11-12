@@ -399,6 +399,46 @@ approval fingerprint.
 - `honua://services`
 - `honua://services/{encodedServiceId}/layers/{layerId}`
 - `honua://styles`, `honua://styles/{styleId}` — structured-unavailable on a plain FeatureServer
+- `skill://{name}/SKILL.md` — agent instructions from the installed `@honua/sdk-js` package
+
+### Installed SDK skills
+
+The standalone and bootstrap servers expose the skills shipped by their installed
+SDK peer dependency, currently `build-a-map-app` and `connect-data`. Pin the SDK
+version in your application's lockfile for reproducible instructions. MCP does not
+maintain a separate copy or fetch instructions from a website. Restart the server
+after changing the installed SDK; removed skills then disappear from discovery.
+
+Pass `--no-skills` to `honua-mcp` to omit skill resources and the `skills/list`
+and `skills/get` handlers. Other tools and resources remain available. Embedded
+hosts can use `createServer(client, { skills: "disabled" })` or
+`createBootstrapServer({ skills: "disabled" })`. Skill exposure is enabled by
+default; this opt-out supports paired evaluations using the same installed
+packages in both arms.
+
+Clients that expose `resources/list` and `resources/read` can retrieve the
+Markdown. Resource availability does not guarantee that an agent discovers or
+reads it. Resource metadata includes the skill description, release and
+`io.honua/sdkVersion`; returned text preserves the installed file bytes. Supporting
+files are separate resources returned as base64 blobs.
+
+Extension-aware clients can also call `skills/list` and `skills/get` with
+`{"uri":"skill://connect-data/SKILL.md"}`. Entries include complete YAML
+frontmatter and a resource manifest with SHA-256 digests and byte sizes. The
+`io.modelcontextprotocol/skills` extension is advertised in initialization
+capabilities. This is a compatibility binding of the
+[beta Skills extension](https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx)
+to the MCP library's 2025-11-25 protocol. It does not implement the newer
+2026-07-28 `server/discover` protocol; standard resource reads remain the portable
+client path. The catalog is returned in one page; unknown cursors and skill URIs
+are rejected.
+
+The SDK's `skills/README.md` evidence gate controls which skills are published.
+MCP serves that published set, validates its metadata, and fails startup on invalid
+skills instead of quietly omitting them. It does not independently certify model
+performance. Skills are instruction content: reading one grants no permissions and
+executes no tools. The release's paired evaluation must pin both packages and
+record the served skill digests alongside its token and task outcomes.
 
 ## Certification
 

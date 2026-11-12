@@ -13,6 +13,7 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } fro
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import { mapWithConcurrency } from "./core/map-with-concurrency.js";
 import type { HonuaFieldInfo, HonuaLayerMetadata, HonuaServiceMetadata } from "./core/types.js";
 import { parseGeoServicesEndpoint } from "./geoservices-endpoint.js";
 import { type GeoServicesMetadataRequestOptions, getGeoServicesMetadata } from "./geoservices-metadata.js";
@@ -1051,25 +1052,6 @@ export function provenanceFor(
 ): DiscoveryProvenance {
   const validator = value.cache?.validator?.etag ?? value.cache?.validator?.lastModified;
   return Object.freeze({ source, retrievedAt, ...(validator ? { validator } : {}) });
-}
-
-/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
-export async function mapWithConcurrency<T, U>(
-  values: readonly T[],
-  concurrency: number,
-  mapper: (value: T) => Promise<U>,
-): Promise<U[]> {
-  const output = new Array<U>(values.length);
-  let nextIndex = 0;
-  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (nextIndex < values.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      output[index] = await mapper(values[index] as T);
-    }
-  });
-  await Promise.all(workers);
-  return output;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
