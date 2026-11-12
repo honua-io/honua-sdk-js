@@ -409,6 +409,13 @@ version in your application's lockfile for reproducible instructions. MCP does n
 maintain a separate copy or fetch instructions from a website. Restart the server
 after changing the installed SDK; removed skills then disappear from discovery.
 
+Pass `--no-skills` to `honua-mcp` to omit skill resources and the `skills/list`
+and `skills/get` handlers. Other tools and resources remain available. Embedded
+hosts can use `createServer(client, { skills: "disabled" })` or
+`createBootstrapServer({ skills: "disabled" })`. Skill exposure is enabled by
+default; this opt-out supports paired evaluations using the same installed
+packages in both arms.
+
 Any MCP client can use `resources/list` and `resources/read` to discover and read
 the Markdown. Resource metadata includes the skill description, release and
 `io.honua/sdkVersion`; returned text preserves the installed file bytes. Supporting
