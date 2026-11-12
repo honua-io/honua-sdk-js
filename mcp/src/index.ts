@@ -9,6 +9,7 @@ import { isMainEntrypoint } from "./entrypoint.js";
 
 import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map-control.js";
 import * as layerSchemaResource from "./resources/layer-schema.js";
+import { registerSdkSkills } from "./resources/sdk-skills.js";
 import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
 import * as adminInstallLocal from "./tools/admin-install-local.js";
@@ -54,7 +55,11 @@ export interface RuntimeOptions {
   retryMaxRetries: number;
 }
 
-export interface CreateServerOptions {
+export interface SkillExposureOptions {
+  readonly skills?: "enabled" | "disabled";
+}
+
+export interface CreateServerOptions extends SkillExposureOptions {
   /** Optional BYO-LLM/map-runtime host for the experimental NL map-plan tools. */
   readonly nlMapControl?: NlMapControlMcpHost;
   /**
@@ -333,6 +338,8 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 
   // ── Resources ──────────────────────────────────────────────────
 
+  if (options.skills !== "disabled") registerSdkSkills(server);
+
   server.resource("services-catalog", servicesResource.uri, async (_uri) => servicesResource.read(client));
 
   server.resource(
@@ -354,8 +361,9 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 }
 
 /** Bootstrap-only MCP surface for a laptop that does not have Honua yet. */
-export function createBootstrapServer(): McpServer {
+export function createBootstrapServer(options: SkillExposureOptions = {}): McpServer {
   const server = new McpServer({ name: "honua-bootstrap", version: SERVER_VERSION });
+  if (options.skills !== "disabled") registerSdkSkills(server);
   registerLocalInstallTool(server);
   return server;
 }
@@ -383,9 +391,12 @@ function registerLocalInstallTool(server: McpServer): void {
  * `HONUA_BASE_URL` at any public FeatureServer/OGC endpoint; no Honua server is
  * required. For the Honua-enhanced `/mcp` catalog, use `honua-mcp-proxy` instead.
  */
-export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+export async function runStandalone(
+  env: NodeJS.ProcessEnv = process.env,
+  options: SkillExposureOptions = {},
+): Promise<void> {
   const bootstrapOnly = env.HONUA_MCP_BOOTSTRAP === "1" || env.HONUA_MCP_BOOTSTRAP === "true";
-  const server = bootstrapOnly ? createBootstrapServer() : createServer(createClientFromEnv(env));
+  const server = bootstrapOnly ? createBootstrapServer(options) : createServer(createClientFromEnv(env), options);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
@@ -393,6 +404,9 @@ export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promi
 const STANDALONE_USAGE = `honua-mcp ${SERVER_VERSION} — platform-free Honua MCP server over stdio
 
 Usage: npx -y -p @honua/mcp-server honua-mcp
+
+Options:
+  --no-skills              omit installed SDK skill resources and skills/list/get
 
 Environment:
   HONUA_BASE_URL           endpoint to serve (required): any FeatureServer, OGC API, STAC, WFS or OData root
@@ -411,7 +425,7 @@ async function main() {
     process.stdout.write(STANDALONE_USAGE);
     return;
   }
-  await runStandalone();
+  await runStandalone(process.env, { skills: args.includes("--no-skills") ? "disabled" : "enabled" });
 }
 
 if (isMainEntrypoint(import.meta.url)) {

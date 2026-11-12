@@ -1,7 +1,9 @@
 # Honua SDK agent skills
 
-Each skill here passed a paired evaluation: the same task, run by an agent with
-and without the skill, against the live Maui County demo server
+The published SDK 0.3.2 skill bodies passed the paired evaluation below. These
+results do not validate later skill changes, native Node GeoParquet guidance, or
+MCP delivery. The same task was run by an agent with and without the skill,
+against the live Maui County demo server
 (`https://demo.honua.io`). The tasks came from the Maui demo requirements, and
 an independent checker graded each outcome. The bars were preregistered
 before the runs. Opus 5.5 and gpt-6.1-sol ran both arms in a sandbox that hid
@@ -69,7 +71,8 @@ with no skill is **none**.
 
 ## Drift gates
 
-The table above and everything it claims are checked, not trusted:
+The checks below validate catalog metadata and drift. They do not rerun or
+certify the performance evidence above:
 
 ```bash
 npm run verify:skills   # frontmatter, release, stage ids, tools, versions, secrets, README freshness
