@@ -194,6 +194,14 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /name: PR Issue Disposition/u);
   });
 
+  it("never cancels its own runs, so a cancelled run cannot block merging", () => {
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/pr-issue-disposition.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
+    assert.doesNotMatch(workflow, /^\s*concurrency:/mu);
+    assert.doesNotMatch(workflow, /cancel-in-progress/u);
+  });
+
   it("routes regeneration through an exact, strictly checked automation PR", () => {
     const workflow = fs
       .readFileSync(path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"), "utf8")
