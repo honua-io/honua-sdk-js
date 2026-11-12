@@ -42,7 +42,7 @@ Source inventory of the sample catalog; 31 catalog entries. Each generated playg
 
 Starters: vanilla-ts and react-ts keep local default fixture style; configured VITE_HONUA_ENDPOINT lane receives shared online default/override with attribution.
 
-honua-samples: create-honua-app-react-ts/vanilla-ts consume the published scaffold. browser-featureserver-query renders a table, and geocode-single-line, hello-featureserver-rest, odata-query-rest, ogc-features-python, stac-search-rest and wms-getmap-check are request/response checks. No map basemap required.
+honua-samples: create-honua-app-react-ts/vanilla-ts consume the published scaffold. geocode-single-line, hello-featureserver-rest, odata-query-rest, ogc-features-python, stac-search-rest and wms-getmap-check are request/response checks. No map basemap required.
 
 Installed API design: /runtime explicit basemap style loader/binding, no network in core construction. Namespaced sources/layers inserted beneath operational overlays. Preserve TileJSON attribution and complete vector glyph/sprite resources. Surface style/tile/glyph/sprite failures with self-hosted override action while operational layers stay usable; no provider substitution.
 
