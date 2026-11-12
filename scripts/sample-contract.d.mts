@@ -552,6 +552,7 @@ export function generatedOutputs(
     supportTruth?: Record<string, unknown>;
   },
 ): Promise<Map<string, string>>;
+export function readGeneratedOutputs(relativePaths: Iterable<string>, root?: string): Promise<Map<string, string>>;
 export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,

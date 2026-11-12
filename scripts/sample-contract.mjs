@@ -8072,6 +8072,18 @@ async function validateGoldenVisualFreshnessRenewability(outputs) {
   );
 }
 
+export async function readGeneratedOutputs(relativePaths, root = PROJECT_ROOT) {
+  const outputs = new Map();
+  for (const relativePath of relativePaths) {
+    try {
+      outputs.set(relativePath, await readFile(path.join(root, relativePath), "utf8"));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return outputs;
+}
+
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {
   return [...expectedOutputs]
     .filter(([relativePath, expected]) => currentOutputs.get(relativePath) !== expected)
@@ -8359,10 +8371,7 @@ async function runContract(command, options = {}) {
       await writeFile(path.join(PROJECT_ROOT, relativePath), expected, "utf8");
     }
   } else {
-    const currentOutputs = new Map();
-    for (const relativePath of outputs.keys()) {
-      currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
-    }
+    const currentOutputs = await readGeneratedOutputs(outputs.keys());
     const drift = generatedOutputDrift(outputs, currentOutputs);
     validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }
