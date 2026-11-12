@@ -732,9 +732,9 @@ correctly use this SDK:
     The agent surface's security posture is documented in the
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
+    `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/geoparquet/node`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
     `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 27 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
