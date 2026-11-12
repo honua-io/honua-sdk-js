@@ -20,6 +20,9 @@ certification must consume only required entries whose status is `healthy`;
 the presence of an artifact or a prior successful run is not candidate proof.
 
 The paid MCP cross-model evaluation is intentionally optional and manual. Its
-replacement evidence is the deterministic offline MCP evaluation plus the
-non-billable live MCP certification. Do not dispatch the Bedrock workflow
-without explicit cost authorization.
+replacement evidence is the deterministic offline MCP evaluation. Live MCP
+certification and sample bundle publication are optional: the repository has
+no `HONUA_MCP_REMOTE_URL` endpoint (`mcp-cert-scheduled.yml` certifies the
+pinned candidate weekly instead), and bundle publication needs an
+administration credential for the immutable-releases preflight. Do not
+dispatch the Bedrock workflow without explicit cost authorization.

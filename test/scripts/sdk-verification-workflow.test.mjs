@@ -578,6 +578,11 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
     assert.equal(download.with.pattern, "unit-coverage-shard-*");
     assert.equal(download.with["merge-multiple"], true);
     assert.ok(graph.jobs["coverage-gate"].needs.includes("unit-coverage"));
+    assert.equal(
+      graph.jobs["coverage-gate"]["runs-on"],
+      graph.jobs["unit-coverage"]["runs-on"],
+      "blobs record absolute workspace paths, so the merge must run where the shards ran",
+    );
     assert.ok(graph.jobs.verified.needs.includes("coverage-gate"));
     assert.match(steps(graph, "admission").map(stepScript).join("\n"), /unit:shards:check/u);
   });
