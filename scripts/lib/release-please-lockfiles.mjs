@@ -1,3 +1,4 @@
+import { updateReleasePleaseCandidate } from "./release-please-candidate-update.mjs";
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
 import { automationExemption } from "./pr-issue-disposition.mjs";
 
@@ -84,29 +85,11 @@ async function assertCurrent(context, snapshot) {
   }
 }
 
-function write(context, path, payload) {
-  return context.request(`${context.api}/${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-  });
-}
-
-async function commitChanges(context, snapshot, changes) {
-  await assertCurrent(context, snapshot);
-  const parent = await context.request(`${context.api}/git/commits/${snapshot.headSha}`);
-  requireThat(parent?.sha === snapshot.headSha && SHA.test(parent.tree?.sha), "Invalid candidate parent tree.");
-  const tree = await write(context, "git/trees", { base_tree: parent.tree.sha, tree: changes });
-  requireThat(SHA.test(tree?.sha), "Invalid normalized lockfile tree.");
-  const commit = await write(context, "git/commits", {
-    message: "chore: align generated local lock versions with candidate manifests", tree: tree.sha, parents: [snapshot.headSha],
-  });
-  requireThat(SHA.test(commit?.sha) && commit.tree?.sha === tree.sha && commit.parents?.length === 1 &&
-    commit.parents[0].sha === snapshot.headSha, "Invalid normalized lockfile commit.");
-  await assertCurrent(context, snapshot);
-  const updated = await context.request(`${context.api}/git/refs/heads/${snapshot.headRefName}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sha: commit.sha, force: false }),
-  });
-  requireThat(updated?.object?.sha === commit.sha, "Normalized candidate head update was not confirmed.");
-  return commit.sha;
+function commitChanges(context, snapshot, changes) {
+  return updateReleasePleaseCandidate({
+    api: context.api, headSha: snapshot.headSha, headRefName: snapshot.headRefName, changes,
+    message: "chore: align generated local lock versions with candidate manifests",
+  }, { request: context.request, assertCurrent: () => assertCurrent(context, snapshot) });
 }
 
 /** Normalize the bounded set of authenticated release candidates, without executing candidate code. */

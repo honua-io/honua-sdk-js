@@ -92,7 +92,7 @@ function harness(options = {}) {
     if (path === "/graphql") {
       graphqlReads++;
       return { data: { repository: { nameWithOwner: REPO, pullRequest: {
-        ...pullRequest, ...(options.moveAfterRead && graphqlReads > 2 ? { headRefOid: NEXT } : {}),
+        ...pullRequest, ...(options.moveAfterRead && graphqlReads > (options.moveAfterRead === true ? 2 : options.moveAfterRead) ? { headRefOid: NEXT } : {}),
       } } } };
     }
     if (path === "/pulls") return parsed.searchParams.get("head") === `honua-io:${BRANCH}` ? [{ number: 2405, head: { sha: HEAD } }] : [];
@@ -106,8 +106,11 @@ function harness(options = {}) {
     }
     if (path === `/git/commits/${HEAD}`) return { sha: HEAD, tree: { sha: TREE } };
     if (path === "/git/trees") return { sha: TREE };
-    if (path === "/git/commits") return { sha: NEXT, tree: { sha: TREE }, parents: [{ sha: HEAD }] };
-    if (path === `/git/refs/heads/${BRANCH}`) return { object: { sha: NEXT } };
+    if (path === "/git/commits") return { sha: NEXT, tree: { sha: TREE }, parents: [{ sha: options.commitParent ?? HEAD }] };
+    if (path === `/git/refs/heads/${BRANCH}`) {
+      if (options.refFailure) throw new Error("Non-fast-forward update rejected");
+      return { object: { sha: options.updatedHead ?? NEXT } };
+    }
     throw new Error(`Unexpected request ${url}`);
   };
   return { request, calls };
@@ -155,4 +158,26 @@ test("workflow normalizes only successful normal PR generation using trusted pol
   assert.match(hook, /persist-credentials: false/u);
   assert.match(hook, /working-directory: trusted-lockfile-policy/u);
   assert.match(hook, /run: node scripts\/normalize-release-please-lockfiles.mjs/u);
+});
+
+test("lock normalization rejects a commit with the wrong parent before publishing", async () => {
+  const { request, calls } = harness({ commitParent: BASE });
+  await assert.rejects(normalizeReleasePleaseLockfiles(INPUT, request), /Invalid normalized candidate commit/);
+  assert.ok(calls.some(({ path }) => path === "/git/commits"));
+  assert.ok(calls.every(({ method }) => method !== "PATCH"));
+});
+
+test("lock normalization rechecks candidate metadata after creating Git objects", async () => {
+  const { request, calls } = harness({ moveAfterRead: 4 });
+  await assert.rejects(normalizeReleasePleaseLockfiles(INPUT, request), /metadata moved/);
+  assert.ok(calls.some(({ path }) => path === "/git/commits"));
+  assert.ok(calls.every(({ method }) => method !== "PATCH"));
+});
+
+test("lock normalization does not report success for rejected or unconfirmed ref updates", async () => {
+  for (const options of [{ refFailure: true }, { updatedHead: HEAD }]) {
+    const { request, calls } = harness(options);
+    await assert.rejects(normalizeReleasePleaseLockfiles(INPUT, request), /rejected|not confirmed/);
+    assert.deepEqual(calls.filter(({ method }) => method === "PATCH").map(({ body }) => body), [{ sha: NEXT, force: false }]);
+  }
 });
