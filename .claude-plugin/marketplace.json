@@ -1,0 +1,12 @@
+{
+  "name": "honua-sdk-js",
+  "owner": { "name": "Honua", "url": "https://github.com/honua-io" },
+  "metadata": { "description": "Agent skills for building with @honua/sdk-js." },
+  "plugins": [
+    {
+      "name": "honua-sdk",
+      "source": "./",
+      "description": "Agent skills for @honua/sdk-js, each checked on a real task with and without the skill."
+    }
+  ]
+}
