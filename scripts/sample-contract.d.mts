@@ -391,6 +391,10 @@ export function validateCatalog(
     receiptRoot?: string;
     verifyCheckout?: boolean;
     relaxDerivedArtifacts?: boolean;
+    // Test-only. Names catalog samples whose source lives under
+    // test/fixtures/sample-contract/ so a synthetic configuration can reach
+    // later invariants. Omitting it keeps the shipped example-path rule.
+    syntheticConfigurationFixtures?: string[];
   },
 ): Promise<void>;
 export function effectiveCatalog(
