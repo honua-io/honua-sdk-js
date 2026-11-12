@@ -7,7 +7,6 @@ import test from "node:test";
 import { parse } from "yaml";
 
 const workflow = (name, job) => parse(fs.readFileSync(`.github/workflows/${name}.yml`, "utf8")).jobs[job].steps;
-const renewal = workflow("kepler-audit-renewal", "renew").find((s) => s.name === "Publish renewal pull request");
 const steps = workflow("regenerate-derived-artifacts", "commit-and-validate");
 const fresh = steps.find((s) => s.name === "Verify regeneration source is current trunk");
 const publish = steps.find((s) => s.name === "Validate and publish regeneration commits");
@@ -36,6 +35,8 @@ esac`,
   "pr list") while [ "$1" != --jq ]; do shift; done; jq -r "$2" "$FIXTURES" ;;
   "pr create") echo create >> "$TRACE"; [ "$FAIL" != create ] || exit 1; echo https://github.com/honua-io/honua-sdk-js/pull/99 ;;
   "pr close") echo "close $3" >> "$TRACE" ;;
+  "run list") echo "\${PENDING:-0}" ;;
+  "workflow run"|"run cancel") echo "$*" >> "$TRACE" ;;
   *) exit 0 ;;
 esac`,
     };
@@ -58,37 +59,49 @@ esac`,
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
-for (const [name, script, prefix] of [
-  ["renewal", renewal.run, "automation/kepler-audit-renewal-"],
-  ["regeneration cleanup", cleanup.run, "automation/derived-artifacts-"],
-]) {
-  test(`${name} closes only upstream automation PRs`, () => {
-    const result = run(script, prefix);
-    assert.equal(result.status, 0, result.stderr);
-    const expected = name === "renewal" ? ["close 1", "close 5", "close 7"] : ["close 1", "close 5"];
-    assert.deepEqual(result.trace.filter((line) => line.startsWith("close")), expected);
-    if (name === "renewal") assert.deepEqual(result.trace.slice(0, 2), ["push", "create"]);
-  });
-  test(`${name} retains candidates when trunk moves`, () => {
-    assert.equal(run(script, prefix, { TRUNK_SHA: "newer" }).trace.some((line) => line.startsWith("close")), false);
-  });
-}
+const prefix = "automation/derived-artifacts-";
 
-test("failed replacement publication preserves old PRs in both workflows", () => {
+test("regeneration cleanup closes only upstream automation PRs", () => {
+  const result = run(cleanup.run, prefix);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.trace.filter((line) => line.startsWith("close")), ["close 1", "close 5"]);
+});
+
+test("regeneration cleanup retains candidates when trunk moves", () => {
+  assert.equal(run(cleanup.run, prefix, { TRUNK_SHA: "newer" }).trace.some((line) => line.startsWith("close")), false);
+});
+
+test("failed replacement publication preserves old PRs", () => {
   assert.ok(steps.indexOf(cleanup) > steps.indexOf(publish));
-  for (const script of [renewal.run, `${publish.run}\n${cleanup.run}`]) {
-    for (const FAIL of ["push", "create"]) {
-      const result = run(script, "automation/derived-artifacts-", { FAIL });
-      assert.notEqual(result.status, 0);
-      assert.equal(result.trace.some((line) => line.startsWith("close")), false);
-    }
+  for (const FAIL of ["push", "create"]) {
+    const result = run(`${publish.run}\n${cleanup.run}`, prefix, { FAIL });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.trace.some((line) => line.startsWith("close")), false);
   }
 });
 
-test("old reruns stop before publication or cleanup", () => {
+test("superseded source hands off to current trunk, cancels itself and publishes nothing", () => {
   assert.ok(steps.indexOf(fresh) < steps.indexOf(publish));
-  const result = run(`${fresh.run}\n${publish.run}\n${cleanup.run}`, "automation/derived-artifacts-", { TRUNK_SHA: "newer" });
-  assert.notEqual(result.status, 0);
+  assert.equal(fresh.env.GH_TOKEN, "${{ github.token }}");
+  assert.equal(fresh.env.RELEASE_MATRIX_RECEIPT_RUN_ID, "${{ inputs.release_matrix_receipt_run_id }}");
+  const dispatch = "workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js --ref trunk";
+  const cancel = "run cancel current --repo honua-io/honua-sdk-js";
+  for (const [receipt, PENDING, expected] of [
+    ["", "0", [dispatch, cancel]],
+    ["4242", "0", [`${dispatch} -f release_matrix_receipt_run_id=4242`, cancel]],
+    ["", "1", [cancel]],
+    ["4242", "1", []],
+  ]) {
+    const result = run(`${fresh.run}\n${publish.run}\n${cleanup.run}`, prefix,
+      { TRUNK_SHA: "newer", RELEASE_MATRIX_RECEIPT_RUN_ID: receipt, PENDING, CANCEL_WAIT_SECONDS: "0" });
+    assert.notEqual(result.status, 0);
+    assert.deepEqual(result.trace, expected, `receipt=${receipt} pending=${PENDING}`);
+  }
+});
+
+test("current source does not dispatch or cancel", () => {
+  const result = run(fresh.run, prefix, { CANCEL_WAIT_SECONDS: "0" });
+  assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.trace, []);
 });
 
