@@ -278,7 +278,6 @@ published set from 8 to 13. Five entries were promoted:
 | --- | --- | --- |
 | `ai-spatial-app-builder` | `standalone` | Excluded as `agent-shaped` -- a presentation preference, not an eligibility fact. `src/main.ts` imports only `./safe-agent.js` and issues no `fetch`/`EventSource`/`WebSocket`; both config names are server-only, so no host-model lane is reachable from a bundle. |
 | `service-explorer` | `requires-live-endpoint` | Its published, non-localhost default is `https://demo.pygeoapi.io/master`; the bundle is admitted only through the exact-origin live policy and semantic `lakes` FeatureCollection smoke. Local source tests retain `${origin}/fixtures/ogc`. |
-| `planning-permitting-workbench` | `requires-host-fixture-service` | Was `audit-pending`. Catalog declares no config surface at all (`configurationStatus: not-required`, `authMode: none`); the default addresses `${origin}/rest/services/Maui/Planning/FeatureServer`. |
 | `imagery-cog-quickstart` | `standalone` | Was `requires-live-backend`. With `VITE_HONUA_IMAGERY_BASE_URL` unset, exact-identity bundle adapters serve STAC, WMS/ImageServer metadata, elevation, imagery tiles, Terrain-RGB, and the bounded direct COG. A configured same-origin proxy retains the live service path. |
 | `react-quickstart` | `requires-host-fixture-service` | Was `requires-api-key`. No `VITE_HONUA_REACT_*` name is catalog-classified as a credential and its `mock-server.mjs` asserts no authorization header, so the catalog's `api-key` `authMode` describes a live lane a bundle cannot reach. |
 

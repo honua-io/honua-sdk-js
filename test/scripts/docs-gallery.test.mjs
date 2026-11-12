@@ -435,8 +435,8 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   // projection regeneration cannot silently reclassify gallery cards.
   assert.deepEqual(counts, {
     golden: qualifiedGoldenJourneys.length,
-    recipe: 13,
-    lab: gallery.cardCount - 13 - qualifiedGoldenJourneys.length,
+    recipe: 12,
+    lab: gallery.cardCount - 12 - qualifiedGoldenJourneys.length,
   });
   assert.ok(!byId.has("geoservices-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
@@ -449,22 +449,14 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     publicSampleId: "service-explorer",
   });
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
-  assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
-    kind: "journey",
-    id: "planning-permitting",
-    title: "Planning and Permitting",
-    status: "planned",
-    candidateSampleId: "planning-permitting-workbench",
-    publicSampleId: "planning-permitting-workbench",
-  });
   assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
   assert.equal(byId.get("sketch-editing").sample.track, "recipe");
-  const planningCard = byId.get("planning-permitting-workbench");
-  assert.equal(planningCard.sample.track, "lab");
+  const planningCard = byId.get("edit-workflow-demo");
+  assert.equal(planningCard.sample.track, "recipe");
+  assert.equal(planningCard.journey.id, "planning-permitting");
   assert.equal(planningCard.journey.status, "planned");
   assert.equal(planningCard.qualification.state, "planned-golden-candidate");
   assert.match(planningCard.qualification.label, /not receipt-qualified/u);
-  assert.equal(planningCard.sample.evidence.live.status, "planned");
   // imagery-cog-quickstart is now the real, receipt-qualified Imagery and
   // Terrain golden journey (#548), not merely a planned candidate.
   const imageryCard = byId.get("imagery-cog-quickstart");
@@ -720,7 +712,7 @@ test("rejects unsafe public source paths before minting a model or invoking a re
 test("escapes projected content and links only credential-free HTTPS replacements", async () => {
   for (const url of ["javascript:alert(1)", "http://example.test/replacement"]) {
     const unsafe = structuredClone(projection);
-    const sample = sampleById(unsafe, "edit-workflow-demo");
+    const sample = sampleById(unsafe, "runtime-parity-showcase");
     sample.title = '<img src=x onerror="alert(1)">';
     sample.data.provenance = '</dd><script>alert("x")</script>';
     sample.lifecycle.replacement = { kind: "external", id: unsafe.externalReplacements[0].id };
@@ -734,7 +726,7 @@ test("escapes projected content and links only credential-free HTTPS replacement
   }
 
   const linked = structuredClone(projection);
-  const linkedSample = sampleById(linked, "edit-workflow-demo");
+  const linkedSample = sampleById(linked, "runtime-parity-showcase");
   linkedSample.lifecycle.replacement = { kind: "external", id: linked.externalReplacements[0].id };
   const safeHtml = renderGallery(await verifiedGallery(linked));
   assert.match(

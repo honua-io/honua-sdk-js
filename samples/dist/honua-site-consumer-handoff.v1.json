@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 73613,
-      "sha256": "d03e5e496e38d8bd51ef8664655cac68e4300f1579db94a02e6919c76e8eefa4",
+      "bytes": 69332,
+      "sha256": "5a018a03352892c5b8c6547b9f43d1c47f1e574f198917bdc37db5d168ab80b6",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -28,8 +28,8 @@
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 502237,
-      "sha256": "eb62ec70c6f1d6b6b7ec314cecdfa5aed7c9e77f5c07d906e882424c51dcc987",
+      "bytes": 496950,
+      "sha256": "ffe2e541519f45ca134a9a5ee930d27930cf0c5c1e7e653f8e68478e29c7cffd",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45316,
-      "sha256": "fb8aad900ab11d2e36a72e25391da4da8b3931e9b5502b8378ec26838a3ed7b3",
+      "sha256": "feb8a1475a8b78b80b25fb23835101acdedb1e6d8b57efc44676ddf016395a31",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -183,7 +183,6 @@
       "fidelity",
       "filtering",
       "forward-geocode",
-      "geometry",
       "geoparquet",
       "geoprocessing",
       "idempotency",
@@ -199,7 +198,6 @@
       "offline",
       "optimistic-concurrency",
       "optimistic-updates",
-      "planning",
       "pmtiles",
       "profile",
       "progressive-rendering",
@@ -326,16 +324,15 @@
       "experimental",
       "partial",
       "planned",
-      "qualified",
-      "unsupported"
+      "qualified"
     ]
   },
   "counts": {
-    "cards": 28,
+    "cards": 26,
     "qualifiedJourneys": 4,
-    "canonicalRoutes": 28,
+    "canonicalRoutes": 26,
     "legacyRoutes": 20,
-    "lifecycleNotices": 8,
+    "lifecycleNotices": 7,
     "gaps": 471,
     "qualifiedMatrixCells": {
       "goldenJourneys": 4,
@@ -632,7 +629,11 @@
       "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
       "canonicalPath": "samples/edit-workflow-demo.html",
       "track": "recipe",
-      "journey": null,
+      "journey": {
+        "id": "planning-permitting",
+        "title": "Planning and Permitting",
+        "status": "planned"
+      },
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/edit-workflow-demo",
@@ -675,13 +676,9 @@
       },
       "supportTier": "supported",
       "lifecycle": {
-        "state": "replace",
-        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "planning-permitting"
-        }
+        "state": "rework",
+        "reason": "Keep the workflow and add an isolated resettable live dataset.",
+        "targetRelease": "0.4.0"
       },
       "evidence": {
         "fixture": {
@@ -695,12 +692,12 @@
       },
       "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability.",
       "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
+        "state": "planned",
+        "catalogStatus": "planned"
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "edit-workflow-demo conflict-aware editing workflow demonstrates optimistic edits, attachments, conflicts, and safe recovery. recipe attachments editing optimistic-updates compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua maplibre fixture none supported replace unsupported editing is read-only when the service does not advertise mutation capability."
+      "searchText": "edit-workflow-demo conflict-aware editing workflow demonstrates optimistic edits, attachments, conflicts, and safe recovery. recipe planning-permitting planning and permitting planned attachments editing optimistic-updates compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua maplibre fixture none supported rework planned editing is read-only when the service does not advertise mutation capability."
     },
     {
       "id": "geocoding-quickstart",
@@ -2121,86 +2118,6 @@
       "searchText": "overture-geoparquet overture geoparquet plans and executes bounded overture geoparquet queries with truthful worker, range, memory, and pruning evidence. lab cancellation columnar geoparquet large-data progressive-rendering range-reads geoparquet geoparquet s3 svg hybrid anonymous experimental active experimental unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. duckdb full-http fallback is disabled; scheduled evidence rejects un-ranged gets and measures browser range bytes, while rows scanned and row groups pruned remain unverified."
     },
     {
-      "id": "planning-permitting-workbench",
-      "title": "Planning and Permitting journey",
-      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
-      "canonicalPath": "samples/planning-permitting-workbench.html",
-      "track": "lab",
-      "journey": {
-        "id": "planning-permitting",
-        "title": "Planning and Permitting",
-        "status": "planned"
-      },
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/planning-permitting-workbench",
-        "docsPath": "examples/planning-permitting-workbench/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.3"
-      },
-      "tasks": [
-        "attachments",
-        "editing",
-        "forward-geocode",
-        "geometry",
-        "linked-views",
-        "planning",
-        "provenance",
-        "query"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "none"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
-        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
-        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
-      "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "planning-permitting-workbench planning and permitting journey runs public sdk geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. lab planning-permitting planning and permitting planned attachments editing forward-geocode geometry linked-views planning provenance query compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua none fixture none supported active planned metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination."
-    },
-    {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
       "summary": "Loads a static PMTiles archive without a Honua server.",
@@ -3248,73 +3165,6 @@
       "evidenceBindingId": null,
       "visualEvidence": null,
       "searchText": "temporal-playback temporal playback animates a month of seeded synthetic seismic events with createtemporalplayback, styled by a first-class classbreaksrenderer whose legend derives from renderer.legenditems(). recipe map realtime renderer-adapters maplibre-geojson geojson maplibre fixture none experimental active experimental playback filters compose with bind-time layer filters; when maplibre is unavailable the renderer objects still serialize and expose legend metadata headlessly."
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "title": "Terrain RGB elevation",
-      "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",
-      "canonicalPath": "samples/terrain-rgb-elevation.html",
-      "track": "recipe",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/terrain-rgb-elevation",
-        "docsPath": "examples/terrain-rgb-elevation/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.3"
-      },
-      "tasks": [
-        "elevation",
-        "profile",
-        "terrain"
-      ],
-      "capabilities": [],
-      "protocols": [],
-      "catalogProtocols": [
-        "terrain-rgb"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed Oahu DEM fixture or configured terrain service.",
-        "attribution": "Elevation-source attribution displayed with results.",
-        "freshness": "Fixture asset version or live response time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Profile and map terrain expose independent capability failures.",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "terrain-rgb-elevation terrain rgb elevation reads terrain-rgb tiles for point elevation and route profiles. recipe elevation profile terrain terrain-rgb maplibre hybrid api-key supported merge partial profile and map terrain expose independent capability failures."
     }
   ],
   "qualifiedJourneys": [
@@ -4243,8 +4093,8 @@
       "sampleId": "edit-workflow-demo",
       "path": "samples/edit-workflow-demo.html",
       "track": "recipe",
-      "lifecycleState": "replace",
-      "presentation": "lifecycle-status",
+      "lifecycleState": "rework",
+      "presentation": "sample-detail",
       "externalListingEligible": true
     },
     {
@@ -4322,14 +4172,6 @@
     {
       "sampleId": "overture-geoparquet",
       "path": "samples/overture-geoparquet.html",
-      "track": "lab",
-      "lifecycleState": "active",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "planning-permitting-workbench",
-      "path": "samples/planning-permitting-workbench.html",
       "track": "lab",
       "lifecycleState": "active",
       "presentation": "sample-detail",
@@ -4422,14 +4264,6 @@
       "lifecycleState": "active",
       "presentation": "sample-detail",
       "externalListingEligible": true
-    },
-    {
-      "sampleId": "terrain-rgb-elevation",
-      "path": "samples/terrain-rgb-elevation.html",
-      "track": "recipe",
-      "lifecycleState": "merge",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
     }
   ],
   "legacyRoutes": [
@@ -4456,12 +4290,12 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "canonical-sample",
-      "sampleId": "planning-permitting-workbench",
-      "canonicalPath": "samples/planning-permitting-workbench.html",
+      "sampleId": "edit-workflow-demo",
+      "canonicalPath": "samples/edit-workflow-demo.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Planning and Permitting journey",
-      "track": "lab",
+      "title": "Conflict-aware editing workflow",
+      "track": "recipe",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
@@ -4534,16 +4368,16 @@
       "routeIds": [
         "planning-permitting"
       ],
-      "ownership": "sdk-projection",
-      "resolution": "canonical-sample",
-      "sampleId": "planning-permitting-workbench",
-      "canonicalPath": "samples/planning-permitting-workbench.html",
-      "httpStatus": 308,
-      "presentation": "permanent-redirect",
-      "title": "Planning and Permitting journey",
+      "ownership": "site-exception",
+      "resolution": "site-exception",
+      "sampleId": null,
+      "canonicalPath": null,
+      "httpStatus": null,
+      "presentation": "status-page",
+      "title": "Planning and permitting",
       "track": "lab",
-      "supportTier": "supported",
-      "reason": "Redirect to the stable canonical SDK sample route."
+      "supportTier": "deprecated",
+      "reason": "Display an explicit site-owned exception or retirement status. The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned."
     },
     {
       "path": "demo-public-safety.html",
@@ -4767,17 +4601,10 @@
     {
       "sampleId": "edit-workflow-demo",
       "canonicalPath": "samples/edit-workflow-demo.html",
-      "state": "replace",
-      "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal.",
+      "state": "rework",
+      "reason": "Keep the workflow and add an isolated resettable live dataset.",
       "targetRelease": "0.4.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "planning-permitting",
-        "title": "Planning and Permitting",
-        "status": "planned",
-        "candidateSampleId": "planning-permitting-workbench",
-        "canonicalPath": "samples/planning-permitting-workbench.html"
-      }
+      "replacement": null
     },
     {
       "sampleId": "geoprocessing-job-runner",
@@ -4839,21 +4666,6 @@
         "candidateSampleId": "imagery-cog-quickstart",
         "canonicalPath": "samples/imagery-cog-quickstart.html"
       }
-    },
-    {
-      "sampleId": "terrain-rgb-elevation",
-      "canonicalPath": "samples/terrain-rgb-elevation.html",
-      "state": "merge",
-      "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "imagery-terrain",
-        "title": "Imagery and Terrain",
-        "status": "qualified",
-        "candidateSampleId": "imagery-cog-quickstart",
-        "canonicalPath": "samples/imagery-cog-quickstart.html"
-      }
     }
   ],
   "gaps": [
@@ -4895,13 +4707,13 @@
       "supportStatus": "supported",
       "coverageState": "planned",
       "candidateSampleIds": [
-        "planning-permitting-workbench"
+        "edit-workflow-demo"
       ],
       "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
       "candidateRoutes": [
         {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
+          "sampleId": "edit-workflow-demo",
+          "canonicalPath": "samples/edit-workflow-demo.html"
         }
       ]
     },
@@ -5177,16 +4989,9 @@
       "targetId": "./geometry",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
     },
     {
       "targetType": "package-entrypoint",
@@ -5223,13 +5028,12 @@
         "node-backend-quickstart",
         "react-quickstart",
         "storytelling-25d-map",
-        "planning-permitting-workbench",
+        "edit-workflow-demo",
         "ai-spatial-app-builder",
         "mcp-gis-assistant",
         "runtime-parity-showcase",
         "shared-renderer-state",
-        "offline-region-reference",
-        "edit-workflow-demo"
+        "offline-region-reference"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
@@ -5246,8 +5050,8 @@
           "canonicalPath": "samples/storytelling-25d-map.html"
         },
         {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
+          "sampleId": "edit-workflow-demo",
+          "canonicalPath": "samples/edit-workflow-demo.html"
         },
         {
           "sampleId": "ai-spatial-app-builder",
@@ -5264,10 +5068,6 @@
         {
           "sampleId": "shared-renderer-state",
           "canonicalPath": "samples/shared-renderer-state.html"
-        },
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
         }
       ]
     },
@@ -5821,15 +5621,10 @@
       "supportStatus": "supported",
       "coverageState": "planned",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -5841,16 +5636,9 @@
       "targetId": "geoservices-feature-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -5896,7 +5684,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
@@ -5908,10 +5695,6 @@
         {
           "sampleId": "service-explorer",
           "canonicalPath": "samples/service-explorer.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "columnar-query-quickstart",
@@ -6015,15 +5798,10 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -6035,16 +5813,9 @@
       "targetId": "geoservices-geometry-service:geometry:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6090,7 +5861,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
@@ -6102,10 +5872,6 @@
         {
           "sampleId": "service-explorer",
           "canonicalPath": "samples/service-explorer.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "columnar-query-quickstart",
@@ -6209,15 +5975,10 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -6229,16 +5990,9 @@
       "targetId": "geoservices-gp-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6284,7 +6038,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
@@ -6296,10 +6049,6 @@
         {
           "sampleId": "service-explorer",
           "canonicalPath": "samples/service-explorer.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "columnar-query-quickstart",
@@ -6403,15 +6152,10 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -6423,16 +6167,9 @@
       "targetId": "geoservices-image-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6478,7 +6215,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
@@ -6490,10 +6226,6 @@
         {
           "sampleId": "service-explorer",
           "canonicalPath": "samples/service-explorer.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "columnar-query-quickstart",
@@ -6597,15 +6329,10 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -6617,16 +6344,9 @@
       "targetId": "geoservices-map-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6672,7 +6392,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
@@ -6684,10 +6403,6 @@
         {
           "sampleId": "service-explorer",
           "canonicalPath": "samples/service-explorer.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "columnar-query-quickstart",
@@ -6791,15 +6506,10 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
       "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        },
         {
           "sampleId": "edit-workflow-demo",
           "canonicalPath": "samples/edit-workflow-demo.html"
@@ -6811,16 +6521,9 @@
       "targetId": "grpc:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6866,7 +6569,6 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "planning-permitting-workbench",
         "mcp-gis-assistant"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
@@ -6878,10 +6580,6 @@
         {
           "sampleId": "react-quickstart",
           "canonicalPath": "samples/react-quickstart.html"
-        },
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
         },
         {
           "sampleId": "mcp-gis-assistant",
@@ -9344,16 +9042,9 @@
       "targetId": "geometry-client-only",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "canonicalPath": "samples/planning-permitting-workbench.html"
-        }
-      ]
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
     },
     {
       "targetType": "support-claim",

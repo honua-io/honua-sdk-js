@@ -21,7 +21,7 @@
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "649b9b5cf0ea354fe504f87b2a650ff4a5206dc978f049346af3666c99cccc64"
+      "sha256": "23b027000b81f0048c0f616601a59f6568899b93eecc9f0177bba0dc00b1afff"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
@@ -78,7 +78,6 @@
       "fidelity",
       "filtering",
       "forward-geocode",
-      "geometry",
       "geoparquet",
       "geoprocessing",
       "idempotency",
@@ -95,7 +94,6 @@
       "offline",
       "optimistic-concurrency",
       "optimistic-updates",
-      "planning",
       "pmtiles",
       "profile",
       "progressive-rendering",
@@ -321,18 +319,18 @@
     {
       "id": "planning-permitting",
       "title": "Planning and Permitting",
-      "candidateSampleId": "planning-permitting-workbench",
+      "candidateSampleId": "edit-workflow-demo",
       "catalogStatus": "planned",
       "supportStatus": "supported",
       "coverage": {
         "state": "planned",
         "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
         "candidateSampleIds": [
-          "planning-permitting-workbench"
+          "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -721,6 +719,7 @@
       "title": "Conflict-aware editing workflow",
       "sourcePath": "examples/edit-workflow-demo",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "tasks": [
         "attachments",
         "editing",
@@ -771,10 +770,10 @@
       "dataMode": "fixture",
       "authMode": "none",
       "supportTier": "supported",
-      "lifecycleState": "replace",
+      "lifecycleState": "rework",
       "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
+        "state": "planned",
+        "catalogStatus": "planned"
       }
     },
     {
@@ -1445,73 +1444,6 @@
       "qualification": {
         "state": "experimental",
         "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "planning-permitting-workbench",
-      "title": "Planning and Permitting journey",
-      "sourcePath": "examples/planning-permitting-workbench",
-      "track": "lab",
-      "journeyId": "planning-permitting",
-      "tasks": [
-        "attachments",
-        "editing",
-        "forward-geocode",
-        "geometry",
-        "linked-views",
-        "planning",
-        "provenance",
-        "query"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        },
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "none"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "active",
-      "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
       }
     },
     {
@@ -2188,41 +2120,6 @@
       "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "title": "Terrain RGB elevation",
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "track": "recipe",
-      "tasks": [
-        "elevation",
-        "profile",
-        "terrain"
-      ],
-      "catalogProtocols": [
-        "terrain-rgb"
-      ],
-      "protocolIds": [],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "terrain-rgb",
-          "protocolIds": [],
-          "supportClaimIds": [],
-          "external": true
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
-      "qualification": {
-        "state": "partial",
         "catalogStatus": "not-a-golden-journey"
       }
     }
@@ -3066,12 +2963,11 @@
         "state": "planned",
         "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -3085,12 +2981,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3179,7 +3072,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3388,12 +3280,11 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -3410,13 +3301,10 @@
       ],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3497,7 +3385,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3677,12 +3564,11 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -3696,12 +3582,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3788,7 +3671,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3968,12 +3850,11 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -3987,12 +3868,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4081,7 +3959,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -4277,12 +4154,11 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -4296,12 +4172,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4387,7 +4260,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -4610,12 +4482,11 @@
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [
-          "planning-permitting-workbench",
           "edit-workflow-demo"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "edit-workflow-demo"
       }
     },
     {
@@ -4629,12 +4500,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4720,7 +4588,6 @@
         "candidateSampleIds": [
           "node-backend-quickstart",
           "react-quickstart",
-          "planning-permitting-workbench",
           "mcp-gis-assistant"
         ],
         "qualifyingSampleIds": [],
@@ -9417,24 +9284,13 @@
       "truthEvidence": [
         "geometry-fixtures"
       ],
-      "candidateEvidence": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "matchedOperations": [
-            "geometry"
-          ],
-          "binding": "exact"
-        }
-      ],
+      "candidateEvidence": [],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -10760,13 +10616,10 @@
       },
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -10803,13 +10656,12 @@
           "node-backend-quickstart",
           "react-quickstart",
           "storytelling-25d-map",
-          "planning-permitting-workbench",
+          "edit-workflow-demo",
           "ai-spatial-app-builder",
           "mcp-gis-assistant",
           "runtime-parity-showcase",
           "shared-renderer-state",
-          "offline-region-reference",
-          "edit-workflow-demo"
+          "offline-region-reference"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -11457,7 +11309,7 @@
       "supportStatus": "supported",
       "coverageState": "planned",
       "candidateSampleIds": [
-        "planning-permitting-workbench"
+        "edit-workflow-demo"
       ],
       "reason": "A catalog candidate is planned but has no complete current qualification receipts."
     },
@@ -11688,10 +11540,8 @@
       "targetId": "./geometry",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "package-entrypoint",
@@ -11714,13 +11564,12 @@
         "node-backend-quickstart",
         "react-quickstart",
         "storytelling-25d-map",
-        "planning-permitting-workbench",
+        "edit-workflow-demo",
         "ai-spatial-app-builder",
         "mcp-gis-assistant",
         "runtime-parity-showcase",
         "shared-renderer-state",
-        "offline-region-reference",
-        "edit-workflow-demo"
+        "offline-region-reference"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -12167,7 +12016,6 @@
       "supportStatus": "supported",
       "coverageState": "planned",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "A catalog candidate is planned but has no complete current qualification receipts."
@@ -12177,9 +12025,7 @@
       "targetId": "geoservices-feature-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12222,7 +12068,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12313,7 +12158,6 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12323,10 +12167,8 @@
       "targetId": "geoservices-geometry-service:geometry:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
@@ -12368,7 +12210,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12459,7 +12300,6 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12469,9 +12309,7 @@
       "targetId": "geoservices-gp-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12514,7 +12352,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12605,7 +12442,6 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12615,9 +12451,7 @@
       "targetId": "geoservices-image-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12660,7 +12494,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12751,7 +12584,6 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12761,9 +12593,7 @@
       "targetId": "geoservices-map-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12806,7 +12636,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12897,7 +12726,6 @@
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
       "candidateSampleIds": [
-        "planning-permitting-workbench",
         "edit-workflow-demo"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12907,9 +12735,7 @@
       "targetId": "grpc:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12952,7 +12778,6 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "planning-permitting-workbench",
         "mcp-gis-assistant"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -15111,10 +14936,8 @@
       "targetId": "geometry-client-only",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "support-claim",
