@@ -38,6 +38,11 @@ before touching the pin, playgrounds, capability keys or sample fixtures.
 - Never hand-edit generated trees: `src/gen` (`npm run proto:generate`, needs `../../proto` and
   `buf`), `playgrounds/` (change `examples/<id>` and run `npm run samples:playgrounds:generate`).
 - release-please owns versions and `CHANGELOG.md`; never edit them by hand.
+- Vocabulary: exported names, docs and error messages use the Honua vocabulary (honua-server
+  `docs/concepts/domain/README.md`, shared policy `scripts/ci/retired-terms.v1.json`).
+  `test/vocabulary-public-names.test.ts` fails on a new export carrying a retired term; its
+  exceptions file (`test/fixtures/vocabulary/`) only shrinks. Rename with a deprecated alias for one
+  release; leave server wire fields, error codes and format ids unchanged.
 - Migration CLI scripts (`scan:arcgis`, `migrate:arcgis`, ...) build first and run
   `dist/src/migration/cli.js`.
 
