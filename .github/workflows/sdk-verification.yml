@@ -73,7 +73,7 @@ env:
 jobs:
   admission:
     name: Admission
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       enabled: ${{ steps.mode.outputs.enabled }}
@@ -319,7 +319,7 @@ jobs:
     name: SDK build (producer)
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     outputs:
       fingerprint: ${{ steps.evidence.outputs.fingerprint }}
@@ -626,6 +626,7 @@ jobs:
     name: "Verify: merged unit coverage"
     needs: [admission, unit-coverage]
     if: needs.admission.outputs.enabled == 'true'
+    # Shard blobs hold absolute workspace paths; merging elsewhere finds no test files.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -973,7 +974,7 @@ jobs:
     name: SDK verified
     needs: [admission, quickstart-budget, build, verify-core, unit-coverage, coverage-gate, verify-package, verify-examples, mcp, browser]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       # `needs.*.result` must be checked explicitly. A job that is skipped or
@@ -1044,7 +1045,7 @@ jobs:
     name: "Verify: MCP"
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 10
     defaults:
       run:
