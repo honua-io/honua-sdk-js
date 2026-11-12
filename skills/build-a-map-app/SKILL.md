@@ -26,7 +26,7 @@ and `@honua/sdk-js/runtime` (maplibreRenderer). Never import from `src/` or
 MapLibre 6 under Vite needs its worker URL set, or every source fails with
 "Worker failed to load":
 
-```ts
+```ts doc-test=skip reason="agent recipe with <placeholder> values; needs a browser map and a live server"
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -43,7 +43,7 @@ Create the map yourself, wait for `load`, then mount each connection with
 `ownership: "borrowed"` so the SDK adds a source and layer to your map instead
 of creating its own:
 
-```ts
+```ts doc-test=skip reason="agent recipe with <placeholder> values; needs a browser map and a live server"
 import { createHonua } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 
@@ -81,7 +81,7 @@ A plain mount runs one bounded query and stops at the server's transfer limit
 first 10,000. Zoom in somewhere and the layer is empty. Page through the layer
 with the SDK and add the features to the map yourself:
 
-```ts
+```ts doc-test=skip reason="agent recipe with <placeholder> values; needs a browser map and a live server"
 type Row = { attributes: Record<string, unknown>; geometry?: { rings?: number[][][] } };
 const PAGE = 10_000;
 const big = await honua.connect("<server>/rest/services/<service>/FeatureServer/<layer id>");
@@ -128,7 +128,7 @@ map.addLayer({ id: "big", type: "fill", source: "big", paint: { "fill-color": "#
 Layer toggles: set visibility on every style layer whose `source` is the
 mounted `sourceId`. Do not rely on the layer id alone.
 
-```ts
+```ts doc-test=skip reason="agent recipe with <placeholder> values; needs a browser map and a live server"
 function setVisibility(sourceId: string, visibility: "visible" | "none") {
   for (const layer of map.getStyle().layers) {
     if ("source" in layer && layer.source === sourceId) map.setLayoutProperty(layer.id, "visibility", visibility);
@@ -139,7 +139,7 @@ function setVisibility(sourceId: string, visibility: "visible" | "none") {
 Click details: read the key from the clicked feature, query the feature
 service for the full record, then query overlays with the record's geometry:
 
-```ts
+```ts doc-test=skip reason="agent recipe with <placeholder> values; needs a browser map and a live server"
 import { queryFilter, spatialIntersects } from "@honua/sdk-js";
 
 map.on("click", "big", async (event) => {

@@ -22,7 +22,7 @@ Import from `@honua/sdk-js` only (`createHonua`, `queryFilter`,
 `spatialIntersects`, `envelope`, `point`, `polygon`). Node 22 does not parse `await using` in plain
 `.mjs`, so dispose in `finally`:
 
-```js
+```js doc-test=skip reason="agent recipe with <placeholder> values; needs a live server"
 import { createHonua, queryFilter, spatialIntersects } from "@honua/sdk-js";
 
 const honua = createHonua();
@@ -48,7 +48,7 @@ lists the same sources from code.
 
 ## Query rules that differ by protocol
 
-```js
+```js doc-test=skip reason="agent recipe with <placeholder> values; needs a live server"
 const ogc = await honua.connect({ url: `${server}/ogc/features`, protocol: "ogc-features", collectionId });
 const byPrefix = await ogc.query({ filter: queryFilter.like("<field>", "<prefix>%"), outFields: ["<field>"] });
 ```
@@ -71,7 +71,7 @@ const byPrefix = await ogc.query({ filter: queryFilter.like("<field>", "<prefix>
 Fetch the subject feature's geometry in WGS84, then pass it to
 `spatialIntersects` against each overlay layer:
 
-```js
+```js doc-test=skip reason="agent recipe with <placeholder> values; needs a live server"
 const subject = (await layerA.query({ filter: queryFilter.eq("<key>", "<value>"), outFields: ["*"], outSr: 4326 })).features[0];
 if (!subject?.geometry) throw new Error("subject feature not found");
 const within = spatialIntersects({ ...subject.geometry });
@@ -87,7 +87,7 @@ A polygon can intersect several overlay polygons. Report all of them, joined
 
 ## PMTiles metadata
 
-```js
+```js doc-test=skip reason="agent recipe with <placeholder> values; needs a live server"
 const archive = await honua.connect({ url: pmtilesUrl, protocol: "pmtiles" });
 const meta = (await archive.inspect()).sources[0].metadata.pmtiles;
 // meta.minZoom, meta.maxZoom, meta.bounds [w, s, e, n], meta.center, meta.tileKind,
