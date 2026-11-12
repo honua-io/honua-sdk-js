@@ -62,7 +62,7 @@ import {
   sanitizeHonuaExportHeaders,
   stripCredentialsFromUrl,
 } from "../../src/core/credential-redaction.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, exportMapPackage } from "../../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, exportMapDocument } from "../../src/runtime/index.js";
 import { PLANTED, recorder, recordingClient, utf8Bytes } from "./harness.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -123,10 +123,10 @@ function skillInstructions(): Array<[string, string]> {
   ];
 }
 
-function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function basePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-1425-security",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     sourceBindings: [
       {
@@ -145,7 +145,7 @@ function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
     attribution: [{ text: "City of Example", url: "https://example.test/credits", required: true }],
     provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
     ...overrides,
-  } as HonuaMapPackage;
+  } as HonuaMapDocument;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -324,9 +324,9 @@ describe("secret disclosure :: exported map artifacts", () => {
         },
       ],
       attribution: [{ text: `Tiles ${PLANTED.jwt}`, url: PLANTED.signedUrl, required: true }],
-    } as Partial<HonuaMapPackage>);
+    } as Partial<HonuaMapDocument>);
 
-    const envelope = exportMapPackage(pkg, { exportedAt: "2026-01-02T00:00:00.000Z", allowInvalid: true });
+    const envelope = exportMapDocument(pkg, { exportedAt: "2026-01-02T00:00:00.000Z", allowInvalid: true });
     const serialized = JSON.stringify(envelope);
 
     for (const [name, secret] of Object.entries(PLANTED)) {
@@ -349,8 +349,8 @@ describe("secret disclosure :: exported map artifacts", () => {
     // failing loudly instead.
     const pkg = basePackage({
       sourceBindings: [{ sourceId: "parcels", protocol: "ogc_features", locator: { url: PLANTED.signedUrl } }],
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg, { credentials: "reject", allowInvalid: true })).toThrow(HonuaExportSafetyError);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg, { credentials: "reject", allowInvalid: true })).toThrow(HonuaExportSafetyError);
   });
 
   it("catches a credential hidden inside a base64 data: URI, where a text scan cannot see it", () => {
@@ -369,8 +369,8 @@ describe("secret disclosure :: exported map artifacts", () => {
           metadata: { icon: `data:image/png;base64,${hidden}` },
         },
       ],
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg, { allowInvalid: true })).toThrow(HonuaExportSafetyError);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(HonuaExportSafetyError);
   });
 
   it("withholds a percent-encoded data: URI payload it cannot decode, rather than emitting it unscanned", () => {
@@ -386,8 +386,8 @@ describe("secret disclosure :: exported map artifacts", () => {
           metadata: { icon: "data:text/plain,%E0%A4%A" },
         },
       ],
-    } as Partial<HonuaMapPackage>);
-    const envelope = exportMapPackage(pkg, { allowInvalid: true });
+    } as Partial<HonuaMapDocument>);
+    const envelope = exportMapDocument(pkg, { allowInvalid: true });
     expect(JSON.stringify(envelope)).not.toContain("%E0%A4%A");
     expect(envelope.redactions.some((entry) => entry.reason === "unsupported-value")).toBe(true);
   });

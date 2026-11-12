@@ -9,12 +9,12 @@
  * ```ts
  * import {
  *   createHonuaCommandRuntime,
- *   mapPackagePublishCommand,
+ *   mapDocumentPublishCommand,
  * } from "@honua/sdk-js/control-plane";
  *
  * const runtime = createHonuaCommandRuntime({ client });
  * const receipt = await runtime.execute(
- *   mapPackagePublishCommand,
+ *   mapDocumentPublishCommand,
  *   { mapId: "map-ops", package: mapPackage },
  *   { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
  * );
@@ -33,7 +33,7 @@ export {
   connectionTestCommand,
   importCreateCommand,
   isHonuaCommandId,
-  mapPackagePublishCommand,
+  mapDocumentPublishCommand,
   studioDraftSaveVersionCommand,
 } from "./catalog.js";
 export type {
@@ -41,7 +41,7 @@ export type {
   ConnectionTestOutput,
   HonuaCommandId,
   ImportCreateInput,
-  MapPackagePublishInput,
+  MapDocumentPublishInput,
   StudioDraftSaveVersionInput,
 } from "./catalog.js";
 export {

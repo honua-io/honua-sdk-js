@@ -121,7 +121,9 @@ export {
   HonuaInMemoryWebComponentController,
   createHonuaWebComponentController,
   createHonuaWebComponentControllerFromRuntime,
+  layersFromMapDocument,
   layersFromMapPackage,
+  legendFromMapDocument,
   legendFromMapPackage,
 } from "./controller.js";
 

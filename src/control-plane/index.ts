@@ -17,13 +17,13 @@
  */
 
 export {
-  HonuaApiTokensClient,
+  HonuaApiKeysClient,
   HonuaConnectionsClient,
   HonuaControlPlaneClient,
   HonuaControlPlaneJobHandle,
-  HonuaHostedMapsClient,
+  HonuaSavedMapsClient,
   HonuaImportsClient,
-  HonuaMapPackagesClient,
+  HonuaMapDocumentsClient,
   HonuaSharingClient,
   HonuaWorkspacesClient,
   createHonuaControlPlane,
@@ -76,8 +76,8 @@ export type { components as AdminApiComponents, operations as AdminApiOperations
 export type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
 export { HONUA_CAPABILITY_MANIFEST_PATH, HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
 export type {
-  HonuaApiToken,
-  HonuaApiTokenCreateRequest,
+  HonuaApiKey,
+  HonuaApiKeyCreateRequest,
   HonuaCapabilityManifestOptions,
   HonuaConnectionSummary,
   HonuaControlPlaneCapability,
@@ -92,20 +92,22 @@ export type {
   HonuaControlPlaneSourceDescriptor,
   HonuaControlPlaneSuccess,
   HonuaControlPlaneUnsupported,
-  HonuaCreateHostedMapRequest,
+  HonuaCreateSavedMapRequest,
   HonuaEntityValidators,
-  HonuaHostedMap,
-  HonuaHostedMapSummary,
+  HonuaSavedMap,
+  HonuaSavedMapSummary,
   HonuaImportCreateRequest,
-  HonuaMapPackageSummary,
+  HonuaMapDocumentSummary,
   HonuaProblemDetails,
   HonuaMapPublicationIntent,
-  HonuaPublishMapPackageRequest,
-  HonuaPublishMapPackageResponse,
+  HonuaPublishMapDocumentRequest,
+  HonuaPublishMapDocumentResponse,
   HonuaShareRequest,
   HonuaShareResponse,
-  HonuaUpdateHostedMapRequest,
+  HonuaUpdateSavedMapRequest,
   HonuaWorkspaceSummary,
 } from "./types.js";
 
 export * from "./dataset-import/index.js";
+
+export * from "./deprecated-names.js";

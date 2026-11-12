@@ -1,16 +1,16 @@
 import { describe, expect, test, vi } from "vitest";
 import { HonuaClient } from "../../src/core/client.js";
 import {
-  type HonuaMapPackage,
+  type HonuaMapDocument,
   applyStyleRefs,
   createOgcStyleRefResolver,
-  fetchMapPackage,
+  fetchMapDocument,
   styleDocumentToRefBody,
-  validateMapPackage,
+  validateMapDocument,
 } from "../../src/runtime/index.js";
 import type { HonuaStyleSpecification } from "../../src/style/specification.js";
 
-function mapPackage(): HonuaMapPackage {
+function mapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "published-map",
     format: "honua_map_package.v1",
@@ -92,7 +92,7 @@ describe("live shared style render bindings", () => {
 
   test("reopens serialized mappings against current catalog appearance without changing sources or ownership", async () => {
     const original = mapPackage();
-    const reopened = JSON.parse(JSON.stringify(original)) as HonuaMapPackage;
+    const reopened = JSON.parse(JSON.stringify(original)) as HonuaMapDocument;
     let color = "green";
     let requests = 0;
     const client = new HonuaClient({
@@ -167,7 +167,7 @@ describe("live shared style render bindings", () => {
       if (change === "source-property") {
         Object.assign(pkg.styleRefs![0].layerBindings![0], { properties: ["source"] });
       }
-      expect(validateMapPackage(pkg).diagnostics).toContainEqual(
+      expect(validateMapDocument(pkg).diagnostics).toContainEqual(
         expect.objectContaining({ code: "style-ref-invalid-binding", severity: "error" }),
       );
       const resolver = vi.fn(async () => ({ places: {}, places__outline: {} }));
@@ -206,13 +206,13 @@ describe("live shared style render bindings", () => {
         return response(pkg, '"map-v1"');
       },
     });
-    const first = await fetchMapPackage("published-map", { client });
+    const first = await fetchMapDocument("published-map", { client });
     expect(first.mapPackage.styleRefs?.[0].body?.places.paint?.["fill-color"]).toBe("green");
     color = "orange";
-    const changed = await fetchMapPackage("published-map", { client });
+    const changed = await fetchMapDocument("published-map", { client });
     expect(changed.cache.status).toBe("refreshed");
     expect(changed.mapPackage.styleRefs?.[0].body?.places.paint?.["fill-color"]).toBe("orange");
-    const unchanged = await fetchMapPackage("published-map", { client });
+    const unchanged = await fetchMapDocument("published-map", { client });
     expect(unchanged.cache.status).toBe("not-modified");
     expect(styleRequests).toBe(3);
     const rendered = await applyStyleRefs(changed.mapPackage.mapSpec, changed.mapPackage);
@@ -239,9 +239,9 @@ describe("live shared style render bindings", () => {
         return cached ? new Response(null, { status: 304 }) : response(mapPackage(), '"map-v1"');
       },
     });
-    await fetchMapPackage("published-map", { client });
+    await fetchMapDocument("published-map", { client });
     cached = true;
-    await expect(fetchMapPackage("published-map", { client })).rejects.toMatchObject({
+    await expect(fetchMapDocument("published-map", { client })).rejects.toMatchObject({
       name: "HonuaMapPackageError",
       stage: "validate",
     });

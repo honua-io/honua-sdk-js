@@ -11,7 +11,7 @@
  */
 
 import type { LinkedViewPresetName } from "../../exploration/index.js";
-import type { LoadMapPackageOptions } from "../../runtime/index.js";
+import type { LoadMapDocumentOptions } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { ApprovalController } from "../controllers/approval.js";
 import { ListenerBag } from "../controllers/base.js";
@@ -33,8 +33,8 @@ export interface OperatorWorkspaceOptions {
   client: OperatorClient;
   /** Optional MapLibre map factory; required if the host plans to load map packages. */
   mapFactory?: MapFactory;
-  /** Map-runtime options for `loadMapPackage`. */
-  mapLoadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
+  /** Map-runtime options for `loadMapDocument`. */
+  mapLoadOptions?: Omit<LoadMapDocumentOptions, "telemetry">;
   /** Linked-view preset for the embedded `ExplorationContext`. Defaults to `"mapDriven"`. */
   explorationPreset?: LinkedViewPresetName;
   theme?: ThemeProvider | OperatorThemeTokens;

@@ -6,11 +6,11 @@
  * @example
  * ```ts
  * import { HonuaClient } from "@honua/sdk-js";
- * import { loadMapPackage } from "@honua/sdk-js/runtime";
+ * import { loadMapDocument } from "@honua/sdk-js/runtime";
  * import * as maplibregl from "maplibre-gl";
  *
  * const map = new maplibregl.Map({ container: "map" });
- * const runtime = await loadMapPackage(pkg, map, {
+ * const runtime = await loadMapDocument(pkg, map, {
  *   client: new HonuaClient({ baseUrl: "https://honua.example.com" }),
  *   popupFactory: () => new maplibregl.Popup(),
  * });
@@ -21,8 +21,8 @@
  * @packageDocumentation
  */
 
-export { loadMapPackage } from "./load-package.js";
-export type { LoadMapPackageOfflineRegion, LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
+export { loadMapDocument } from "./load-package.js";
+export type { LoadMapDocumentOfflineRegion, LoadMapDocumentOptions, SourceErrorPolicy } from "./load-package.js";
 
 export { maplibreRenderer } from "./maplibre-renderer.js";
 export type {
@@ -33,89 +33,89 @@ export type {
 } from "./maplibre-renderer.js";
 
 export {
-  BoundedMapPackageFetchCache,
-  DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
-  DEFAULT_MAP_PACKAGE_PATH_PREFIX,
-  defaultMapPackagePath,
-  fetchMapPackage,
-  loadMapPackageFromId,
-  mapPackageFingerprint,
-  resolveMapPackagePath,
+  BoundedMapDocumentFetchCache,
+  DEFAULT_MAP_DOCUMENT_CACHE_LIMIT,
+  DEFAULT_MAP_DOCUMENT_PATH_PREFIX,
+  defaultMapDocumentPath,
+  fetchMapDocument,
+  loadMapDocumentFromId,
+  mapDocumentFingerprint,
+  resolveMapDocumentPath,
 } from "./map-package-fetch.js";
 export type {
-  FetchMapPackageOptions,
-  FetchMapPackageResult,
-  LoadMapPackageFromIdOptions,
-  LoadMapPackageFromIdResult,
-  MapPackageFetchCache,
-  MapPackageFetchCacheEntry,
-  MapPackageFetchCacheState,
-  MapPackageFetchCacheStatus,
-  MapPackageLocator,
-  MapPackagePathResolver,
+  FetchMapDocumentOptions,
+  FetchMapDocumentResult,
+  LoadMapDocumentFromIdOptions,
+  LoadMapDocumentFromIdResult,
+  MapDocumentFetchCache,
+  MapDocumentFetchCacheEntry,
+  MapDocumentFetchCacheState,
+  MapDocumentFetchCacheStatus,
+  MapDocumentLocator,
+  MapDocumentPathResolver,
 } from "./map-package-fetch.js";
 
 export {
-  MAP_PACKAGE_REALTIME_CHANNEL_V1,
-  createMapPackageServerSentEventsTransport,
-  decodeMapPackageRealtimeMessage,
-  encodeMapPackageRealtimeUrl,
-  readMapPackageRealtimeAdvertisement,
+  MAP_DOCUMENT_REALTIME_CHANNEL_V1,
+  createMapDocumentServerSentEventsTransport,
+  decodeMapDocumentRealtimeMessage,
+  encodeMapDocumentRealtimeUrl,
+  readMapDocumentRealtimeAdvertisement,
 } from "./map-package-realtime.js";
 export type {
-  MapPackageRealtimeAdvertisement,
-  MapPackageRealtimeAuth,
-  MapPackageRealtimeChannel,
-  MapPackageRealtimeCheckpoint,
-  MapPackageRealtimeDisconnectedMessage,
-  MapPackageRealtimeErrorMessage,
-  MapPackageRealtimeEventSource,
-  MapPackageRealtimeEventSourceFactory,
-  MapPackageRealtimeFallbackMode,
-  MapPackageRealtimeHeartbeatMessage,
-  MapPackageRealtimeMessage,
-  MapPackageRealtimeMessageBase,
-  MapPackageRealtimeObserver,
-  MapPackageRealtimeReadyMessage,
-  MapPackageRealtimeReconnectOptions,
-  MapPackageRealtimeRefetchRequiredMessage,
-  MapPackageRealtimeReloadRequiredMessage,
-  MapPackageRealtimeStaleMessage,
-  MapPackageRealtimeSubscribeRequest,
-  MapPackageRealtimeSubscriptionHandle,
-  MapPackageRealtimeTransport,
-  MapPackageRealtimeTransportKind,
-  MapPackageRealtimeUpdate,
-  MapPackageRealtimeUpdatedMessage,
-  MapPackageRealtimeWatchOptions,
-  MapPackageServerSentEventsTransportOptions,
+  MapDocumentRealtimeAdvertisement,
+  MapDocumentRealtimeAuth,
+  MapDocumentRealtimeChannel,
+  MapDocumentRealtimeCheckpoint,
+  MapDocumentRealtimeDisconnectedMessage,
+  MapDocumentRealtimeErrorMessage,
+  MapDocumentRealtimeEventSource,
+  MapDocumentRealtimeEventSourceFactory,
+  MapDocumentRealtimeFallbackMode,
+  MapDocumentRealtimeHeartbeatMessage,
+  MapDocumentRealtimeMessage,
+  MapDocumentRealtimeMessageBase,
+  MapDocumentRealtimeObserver,
+  MapDocumentRealtimeReadyMessage,
+  MapDocumentRealtimeReconnectOptions,
+  MapDocumentRealtimeRefetchRequiredMessage,
+  MapDocumentRealtimeReloadRequiredMessage,
+  MapDocumentRealtimeStaleMessage,
+  MapDocumentRealtimeSubscribeRequest,
+  MapDocumentRealtimeSubscriptionHandle,
+  MapDocumentRealtimeTransport,
+  MapDocumentRealtimeTransportKind,
+  MapDocumentRealtimeUpdate,
+  MapDocumentRealtimeUpdatedMessage,
+  MapDocumentRealtimeWatchOptions,
+  MapDocumentServerSentEventsTransportOptions,
 } from "./map-package-realtime.js";
-export { watchMapPackage } from "./map-package-watch.js";
-export type { MapPackageWatchEvent, MapPackageWatchHandle, WatchMapPackageOptions } from "./map-package-watch.js";
+export { watchMapDocument } from "./map-package-watch.js";
+export type { MapDocumentWatchEvent, MapDocumentWatchHandle, WatchMapDocumentOptions } from "./map-package-watch.js";
 
-export { hasMapPackageDiagnosticErrors, validateMapPackage } from "./map-package-validation.js";
+export { hasMapDocumentDiagnosticErrors, validateMapDocument } from "./map-package-validation.js";
 export type {
-  HonuaMapPackageDiagnostic,
-  HonuaMapPackageDiagnosticCode,
-  HonuaMapPackageDiagnosticSeverity,
-  ValidateMapPackageOptions,
-  ValidateMapPackageResult,
+  HonuaMapDocumentDiagnostic,
+  HonuaMapDocumentDiagnosticCode,
+  HonuaMapDocumentDiagnosticSeverity,
+  ValidateMapDocumentOptions,
+  ValidateMapDocumentResult,
 } from "./map-package-validation.js";
 
 export {
   DEFAULT_MAX_EMBEDDED_BYTES,
   DEFAULT_MAX_PACKAGE_BYTES,
-  HONUA_MAP_PACKAGE_EXPORT_KIND_V1,
-  exportMapPackage,
-  importMapPackage,
+  HONUA_MAP_DOCUMENT_EXPORT_KIND_V1,
+  exportMapDocument,
+  importMapDocument,
 } from "./map-package-export.js";
 export type {
-  ExportMapPackageOptions,
-  HonuaMapPackageExport,
-  ImportMapPackageOptions,
-  ImportMapPackageResult,
+  ExportMapDocumentOptions,
+  HonuaMapDocumentExport,
+  ImportMapDocumentOptions,
+  ImportMapDocumentResult,
 } from "./map-package-export.js";
-// The failure surface of `exportMapPackage` / `importMapPackage`. Re-exported
+// The failure surface of `exportMapDocument` / `importMapDocument`. Re-exported
 // here so a `@honua/sdk` consumer can catch and inspect it without reaching
 // into `@honua/app-platform`, which re-exports the same symbols for the
 // component kit's export pipeline.
@@ -138,31 +138,31 @@ export type {
   SetViewStateInput,
 } from "./runtime.js";
 
-export { HONUA_MAP_PACKAGE_FORMAT_V1 } from "./map-package.js";
+export { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "./map-package.js";
 export type {
-  HonuaMapPackage,
-  HonuaMapPackageAttribution,
-  HonuaMapPackageDependency,
-  HonuaMapPackageFormat,
-  HonuaMapPackageInitialView,
-  HonuaMapPackageLabelBinding,
-  HonuaMapPackageLegendEntry,
-  HonuaMapPackageLocator,
-  HonuaMapPackagePopupBinding,
-  HonuaMapPackageProtocol,
-  HonuaMapPackageProvenance,
-  HonuaMapPackageSourceBinding,
-  HonuaMapPackageStatus,
-  HonuaMapPackageStyleRef,
-  HonuaMapPackageThemeSpec,
-  HonuaMapPackageWidget,
+  HonuaMapDocument,
+  HonuaMapDocumentAttribution,
+  HonuaMapDocumentDependency,
+  HonuaMapDocumentFormat,
+  HonuaMapDocumentInitialView,
+  HonuaMapDocumentLabelBinding,
+  HonuaMapDocumentLegendEntry,
+  HonuaMapDocumentLocator,
+  HonuaMapDocumentPopupBinding,
+  HonuaMapDocumentProtocol,
+  HonuaMapDocumentProvenance,
+  HonuaMapDocumentSourceBinding,
+  HonuaMapDocumentStatus,
+  HonuaMapDocumentStyleRef,
+  HonuaMapDocumentThemeSpec,
+  HonuaMapDocumentWidget,
   HonuaStyleRefBody,
   HonuaStyleRefLayerBinding,
   HonuaStyleRefLayerOverride,
 } from "./map-package.js";
 
-export { HonuaMapPackageError } from "./errors.js";
-export type { HonuaMapPackageErrorStage } from "./errors.js";
+export { HonuaMapDocumentError } from "./errors.js";
+export type { HonuaMapDocumentErrorStage } from "./errors.js";
 
 export { buildLegend } from "./legend.js";
 export type { LegendEntry } from "./legend.js";
@@ -285,7 +285,7 @@ export type {
 } from "./query-tiles.js";
 
 export { diffPackages } from "./diff.js";
-export type { MapPackageDiff } from "./diff.js";
+export type { MapDocumentDiff } from "./diff.js";
 
 export {
   HonuaRuntimeDiagnosticError,
@@ -372,3 +372,5 @@ export type {
   HonuaOnlineBasemapMap,
   HonuaOnlineBasemapBindingOptions,
 } from "./online-basemap.js";
+
+export * from "./deprecated-names.js";

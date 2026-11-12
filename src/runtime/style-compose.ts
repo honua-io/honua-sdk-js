@@ -16,10 +16,10 @@
  */
 
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
-import { HonuaMapPackageError } from "./errors.js";
+import { HonuaMapDocumentError } from "./errors.js";
 import type {
-  HonuaMapPackage,
-  HonuaMapPackageThemeSpec,
+  HonuaMapDocument,
+  HonuaMapDocumentThemeSpec,
   HonuaStyleRefBody,
   HonuaStyleRefLayerBinding,
   HonuaStyleRefLayerOverride,
@@ -44,7 +44,7 @@ export type StyleRefResolver = (
 ) => Promise<HonuaStyleRefBody>;
 
 /** Resolver for out-of-band theme bodies; called only when `mapPackage.theme` is absent. */
-export type ThemeResolver = (themeId: string) => Promise<HonuaMapPackageThemeSpec>;
+export type ThemeResolver = (themeId: string) => Promise<HonuaMapDocumentThemeSpec>;
 
 export interface StyleComposeOptions {
   resolveStyleRef?: StyleRefResolver;
@@ -53,7 +53,7 @@ export interface StyleComposeOptions {
 
 /** Compose a MapLibre-ready style from the `MapPackage`. */
 export async function composeStyle(
-  pkg: HonuaMapPackage,
+  pkg: HonuaMapDocument,
   mapSpecWithSources: HonuaStyleSpecification,
   options: StyleComposeOptions,
 ): Promise<HonuaStyleSpecification> {
@@ -63,8 +63,8 @@ export async function composeStyle(
     const composed = theme ? applyTheme(withStyleRefs, theme) : withStyleRefs;
     return pruneUndefined(composed);
   } catch (cause) {
-    if (cause instanceof HonuaMapPackageError) throw cause;
-    throw new HonuaMapPackageError("style composition failed", {
+    if (cause instanceof HonuaMapDocumentError) throw cause;
+    throw new HonuaMapDocumentError("style composition failed", {
       packageId: pkg.mapPackageId,
       stage: "style-compose",
       cause,
@@ -79,7 +79,7 @@ export async function composeStyle(
  */
 export async function applyStyleRefs(
   base: HonuaStyleSpecification,
-  pkg: HonuaMapPackage,
+  pkg: HonuaMapDocument,
   resolve?: StyleRefResolver,
 ): Promise<HonuaStyleSpecification> {
   const refs = pkg.styleRefs ?? [];
@@ -94,7 +94,7 @@ export async function applyStyleRefs(
       validateStyleBindingTargets(bindings, base);
       for (const binding of bindings) {
         if (boundTargets.has(binding.targetLayerId))
-          throw new HonuaMapPackageError("Multiple shared styles claim the same explicit target layer.", {
+          throw new HonuaMapDocumentError("Multiple shared styles claim the same explicit target layer.", {
             packageId: pkg.mapPackageId,
             stage: "style-compose",
           });
@@ -107,7 +107,7 @@ export async function applyStyleRefs(
   for (const { ref, bindings } of references) {
     const body = ref.body ?? (resolve ? await resolve(ref.styleId, ref.presetId, bindings) : undefined);
     if (!body) {
-      throw new HonuaMapPackageError(`StyleRef "${ref.styleId}" has no inline body and no resolver was provided`, {
+      throw new HonuaMapDocumentError(`StyleRef "${ref.styleId}" has no inline body and no resolver was provided`, {
         packageId: pkg.mapPackageId,
         stage: "style-compose",
         detail: { styleId: ref.styleId },
@@ -133,7 +133,7 @@ export async function applyStyleRefs(
  * the corresponding theme token. Values that resolve to nothing are left
  * untouched so authors can spot missing tokens at review time.
  */
-export function applyTheme(style: HonuaStyleSpecification, theme: HonuaMapPackageThemeSpec): HonuaStyleSpecification {
+export function applyTheme(style: HonuaStyleSpecification, theme: HonuaMapDocumentThemeSpec): HonuaStyleSpecification {
   const tokens = theme.tokens;
   if (!tokens) return style;
 
@@ -142,16 +142,16 @@ export function applyTheme(style: HonuaStyleSpecification, theme: HonuaMapPackag
 }
 
 async function resolveTheme(
-  pkg: HonuaMapPackage,
+  pkg: HonuaMapDocument,
   resolve?: ThemeResolver,
-): Promise<HonuaMapPackageThemeSpec | undefined> {
+): Promise<HonuaMapDocumentThemeSpec | undefined> {
   if (pkg.theme) return pkg.theme;
   if (!pkg.themeId) return undefined;
   if (!resolve) return undefined;
   try {
     return await resolve(pkg.themeId);
   } catch (cause) {
-    throw new HonuaMapPackageError(`theme resolution failed for themeId "${pkg.themeId}"`, {
+    throw new HonuaMapDocumentError(`theme resolution failed for themeId "${pkg.themeId}"`, {
       packageId: pkg.mapPackageId,
       stage: "style-compose",
       detail: { themeId: pkg.themeId },

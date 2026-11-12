@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { HonuaOperatorError } from "../errors.js";
 import type {
   AnalysisIntent,
@@ -33,8 +33,8 @@ export type WorkspaceEvent =
   | { kind: "execution-progress"; executionId: string; percent?: number; message?: string }
   | { kind: "execution-terminal"; executionId: string; result: ExecutionResult }
   | { kind: "execution-dismissed"; executionId: string }
-  | { kind: "map-loaded"; pkg: HonuaMapPackage }
-  | { kind: "map-refined"; pkg: HonuaMapPackage }
+  | { kind: "map-loaded"; pkg: HonuaMapDocument }
+  | { kind: "map-refined"; pkg: HonuaMapDocument }
   | { kind: "app-loaded"; pkg: AppPackage }
   | { kind: "app-refined"; pkg: AppPackage }
   | { kind: "approval-required"; decision: ApprovalDecision }

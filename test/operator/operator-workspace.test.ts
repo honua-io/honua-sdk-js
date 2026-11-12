@@ -20,7 +20,7 @@ import {
 // resolving `@honua/sdk-js/operator/i18n` to a file that exists
 // rather than `src/operator/index.ts/i18n`.
 import { DEFAULT_MESSAGES, resolveMessage } from "@honua/sdk-js/operator/i18n";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "@honua/sdk-js/runtime";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, type MaplibreMap } from "@honua/sdk-js/runtime";
 
 interface MockCall {
   method: string;
@@ -150,10 +150,10 @@ class FakeJobRun implements IJobRun<ExecutionResult> {
   }
 }
 
-function makeMapPackage(): HonuaMapPackage {
+function makeMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "operator-map",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "tiles",
@@ -463,9 +463,9 @@ describe("OperatorWorkspace", () => {
 
   it("recreates ExplorationContext on map refinement when datasetId or sourceIds change", async () => {
     const map = makeMockMap();
-    const refined: HonuaMapPackage = {
+    const refined: HonuaMapDocument = {
       mapPackageId: "operator-map-v2",
-      format: HONUA_MAP_PACKAGE_FORMAT_V1,
+      format: HONUA_MAP_DOCUMENT_FORMAT_V1,
       sourceBindings: [
         {
           sourceId: "vector-tiles",
@@ -888,10 +888,10 @@ describe("OperatorWorkspace", () => {
   it("does not let a slow map loadPackage overwrite a newer load's runtime", async () => {
     const mapA = makeMockMap();
     const mapB = makeMockMap();
-    const pkgA: HonuaMapPackage = { ...makeMapPackage(), mapPackageId: "pkg-A" };
-    const pkgB: HonuaMapPackage = {
+    const pkgA: HonuaMapDocument = { ...makeMapPackage(), mapPackageId: "pkg-A" };
+    const pkgB: HonuaMapDocument = {
       mapPackageId: "pkg-B",
-      format: HONUA_MAP_PACKAGE_FORMAT_V1,
+      format: HONUA_MAP_DOCUMENT_FORMAT_V1,
       sourceBindings: [
         {
           sourceId: "vector",
@@ -1176,9 +1176,9 @@ describe("OperatorWorkspace", () => {
     workspace.dispose();
   });
 
-  it("disposes the host map when loadMapPackage rejects after the factory has built it", async () => {
+  it("disposes the host map when loadMapDocument rejects after the factory has built it", async () => {
     const map = makeMockMap();
-    // Sabotage setStyle so loadMapPackage rejects after the factory
+    // Sabotage setStyle so loadMapDocument rejects after the factory
     // already returned a host map. Without the leak fix the
     // factory's dispose() would never run.
     map.setStyle = () => {
@@ -1422,7 +1422,7 @@ function makeFailingSubmitClient(failure: Error): OperatorClient {
   };
 }
 
-function makeRefiningClient(refined: HonuaMapPackage): OperatorClient {
+function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
   return {
     operator: {
       async *chat(): AsyncIterable<ChatChunk> {

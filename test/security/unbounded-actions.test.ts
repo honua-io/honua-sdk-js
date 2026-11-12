@@ -29,7 +29,7 @@
  *
  * ## Gap closed by this suite
  *
- * `importMapPackage` documents that it "re-applies both guarantees rather than
+ * `importMapDocument` documents that it "re-applies both guarantees rather than
  * trusting the envelope", but its per-value budget check ran only against the
  * top-level `mapPackage` object — which carries no `data` or `features` key of
  * its own. The export side gets the check at every node for free (its
@@ -60,11 +60,11 @@ import type {
 import {
   DEFAULT_MAX_EMBEDDED_BYTES,
   DEFAULT_MAX_PACKAGE_BYTES,
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
-  HonuaMapPackageError,
-  exportMapPackage,
-  importMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
+  HonuaMapDocumentError,
+  exportMapDocument,
+  importMapDocument,
 } from "../../src/runtime/index.js";
 import {
   HONUA_STUDIO_LIST_MAX_LIMIT,
@@ -229,10 +229,10 @@ describe("unbounded actions :: poll bounds", () => {
 // Export byte budgets
 // ───────────────────────────────────────────────────────────────────────────
 
-function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function basePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-1425-bounds",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     sourceBindings: [
       {
@@ -251,7 +251,7 @@ function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
     attribution: [{ text: "City of Example", url: "https://example.test/credits", required: true }],
     provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
     ...overrides,
-  } as HonuaMapPackage;
+  } as HonuaMapDocument;
 }
 
 /**
@@ -289,11 +289,13 @@ describe("unbounded actions :: export budgets", () => {
         sources: { bulk: { type: "geojson", data: inlineFeatures(DEFAULT_MAX_EMBEDDED_BYTES + 1) } },
         layers: [{ id: "parcels-fill", type: "fill", source: "bulk", paint: { "fill-color": "#cccccc" } }],
       },
-    } as Partial<HonuaMapPackage>);
+    } as Partial<HonuaMapDocument>);
 
-    expect(() => exportMapPackage(pkg, { allowInvalid: true })).toThrow(HonuaMapPackageError);
+    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(HonuaMapDocumentError);
     // The refusal names the budget, so an agent can act on it instead of retrying.
-    expect(() => exportMapPackage(pkg, { allowInvalid: true })).toThrow(new RegExp(String(DEFAULT_MAX_EMBEDDED_BYTES)));
+    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(
+      new RegExp(String(DEFAULT_MAX_EMBEDDED_BYTES)),
+    );
   });
 
   it("refuses a whole artifact over the shipped envelope budget", () => {
@@ -310,9 +312,9 @@ describe("unbounded actions :: export budgets", () => {
         sources,
         layers: [{ id: "parcels-fill", type: "fill", source: "bulk-0", paint: { "fill-color": "#cccccc" } }],
       },
-    } as Partial<HonuaMapPackage>);
+    } as Partial<HonuaMapDocument>);
 
-    expect(() => exportMapPackage(pkg, { allowInvalid: true })).toThrow(new RegExp(String(DEFAULT_MAX_PACKAGE_BYTES)));
+    expect(() => exportMapDocument(pkg, { allowInvalid: true })).toThrow(new RegExp(String(DEFAULT_MAX_PACKAGE_BYTES)));
   });
 
   it("re-applies the per-value budget at every path on import, not only at the root", () => {
@@ -322,19 +324,19 @@ describe("unbounded actions :: export budgets", () => {
     // holder, which carries no `data` or `features` key of its own, so the
     // per-value budget was a no-op on the reading side and an inline body the
     // exporter refuses at 256 KiB imported clean.
-    const envelope = exportMapPackage(basePackage(), { exportedAt: "2026-01-02T00:00:00.000Z" });
+    const envelope = exportMapDocument(basePackage(), { exportedAt: "2026-01-02T00:00:00.000Z" });
     const inflated = {
       ...envelope,
       mapPackage: {
         ...envelope.mapPackage,
         mapSpec: {
-          ...(envelope.mapPackage as HonuaMapPackage).mapSpec,
+          ...(envelope.mapPackage as HonuaMapDocument).mapSpec,
           sources: { bulk: { type: "geojson", data: inlineFeatures(DEFAULT_MAX_EMBEDDED_BYTES + 1) } },
         },
       },
     };
-    expect(() => importMapPackage(inflated, { skipFingerprintCheck: true, allowInvalid: true })).toThrow(
-      HonuaMapPackageError,
+    expect(() => importMapDocument(inflated, { skipFingerprintCheck: true, allowInvalid: true })).toThrow(
+      HonuaMapDocumentError,
     );
   });
 });

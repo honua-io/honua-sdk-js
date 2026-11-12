@@ -16,8 +16,8 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { DataToMapLibreMap } from "../map/data-to-map-bridge.js";
-import type { HonuaMapPackage, HonuaMapRuntime, LoadMapPackageOptions, MaplibreMap } from "../runtime/index.js";
-import { loadMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument, HonuaMapRuntime, LoadMapDocumentOptions, MaplibreMap } from "../runtime/index.js";
+import { loadMapDocument } from "../runtime/index.js";
 import type { PopupFactory } from "../runtime/index.js";
 import { HonuaMapContext, type HonuaMapContextValue } from "./context.js";
 import { HonuaExternalMapContext } from "./external-map.js";
@@ -60,7 +60,7 @@ const EMPTY_STYLE = { version: 8 as const, sources: {}, layers: [] };
 /** Props for {@link HonuaMap}. */
 export interface HonuaMapProps {
   /** The `MapPackage` to compose onto the map. */
-  package: HonuaMapPackage;
+  package: HonuaMapDocument;
   /**
    * Attach to an existing, externally-owned map instead of creating one. When
    * set, `HonuaMap` never removes the map on unmount (the owner is responsible)
@@ -80,11 +80,11 @@ export interface HonuaMapProps {
    */
   mapOptions?: Partial<Omit<MapLibreMapOptions, "container">>;
   /**
-   * Extra options forwarded to `loadMapPackage`. `client` is taken from the
+   * Extra options forwarded to `loadMapDocument`. `client` is taken from the
    * provider; a `popupFactory` is defaulted from the maplibre module when one
    * is available so {@link HonuaPopup} works out of the box.
    */
-  loadOptions?: Omit<LoadMapPackageOptions, "client">;
+  loadOptions?: Omit<LoadMapDocumentOptions, "client">;
   /** Called once the runtime is ready. */
   onRuntime?: (runtime: HonuaMapRuntime) => void;
   /** Called if map creation or package loading fails. */
@@ -125,7 +125,7 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
   const [contextValue, setContextValue] = useState<HonuaMapContextValue>({ runtime: null, map: null });
   // The package reference last handed to load/updatePackage — lets us route
   // subsequent package changes through `updatePackage` instead of reloading.
-  const appliedPackageRef = useRef<HonuaMapPackage | null>(null);
+  const appliedPackageRef = useRef<HonuaMapDocument | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +154,7 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
       const popupFactory: PopupFactory | undefined =
         loadOptions?.popupFactory ?? (glModule ? (() => new glModule.Popup() as never) : undefined);
 
-      const loaded = await loadMapPackage(mapPackage, map, {
+      const loaded = await loadMapDocument(mapPackage, map, {
         ...loadOptions,
         client,
         popupFactory,

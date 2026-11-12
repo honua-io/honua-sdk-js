@@ -43,12 +43,12 @@ import {
   syncMapLayerFilterToExploration,
 } from "../interactions/index.js";
 import {
-  type HonuaMapPackage,
+  type HonuaMapDocument,
   type HonuaMapRuntime,
   type LegendEntry,
-  type LoadMapPackageOptions,
+  type LoadMapDocumentOptions,
   type MaplibreMap,
-  loadMapPackage,
+  loadMapDocument,
 } from "../runtime/index.js";
 import { HonuaGeneratedAppError, toGeneratedAppDiagnostic } from "./errors.js";
 import type {
@@ -103,9 +103,9 @@ export type HonuaGeneratedAppMapFactory = (
 ) => HonuaGeneratedAppMapFactoryResult | Promise<HonuaGeneratedAppMapFactoryResult>;
 
 export interface HonuaGeneratedAppLoadOptions<TAttributes extends Record<string, unknown> = Record<string, unknown>> {
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly mapFactory?: HonuaGeneratedAppMapFactory;
-  readonly mapLoadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
+  readonly mapLoadOptions?: Omit<LoadMapDocumentOptions, "telemetry">;
   readonly initialFeatures?: ReadonlyArray<HonuaGeneratedAppFeatureInput<TAttributes>>;
   readonly featureLoader?: HonuaGeneratedAppFeatureLoader<TAttributes>;
   readonly widgetSource?: WidgetSource<TAttributes>;
@@ -115,7 +115,7 @@ export interface HonuaGeneratedAppLoadOptions<TAttributes extends Record<string,
 export interface HonuaGeneratedAppPreviewInput {
   readonly manifest?: HonuaGeneratedAppManifest;
   readonly appPackage?: HonuaGeneratedAppPackage;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
 }
 
 export type HonuaGeneratedAppRuntimeEvent =
@@ -309,7 +309,7 @@ export async function loadGeneratedAppRuntime<TAttributes extends Record<string,
     try {
       const factoryResult = await options.mapFactory(mapWidget, manifest);
       disposeMap = factoryResult.dispose;
-      mapRuntime = await loadMapPackage(mapPackage, factoryResult.map, {
+      mapRuntime = await loadMapDocument(mapPackage, factoryResult.map, {
         ...options.mapLoadOptions,
         applyInitialView: options.mapLoadOptions.applyInitialView ?? true,
       });
@@ -944,7 +944,7 @@ function generatedAppQueryFields(manifest: HonuaGeneratedAppManifest): ReadonlyA
 
 function assertMapPackageMatchesManifest(
   manifest: HonuaGeneratedAppManifest,
-  mapPackage: HonuaMapPackage | undefined,
+  mapPackage: HonuaMapDocument | undefined,
 ): void {
   if (!manifest.mapPackageId || !mapPackage || manifest.mapPackageId === mapPackage.mapPackageId) return;
   throw new HonuaGeneratedAppError(

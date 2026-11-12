@@ -2,22 +2,22 @@ import type { HonuaCacheValidator } from "../core/cache-state.js";
 import { honuaCacheValidatorFromHeaders } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import { HonuaMapPackageError } from "./errors.js";
-import { type LoadMapPackageOptions, loadMapPackage } from "./load-package.js";
+import { HonuaMapDocumentError } from "./errors.js";
+import { type LoadMapDocumentOptions, loadMapDocument } from "./load-package.js";
 import {
-  type HonuaMapPackageDiagnostic,
-  hasMapPackageDiagnosticErrors,
-  validateMapPackage,
+  type HonuaMapDocumentDiagnostic,
+  hasMapDocumentDiagnosticErrors,
+  validateMapDocument,
 } from "./map-package-validation.js";
-import type { HonuaMapPackage, HonuaMapPackageStyleRef, HonuaStyleRefBody } from "./map-package.js";
+import type { HonuaMapDocument, HonuaMapDocumentStyleRef, HonuaStyleRefBody } from "./map-package.js";
 import { createOgcStyleRefResolver } from "./ogc-styles.js";
 import type { HonuaMapRuntime, MaplibreMap } from "./runtime.js";
 import type { StyleRefResolver } from "./style-compose.js";
 import { readStyleLayerBindings, validateBoundStyleBody, validateStyleBindingTargets } from "./style-ref-bindings.js";
 
-export const DEFAULT_MAP_PACKAGE_PATH_PREFIX = "/api/v1/map-packages";
+export const DEFAULT_MAP_DOCUMENT_PATH_PREFIX = "/api/v1/map-packages";
 
-export type MapPackageLocator =
+export type MapDocumentLocator =
   | string
   | {
       readonly id?: string;
@@ -27,9 +27,9 @@ export type MapPackageLocator =
       readonly href?: string;
     };
 
-export type MapPackagePathResolver = (packageId: string) => string;
+export type MapDocumentPathResolver = (packageId: string) => string;
 
-export interface FetchMapPackageOptions {
+export interface FetchMapDocumentOptions {
   readonly client: HonuaClient;
   readonly signal?: AbortSignal;
   readonly headers?: HeadersInit;
@@ -37,9 +37,9 @@ export interface FetchMapPackageOptions {
    * Override id-to-path resolution. The default is
    * `/api/v1/map-packages/{encodeURIComponent(id)}`.
    */
-  readonly resolvePath?: MapPackagePathResolver;
+  readonly resolvePath?: MapDocumentPathResolver;
   /** In-memory response cache. Omit for a per-client default; pass `false` to bypass SDK validators. */
-  readonly cache?: MapPackageFetchCache | false;
+  readonly cache?: MapDocumentFetchCache | false;
   /**
    * Resolve out-of-band style refs and inline successful bodies into the
    * returned package. When omitted, defaults to resolving `styleRefs.styleId`
@@ -55,43 +55,43 @@ export interface FetchMapPackageOptions {
   /** Emit a stale-package warning when the package timestamp is older than this many ms. */
   readonly maxAgeMs?: number;
   readonly now?: number | Date;
-  /** Return invalid packages with diagnostics instead of throwing `HonuaMapPackageError`. */
+  /** Return invalid packages with diagnostics instead of throwing `HonuaMapDocumentError`. */
   readonly allowInvalid?: boolean;
 }
 
-export interface MapPackageFetchCacheEntry {
+export interface MapDocumentFetchCacheEntry {
   /** Original package bytes projected as JSON; live style refs retain their absent body. */
-  readonly mapPackage: HonuaMapPackage;
+  readonly mapPackage: HonuaMapDocument;
   readonly validator?: HonuaCacheValidator;
   readonly cachedAtMs: number;
   readonly sourceUpdatedAt?: string;
   readonly fingerprint: string;
 }
 
-export type MapPackageFetchCache = Map<string, MapPackageFetchCacheEntry>;
+export type MapDocumentFetchCache = Map<string, MapDocumentFetchCacheEntry>;
 
 /**
  * Default entry cap for the per-client map-package fetch cache, mirroring the
  * metadata cache's 256-entry bound.
  */
-export const DEFAULT_MAP_PACKAGE_CACHE_LIMIT = 256;
+export const DEFAULT_MAP_DOCUMENT_CACHE_LIMIT = 256;
 
 /**
- * A {@link MapPackageFetchCache} that evicts least-recently-used entries once it
- * exceeds {@link DEFAULT_MAP_PACKAGE_CACHE_LIMIT}. The previous default cache
+ * A {@link MapDocumentFetchCache} that evicts least-recently-used entries once it
+ * exceeds {@link DEFAULT_MAP_DOCUMENT_CACHE_LIMIT}. The previous default cache
  * was an unbounded `Map`, so a client that fetched many distinct packages grew
  * it without bound (unlike the size-capped metadata cache). Callers that pass
  * their own `cache` keep full control of eviction.
  */
-export class BoundedMapPackageFetchCache extends Map<string, MapPackageFetchCacheEntry> {
+export class BoundedMapDocumentFetchCache extends Map<string, MapDocumentFetchCacheEntry> {
   private readonly limit: number;
 
-  public constructor(limit: number = DEFAULT_MAP_PACKAGE_CACHE_LIMIT) {
+  public constructor(limit: number = DEFAULT_MAP_DOCUMENT_CACHE_LIMIT) {
     super();
     this.limit = limit;
   }
 
-  public override get(key: string): MapPackageFetchCacheEntry | undefined {
+  public override get(key: string): MapDocumentFetchCacheEntry | undefined {
     const entry = super.get(key);
     if (entry !== undefined) {
       // Refresh recency: re-insertion moves the key to the newest position.
@@ -101,7 +101,7 @@ export class BoundedMapPackageFetchCache extends Map<string, MapPackageFetchCach
     return entry;
   }
 
-  public override set(key: string, value: MapPackageFetchCacheEntry): this {
+  public override set(key: string, value: MapDocumentFetchCacheEntry): this {
     if (super.has(key)) {
       super.delete(key);
     }
@@ -115,10 +115,10 @@ export class BoundedMapPackageFetchCache extends Map<string, MapPackageFetchCach
   }
 }
 
-export type MapPackageFetchCacheStatus = "miss" | "refreshed" | "not-modified" | "bypass";
+export type MapDocumentFetchCacheStatus = "miss" | "refreshed" | "not-modified" | "bypass";
 
-export interface MapPackageFetchCacheState {
-  readonly status: MapPackageFetchCacheStatus;
+export interface MapDocumentFetchCacheState {
+  readonly status: MapDocumentFetchCacheStatus;
   readonly key: string;
   readonly validator?: HonuaCacheValidator;
   readonly sourceUpdatedAt?: string;
@@ -126,37 +126,37 @@ export interface MapPackageFetchCacheState {
   readonly revalidatedAt?: string;
 }
 
-export interface FetchMapPackageResult {
-  readonly mapPackage: HonuaMapPackage;
-  readonly diagnostics: readonly HonuaMapPackageDiagnostic[];
-  readonly cache: MapPackageFetchCacheState;
+export interface FetchMapDocumentResult {
+  readonly mapPackage: HonuaMapDocument;
+  readonly diagnostics: readonly HonuaMapDocumentDiagnostic[];
+  readonly cache: MapDocumentFetchCacheState;
 }
 
-export interface LoadMapPackageFromIdOptions extends LoadMapPackageOptions {
+export interface LoadMapDocumentFromIdOptions extends LoadMapDocumentOptions {
   readonly signal?: AbortSignal;
   readonly headers?: HeadersInit;
-  readonly resolvePath?: MapPackagePathResolver;
-  readonly cache?: MapPackageFetchCache | false;
+  readonly resolvePath?: MapDocumentPathResolver;
+  readonly cache?: MapDocumentFetchCache | false;
   readonly requireStyleRefResolution?: boolean;
   readonly maxAgeMs?: number;
   readonly now?: number | Date;
   readonly allowInvalid?: boolean;
 }
 
-export interface LoadMapPackageFromIdResult {
+export interface LoadMapDocumentFromIdResult {
   readonly runtime: HonuaMapRuntime;
-  readonly mapPackage: HonuaMapPackage;
-  readonly diagnostics: readonly HonuaMapPackageDiagnostic[];
-  readonly cache: MapPackageFetchCacheState;
+  readonly mapPackage: HonuaMapDocument;
+  readonly diagnostics: readonly HonuaMapDocumentDiagnostic[];
+  readonly cache: MapDocumentFetchCacheState;
 }
 
-const defaultCaches = new WeakMap<HonuaClient, MapPackageFetchCache>();
+const defaultCaches = new WeakMap<HonuaClient, MapDocumentFetchCache>();
 
-export async function fetchMapPackage(
-  locator: MapPackageLocator,
-  options: FetchMapPackageOptions,
-): Promise<FetchMapPackageResult> {
-  const path = resolveMapPackagePath(locator, options.resolvePath);
+export async function fetchMapDocument(
+  locator: MapDocumentLocator,
+  options: FetchMapDocumentOptions,
+): Promise<FetchMapDocumentResult> {
+  const path = resolveMapDocumentPath(locator, options.resolvePath);
   const cache = resolveCache(options.client, options.cache);
   const cached = cache?.get(path);
   const headers = buildFetchHeaders(options.headers, cached?.validator);
@@ -171,7 +171,7 @@ export async function fetchMapPackage(
 
   if (response.status === 304) {
     if (!cached) {
-      throw new HonuaMapPackageError("MapPackage fetch returned 304 without an SDK cache entry", {
+      throw new HonuaMapDocumentError("MapPackage fetch returned 304 without an SDK cache entry", {
         stage: "fetch",
         detail: { path },
       });
@@ -190,14 +190,14 @@ export async function fetchMapPackage(
     requireStyleRefResolution: options.requireStyleRefResolution === true,
   });
   const mapPackage = resolved.mapPackage;
-  const validation = validateMapPackage(mapPackage, {
+  const validation = validateMapDocument(mapPackage, {
     maxAgeMs: options.maxAgeMs,
     now: options.now,
   });
   const diagnostics = [...resolved.diagnostics, ...validation.diagnostics];
 
-  if (hasMapPackageDiagnosticErrors(diagnostics) && options.allowInvalid !== true) {
-    throw new HonuaMapPackageError("MapPackage validation failed", {
+  if (hasMapDocumentDiagnosticErrors(diagnostics) && options.allowInvalid !== true) {
+    throw new HonuaMapDocumentError("MapPackage validation failed", {
       packageId: packageIdFromUnknown(mapPackage),
       stage: "validate",
       detail: { diagnostics, path },
@@ -207,15 +207,15 @@ export async function fetchMapPackage(
   const validator = honuaCacheValidatorFromHeaders(response.headers) ?? (notModified ? cached?.validator : undefined);
   const sourceUpdatedAt = response.headers.get("last-modified") ?? (notModified ? cached?.sourceUpdatedAt : undefined);
   const fingerprint = stableFingerprint(mapPackage);
-  const status: MapPackageFetchCacheStatus = !cache
+  const status: MapDocumentFetchCacheStatus = !cache
     ? "bypass"
     : notModified && cached?.fingerprint === fingerprint
       ? "not-modified"
       : cached
         ? "refreshed"
         : "miss";
-  const entry: MapPackageFetchCacheEntry = {
-    mapPackage: rawPackage as HonuaMapPackage,
+  const entry: MapDocumentFetchCacheEntry = {
+    mapPackage: rawPackage as HonuaMapDocument,
     cachedAtMs: Date.now(),
     fingerprint,
     ...(validator ? { validator } : {}),
@@ -224,7 +224,7 @@ export async function fetchMapPackage(
   if (cache) cache.set(path, entry);
 
   return {
-    mapPackage: mapPackage as HonuaMapPackage,
+    mapPackage: mapPackage as HonuaMapDocument,
     diagnostics,
     cache: {
       status,
@@ -237,12 +237,12 @@ export async function fetchMapPackage(
   };
 }
 
-export async function loadMapPackageFromId(
-  locator: MapPackageLocator,
+export async function loadMapDocumentFromId(
+  locator: MapDocumentLocator,
   map: MaplibreMap,
-  options: LoadMapPackageFromIdOptions,
-): Promise<LoadMapPackageFromIdResult> {
-  const fetched = await fetchMapPackage(locator, {
+  options: LoadMapDocumentFromIdOptions,
+): Promise<LoadMapDocumentFromIdResult> {
+  const fetched = await fetchMapDocument(locator, {
     client: options.client,
     signal: options.signal,
     headers: options.headers,
@@ -255,7 +255,7 @@ export async function loadMapPackageFromId(
     now: options.now,
     allowInvalid: options.allowInvalid,
   });
-  const runtime = await loadMapPackage(fetched.mapPackage, map, options);
+  const runtime = await loadMapDocument(fetched.mapPackage, map, options);
   return {
     runtime,
     mapPackage: fetched.mapPackage,
@@ -264,7 +264,7 @@ export async function loadMapPackageFromId(
   };
 }
 
-export function resolveMapPackagePath(locator: MapPackageLocator, resolvePath?: MapPackagePathResolver): string {
+export function resolveMapDocumentPath(locator: MapDocumentLocator, resolvePath?: MapDocumentPathResolver): string {
   if (typeof locator === "string") {
     return resolveStringLocator(locator, resolvePath);
   }
@@ -272,19 +272,19 @@ export function resolveMapPackagePath(locator: MapPackageLocator, resolvePath?: 
   if (direct) return direct;
   const id = locator.packageId ?? locator.id;
   if (!id) {
-    throw new HonuaMapPackageError("MapPackage locator requires id, packageId, path, url, or href", {
+    throw new HonuaMapDocumentError("MapPackage locator requires id, packageId, path, url, or href", {
       stage: "fetch",
       detail: { locator },
     });
   }
-  return (resolvePath ?? defaultMapPackagePath)(id);
+  return (resolvePath ?? defaultMapDocumentPath)(id);
 }
 
-export function defaultMapPackagePath(packageId: string): string {
-  return `${DEFAULT_MAP_PACKAGE_PATH_PREFIX}/${encodeURIComponent(packageId)}`;
+export function defaultMapDocumentPath(packageId: string): string {
+  return `${DEFAULT_MAP_DOCUMENT_PATH_PREFIX}/${encodeURIComponent(packageId)}`;
 }
 
-export function mapPackageFingerprint(pkg: HonuaMapPackage): string {
+export function mapDocumentFingerprint(pkg: HonuaMapDocument): string {
   return stableFingerprint(pkg);
 }
 
@@ -294,7 +294,7 @@ async function resolveMapPackageStyleRefs(
     readonly resolveStyleRef?: StyleRefResolver;
     readonly requireStyleRefResolution: boolean;
   },
-): Promise<{ mapPackage: unknown; diagnostics: readonly HonuaMapPackageDiagnostic[] }> {
+): Promise<{ mapPackage: unknown; diagnostics: readonly HonuaMapDocumentDiagnostic[] }> {
   if (!isRecord(value) || !Array.isArray(value.styleRefs) || value.styleRefs.length === 0) {
     return { mapPackage: value, diagnostics: [] };
   }
@@ -313,15 +313,15 @@ async function resolveMapPackageStyleRefs(
       async (
         ref,
         i,
-      ): Promise<{ ref: HonuaMapPackageStyleRef; diagnostic?: HonuaMapPackageDiagnostic; changed: boolean }> => {
+      ): Promise<{ ref: HonuaMapDocumentStyleRef; diagnostic?: HonuaMapDocumentDiagnostic; changed: boolean }> => {
         if (!isRecord(ref) || isRecord(ref.body)) {
-          return { ref: ref as HonuaMapPackageStyleRef, changed: false };
+          return { ref: ref as HonuaMapDocumentStyleRef, changed: false };
         }
 
         const styleId = typeof ref.styleId === "string" ? ref.styleId : "";
         if (!resolveStyleRef) {
           return {
-            ref: ref as unknown as HonuaMapPackageStyleRef,
+            ref: ref as unknown as HonuaMapDocumentStyleRef,
             changed: false,
             diagnostic: {
               code: "style-ref-unresolved",
@@ -344,7 +344,7 @@ async function resolveMapPackageStyleRefs(
           );
           if (!isRecord(body)) {
             return {
-              ref: ref as unknown as HonuaMapPackageStyleRef,
+              ref: ref as unknown as HonuaMapDocumentStyleRef,
               changed: false,
               diagnostic: {
                 code: "style-ref-resolution-failed",
@@ -358,12 +358,12 @@ async function resolveMapPackageStyleRefs(
           }
           if (bindings) validateBoundStyleBody(bindings, body);
           return {
-            ref: { ...(ref as unknown as HonuaMapPackageStyleRef), body: body as HonuaStyleRefBody },
+            ref: { ...(ref as unknown as HonuaMapDocumentStyleRef), body: body as HonuaStyleRefBody },
             changed: true,
           };
         } catch (cause) {
           return {
-            ref: ref as unknown as HonuaMapPackageStyleRef,
+            ref: ref as unknown as HonuaMapDocumentStyleRef,
             changed: false,
             diagnostic: {
               code: "style-ref-resolution-failed",
@@ -402,31 +402,31 @@ function buildFetchHeaders(headers: HeadersInit | undefined, validator: HonuaCac
 
 function resolveCache(
   client: HonuaClient,
-  cache: MapPackageFetchCache | false | undefined,
-): MapPackageFetchCache | undefined {
+  cache: MapDocumentFetchCache | false | undefined,
+): MapDocumentFetchCache | undefined {
   if (cache === false) return undefined;
   if (cache) return cache;
   const existing = defaultCaches.get(client);
   if (existing) return existing;
-  const next: MapPackageFetchCache = new BoundedMapPackageFetchCache(DEFAULT_MAP_PACKAGE_CACHE_LIMIT);
+  const next: MapDocumentFetchCache = new BoundedMapDocumentFetchCache(DEFAULT_MAP_DOCUMENT_CACHE_LIMIT);
   defaultCaches.set(client, next);
   return next;
 }
 
-function resolveStringLocator(locator: string, resolvePath: MapPackagePathResolver | undefined): string {
+function resolveStringLocator(locator: string, resolvePath: MapDocumentPathResolver | undefined): string {
   if (locator.startsWith("/") || locator.startsWith("http://") || locator.startsWith("https://")) return locator;
   const honuaPackagePrefix = "honua://map-packages/";
   if (locator.startsWith(honuaPackagePrefix)) {
-    return (resolvePath ?? defaultMapPackagePath)(decodeURIComponent(locator.slice(honuaPackagePrefix.length)));
+    return (resolvePath ?? defaultMapDocumentPath)(decodeURIComponent(locator.slice(honuaPackagePrefix.length)));
   }
-  return (resolvePath ?? defaultMapPackagePath)(locator);
+  return (resolvePath ?? defaultMapDocumentPath)(locator);
 }
 
 async function parseJsonBody(response: Response, path: string): Promise<unknown> {
   try {
     return await response.json();
   } catch (cause) {
-    throw new HonuaMapPackageError("MapPackage fetch response was not valid JSON", {
+    throw new HonuaMapDocumentError("MapPackage fetch response was not valid JSON", {
       stage: "fetch",
       detail: { path },
       cause,

@@ -1,5 +1,5 @@
 /**
- * `loadMapPackage` — the first-class entry point that turns a server
+ * `loadMapDocument` — the first-class entry point that turns a server
  * `MapPackage` into a running MapLibre GL JS map. The caller owns the
  * `MaplibreMap` instance (peer dependency); the runtime composes the
  * style, resolves bindings through the shared contract, and hands the
@@ -12,8 +12,8 @@ import { type Dataset, type SourceDescriptor, type SourceResolver, createDataset
 import type { HonuaClient } from "../core/client.js";
 import { HonuaMap } from "../map/honua-map.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
-import { HonuaMapPackageError } from "./errors.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
+import { HonuaMapDocumentError } from "./errors.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument } from "./map-package.js";
 import {
   OFFLINE_REGION_PROTOCOL_SCHEME,
   type OfflineRegionTileHandler,
@@ -38,7 +38,7 @@ import { prepareRuntimeStyleSpecValidation } from "./style-spec-validation.js";
 import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js";
 
 /**
- * How `loadMapPackage` reacts when a single protocol-backed source
+ * How `loadMapDocument` reacts when a single protocol-backed source
  * binding fails to project / build a Honua source spec. Defaults to
  * `"tolerant"` because the entire point of mixed-protocol composition is
  * that one bad source should not break the rest of the map.
@@ -53,7 +53,7 @@ import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js"
  *
  * `"fail-fast"` preserves the historical single-source behaviour: any
  * per-source binding failure rejects the load with
- * `HonuaMapPackageError({ stage: "source-bind" })`. Configuration-level
+ * `HonuaMapDocumentError({ stage: "source-bind" })`. Configuration-level
  * binding errors (unknown protocol, missing locator, duplicate id,
  * deferred `workspace_artifact`) raised by `projectSourceBindings`
  * always fail-fast under either policy — those are operator errors that
@@ -61,7 +61,7 @@ import type { RuntimeStyleSpecValidationMode } from "./style-spec-validation.js"
  */
 export type SourceErrorPolicy = "tolerant" | "fail-fast";
 
-export interface LoadMapPackageOptions {
+export interface LoadMapDocumentOptions {
   /** Active `HonuaClient`; used for protocol adapter binding. */
   client: HonuaClient;
   /**
@@ -137,11 +137,11 @@ export interface LoadMapPackageOptions {
    * a source that cannot be rewritten exactly fails the load rather than
    * quietly continuing to render live tiles.
    */
-  offlineRegion?: LoadMapPackageOfflineRegion;
+  offlineRegion?: LoadMapDocumentOfflineRegion;
 }
 
 /** Binding between a composed style and one persisted offline region. */
-export interface LoadMapPackageOfflineRegion {
+export interface LoadMapDocumentOfflineRegion {
   /** Handler from `createOfflineRegionTileProtocol()` in `@honua/sdk-js/offline`. */
   readonly tileHandler: OfflineRegionTileHandler;
   /** Style source ids to rewrite onto the region. Omit to bind an already-rewritten style. */
@@ -162,7 +162,7 @@ export interface LoadMapPackageOfflineRegion {
 function bindOfflineRegionStyle(
   style: HonuaStyleSpecification,
   packageId: string | undefined,
-  region: LoadMapPackageOfflineRegion | undefined,
+  region: LoadMapDocumentOfflineRegion | undefined,
 ): HonuaStyleSpecification {
   if (!region?.sourceIds || region.sourceIds.length === 0) return style;
   const rewrite = rewriteStyleTilesForOfflineRegion(style, {
@@ -170,7 +170,7 @@ function bindOfflineRegionStyle(
     ...(region.tileMatrixSetId !== undefined ? { tileMatrixSetId: region.tileMatrixSetId } : {}),
   });
   if (rewrite.refusals.length > 0) {
-    throw new HonuaMapPackageError("offline-region style binding refused a source it cannot rewrite exactly", {
+    throw new HonuaMapDocumentError("offline-region style binding refused a source it cannot rewrite exactly", {
       ...(packageId === undefined ? {} : { packageId }),
       stage: "style-compose",
       detail: { refusals: rewrite.refusals },
@@ -182,13 +182,13 @@ function bindOfflineRegionStyle(
 /**
  * Load a `MapPackage` onto a caller-provided `MaplibreMap`. Returns a
  * runtime handle that exposes the operational API. Throws
- * `HonuaMapPackageError` on binding failure. Query-time adapter errors
+ * `HonuaMapDocumentError` on binding failure. Query-time adapter errors
  * (`HonuaHttpError`, `HonuaCapabilityNotSupportedError`, ...) continue
  * to flow through the returned `Source` promises on `runtime.dataset`
  * and through the shared `HonuaClient` interceptor chain.
  *
  * Per-source binding tolerance is governed by
- * {@link LoadMapPackageOptions.sourceErrorPolicy} — the default
+ * {@link LoadMapDocumentOptions.sourceErrorPolicy} — the default
  * `"tolerant"` policy lets a heterogeneous (mixed-protocol) composition
  * keep rendering when one source fails by skipping the failing source
  * (and any layers that reference it) and emitting a `source-error`
@@ -196,10 +196,10 @@ function bindOfflineRegionStyle(
  * `"fail-fast"` to restore the historical reject-on-any-binding-failure
  * behaviour.
  */
-export async function loadMapPackage(
-  pkg: HonuaMapPackage,
+export async function loadMapDocument(
+  pkg: HonuaMapDocument,
   map: MaplibreMap,
-  options: LoadMapPackageOptions,
+  options: LoadMapDocumentOptions,
 ): Promise<HonuaMapRuntime> {
   assertPackageFormat(pkg);
 
@@ -224,7 +224,7 @@ export async function loadMapPackage(
   );
 
   const compose = async (
-    target: HonuaMapPackage,
+    target: HonuaMapDocument,
   ): Promise<{
     composed: HonuaStyleSpecification;
     dataset: Dataset;
@@ -249,8 +249,8 @@ export async function loadMapPackage(
 
     const recordSourceFailure = (descriptor: SourceDescriptor, cause: unknown): void => {
       if (sourceErrorPolicy === "fail-fast") {
-        if (cause instanceof HonuaMapPackageError) throw cause;
-        throw new HonuaMapPackageError(`binding source "${descriptor.id}" failed`, {
+        if (cause instanceof HonuaMapDocumentError) throw cause;
+        throw new HonuaMapDocumentError(`binding source "${descriptor.id}" failed`, {
           packageId: target.mapPackageId,
           stage: "source-bind",
           detail: { sourceId: descriptor.id, protocol: descriptor.protocol },
@@ -324,7 +324,7 @@ export async function loadMapPackage(
     if (styleUsesOfflineRegion(composed)) {
       const region = options.offlineRegion;
       if (!region) {
-        throw new HonuaMapPackageError(
+        throw new HonuaMapDocumentError(
           "the composed style addresses an offline region but no offlineRegion tile handler was supplied",
           {
             packageId: target.mapPackageId,
@@ -388,7 +388,7 @@ export async function loadMapPackage(
           ...(pkg.initialView.bearing !== undefined ? { bearing: pkg.initialView.bearing } : {}),
         });
       } catch (cause) {
-        throw new HonuaMapPackageError("applying initialView failed", {
+        throw new HonuaMapDocumentError("applying initialView failed", {
           packageId: pkg.mapPackageId,
           stage: "view",
           cause,
@@ -427,8 +427,8 @@ export async function loadMapPackage(
       durationMs: finishedAt - startedAt,
       error,
     });
-    if (error instanceof HonuaMapPackageError) throw error;
-    throw new HonuaMapPackageError("loadMapPackage failed", {
+    if (error instanceof HonuaMapDocumentError) throw error;
+    throw new HonuaMapDocumentError("loadMapDocument failed", {
       packageId: pkg.mapPackageId,
       stage: "load",
       cause: error,
@@ -466,25 +466,25 @@ function emitSourceBindFailure(
   });
 }
 
-function assertPackageFormat(pkg: HonuaMapPackage): void {
-  if (pkg.format !== HONUA_MAP_PACKAGE_FORMAT_V1) {
-    throw new HonuaMapPackageError(
-      `unsupported MapPackage format "${String(pkg.format)}"; runtime supports "${HONUA_MAP_PACKAGE_FORMAT_V1}"`,
+function assertPackageFormat(pkg: HonuaMapDocument): void {
+  if (pkg.format !== HONUA_MAP_DOCUMENT_FORMAT_V1) {
+    throw new HonuaMapDocumentError(
+      `unsupported MapPackage format "${String(pkg.format)}"; runtime supports "${HONUA_MAP_DOCUMENT_FORMAT_V1}"`,
       {
         packageId: pkg.mapPackageId,
         stage: "load",
-        detail: { received: pkg.format, expected: HONUA_MAP_PACKAGE_FORMAT_V1 },
+        detail: { received: pkg.format, expected: HONUA_MAP_DOCUMENT_FORMAT_V1 },
       },
     );
   }
   if (!Array.isArray(pkg.sourceBindings)) {
-    throw new HonuaMapPackageError("MapPackage.sourceBindings must be an array", {
+    throw new HonuaMapDocumentError("MapPackage.sourceBindings must be an array", {
       packageId: pkg.mapPackageId,
       stage: "load",
     });
   }
   if (!pkg.mapSpec || typeof pkg.mapSpec !== "object") {
-    throw new HonuaMapPackageError("MapPackage.mapSpec is required", {
+    throw new HonuaMapDocumentError("MapPackage.mapSpec is required", {
       packageId: pkg.mapPackageId,
       stage: "load",
     });

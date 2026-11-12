@@ -45,7 +45,7 @@
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 
 // ── Conversation ─────────────────────────────────────────────
 
@@ -185,7 +185,7 @@ export type ExecutionResultKind = "analysis" | "publishing" | "builder" | "deplo
 export interface ExecutionResult {
   readonly kind: ExecutionResultKind;
   readonly summary?: string;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly appPackage?: AppPackage;
   readonly artifacts?: ReadonlyArray<ArtifactRef>;
   readonly provenance?: ReadonlyArray<ProvenanceRecord>;

@@ -22,13 +22,13 @@ import {
   previewGeneratedApp,
   projectAppPackageToGeneratedAppManifest,
   projectBuildSpecToGeneratedAppManifest,
-  projectMapPackageToGeneratedAppManifest,
+  projectMapDocumentToGeneratedAppManifest,
 } from "../src/generated-app/index.js";
 import {
   HONUA_GENERATED_APP_MAX_PREVIEW_LIMIT,
   HONUA_GENERATED_APP_MAX_WIDGETS,
 } from "../src/generated-app/projection.js";
-import type { HonuaMapPackage, MaplibreMap } from "../src/runtime/index.js";
+import type { HonuaMapDocument, MaplibreMap } from "../src/runtime/index.js";
 
 interface MockCall {
   readonly method: string;
@@ -146,7 +146,7 @@ function widgetResultBase() {
 
 async function loadFixtureRuntime() {
   const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-  const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+  const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
   const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
   const map = makeMockMap();
   const result = await previewGeneratedApp(
@@ -167,7 +167,7 @@ describe("@honua/sdk-js/generated-app", () => {
       exports?: Record<string, { types?: string; default?: string }>;
     };
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
 
     // Moved to `@honua/app-platform/generated-app` in the 1.0 scope split; the
     // old subpath resolves through a one-minor `@deprecated` re-export shim.
@@ -204,7 +204,7 @@ describe("@honua/sdk-js/generated-app", () => {
       "filter",
     ]);
 
-    const mapManifest = projectMapPackageToGeneratedAppManifest(mapPackage, {
+    const mapManifest = projectMapDocumentToGeneratedAppManifest(mapPackage, {
       appId: "map-derived-app",
       bindings: { categoryField: "district", filterField: "district" },
     });
@@ -251,7 +251,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("can consume widgetSource models for count, chart, and filter widgets", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
     const requestedFields: string[] = [];
     const widgetSource: WidgetSource = {
@@ -328,7 +328,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("can consume widgetSource histogram and time-series chart models", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const analyticsManifest: HonuaGeneratedAppManifest = {
@@ -442,7 +442,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("requests every bound field needed by the default map-backed loader", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const sourceAttributes: Record<string, unknown> = {
       incident_id: "INC-1001",
@@ -535,7 +535,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("bounds concurrent generated widget source requests", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const concurrentManifest: HonuaGeneratedAppManifest = {
@@ -637,7 +637,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("uses table widget sourceId when selecting generated app records", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const tableSourceId = "inspection-records";
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>(
@@ -674,7 +674,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("keeps unqualified generated app records selectable when a table declares sourceId", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const tableSourceId = "inspection-records";
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>(
@@ -714,7 +714,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("uses the manifest-level layerId fallback for map filter bindings", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const features = readFixture<ReadonlyArray<HonuaGeneratedAppFeatureInput>>("operations-dashboard-features.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const map = makeMockMap();
@@ -753,8 +753,8 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("rejects a MapPackage whose id does not match the manifest contract", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
-    const mismatchedMapPackage: HonuaMapPackage = {
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
+    const mismatchedMapPackage: HonuaMapDocument = {
       ...mapPackage,
       mapPackageId: "map-ops-dashboard-v2",
     };
@@ -789,7 +789,7 @@ describe("@honua/sdk-js/generated-app", () => {
 
   it("disposes partially loaded map resources when initial feature refresh fails", async () => {
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const map = makeMockMap();
     let disposedHostMap = false;
@@ -847,7 +847,7 @@ describe("@honua/sdk-js/generated-app", () => {
     }
 
     const appPackage = readFixture<HonuaGeneratedAppPackage>("operations-dashboard-app-package.v1.json");
-    const mapPackage = readFixture<HonuaMapPackage>("operations-dashboard-map-package.v1.json");
+    const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
     const manifest = projectAppPackageToGeneratedAppManifest(appPackage, { mapPackage });
     const withoutTable: HonuaGeneratedAppManifest = {
       ...manifest,

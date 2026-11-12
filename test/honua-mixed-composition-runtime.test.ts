@@ -18,7 +18,7 @@
  * This test uses an in-process mock `MaplibreMap` and the
  * `HonuaClient` `fetchFn` injection seam so it stays hermetic — no
  * network, no MapLibre binding, no built dist — while exercising the
- * same `loadMapPackage` path operator components will consume in
+ * same `loadMapDocument` path operator components will consume in
  * production.
  */
 
@@ -28,11 +28,11 @@ import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, intersectCapabili
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaMap } from "../src/map/honua-map.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   type HonuaRuntimeEvent,
   type MaplibreMap,
-  loadMapPackage,
+  loadMapDocument,
 } from "../src/runtime/index.js";
 
 interface MockCall {
@@ -184,10 +184,10 @@ function makeMockFetch(): {
   return { fetchFn: handler as typeof fetch, recorded };
 }
 
-function makeMixedPackage(overrides: { ogcLocatorUrl?: string } = {}): HonuaMapPackage {
+function makeMixedPackage(overrides: { ogcLocatorUrl?: string } = {}): HonuaMapDocument {
   return {
     mapPackageId: "mixed-composition-pkg",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "parcels",
@@ -236,7 +236,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
   });
 
   it(
-    "binds GeoServices + OGC Features + WMS basemap + vector tiles through one loadMapPackage call",
+    "binds GeoServices + OGC Features + WMS basemap + vector tiles through one loadMapDocument call",
     { timeout: 30_000 },
     async () => {
       const map = makeMockMap();
@@ -244,7 +244,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       const client = new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
       const events: HonuaRuntimeEvent[] = [];
 
-      const runtime = await loadMapPackage(makeMixedPackage(), map, {
+      const runtime = await loadMapDocument(makeMixedPackage(), map, {
         client,
         skipCompatibilityCheck: true,
         applyInitialView: false,
@@ -316,7 +316,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       // exercising the per-source tolerant path.
       const pkg = makeMixedPackage({ ogcLocatorUrl: "https://mock.honua.test/ogc/features" });
 
-      const runtime = await loadMapPackage(pkg, map, {
+      const runtime = await loadMapDocument(pkg, map, {
         client,
         skipCompatibilityCheck: true,
         applyInitialView: false,
@@ -367,7 +367,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
         realAddSource.call(this, name, spec);
       });
 
-      const runtime = await loadMapPackage(makeMixedPackage(), map, {
+      const runtime = await loadMapDocument(makeMixedPackage(), map, {
         client,
         skipCompatibilityCheck: true,
         applyInitialView: false,
@@ -407,7 +407,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       // at materialization — the same trigger used by the existing
       // tolerant-policy test, but now with a colliding inline source.
       const pkg = makeMixedPackage({ ogcLocatorUrl: "https://mock.honua.test/ogc/features" });
-      const pkgWithInline: HonuaMapPackage = {
+      const pkgWithInline: HonuaMapDocument = {
         ...pkg,
         mapSpec: {
           ...pkg.mapSpec,
@@ -419,7 +419,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
         },
       };
 
-      const runtime = await loadMapPackage(pkgWithInline, map, {
+      const runtime = await loadMapDocument(pkgWithInline, map, {
         client,
         skipCompatibilityCheck: true,
         applyInitialView: false,
@@ -476,7 +476,7 @@ describe("honua mixed composition runtime (E2E, 4 protocols)", () => {
       });
 
       const pkg = makeMixedPackage();
-      const runtime = await loadMapPackage(pkg, map, {
+      const runtime = await loadMapDocument(pkg, map, {
         client,
         skipCompatibilityCheck: true,
         applyInitialView: false,

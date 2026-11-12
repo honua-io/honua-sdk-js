@@ -10,11 +10,11 @@
  */
 
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
-import type { HonuaMapPackage, HonuaMapPackageSourceBinding } from "./map-package.js";
+import type { HonuaMapDocument, HonuaMapDocumentSourceBinding } from "./map-package.js";
 
-export interface MapPackageDiff {
+export interface MapDocumentDiff {
   /** Bindings present in `next` but not `previous`. */
-  addedSourceBindings: HonuaMapPackageSourceBinding[];
+  addedSourceBindings: HonuaMapDocumentSourceBinding[];
   /** sourceIds present in `previous` but not `next`. */
   removedSourceIds: string[];
   /** sourceIds whose locator / filter changed — requires add-then-remove. */
@@ -31,11 +31,11 @@ export interface MapPackageDiff {
   structuralReason?: string;
 }
 
-export function diffPackages(previous: HonuaMapPackage, next: HonuaMapPackage): MapPackageDiff {
+export function diffPackages(previous: HonuaMapDocument, next: HonuaMapDocument): MapDocumentDiff {
   const prevBindings = new Map(previous.sourceBindings.map((b) => [b.sourceId, b]));
   const nextBindings = new Map(next.sourceBindings.map((b) => [b.sourceId, b]));
 
-  const addedSourceBindings: HonuaMapPackageSourceBinding[] = [];
+  const addedSourceBindings: HonuaMapDocumentSourceBinding[] = [];
   const removedSourceIds: string[] = [];
   const changedSourceIds: string[] = [];
 
@@ -79,7 +79,7 @@ export function diffPackages(previous: HonuaMapPackage, next: HonuaMapPackage): 
 }
 
 function detectSourceBindingChange(
-  added: readonly HonuaMapPackageSourceBinding[],
+  added: readonly HonuaMapDocumentSourceBinding[],
   removed: readonly string[],
   changed: readonly string[],
 ): string | undefined {
@@ -89,7 +89,7 @@ function detectSourceBindingChange(
   return undefined;
 }
 
-function sameBinding(a: HonuaMapPackageSourceBinding, b: HonuaMapPackageSourceBinding): boolean {
+function sameBinding(a: HonuaMapDocumentSourceBinding, b: HonuaMapDocumentSourceBinding): boolean {
   if (a.protocol !== b.protocol) return false;
   if ((a.filter ?? "") !== (b.filter ?? "")) return false;
   if ((a.attribution ?? "") !== (b.attribution ?? "")) return false;

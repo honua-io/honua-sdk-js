@@ -2,10 +2,10 @@
  * Unified validation and preview response envelopes shared across every
  * Studio package family and across the SDK, Console, MCP, and QGIS clients.
  *
- * The existing {@link ValidateMapPackageResult} (map family) stays unchanged;
- * {@link toStudioValidationResponse} and {@link fromMapPackageValidation}
+ * The existing {@link ValidateMapDocumentResult} (map family) stays unchanged;
+ * {@link toStudioValidationResponse} and {@link fromMapDocumentValidation}
  * adapt it into the generic {@link StudioPackageValidationResponse} envelope
- * without renaming or restructuring it. {@link HonuaMapPackageDiagnostic} is
+ * without renaming or restructuring it. {@link HonuaMapDocumentDiagnostic} is
  * already a structural subtype of {@link StudioPackageDiagnostic}.
  *
  * @experimental Not yet covered by the SDK's semver contract — these shapes
@@ -13,8 +13,8 @@
  * @module
  */
 
-import type { ValidateMapPackageResult } from "../runtime/map-package-validation.js";
-import type { HonuaMapPackage } from "../runtime/map-package.js";
+import type { ValidateMapDocumentResult } from "../runtime/map-package-validation.js";
+import type { HonuaMapDocument } from "../runtime/map-package.js";
 import type { HonuaStudioPackageFamily } from "./types.js";
 
 /**
@@ -27,7 +27,7 @@ export type StudioPackageDiagnosticSeverity = "info" | "warning" | "error" | "bl
 
 /**
  * One diagnostic emitted while validating a Studio package. The shape is a
- * superset-compatible mirror of `HonuaMapPackageDiagnostic` so the map
+ * superset-compatible mirror of `HonuaMapDocumentDiagnostic` so the map
  * validator's output adapts without conversion.
  *
  * @experimental
@@ -82,7 +82,7 @@ export interface StudioPackagePreviewResponse<T> {
  * Loose shape a family-specific validation result must satisfy to be adapted
  * by {@link toStudioValidationResponse}. Diagnostics carry no index signature
  * so that results with extra diagnostic fields (e.g. `packageId` on
- * {@link HonuaMapPackageDiagnostic}) — and results that carry a named package
+ * {@link HonuaMapDocumentDiagnostic}) — and results that carry a named package
  * field alongside `valid`/`diagnostics` — assign without a structural index
  * signature on the caller's type.
  */
@@ -102,7 +102,7 @@ interface StudioValidationResultLike {
  * and a named package field — into the unified
  * {@link StudioPackageValidationResponse}. `pkgKey` names the field holding
  * the package (e.g. `"mapPackage"`). The package field is loosely typed; for
- * the map family prefer the fully-typed {@link fromMapPackageValidation}.
+ * the map family prefer the fully-typed {@link fromMapDocumentValidation}.
  *
  * @experimental
  */
@@ -120,14 +120,17 @@ export function toStudioValidationResponse<T>(
 
 /**
  * Fully-typed convenience adapter from the map family's
- * {@link ValidateMapPackageResult} to a
+ * {@link ValidateMapDocumentResult} to a
  * {@link StudioPackageValidationResponse}. Equivalent to
- * `toStudioValidationResponse<HonuaMapPackage>(result, "mapPackage")`.
+ * `toStudioValidationResponse<HonuaMapDocument>(result, "mapPackage")`.
  *
  * @experimental
  */
-export function fromMapPackageValidation(
-  result: ValidateMapPackageResult,
-): StudioPackageValidationResponse<HonuaMapPackage> {
-  return toStudioValidationResponse<HonuaMapPackage>(result, "mapPackage");
+export function fromMapDocumentValidation(
+  result: ValidateMapDocumentResult,
+): StudioPackageValidationResponse<HonuaMapDocument> {
+  return toStudioValidationResponse<HonuaMapDocument>(result, "mapPackage");
 }
+
+/** @deprecated Use fromMapDocumentValidation. Removed in the next minor. */
+export const fromMapPackageValidation = fromMapDocumentValidation;

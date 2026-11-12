@@ -11,20 +11,20 @@
 import { describe, expect, test } from "vitest";
 
 import {
-  HONUA_MAP_PACKAGE_EXPORT_KIND_V1,
-  HONUA_MAP_PACKAGE_FORMAT_V1,
+  HONUA_MAP_DOCUMENT_EXPORT_KIND_V1,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
   HonuaExportSafetyError,
-  type HonuaMapPackage,
-  HonuaMapPackageError,
-  exportMapPackage,
-  importMapPackage,
-  mapPackageFingerprint,
+  type HonuaMapDocument,
+  HonuaMapDocumentError,
+  exportMapDocument,
+  importMapDocument,
+  mapDocumentFingerprint,
 } from "../../src/runtime/index.js";
 
-function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function basePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-1426",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     sourceBindings: [
       {
@@ -45,22 +45,22 @@ function basePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
     dependencies: [{ name: "maplibre-gl", versionRange: "^6", kind: "renderer" }],
     provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
     ...overrides,
-  } as HonuaMapPackage;
+  } as HonuaMapDocument;
 }
 
-describe("exportMapPackage / importMapPackage round trip", () => {
+describe("exportMapDocument / importMapDocument round trip", () => {
   test("a clean package round-trips unchanged and carries a matching fingerprint", () => {
     const pkg = basePackage();
-    const envelope = exportMapPackage(pkg, { exportedAt: "2026-01-02T00:00:00.000Z" });
+    const envelope = exportMapDocument(pkg, { exportedAt: "2026-01-02T00:00:00.000Z" });
 
-    expect(envelope.kind).toBe(HONUA_MAP_PACKAGE_EXPORT_KIND_V1);
-    expect(envelope.format).toBe(HONUA_MAP_PACKAGE_FORMAT_V1);
+    expect(envelope.kind).toBe(HONUA_MAP_DOCUMENT_EXPORT_KIND_V1);
+    expect(envelope.format).toBe(HONUA_MAP_DOCUMENT_FORMAT_V1);
     expect(envelope.redactions).toEqual([]);
-    expect(envelope.fingerprint).toBe(mapPackageFingerprint(envelope.mapPackage));
+    expect(envelope.fingerprint).toBe(mapDocumentFingerprint(envelope.mapPackage));
     expect(envelope.mapPackage).toEqual(pkg);
 
     // Cross the boundary the way a real client would: serialize, re-parse.
-    const imported = importMapPackage(JSON.parse(JSON.stringify(envelope)));
+    const imported = importMapDocument(JSON.parse(JSON.stringify(envelope)));
     expect(imported.mapPackage).toEqual(pkg);
     expect(imported.fingerprint).toBe(envelope.fingerprint);
     expect(imported.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
@@ -77,7 +77,7 @@ describe("exportMapPackage / importMapPackage round trip", () => {
       ],
     });
     const before = JSON.stringify(pkg);
-    exportMapPackage(pkg);
+    exportMapDocument(pkg);
     expect(JSON.stringify(pkg)).toBe(before);
   });
 });
@@ -96,7 +96,7 @@ describe("credentials never survive an export", () => {
       ],
     });
 
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     const serialized = JSON.stringify(envelope);
 
     expect(serialized).not.toContain("s3cr3tT0ken0123456789");
@@ -118,7 +118,7 @@ describe("credentials never survive an export", () => {
         },
       ],
     });
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     const serialized = JSON.stringify(envelope);
     expect(serialized).not.toContain("hunter2pass");
     expect(serialized).not.toContain("alice:");
@@ -136,7 +136,7 @@ describe("credentials never survive an export", () => {
       ],
     });
 
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     const metadata = envelope.mapPackage.sourceBindings[0]?.metadata as Record<string, string>;
     expect(metadata).toEqual({ region: "us-west" });
     expect(envelope.redactions).toContainEqual({
@@ -157,7 +157,7 @@ describe("credentials never survive an export", () => {
         },
       ],
     });
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     expect(JSON.stringify(envelope)).not.toContain("eyJhbGciOiJIUzI1NiJ9");
     expect(envelope.redactions.map((r) => r.reason)).toContain("credential-pattern");
   });
@@ -172,16 +172,16 @@ describe("credentials never survive an export", () => {
         },
       ],
     });
-    expect(() => exportMapPackage(pkg, { credentials: "reject" })).toThrow(HonuaExportSafetyError);
+    expect(() => exportMapDocument(pkg, { credentials: "reject" })).toThrow(HonuaExportSafetyError);
   });
 
   test("an import of a hand-edited, credential-bearing envelope fails closed", () => {
-    const envelope = exportMapPackage(basePackage());
+    const envelope = exportMapDocument(basePackage());
     const tampered = JSON.parse(JSON.stringify(envelope));
     tampered.mapPackage.sourceBindings[0].locator.url =
       "https://gis.example.com/ogc?sig=Zm9vYmFyYmF6cXV4c2VjcmV0dmFsdWVoZXJlMTIzNDU2Nzg5MA";
-    tampered.fingerprint = mapPackageFingerprint(tampered.mapPackage);
-    expect(() => importMapPackage(tampered)).toThrow(HonuaExportSafetyError);
+    tampered.fingerprint = mapDocumentFingerprint(tampered.mapPackage);
+    expect(() => importMapDocument(tampered)).toThrow(HonuaExportSafetyError);
   });
 
   test("a percent-encoded data: URI payload is scanned, not waved through", () => {
@@ -196,8 +196,8 @@ describe("credentials never survive an export", () => {
         layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
         sprite: "data:text/plain,Bearer%20eyJhbGciOiJIUzI1NiJ9.payloadpayload.signature",
       },
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg)).toThrow(HonuaExportSafetyError);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg)).toThrow(HonuaExportSafetyError);
   });
 
   test("the same secret is caught whether it is base64 or percent encoded", () => {
@@ -214,8 +214,8 @@ describe("credentials never survive an export", () => {
           layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
           sprite,
         },
-      } as Partial<HonuaMapPackage>);
-      expect(() => exportMapPackage(pkg), sprite.slice(0, 24)).toThrow(HonuaExportSafetyError);
+      } as Partial<HonuaMapDocument>);
+      expect(() => exportMapDocument(pkg), sprite.slice(0, 24)).toThrow(HonuaExportSafetyError);
     }
   });
 
@@ -229,8 +229,8 @@ describe("credentials never survive an export", () => {
         // decoded — and therefore cannot be proven credential-free.
         sprite: "data:text/plain,100%discount",
       },
-    } as Partial<HonuaMapPackage>);
-    const envelope = exportMapPackage(pkg);
+    } as Partial<HonuaMapDocument>);
+    const envelope = exportMapDocument(pkg);
     expect(envelope.mapPackage.mapSpec.sprite).toBeUndefined();
     expect(envelope.redactions.map((r) => r.path)).toContain("mapSpec.sprite");
     expect(JSON.stringify(envelope)).not.toContain("100%discount");
@@ -240,12 +240,12 @@ describe("credentials never survive an export", () => {
     // `attribution[].text` is required by the schema. A credential-shaped
     // value there is withheld, which leaves the attribution object without its
     // required property: the exporter used to return that artifact happily and
-    // let `importMapPackage` be the one to reject it.
+    // let `importMapDocument` be the one to reject it.
     const pkg = basePackage({
       attribution: [{ text: "Bearer eyJhbGciOiJIUzI1NiJ9.payloadpayload.signature", url: "https://example.com/c" }],
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg)).toThrow(HonuaMapPackageError);
-    expect(() => exportMapPackage(pkg)).toThrow(/no longer satisfies its schema/);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg)).toThrow(HonuaMapDocumentError);
+    expect(() => exportMapDocument(pkg)).toThrow(/no longer satisfies its schema/);
   });
 
   test("an export that survives sanitization intact still round-trips", () => {
@@ -255,10 +255,10 @@ describe("credentials never survive an export", () => {
       attribution: [
         { text: "City of Example", url: "https://example.com/credits?sig=Zm9vYmFyYmF6cXV4c2VjcmV0MTIzNDU2Nzg5MA" },
       ],
-    } as Partial<HonuaMapPackage>);
-    const envelope = exportMapPackage(pkg);
+    } as Partial<HonuaMapDocument>);
+    const envelope = exportMapDocument(pkg);
     expect(envelope.redactions.length).toBeGreaterThan(0);
-    expect(() => importMapPackage(JSON.parse(JSON.stringify(envelope)))).not.toThrow();
+    expect(() => importMapDocument(JSON.parse(JSON.stringify(envelope)))).not.toThrow();
   });
 });
 
@@ -275,10 +275,10 @@ describe("unbounded embedded data is refused", () => {
         sources: { inline: { type: "geojson", data: { type: "FeatureCollection", features } } },
         layers: [{ id: "inline-points", type: "circle", source: "inline" }],
       },
-    } as Partial<HonuaMapPackage>);
+    } as Partial<HonuaMapDocument>);
 
-    expect(() => exportMapPackage(pkg, { maxEmbeddedBytes: 4096 })).toThrow(HonuaMapPackageError);
-    expect(() => exportMapPackage(pkg, { maxEmbeddedBytes: 4096 })).toThrow(/references data, it does not carry it/);
+    expect(() => exportMapDocument(pkg, { maxEmbeddedBytes: 4096 })).toThrow(HonuaMapDocumentError);
+    expect(() => exportMapDocument(pkg, { maxEmbeddedBytes: 4096 })).toThrow(/references data, it does not carry it/);
   });
 
   test("an oversized data: URI is rejected", () => {
@@ -289,8 +289,8 @@ describe("unbounded embedded data is refused", () => {
         layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
         sprite: `data:image/png;base64,${"QUJDRA".repeat(2000)}`,
       },
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg, { maxEmbeddedBytes: 1024 })).toThrow(HonuaMapPackageError);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg, { maxEmbeddedBytes: 1024 })).toThrow(HonuaMapDocumentError);
   });
 
   test("a small inline sprite is allowed through and survives the round trip", () => {
@@ -302,59 +302,59 @@ describe("unbounded embedded data is refused", () => {
         layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
         sprite,
       },
-    } as Partial<HonuaMapPackage>);
-    const envelope = exportMapPackage(pkg);
+    } as Partial<HonuaMapDocument>);
+    const envelope = exportMapDocument(pkg);
     expect(envelope.mapPackage.mapSpec.sprite).toBe(sprite);
-    expect(importMapPackage(JSON.parse(JSON.stringify(envelope))).mapPackage.mapSpec.sprite).toBe(sprite);
+    expect(importMapDocument(JSON.parse(JSON.stringify(envelope))).mapPackage.mapSpec.sprite).toBe(sprite);
   });
 
   test("the whole-envelope budget is enforced on import as well as export", () => {
-    const envelope = exportMapPackage(basePackage());
-    expect(() => importMapPackage(JSON.parse(JSON.stringify(envelope)), { maxPackageBytes: 64 })).toThrow(
-      HonuaMapPackageError,
+    const envelope = exportMapDocument(basePackage());
+    expect(() => importMapDocument(JSON.parse(JSON.stringify(envelope)), { maxPackageBytes: 64 })).toThrow(
+      HonuaMapDocumentError,
     );
   });
 });
 
 describe("import fails closed", () => {
   test("a foreign envelope kind is refused", () => {
-    expect(() => importMapPackage({ kind: "honua.saved-workspace", format: HONUA_MAP_PACKAGE_FORMAT_V1 })).toThrow(
+    expect(() => importMapDocument({ kind: "honua.saved-workspace", format: HONUA_MAP_DOCUMENT_FORMAT_V1 })).toThrow(
       /export kind must be/,
     );
   });
 
   test("a mismatched format is refused", () => {
-    const envelope = exportMapPackage(basePackage());
-    expect(() => importMapPackage({ ...envelope, format: "honua_map_package.v2" })).toThrow(/export format must be/);
+    const envelope = exportMapDocument(basePackage());
+    expect(() => importMapDocument({ ...envelope, format: "honua_map_package.v2" })).toThrow(/export format must be/);
   });
 
   test("a body that no longer matches its stamped fingerprint is refused", () => {
-    const envelope = exportMapPackage(basePackage());
+    const envelope = exportMapDocument(basePackage());
     const tampered = JSON.parse(JSON.stringify(envelope));
     tampered.mapPackage.initialView.zoom = 3;
-    expect(() => importMapPackage(tampered)).toThrow(/fingerprint does not match/);
+    expect(() => importMapDocument(tampered)).toThrow(/fingerprint does not match/);
   });
 
   test("an envelope with no fingerprint stamp is refused, not silently trusted", () => {
     // Deleting the stamp used to skip the comparison entirely, so the cheapest
     // way past the integrity check was to remove the field that performs it.
-    const envelope = exportMapPackage(basePackage());
+    const envelope = exportMapDocument(basePackage());
     const unstamped = JSON.parse(JSON.stringify(envelope));
     unstamped.mapPackage.initialView.zoom = 3;
     delete unstamped.fingerprint;
-    expect(() => importMapPackage(unstamped)).toThrow(/missing its fingerprint stamp/);
+    expect(() => importMapDocument(unstamped)).toThrow(/missing its fingerprint stamp/);
 
     // A non-string stamp is the same failure, not a different one.
     const misstamped = JSON.parse(JSON.stringify(envelope));
     misstamped.fingerprint = 42;
-    expect(() => importMapPackage(misstamped)).toThrow(/missing its fingerprint stamp/);
+    expect(() => importMapDocument(misstamped)).toThrow(/missing its fingerprint stamp/);
   });
 
   test("skipFingerprintCheck is the only way to import an unstamped envelope", () => {
-    const envelope = exportMapPackage(basePackage());
+    const envelope = exportMapDocument(basePackage());
     const unstamped = JSON.parse(JSON.stringify(envelope));
     delete unstamped.fingerprint;
-    const imported = importMapPackage(unstamped, { skipFingerprintCheck: true });
+    const imported = importMapDocument(unstamped, { skipFingerprintCheck: true });
     expect(imported.fingerprint).toBe(envelope.fingerprint);
   });
 
@@ -365,7 +365,7 @@ describe("import fails closed", () => {
         sources: {},
         layers: [{ id: "dangling", type: "fill", source: "never-bound" }],
       },
-    } as Partial<HonuaMapPackage>);
-    expect(() => exportMapPackage(pkg)).toThrow(/does not validate/);
+    } as Partial<HonuaMapDocument>);
+    expect(() => exportMapDocument(pkg)).toThrow(/does not validate/);
   });
 });

@@ -6,7 +6,7 @@
  * one contract.
  *
  * For the `map` family this delegates to the established
- * {@link validateMapPackage} (no duplication). For every other family it runs
+ * {@link validateMapDocument} (no duplication). For every other family it runs
  * the shared base checks (`packageId`/`format`, lifecycle) and, when present,
  * the shared {@link HonuaPackageProvenance} checks. Provenance is optional, but
  * when a package carries it, MCP- and QGIS-origin packages must satisfy the
@@ -17,11 +17,11 @@
  * @module
  */
 
-import { validateMapPackage } from "../runtime/map-package-validation.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../runtime/map-package.js";
+import { validateMapDocument } from "../runtime/map-package-validation.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "../runtime/map-package.js";
 import { HONUA_PACKAGE_PROVENANCE_FORMAT_V1, type HonuaPackageProvenance, getPackageProvenance } from "./provenance.js";
 import { HONUA_DASHBOARD_PACKAGE_FORMAT_V1, STUDIO_PACKAGE_FAMILIES, isStudioPackageFamily } from "./types.js";
-import { fromMapPackageValidation } from "./validation.js";
+import { fromMapDocumentValidation } from "./validation.js";
 import type { StudioPackageDiagnostic, StudioPackageValidationResponse } from "./validation.js";
 
 /**
@@ -32,7 +32,7 @@ import type { StudioPackageDiagnostic, StudioPackageValidationResponse } from ".
 const FAMILY_FORMAT: Partial<Record<string, string>> = {
   query: "honua_query_package.v1",
   analysis: "honua_analysis_package.v1",
-  map: HONUA_MAP_PACKAGE_FORMAT_V1,
+  map: HONUA_MAP_DOCUMENT_FORMAT_V1,
   dashboard: HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   report: "honua_report_package.v1",
   form: "honua_form_package.v1",
@@ -91,7 +91,7 @@ export function validateStudioPackage<T = unknown>(
   // The map family has a full structural validator already — reuse it so MCP
   // and QGIS map packages validate identically to Console's.
   if (family === "map") {
-    const mapResponse = fromMapPackageValidation(validateMapPackage(value, { now: options.now }));
+    const mapResponse = fromMapDocumentValidation(validateMapDocument(value, { now: options.now }));
     const merged: StudioPackageDiagnostic[] = [...mapResponse.diagnostics];
     appendProvenanceDiagnostics(merged, value, options);
     return {

@@ -79,7 +79,7 @@ export type {
   StudioPackageFamilyShapes,
 } from "./types.js";
 
-export { fromMapPackageValidation, toStudioValidationResponse } from "./validation.js";
+export { fromMapDocumentValidation, fromMapPackageValidation, toStudioValidationResponse } from "./validation.js";
 export type {
   StudioPackageDiagnostic,
   StudioPackageDiagnosticSeverity,
@@ -158,8 +158,9 @@ export type {
 // Re-exported established families so `@honua/sdk-js/studio` is the single
 // import path for every Studio package projection. These leaf modules carry
 // no MapLibre/DOM runtime imports (their cross-module imports are type-only).
-export { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../runtime/map-package.js";
-export type { HonuaMapPackage, HonuaMapPackageFormat } from "../runtime/map-package.js";
+export { HONUA_MAP_DOCUMENT_FORMAT_V1, HONUA_MAP_PACKAGE_FORMAT_V1 } from "../runtime/map-package.js";
+export type { HonuaMapDocument, HonuaMapDocumentFormat } from "../runtime/map-package.js";
+export type { HonuaMapPackage, HonuaMapPackageFormat } from "../runtime/deprecated-names.js";
 export { HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 } from "../generated-app/manifest.js";
 export type { HonuaGeneratedAppManifest, HonuaGeneratedAppPackage } from "../generated-app/manifest.js";
 

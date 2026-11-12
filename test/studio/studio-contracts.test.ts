@@ -3,8 +3,8 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { validateMapPackage } from "../../src/runtime/index.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
+import { validateMapDocument } from "../../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_ANALYSIS_PACKAGE_FORMAT_V1,
   HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
@@ -15,7 +15,7 @@ import {
   HONUA_REPORT_PACKAGE_FORMAT_V1,
   HONUA_WORKFLOW_PACKAGE_FORMAT_V1,
   STUDIO_PACKAGE_FAMILIES,
-  fromMapPackageValidation,
+  fromMapDocumentValidation,
   getCapability,
   getCapabilityReasonCode,
   hasCapability,
@@ -31,7 +31,7 @@ import type {
   HonuaETLPackage,
   HonuaFormPackage,
   HonuaGPPackage,
-  HonuaMapPackage,
+  HonuaMapDocument,
   HonuaQueryPackage,
   HonuaReportPackage,
   HonuaWorkflowPackage,
@@ -39,10 +39,10 @@ import type {
   StudioPackageValidationResponse,
 } from "../../src/studio/index.js";
 
-function minimalValidMapPackage(): HonuaMapPackage {
+function minimalValidMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "pkg-studio-1",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [{ sourceId: "s1", protocol: "ogc_features", locator: { url: "https://example.test/s1" } }],
     mapSpec: {
       version: 8,
@@ -203,9 +203,9 @@ describe("@honua/sdk-js/studio package.json export", () => {
 });
 
 describe("StudioPackageValidationResponse adapter", () => {
-  it("adapts a valid ValidateMapPackageResult into the unified envelope", () => {
-    const result = validateMapPackage(minimalValidMapPackage());
-    const response = fromMapPackageValidation(result);
+  it("adapts a valid ValidateMapDocumentResult into the unified envelope", () => {
+    const result = validateMapDocument(minimalValidMapPackage());
+    const response = fromMapDocumentValidation(result);
 
     expect(response.valid).toBe(true);
     expect(response.diagnostics).toEqual([]);
@@ -213,12 +213,12 @@ describe("StudioPackageValidationResponse adapter", () => {
   });
 
   it("preserves diagnostics and omits pkg when the map package is invalid", () => {
-    const result = validateMapPackage({ format: "wrong" });
-    const response = fromMapPackageValidation(result);
+    const result = validateMapDocument({ format: "wrong" });
+    const response = fromMapDocumentValidation(result);
 
     expect(response.valid).toBe(false);
     expect(response.diagnostics.some((d) => d.code === "unsupported-format" && d.severity === "error")).toBe(true);
-    // validateMapPackage returns the raw value as mapPackage, so pkg is still present;
+    // validateMapDocument returns the raw value as mapPackage, so pkg is still present;
     // the envelope carries it through unchanged for caller inspection.
     expect(response.pkg).toBeDefined();
   });
@@ -242,7 +242,7 @@ describe("StudioPackageValidationResponse adapter", () => {
     // `@honua/app-platform` (docs/decisions/scope-split-and-1.0.md). Consumers
     // reach the bridge via the studio entrypoint.
     expect(typeof toStudioValidationResponse).toBe("function");
-    expect(typeof fromMapPackageValidation).toBe("function");
+    expect(typeof fromMapDocumentValidation).toBe("function");
   });
 });
 
@@ -370,7 +370,7 @@ describe("Studio package family projection", () => {
     const responses = [
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaQueryPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaAnalysisPackage>,
-      { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaMapPackage>,
+      { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaMapDocument>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaDashboardPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaReportPackage>,
       { valid: true, diagnostics: [] } satisfies StudioPackageValidationResponse<HonuaFormPackage>,

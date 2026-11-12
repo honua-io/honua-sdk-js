@@ -5,7 +5,7 @@
  * Console interop, MCP, QGIS, generated apps, and embeds must not fork the
  * server-owned package schemas. These projections mirror the canonical
  * server wire shapes — the `format` string on each family is the version
- * gate, exactly as on {@link HonuaMapPackage}. The `map` and `app` families
+ * gate, exactly as on {@link HonuaMapDocument}. The `map` and `app` families
  * reuse established SDK-native types; `dashboard` is authored by this Studio
  * surface and consumed read-only by renderers.
  *
@@ -27,7 +27,7 @@ import type {
   HonuaGeneratedAppLayout,
   HonuaGeneratedAppPackage,
 } from "../generated-app/manifest.js";
-import type { HonuaMapPackage, HonuaMapPackageStatus } from "../runtime/map-package.js";
+import type { HonuaMapDocument, HonuaMapDocumentStatus } from "../runtime/map-package.js";
 
 /** Canonical format string for the v1 QueryPackage shape. */
 export const HONUA_QUERY_PACKAGE_FORMAT_V1 = "honua_query_package.v1" as const;
@@ -57,11 +57,11 @@ export type HonuaETLPackageFormat = typeof HONUA_ETL_PACKAGE_FORMAT_V1;
 
 /**
  * Lifecycle states a Studio package may occupy server-side. Shared with the
- * stable {@link HonuaMapPackageStatus} so every family reports one lifecycle.
+ * stable {@link HonuaMapDocumentStatus} so every family reports one lifecycle.
  *
  * @experimental
  */
-export type HonuaStudioPackageStatus = HonuaMapPackageStatus;
+export type HonuaStudioPackageStatus = HonuaMapDocumentStatus;
 
 /**
  * Fields every stub Studio package family carries. `format` is narrowed to a
@@ -279,7 +279,7 @@ export interface HonuaETLPackage extends HonuaStudioPackageBase {
 export interface StudioPackageFamilyShapes {
   readonly query: HonuaQueryPackage;
   readonly analysis: HonuaAnalysisPackage;
-  readonly map: HonuaMapPackage;
+  readonly map: HonuaMapDocument;
   readonly dashboard: HonuaDashboardPackage;
   readonly report: HonuaReportPackage;
   readonly form: HonuaFormPackage;

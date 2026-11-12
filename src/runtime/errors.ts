@@ -14,7 +14,7 @@ import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "
  * string union lets callers switch on it without a dependency on the
  * error class itself.
  */
-export type HonuaMapPackageErrorStage =
+export type HonuaMapDocumentErrorStage =
   | "fetch"
   | "load"
   | "export"
@@ -40,9 +40,9 @@ export type HonuaMapPackageErrorStage =
  * query-time rejections forwarded by mixed-source consumers — see
  * `docs/composition.md`.
  */
-export class HonuaMapPackageError extends HonuaSdkError {
+export class HonuaMapDocumentError extends HonuaSdkError {
   public readonly packageId: string | undefined;
-  public readonly stage: HonuaMapPackageErrorStage;
+  public readonly stage: HonuaMapDocumentErrorStage;
   public readonly detail: unknown;
   public override readonly cause: unknown;
 
@@ -50,7 +50,7 @@ export class HonuaMapPackageError extends HonuaSdkError {
     message: string,
     options: {
       packageId?: string;
-      stage: HonuaMapPackageErrorStage;
+      stage: HonuaMapDocumentErrorStage;
       detail?: unknown;
       cause?: unknown;
     } & HonuaErrorMetadata,
@@ -81,4 +81,4 @@ const MAP_PACKAGE_ERROR_CODES = {
   view: "runtime.map-package.view",
   popup: "runtime.map-package.popup",
   dispose: "runtime.map-package.dispose",
-} as const satisfies Record<HonuaMapPackageErrorStage, `runtime.map-package.${string}`>;
+} as const satisfies Record<HonuaMapDocumentErrorStage, `runtime.map-package.${string}`>;

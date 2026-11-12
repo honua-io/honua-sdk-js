@@ -1,5 +1,5 @@
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import { HonuaMapPackageError } from "./errors.js";
+import { HonuaMapDocumentError } from "./errors.js";
 import type { HonuaStyleRefBody, HonuaStyleRefLayerBinding, HonuaStyleRefLayerOverride } from "./map-package.js";
 
 const normalProperties = ["paint", "layout", "filter", "minzoom", "maxzoom", "metadata"] as const;
@@ -7,7 +7,7 @@ const allowedProperties = new Set<string>([...normalProperties, "visibility"]);
 const crossTypeProperties = new Set<string>(["filter", "minzoom", "maxzoom", "visibility"]);
 
 function invalid(message: string): never {
-  throw new HonuaMapPackageError(message, { stage: "style-compose" });
+  throw new HonuaMapDocumentError(message, { stage: "style-compose" });
 }
 
 /** Validate untrusted portable bindings before resolving or applying a shared style. */

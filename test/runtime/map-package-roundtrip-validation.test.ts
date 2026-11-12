@@ -1,8 +1,8 @@
 /**
  * MapPackage round-trip validation: an incompatible basemap + layer combo
- * must surface a clear, typed diagnostic (through `validateMapPackage`'s
- * result envelope) *and* a typed `HonuaMapPackageError` when the same
- * package is driven through the runtime loader (`loadMapPackage`).
+ * must surface a clear, typed diagnostic (through `validateMapDocument`'s
+ * result envelope) *and* a typed `HonuaMapDocumentError` when the same
+ * package is driven through the runtime loader (`loadMapDocument`).
  *
  * The combo modelled here is a valid raster basemap plus an overlay layer
  * that references a vector source which the package never binds (and never
@@ -20,13 +20,13 @@ import { describe, expect, test } from "vitest";
 
 import { HonuaClient } from "../../src/core/client.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
-  HonuaMapPackageError,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
+  HonuaMapDocumentError,
   type MaplibreMap,
-  hasMapPackageDiagnosticErrors,
-  loadMapPackage,
-  validateMapPackage,
+  hasMapDocumentDiagnosticErrors,
+  loadMapDocument,
+  validateMapDocument,
 } from "../../src/runtime/index.js";
 
 // ── Mock map ─────────────────────────────────────────────────
@@ -122,10 +122,10 @@ function makeClient(): HonuaClient {
  * at `roads` — a vector source the package neither binds nor declares
  * inline. The basemap is compatible; the overlay layer is not.
  */
-function makeIncompatibleBasemapLayerPackage(): HonuaMapPackage {
+function makeIncompatibleBasemapLayerPackage(): HonuaMapDocument {
   return {
     mapPackageId: "pkg-incompatible-overlay",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     sourceBindings: [],
     mapSpec: {
@@ -149,14 +149,14 @@ function makeIncompatibleBasemapLayerPackage(): HonuaMapPackage {
 // ── Tests ────────────────────────────────────────────────────
 
 describe("MapPackage round-trip validation (incompatible basemap + layer)", () => {
-  test("validateMapPackage surfaces a typed missing-source diagnostic envelope", () => {
+  test("validateMapDocument surfaces a typed missing-source diagnostic envelope", () => {
     const pkg = makeIncompatibleBasemapLayerPackage();
 
-    const result = validateMapPackage(pkg);
+    const result = validateMapDocument(pkg);
 
     // The validator returns a typed result envelope rather than throwing.
     expect(result.valid).toBe(false);
-    expect(hasMapPackageDiagnosticErrors(result.diagnostics)).toBe(true);
+    expect(hasMapDocumentDiagnosticErrors(result.diagnostics)).toBe(true);
 
     const missingSource = result.diagnostics.find((d) => d.code === "missing-source");
     expect(missingSource).toBeDefined();
@@ -173,24 +173,24 @@ describe("MapPackage round-trip validation (incompatible basemap + layer)", () =
     );
   });
 
-  test("loadMapPackage rejects the same combo with a typed HonuaMapPackageError", async () => {
+  test("loadMapDocument rejects the same combo with a typed HonuaMapDocumentError", async () => {
     const pkg = makeIncompatibleBasemapLayerPackage();
     const map = makeMockMap();
 
-    const error = await loadMapPackage(pkg, map, {
+    const error = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
     }).then(
       () => {
-        throw new Error("expected loadMapPackage to reject for an incompatible basemap + layer combo");
+        throw new Error("expected loadMapDocument to reject for an incompatible basemap + layer combo");
       },
       (caught: unknown) => caught,
     );
 
     // Clear, typed runtime error — not a raw MapLibre/HonuaMap string throw.
-    expect(error).toBeInstanceOf(HonuaMapPackageError);
-    const typed = error as HonuaMapPackageError;
+    expect(error).toBeInstanceOf(HonuaMapDocumentError);
+    const typed = error as HonuaMapDocumentError;
     expect(typed.name).toBe("HonuaMapPackageError");
     expect(typed.stage).toBe("load");
     expect(typed.packageId).toBe("pkg-incompatible-overlay");
@@ -202,7 +202,7 @@ describe("MapPackage round-trip validation (incompatible basemap + layer)", () =
   });
 
   test("a compatible basemap + bound overlay round-trips cleanly", async () => {
-    const pkg: HonuaMapPackage = {
+    const pkg: HonuaMapDocument = {
       ...makeIncompatibleBasemapLayerPackage(),
       mapPackageId: "pkg-compatible-overlay",
       mapSpec: {
@@ -225,10 +225,10 @@ describe("MapPackage round-trip validation (incompatible basemap + layer)", () =
     // Control: the same shape with a declared overlay source validates and
     // loads, proving the failures above are about the incompatible combo and
     // not about the basemap/overlay structure itself.
-    expect(validateMapPackage(pkg).valid).toBe(true);
+    expect(validateMapDocument(pkg).valid).toBe(true);
 
     const map = makeMockMap();
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,

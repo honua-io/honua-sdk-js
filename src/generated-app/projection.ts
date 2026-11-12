@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 import { HonuaGeneratedAppError } from "./errors.js";
 import {
   HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND,
@@ -30,13 +30,13 @@ export interface ProjectBuildSpecToGeneratedAppManifestOptions {
   readonly appId?: string;
   readonly version?: string;
   readonly sourceId?: string;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly mapPackageId?: string;
   readonly bindings?: HonuaGeneratedAppFieldBinding;
   readonly widgets?: ReadonlyArray<HonuaGeneratedAppWidget>;
 }
 
-export interface ProjectMapPackageToGeneratedAppManifestOptions {
+export interface ProjectMapDocumentToGeneratedAppManifestOptions {
   readonly appId?: string;
   readonly title?: string;
   readonly version?: string;
@@ -61,7 +61,7 @@ export function createGeneratedAppManifestArtifact(
 
 export function projectAppPackageToGeneratedAppManifest(
   pkg: HonuaGeneratedAppPackage,
-  options: { readonly mapPackage?: HonuaMapPackage } = {},
+  options: { readonly mapPackage?: HonuaMapDocument } = {},
 ): HonuaGeneratedAppManifest {
   const artifact = pkg.manifest_artifact ?? pkg.manifestArtifact;
   if (!artifact) {
@@ -146,9 +146,9 @@ export function projectBuildSpecToGeneratedAppManifest(
   });
 }
 
-export function projectMapPackageToGeneratedAppManifest(
-  mapPackage: HonuaMapPackage,
-  options: ProjectMapPackageToGeneratedAppManifestOptions = {},
+export function projectMapDocumentToGeneratedAppManifest(
+  mapPackage: HonuaMapDocument,
+  options: ProjectMapDocumentToGeneratedAppManifestOptions = {},
 ): HonuaGeneratedAppManifest {
   const sourceId = options.sourceId ?? mapPackage.sourceBindings[0]?.sourceId;
   if (!sourceId) {
@@ -293,7 +293,7 @@ function defaultOperationsWidgets(bindings: HonuaGeneratedAppFieldBinding): Read
   ];
 }
 
-function firstLayerIdForSource(mapPackage: HonuaMapPackage, sourceId: string): string | undefined {
+function firstLayerIdForSource(mapPackage: HonuaMapDocument, sourceId: string): string | undefined {
   return mapPackage.mapSpec.layers.find((layer) => layer.source === sourceId)?.id;
 }
 
@@ -334,3 +334,8 @@ export function clampGeneratedAppWidgets(
 ): ReadonlyArray<HonuaGeneratedAppWidget> {
   return widgets.length > HONUA_GENERATED_APP_MAX_WIDGETS ? widgets.slice(0, HONUA_GENERATED_APP_MAX_WIDGETS) : widgets;
 }
+
+/** @deprecated Use projectMapDocumentToGeneratedAppManifest. Removed in the next minor. */
+export const projectMapPackageToGeneratedAppManifest = projectMapDocumentToGeneratedAppManifest;
+/** @deprecated Use ProjectMapDocumentToGeneratedAppManifestOptions. Removed in the next minor. */
+export type ProjectMapPackageToGeneratedAppManifestOptions = ProjectMapDocumentToGeneratedAppManifestOptions;

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { HonuaOperatorAppError } from "../errors.js";
 import type { OperatorTelemetry } from "../telemetry.js";
@@ -17,13 +17,13 @@ import { ListenerBag, type Unsubscribe, withTelemetrySpan } from "./base.js";
 export interface PreviewHandle {
   readonly url: string | undefined;
   readonly assets: ReadonlyArray<ArtifactRef>;
-  readonly mapPackage: HonuaMapPackage | undefined;
+  readonly mapPackage: HonuaMapDocument | undefined;
 }
 
 export type BuilderWorkspaceEvent =
   | { kind: "package-loaded"; pkg: AppPackage }
   | { kind: "package-refined"; pkg: AppPackage }
-  | { kind: "map-bound"; pkg: HonuaMapPackage }
+  | { kind: "map-bound"; pkg: HonuaMapDocument }
   | { kind: "error"; error: HonuaOperatorAppError };
 
 export interface BuilderWorkspaceControllerOptions {
@@ -49,7 +49,7 @@ export class BuilderWorkspaceController {
   readonly #resolveEntryUrl: (pkg: AppPackage) => string | undefined;
   readonly #bag = new ListenerBag<BuilderWorkspaceEvent>();
   #pkg: AppPackage | undefined;
-  #boundMap: HonuaMapPackage | undefined;
+  #boundMap: HonuaMapDocument | undefined;
   #activeIntentId: string | undefined;
   // Same generation pattern as the other controllers: bumped on
   // every loadPackage()/refine()/dispose(), captured by each
@@ -96,7 +96,7 @@ export class BuilderWorkspaceController {
     );
   }
 
-  public bindMapPackage(pkg: HonuaMapPackage): void {
+  public bindMapPackage(pkg: HonuaMapDocument): void {
     this.#boundMap = pkg;
     this.#bag.emit({ kind: "map-bound", pkg });
   }

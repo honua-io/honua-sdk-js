@@ -48,7 +48,7 @@ import {
   projectExportEndpoint,
   redactHonuaExportText,
 } from "../core/credential-redaction.js";
-import type { HonuaMapPackage, HonuaMapPackageSourceBinding } from "../runtime/index.js";
+import type { HonuaMapDocument, HonuaMapDocumentSourceBinding } from "../runtime/index.js";
 import type {
   HonuaFilterState,
   HonuaLayerModel,
@@ -243,7 +243,7 @@ export interface HonuaExportStateSanitizationResult {
 /** Binding metadata keys that mark a source non-exportable. */
 const NON_EXPORTABLE_METADATA_KEYS = ["honua:exportable", "exportable"];
 
-function isNonExportableBinding(binding: HonuaMapPackageSourceBinding): boolean {
+function isNonExportableBinding(binding: HonuaMapDocumentSourceBinding): boolean {
   const metadata = binding.metadata;
   if (!metadata) return false;
   for (const key of NON_EXPORTABLE_METADATA_KEYS) {
@@ -289,7 +289,7 @@ function projectViewport(viewport: HonuaViewportState | undefined): HonuaViewpor
 }
 
 function projectSources(
-  mapPackage: HonuaMapPackage | undefined,
+  mapPackage: HonuaMapDocument | undefined,
   nonExportable: ReadonlySet<string>,
   redactions: HonuaExportRedaction[],
 ): HonuaSanitizedExportSource[] {

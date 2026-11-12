@@ -10,7 +10,7 @@
 
 import { type ReactNode, useEffect } from "react";
 
-import type { HonuaMapPackagePopupBinding } from "../runtime/index.js";
+import type { HonuaMapDocumentPopupBinding } from "../runtime/index.js";
 import { useMapRuntime } from "./hooks.js";
 
 /** Props for {@link HonuaPopup}. */
@@ -18,7 +18,7 @@ export interface HonuaPopupProps {
   /** The layer id whose feature clicks open the popup. */
   layer: string;
   /** Optional popup binding (source id, title, template, field). */
-  binding?: HonuaMapPackagePopupBinding;
+  binding?: HonuaMapDocumentPopupBinding;
   /** Called if binding the popup throws (e.g. no `popupFactory` configured). */
   onError?: (error: unknown) => void;
 }

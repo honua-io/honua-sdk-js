@@ -1,6 +1,6 @@
 import type { HonuaClient } from "../core/client.js";
 import type { FilterClause } from "../filter-registry/index.js";
-import type { MapPackageLocator } from "../runtime/index.js";
+import type { MapDocumentLocator } from "../runtime/index.js";
 import {
   type HistogramStats,
   type SnapPoint,
@@ -475,19 +475,19 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     await this.#renderer.applyState(state);
   }
 
-  private async loadPackageFromUrl(locator: MapPackageLocator): Promise<void> {
+  private async loadPackageFromUrl(locator: MapDocumentLocator): Promise<void> {
     const token = ++this.#packageLoadToken;
     this.#packageLoading = true;
     this.#packageLoadError = undefined;
     this.render();
     try {
-      const [{ fetchMapPackage }, { HonuaClient }] = await Promise.all([
+      const [{ fetchMapDocument }, { HonuaClient }] = await Promise.all([
         import("../runtime/index.js"),
         import("../core/client.js"),
       ]);
       if (token !== this.#packageLoadToken) return;
       const client = this.#client ?? new HonuaClient({ baseUrl: browserOrigin() });
-      const result = await fetchMapPackage(locator, {
+      const result = await fetchMapDocument(locator, {
         client,
         requireStyleRefResolution: false,
         allowInvalid: false,

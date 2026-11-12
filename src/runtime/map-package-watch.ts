@@ -1,46 +1,46 @@
-import { type MapPackageDiff, diffPackages } from "./diff.js";
-import { HonuaMapPackageError } from "./errors.js";
+import { type MapDocumentDiff, diffPackages } from "./diff.js";
+import { HonuaMapDocumentError } from "./errors.js";
 import {
-  type FetchMapPackageOptions,
-  type FetchMapPackageResult,
-  type MapPackageLocator,
-  fetchMapPackage,
-  mapPackageFingerprint,
-  resolveMapPackagePath,
+  type FetchMapDocumentOptions,
+  type FetchMapDocumentResult,
+  type MapDocumentLocator,
+  fetchMapDocument,
+  mapDocumentFingerprint,
+  resolveMapDocumentPath,
 } from "./map-package-fetch.js";
 import {
-  MAP_PACKAGE_REALTIME_CHANNEL_V1,
-  createMapPackageServerSentEventsTransport,
-  readMapPackageRealtimeAdvertisement,
+  MAP_DOCUMENT_REALTIME_CHANNEL_V1,
+  createMapDocumentServerSentEventsTransport,
+  readMapDocumentRealtimeAdvertisement,
   redactMapPackageRealtimeUrl,
 } from "./map-package-realtime.js";
 import type {
-  MapPackageRealtimeCheckpoint,
-  MapPackageRealtimeFallbackMode,
-  MapPackageRealtimeMessage,
-  MapPackageRealtimeReconnectOptions,
-  MapPackageRealtimeSubscriptionHandle,
-  MapPackageRealtimeTransport,
-  MapPackageRealtimeTransportKind,
-  MapPackageRealtimeUpdate,
-  MapPackageRealtimeWatchOptions,
+  MapDocumentRealtimeCheckpoint,
+  MapDocumentRealtimeFallbackMode,
+  MapDocumentRealtimeMessage,
+  MapDocumentRealtimeReconnectOptions,
+  MapDocumentRealtimeSubscriptionHandle,
+  MapDocumentRealtimeTransport,
+  MapDocumentRealtimeTransportKind,
+  MapDocumentRealtimeUpdate,
+  MapDocumentRealtimeWatchOptions,
 } from "./map-package-realtime.js";
-import { hasMapPackageDiagnosticErrors, validateMapPackage } from "./map-package-validation.js";
-import type { HonuaMapPackage } from "./map-package.js";
+import { hasMapDocumentDiagnosticErrors, validateMapDocument } from "./map-package-validation.js";
+import type { HonuaMapDocument } from "./map-package.js";
 import type { HonuaMapRuntime } from "./runtime.js";
 
-export type MapPackageWatchEvent =
+export type MapDocumentWatchEvent =
   | {
       readonly type: "connected";
-      readonly transport: MapPackageRealtimeTransportKind;
+      readonly transport: MapDocumentRealtimeTransportKind;
       readonly channel?: string;
       readonly url?: string;
       readonly advertised: boolean;
-      readonly resumedFrom?: MapPackageRealtimeCheckpoint;
+      readonly resumedFrom?: MapDocumentRealtimeCheckpoint;
     }
   | {
       readonly type: "disconnected";
-      readonly transport?: MapPackageRealtimeTransportKind;
+      readonly transport?: MapDocumentRealtimeTransportKind;
       readonly reason?: string;
       readonly willReconnect: boolean;
       readonly reconnectAttempt?: number;
@@ -53,32 +53,32 @@ export type MapPackageWatchEvent =
     }
   | {
       readonly type: "fallback";
-      readonly mode: MapPackageRealtimeFallbackMode;
+      readonly mode: MapDocumentRealtimeFallbackMode;
       readonly reason: string;
       readonly error?: unknown;
     }
-  | { readonly type: "fetched"; readonly result: FetchMapPackageResult }
-  | { readonly type: "unchanged"; readonly result: FetchMapPackageResult }
+  | { readonly type: "fetched"; readonly result: FetchMapDocumentResult }
+  | { readonly type: "unchanged"; readonly result: FetchMapDocumentResult }
   | {
       readonly type: "updated";
-      readonly result: FetchMapPackageResult;
-      readonly diff: MapPackageDiff | undefined;
+      readonly result: FetchMapDocumentResult;
+      readonly diff: MapDocumentDiff | undefined;
       readonly applied: boolean;
     }
   | {
       readonly type: "reload-required";
-      readonly result: FetchMapPackageResult;
-      readonly diff: MapPackageDiff;
+      readonly result: FetchMapDocumentResult;
+      readonly diff: MapDocumentDiff;
       readonly reason: string;
     }
   | { readonly type: "error"; readonly error: unknown }
   | { readonly type: "disposed" };
 
-export interface WatchMapPackageOptions extends FetchMapPackageOptions {
+export interface WatchMapDocumentOptions extends FetchMapDocumentOptions {
   /** Runtime to update after a changed package is fetched. */
   readonly runtime?: HonuaMapRuntime;
   /** Previous package snapshot for diffing when no runtime is supplied. */
-  readonly initialPackage?: HonuaMapPackage;
+  readonly initialPackage?: HonuaMapDocument;
   /** Defaults to true when `runtime` is supplied. */
   readonly applyUpdates?: boolean;
   /** Polling cadence. Defaults to 30 seconds. */
@@ -88,48 +88,51 @@ export interface WatchMapPackageOptions extends FetchMapPackageOptions {
   /** Fetch immediately on watcher creation. Defaults to true. */
   readonly immediate?: boolean;
   /** Realtime channel configuration. Omit to use package-advertised channels; pass false to force polling. */
-  readonly realtime?: false | MapPackageRealtimeWatchOptions;
-  readonly onEvent?: (event: MapPackageWatchEvent) => void | Promise<void>;
-  readonly onUpdate?: (event: Extract<MapPackageWatchEvent, { type: "updated" }>) => void | Promise<void>;
+  readonly realtime?: false | MapDocumentRealtimeWatchOptions;
+  readonly onEvent?: (event: MapDocumentWatchEvent) => void | Promise<void>;
+  readonly onUpdate?: (event: Extract<MapDocumentWatchEvent, { type: "updated" }>) => void | Promise<void>;
   readonly onError?: (error: unknown) => void | Promise<void>;
 }
 
-export interface MapPackageWatchHandle {
+export interface MapDocumentWatchHandle {
   readonly disposed: boolean;
   refresh(): Promise<void>;
   dispose(): void;
 }
 
 interface PendingApply {
-  readonly result: FetchMapPackageResult;
+  readonly result: FetchMapDocumentResult;
   readonly reloadReason?: string;
 }
 
 interface ActiveRealtimeSource {
-  readonly transport: MapPackageRealtimeTransport;
-  readonly transportKind: MapPackageRealtimeTransportKind;
+  readonly transport: MapDocumentRealtimeTransport;
+  readonly transportKind: MapDocumentRealtimeTransportKind;
   readonly advertised: boolean;
   readonly url?: string;
   readonly channel?: string;
-  readonly fallback: MapPackageRealtimeFallbackMode;
-  readonly reconnect: false | Required<MapPackageRealtimeReconnectOptions>;
+  readonly fallback: MapDocumentRealtimeFallbackMode;
+  readonly reconnect: false | Required<MapDocumentRealtimeReconnectOptions>;
   readonly staleAfterMs?: number;
   readonly fallbackOnStale: boolean;
 }
 
 type RealtimeResolution =
   | { readonly type: "available"; readonly source: ActiveRealtimeSource }
-  | { readonly type: "unsupported"; readonly reason: string; readonly fallback: MapPackageRealtimeFallbackMode };
+  | { readonly type: "unsupported"; readonly reason: string; readonly fallback: MapDocumentRealtimeFallbackMode };
 
 const DEFAULT_WATCH_INTERVAL_MS = 30_000;
-const DEFAULT_RECONNECT_OPTIONS: Required<MapPackageRealtimeReconnectOptions> = {
+const DEFAULT_RECONNECT_OPTIONS: Required<MapDocumentRealtimeReconnectOptions> = {
   maxAttempts: 3,
   minDelayMs: 1_000,
   maxDelayMs: 30_000,
   factor: 2,
 };
 
-export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPackageOptions): MapPackageWatchHandle {
+export function watchMapDocument(
+  locator: MapDocumentLocator,
+  options: WatchMapDocumentOptions,
+): MapDocumentWatchHandle {
   let disposed = false;
   let inFlight = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -139,17 +142,17 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
   let pendingApply: PendingApply | undefined;
   let previousPackage = options.initialPackage ?? options.runtime?.mapPackage;
   let lastFetchedPackage = previousPackage;
-  let previousFingerprint = previousPackage ? mapPackageFingerprint(previousPackage) : undefined;
+  let previousFingerprint = previousPackage ? mapDocumentFingerprint(previousPackage) : undefined;
   let currentAbort: AbortController | undefined;
   let realtimeAbort: AbortController | undefined;
   let realtimeLinkDispose: (() => void) | undefined;
-  let realtimeSubscription: MapPackageRealtimeSubscriptionHandle | undefined;
+  let realtimeSubscription: MapDocumentRealtimeSubscriptionHandle | undefined;
   let activeRealtime: ActiveRealtimeSource | undefined;
   let suppressRealtimeDisconnect = false;
   let reconnectAttempt = 0;
   let fallbackActive = false;
   let unsupportedRealtimeNotified = false;
-  let lastRealtimeCheckpoint: MapPackageRealtimeCheckpoint | undefined = previousPackage
+  let lastRealtimeCheckpoint: MapDocumentRealtimeCheckpoint | undefined = previousPackage
     ? {
         fingerprint: previousFingerprint,
         updatedAt: previousPackage.updatedAt,
@@ -161,7 +164,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
   const intervalMs = normalizeDelay(options.intervalMs, DEFAULT_WATCH_INTERVAL_MS);
   const debounceMs = normalizeDelay(options.debounceMs, 0);
 
-  const emit = (event: MapPackageWatchEvent): void => {
+  const emit = (event: MapDocumentWatchEvent): void => {
     void options.onEvent?.(event);
     if (event.type === "updated") void options.onUpdate?.(event);
     if (event.type === "error") void options.onError?.(event.error);
@@ -186,7 +189,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     staleTimer = undefined;
   };
 
-  const queueApply = (result: FetchMapPackageResult, reloadReason?: string): void => {
+  const queueApply = (result: FetchMapDocumentResult, reloadReason?: string): void => {
     pendingApply = { result, ...(reloadReason ? { reloadReason } : {}) };
     if (debounceMs === 0) {
       void applyPending();
@@ -206,7 +209,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
       if (!pending || disposed) return;
 
       const { result, reloadReason } = pending;
-      const nextFingerprint = mapPackageFingerprint(result.mapPackage);
+      const nextFingerprint = mapDocumentFingerprint(result.mapPackage);
       if (previousFingerprint === nextFingerprint) {
         emit({ type: "unchanged", result });
         return;
@@ -243,7 +246,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
 
   const poll = async (
     input: {
-      readonly locatorOverride?: MapPackageLocator;
+      readonly locatorOverride?: MapDocumentLocator;
       readonly scheduleAfter?: boolean;
       readonly discoverRealtime?: boolean;
     } = {},
@@ -253,7 +256,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     currentAbort = new AbortController();
     const link = linkAbortSignals(options.signal, currentAbort.signal);
     try {
-      const result = await fetchMapPackage(input.locatorOverride ?? locator, {
+      const result = await fetchMapDocument(input.locatorOverride ?? locator, {
         ...options,
         signal: link.signal,
       });
@@ -293,7 +296,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     const abort = new AbortController();
     const link = linkAbortSignals(options.signal, abort.signal);
     const signal = link.signal;
-    const path = resolveMapPackagePath(locator, options.resolvePath);
+    const path = resolveMapDocumentPath(locator, options.resolvePath);
     activeRealtime = source;
     realtimeAbort = abort;
     realtimeLinkDispose = link.dispose;
@@ -358,7 +361,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     }
   };
 
-  const handleRealtimeMessage = async (message: MapPackageRealtimeMessage): Promise<void> => {
+  const handleRealtimeMessage = async (message: MapDocumentRealtimeMessage): Promise<void> => {
     if (disposed) return;
     armRealtimeStaleTimer(activeRealtime);
     updateRealtimeCheckpoint(message);
@@ -412,7 +415,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     }
   };
 
-  const applyRealtimeUpdate = async (update: MapPackageRealtimeUpdate, reloadReason?: string): Promise<void> => {
+  const applyRealtimeUpdate = async (update: MapDocumentRealtimeUpdate, reloadReason?: string): Promise<void> => {
     if (update.kind === "package") {
       queueApply(buildRealtimeFetchResult(update.mapPackage), reloadReason);
       return;
@@ -432,7 +435,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     currentAbort = new AbortController();
     const link = linkAbortSignals(options.signal, currentAbort.signal);
     try {
-      const result = await fetchMapPackage(path ? { path } : locator, {
+      const result = await fetchMapDocument(path ? { path } : locator, {
         ...options,
         signal: link.signal,
       });
@@ -551,7 +554,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
       return {
         type: "available",
         source: {
-          transport: createMapPackageServerSentEventsTransport({
+          transport: createMapDocumentServerSentEventsTransport({
             url: realtime.url,
             eventSourceFactory: realtime.eventSourceFactory,
             eventTypes: realtime.eventTypes,
@@ -561,7 +564,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
           transportKind: "sse",
           advertised: false,
           url: realtime.url,
-          channel: MAP_PACKAGE_REALTIME_CHANNEL_V1,
+          channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1,
           fallback,
           reconnect,
           ...(realtime.staleAfterMs !== undefined ? { staleAfterMs: normalizeDelay(realtime.staleAfterMs, 0) } : {}),
@@ -572,7 +575,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
 
     if (realtime.advertise === false) return undefined;
 
-    const advertisement = readMapPackageRealtimeAdvertisement(lastFetchedPackage ?? previousPackage);
+    const advertisement = readMapDocumentRealtimeAdvertisement(lastFetchedPackage ?? previousPackage);
     if (!advertisement) return undefined;
     const advertisedFallback = realtime.fallback ?? advertisement.fallback ?? "polling";
     const advertisedTransport = advertisement.transport ?? "sse";
@@ -597,7 +600,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     return {
       type: "available",
       source: {
-        transport: createMapPackageServerSentEventsTransport({
+        transport: createMapDocumentServerSentEventsTransport({
           url,
           eventSourceFactory: realtime.eventSourceFactory,
           eventTypes: realtime.eventTypes,
@@ -607,7 +610,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
         transportKind: "sse",
         advertised: true,
         url: publicUrl,
-        channel: advertisement.channel ?? MAP_PACKAGE_REALTIME_CHANNEL_V1,
+        channel: advertisement.channel ?? MAP_DOCUMENT_REALTIME_CHANNEL_V1,
         fallback: advertisedFallback,
         reconnect,
         ...(realtime.staleAfterMs !== undefined
@@ -620,14 +623,14 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     };
   };
 
-  const buildRealtimeFetchResult = (mapPackage: HonuaMapPackage): FetchMapPackageResult => {
-    const path = resolveMapPackagePath(locator, options.resolvePath);
-    const validation = validateMapPackage(mapPackage, {
+  const buildRealtimeFetchResult = (mapPackage: HonuaMapDocument): FetchMapDocumentResult => {
+    const path = resolveMapDocumentPath(locator, options.resolvePath);
+    const validation = validateMapDocument(mapPackage, {
       maxAgeMs: options.maxAgeMs,
       now: options.now,
     });
-    if (hasMapPackageDiagnosticErrors(validation.diagnostics) && options.allowInvalid !== true) {
-      throw new HonuaMapPackageError("MapPackage validation failed", {
+    if (hasMapDocumentDiagnosticErrors(validation.diagnostics) && options.allowInvalid !== true) {
+      throw new HonuaMapDocumentError("MapPackage validation failed", {
         packageId: mapPackage.mapPackageId,
         stage: "validate",
         detail: { diagnostics: validation.diagnostics, path },
@@ -645,13 +648,13 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     };
   };
 
-  const isExpectedPackageMessage = (message: MapPackageRealtimeMessage): boolean => {
+  const isExpectedPackageMessage = (message: MapDocumentRealtimeMessage): boolean => {
     if (!message.packageId) return true;
     const expected = previousPackage?.mapPackageId ?? lastFetchedPackage?.mapPackageId ?? packageIdFromLocator(locator);
     if (!expected || expected === message.packageId) return true;
     emit({
       type: "error",
-      error: new HonuaMapPackageError("MapPackage realtime message packageId does not match watcher locator", {
+      error: new HonuaMapDocumentError("MapPackage realtime message packageId does not match watcher locator", {
         packageId: message.packageId,
         stage: "fetch",
         detail: { expectedPackageId: expected },
@@ -660,7 +663,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     return false;
   };
 
-  const updateRealtimeCheckpoint = (message: MapPackageRealtimeMessage): void => {
+  const updateRealtimeCheckpoint = (message: MapDocumentRealtimeMessage): void => {
     lastRealtimeCheckpoint = {
       ...lastRealtimeCheckpoint,
       ...(message.eventId ? { eventId: message.eventId } : {}),
@@ -671,7 +674,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     };
   };
 
-  const rememberRealtimeMutation = (message: MapPackageRealtimeMessage): boolean => {
+  const rememberRealtimeMutation = (message: MapDocumentRealtimeMessage): boolean => {
     if (message.eventId && seenRealtimeEventIds.includes(message.eventId)) return false;
     if (
       message.sequence !== undefined &&
@@ -692,7 +695,7 @@ export function watchMapPackage(locator: MapPackageLocator, options: WatchMapPac
     handle.dispose();
   };
 
-  const handle: MapPackageWatchHandle = {
+  const handle: MapDocumentWatchHandle = {
     get disposed() {
       return disposed;
     },
@@ -738,8 +741,8 @@ function normalizeDelay(value: number | undefined, fallback: number): number {
 }
 
 function normalizeReconnectOptions(
-  value: false | MapPackageRealtimeReconnectOptions | undefined,
-): false | Required<MapPackageRealtimeReconnectOptions> {
+  value: false | MapDocumentRealtimeReconnectOptions | undefined,
+): false | Required<MapDocumentRealtimeReconnectOptions> {
   if (value === false) return false;
   return {
     maxAttempts: normalizeReconnectAttempts(value?.maxAttempts, DEFAULT_RECONNECT_OPTIONS.maxAttempts),
@@ -760,19 +763,19 @@ function normalizeReconnectFactor(value: number | undefined): number {
   return Math.max(1, value);
 }
 
-function reconnectDelayMs(attempt: number, options: Required<MapPackageRealtimeReconnectOptions>): number {
+function reconnectDelayMs(attempt: number, options: Required<MapDocumentRealtimeReconnectOptions>): number {
   const delay = options.minDelayMs * options.factor ** Math.max(0, attempt - 1);
   return Math.min(options.maxDelayMs, Math.max(0, Math.trunc(delay)));
 }
 
-function cookieCredentials(options: MapPackageRealtimeWatchOptions): boolean | undefined {
+function cookieCredentials(options: MapDocumentRealtimeWatchOptions): boolean | undefined {
   return options.auth?.kind === "cookie" ? options.auth.withCredentials : undefined;
 }
 
 function validateAdvertisedRealtimeUrl(
   value: string,
   baseUrl: string,
-  options: MapPackageRealtimeWatchOptions,
+  options: MapDocumentRealtimeWatchOptions,
 ): string | undefined {
   if (options.auth?.kind !== "query-token" || !isAbsoluteHttpUrl(value)) return undefined;
   if (!isAbsoluteHttpUrl(baseUrl)) return "advertised-query-token-url-requires-absolute-base";
@@ -790,7 +793,7 @@ function isAbsoluteHttpUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://");
 }
 
-function packageIdFromLocator(locator: MapPackageLocator): string | undefined {
+function packageIdFromLocator(locator: MapDocumentLocator): string | undefined {
   if (typeof locator === "string") {
     if (locator.startsWith("/") || locator.startsWith("http://") || locator.startsWith("https://")) return undefined;
     const prefix = "honua://map-packages/";

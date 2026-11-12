@@ -26,10 +26,10 @@ import type {
 } from "../interactions/hit-test.js";
 import type { HonuaMap } from "../map/honua-map.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import { type MapPackageDiff, diffPackages } from "./diff.js";
-import { HonuaMapPackageError } from "./errors.js";
+import { type MapDocumentDiff, diffPackages } from "./diff.js";
+import { HonuaMapDocumentError } from "./errors.js";
 import { type LegendEntry, buildLegend } from "./legend.js";
-import type { HonuaMapPackage, HonuaMapPackagePopupBinding } from "./map-package.js";
+import type { HonuaMapDocument, HonuaMapDocumentPopupBinding } from "./map-package.js";
 import { type PopupBindingHandle, type PopupFactory, type PopupRenderer, bindPopup } from "./popups.js";
 import {
   featureStateTargetFromSelection,
@@ -124,7 +124,7 @@ export interface HonuaRuntimeTelemetry {
 
 export type HonuaRuntimeEvent =
   | { type: "package-loaded"; packageId: string }
-  | { type: "package-updated"; packageId: string; diff: MapPackageDiff }
+  | { type: "package-updated"; packageId: string; diff: MapDocumentDiff }
   | { type: "source-ready"; sourceId: string }
   | { type: "source-error"; sourceId: string; error: unknown }
   | { type: "layer-rendered"; layerId: string }
@@ -158,12 +158,12 @@ export interface HonuaMapRuntimeInternals {
   honuaMap: HonuaMap;
   dataset: Dataset;
   composedStyle: HonuaStyleSpecification;
-  packageRef: { current: HonuaMapPackage };
+  packageRef: { current: HonuaMapDocument };
   telemetry?: HonuaRuntimeTelemetry;
   popupFactory?: PopupFactory;
   popupRenderer?: PopupRenderer;
   styleSpecValidationMode: RuntimeStyleSpecValidationMode;
-  reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
+  reload: (next: HonuaMapDocument) => Promise<HonuaMapRuntimeReload>;
 }
 
 export interface SetViewStateInput {
@@ -190,7 +190,7 @@ export interface RuntimePointerInteractionOptions extends RuntimeHitTestOptions 
 interface ActivePopupBinding {
   handle: PopupBindingHandle;
   sourceId: string | undefined;
-  binding: HonuaMapPackagePopupBinding;
+  binding: HonuaMapDocumentPopupBinding;
   resolvedFromPackage: boolean;
 }
 
@@ -199,20 +199,20 @@ interface ActivePopupBinding {
 export class HonuaMapRuntime {
   public readonly map: MaplibreMap;
 
-  readonly #packageRef: { current: HonuaMapPackage };
+  readonly #packageRef: { current: HonuaMapDocument };
   readonly #listeners = new Set<HonuaRuntimeEventListener>();
   readonly #telemetry: HonuaRuntimeTelemetry | undefined;
   readonly #popupFactory: PopupFactory | undefined;
   readonly #popupRenderer: PopupRenderer | undefined;
   readonly #styleSpecValidationMode: RuntimeStyleSpecValidationMode;
   readonly #popupBindings = new Map<string, ActivePopupBinding>();
-  readonly #reload: (next: HonuaMapPackage) => Promise<HonuaMapRuntimeReload>;
+  readonly #reload: (next: HonuaMapDocument) => Promise<HonuaMapRuntimeReload>;
   #honuaMap: HonuaMap;
   #dataset: Dataset;
   #composedStyle: HonuaStyleSpecification;
   #disposed = false;
 
-  /** @internal — constructed by {@link loadMapPackage}. */
+  /** @internal — constructed by {@link loadMapDocument}. */
   public constructor(internals: HonuaMapRuntimeInternals) {
     this.map = internals.map;
     this.#honuaMap = internals.honuaMap;
@@ -247,7 +247,7 @@ export class HonuaMapRuntime {
   }
 
   /** The currently applied package. */
-  public get mapPackage(): HonuaMapPackage {
+  public get mapPackage(): HonuaMapDocument {
     return this.#packageRef.current;
   }
 
@@ -862,10 +862,10 @@ export class HonuaMapRuntime {
     });
   }
 
-  public bindPopup(layerId: string, binding?: HonuaMapPackagePopupBinding): { remove(): void } {
+  public bindPopup(layerId: string, binding?: HonuaMapDocumentPopupBinding): { remove(): void } {
     this.#assertLive();
     if (!this.#popupFactory) {
-      throw new HonuaMapPackageError("bindPopup requires opts.popupFactory to be set on loadMapPackage", {
+      throw new HonuaMapDocumentError("bindPopup requires opts.popupFactory to be set on loadMapDocument", {
         packageId: this.#packageRef.current.mapPackageId,
         stage: "popup",
         detail: { layerId },
@@ -875,7 +875,7 @@ export class HonuaMapRuntime {
     const resolvedFromPackage = binding === undefined;
     const resolved = binding ?? popupBindingForSource(this.#packageRef.current, sourceId);
     if (!resolved) {
-      throw new HonuaMapPackageError(
+      throw new HonuaMapDocumentError(
         `no popupBinding found for layer "${layerId}"; supply a binding argument or add one to MapPackage.popupBindings`,
         { packageId: this.#packageRef.current.mapPackageId, stage: "popup", detail: { layerId } },
       );
@@ -948,12 +948,12 @@ export class HonuaMapRuntime {
    * incrementally when safe; falls back to `map.setStyle` for structural
    * changes. Preserves unknown fields from `next` on round-trip.
    */
-  public async updatePackage(next: HonuaMapPackage): Promise<void> {
+  public async updatePackage(next: HonuaMapDocument): Promise<void> {
     this.#assertLive();
     const span = this.#startSpan("update", next.mapPackageId, { previousId: this.#packageRef.current.mapPackageId });
     try {
       if (next.format !== this.#packageRef.current.format) {
-        throw new HonuaMapPackageError(
+        throw new HonuaMapDocumentError(
           `updatePackage: format "${next.format}" is incompatible with "${this.#packageRef.current.format}"`,
           {
             packageId: next.mapPackageId,
@@ -1008,8 +1008,8 @@ export class HonuaMapRuntime {
       this.#finishSpan(span);
     } catch (error) {
       this.#finishSpan(span, error);
-      if (error instanceof HonuaMapPackageError) throw error;
-      throw new HonuaMapPackageError("updatePackage failed", {
+      if (error instanceof HonuaMapDocumentError) throw error;
+      throw new HonuaMapDocumentError("updatePackage failed", {
         packageId: next.mapPackageId,
         stage: "update",
         cause: error,
@@ -1213,7 +1213,7 @@ export class HonuaMapRuntime {
     return result.features[0];
   }
 
-  #applyIncremental(composed: HonuaStyleSpecification, diff: MapPackageDiff): void {
+  #applyIncremental(composed: HonuaStyleSpecification, diff: MapDocumentDiff): void {
     const prevStyle = this.#composedStyle;
 
     for (const layerId of diff.removedLayerIds) {
@@ -1285,7 +1285,7 @@ export class HonuaMapRuntime {
     }
   }
 
-  #reapPopupBindings(composed: HonuaStyleSpecification, pkg: HonuaMapPackage): void {
+  #reapPopupBindings(composed: HonuaStyleSpecification, pkg: HonuaMapDocument): void {
     if (this.#popupBindings.size === 0) return;
     for (const [layerId, active] of Array.from(this.#popupBindings)) {
       const nextSourceId = layerIdToSource(composed, layerId);
@@ -1311,7 +1311,7 @@ export class HonuaMapRuntime {
 
   #assertLive(): void {
     if (this.#disposed) {
-      throw new HonuaMapPackageError("runtime is disposed", {
+      throw new HonuaMapDocumentError("runtime is disposed", {
         packageId: this.#packageRef.current.mapPackageId,
         stage: "dispose",
       });
@@ -1424,9 +1424,9 @@ function layerIdToSource(style: HonuaStyleSpecification, layerId: string): strin
 }
 
 function popupBindingForSource(
-  pkg: HonuaMapPackage,
+  pkg: HonuaMapDocument,
   sourceId: string | undefined,
-): HonuaMapPackagePopupBinding | undefined {
+): HonuaMapDocumentPopupBinding | undefined {
   if (!sourceId) return undefined;
   return pkg.popupBindings?.find((binding) => binding.sourceId === sourceId);
 }
@@ -1535,6 +1535,6 @@ function sameJson(a: unknown, b: unknown): boolean {
 
 // ── Re-exports for barrel ────────────────────────────────────
 
-export type { MapPackageDiff } from "./diff.js";
+export type { MapDocumentDiff } from "./diff.js";
 export type { PopupFactory, PopupRenderer, PopupBindingHandle } from "./popups.js";
 export type { LegendEntry } from "./legend.js";

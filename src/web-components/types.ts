@@ -1,7 +1,7 @@
 import type { FeatureId, Query } from "../contract/index.js";
 import type { HonuaTypedFeature } from "../core/types.js";
 import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
-import type { HonuaMapPackage, HonuaMapPackageLegendEntry } from "../runtime/index.js";
+import type { HonuaMapDocument, HonuaMapDocumentLegendEntry } from "../runtime/index.js";
 import type { HonuaLayerSpecification } from "../style/index.js";
 import type { HonuaExportKind } from "./export.js";
 
@@ -386,7 +386,7 @@ export interface HonuaChartModel {
 export interface HonuaWebComponentState<T = Record<string, unknown>> {
   packageId?: string;
   status: HonuaComponentStatus;
-  mapPackage?: HonuaMapPackage;
+  mapPackage?: HonuaMapDocument;
   layers: readonly HonuaLayerModel[];
   legend: readonly HonuaLegendItem[];
   viewport: HonuaViewportState;
@@ -473,7 +473,7 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
 }
 
 export interface CreateHonuaWebComponentControllerOptions<T = Record<string, unknown>> {
-  mapPackage?: HonuaMapPackage;
+  mapPackage?: HonuaMapDocument;
   layers?: readonly HonuaLayerModel[];
   legend?: readonly HonuaLegendItem[];
   viewport?: HonuaViewportState;
@@ -500,9 +500,9 @@ export interface CreateHonuaWebComponentControllerOptions<T = Record<string, unk
 }
 
 export interface HonuaWebComponentRuntimeLike<T = Record<string, unknown>> {
-  readonly mapPackage: HonuaMapPackage;
+  readonly mapPackage: HonuaMapDocument;
   readonly composedStyle: { layers: readonly HonuaLayerSpecification[] };
-  getLegend(): readonly HonuaMapPackageLegendEntry[];
+  getLegend(): readonly HonuaMapDocumentLegendEntry[];
   setLayerVisibility(layerId: string, visible: boolean): void;
   /** Optional runtime support for writing layer paint opacity. */
   setLayerOpacity?(layerId: string, opacity: number): void;
@@ -556,7 +556,7 @@ export interface HonuaMapReadyDetail<T = Record<string, unknown>> {
   map: unknown;
   runtime?: HonuaWebComponentRuntimeLike<T>;
   controller?: HonuaWebComponentController<T>;
-  mapPackage?: HonuaMapPackage;
+  mapPackage?: HonuaMapDocument;
 }
 
 export interface HonuaMapErrorDetail {
