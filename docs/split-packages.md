@@ -240,3 +240,16 @@ consumers do not need to add those packages manually. Applications still supply
 `maplibre-gl` when using the MapLibre integration. The package verification gate
 bundles the web-components entrypoint from a clean external consumer to check
 this dependency closure.
+
+### Conditional exports in the sample matrix
+
+`samples/dist/capability-sample-matrix.v2.json` records the full package export
+inventory, including the `node` condition on `./geoparquet/node`. It never
+substitutes a browser `default` target for a Node-only module. Its coverage states
+continue to require the same qualification evidence as other entrypoints.
+
+Existing site handoffs consume the v1 compatibility matrix. That projection
+contains only exports with a `default` target; its entrypoint dimensions and gap
+inventory use the same subset. It retains the digest of the complete package
+export input. Use v2 for the complete conditional export inventory. The published
+v1 schema and archived handoff integrity bindings remain unchanged.

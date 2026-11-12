@@ -96,8 +96,8 @@ export interface MatrixEvidenceBinding {
 }
 
 export interface CapabilitySampleMatrix {
-  format: "honua.site.sdk-capability-sample-matrix.v1";
-  schemaVersion: 1;
+  format: "honua.site.sdk-capability-sample-matrix.v1" | "honua.site.sdk-capability-sample-matrix.v2";
+  schemaVersion: 1 | 2;
   sdk: { package: string; version: string };
   inputs: Record<string, Record<string, unknown>>;
   statusVocabulary: { coverage: SampleCoverageState[]; support: string[] };
@@ -459,6 +459,8 @@ export function validateQualificationRunInventory(
     }>;
   },
 ): Promise<void>;
+export function projectLegacyCapabilitySampleMatrix(matrix: CapabilitySampleMatrix): CapabilitySampleMatrix;
+
 export function generateCapabilitySampleMatrix(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
