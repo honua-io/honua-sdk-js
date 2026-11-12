@@ -78,7 +78,7 @@ const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
 const CAPABILITY_SAMPLE_MATRIX_V2_PATH = "samples/dist/capability-sample-matrix.v2.json";
 const CAPABILITY_SAMPLE_MATRIX_V2_SCHEMA_PATH =
-  "samples/contract/v2/schemas/capability-sample-matrix.v2.schema.json";
+  "schemas/capability-sample-matrix.v2.schema.json";
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
