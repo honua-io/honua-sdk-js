@@ -57,6 +57,37 @@ async function assertInstalledSkill(client: Client, root: string, name: string) 
 }
 
 describe("installed SDK skills over MCP", () => {
+  it.each(["standalone", "bootstrap"])("disables only skills on %s without changing other tools", async (mode) => {
+    const factory = (skills: "enabled" | "disabled") =>
+      mode === "bootstrap" ? createBootstrapServer({ skills }) : createServer(createFixtureClient(), { skills });
+    const enabled = await connectServer(() => factory("enabled"));
+    const disabled = await connectServer(() => factory("disabled"));
+    try {
+      expect(await disabled.client.listTools()).toEqual(await enabled.client.listTools());
+      expect(disabled.client.getServerCapabilities()?.extensions?.[SKILLS_EXTENSION]).toBeUndefined();
+      const expected = (await enabled.client.listResources()).resources.filter(
+        (entry) => !entry.uri.startsWith("skill://"),
+      );
+      const actual = disabled.client.getServerCapabilities()?.resources
+        ? (await disabled.client.listResources()).resources
+        : [];
+      expect(actual).toEqual(expected);
+      if (mode === "standalone") {
+        expect(await disabled.client.listResourceTemplates()).toEqual(await enabled.client.listResourceTemplates());
+        const request = { name: "honua_list_services", arguments: {} };
+        expect(await disabled.client.callTool(request)).toEqual(await enabled.client.callTool(request));
+      }
+      await expect(disabled.client.request({ method: "skills/list" }, listSchema)).rejects.toThrow(/-32601/);
+      await expect(
+        disabled.client.request({ method: "skills/get", params: { uri: "skill://connect-data/SKILL.md" } }, z.object({})),
+      ).rejects.toThrow(/-32601/);
+      await expect(disabled.client.readResource({ uri: "skill://connect-data/SKILL.md" })).rejects.toThrow();
+    } finally {
+      await enabled.close();
+      await disabled.close();
+    }
+  });
+
   it("lists exactly the installed skill set and loads identical bytes by name", async () => {
     const { client, close } = await connectServer();
     try {
