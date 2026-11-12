@@ -8,7 +8,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { expectedSdkPublicationRef, migrationConsumerEnv, migrationNpmEnv, migratorCompatPackageName, parseArgs, recoverSdkPublicationRef, validateLock, verifyMigrationPublication } from "../../scripts/verify-migration-cohort.mjs";
-import { assignMigrationCohortError, migrationCohortFetch } from "../../scripts/lib/migration-cohort-github.mjs";
+import { migrationCohortDiagnostic, migrationCohortFetch } from "../../scripts/lib/migration-cohort-github.mjs";
 
 // Drop a workflow token before any test reads it. The verifier process is
 // separate and still sees the step env; these tests supply their own synthetic.
@@ -672,9 +672,8 @@ test("HTTP 503 on publication recovery fails closed without a retry", async () =
 test("receipts and thrown diagnostics omit the synthetic token", async () => {
   await withMigrationToken(SYNTHETIC_TOKEN, async () => {
     const receipt = {};
-    assignMigrationCohortError(receipt, new Error(`cannot resolve tag: HTTP 504 ${SYNTHETIC_TOKEN}`));
-    assert.match(receipt.error, /HTTP 504/);
-    assert.equal(receipt.error.includes(SYNTHETIC_TOKEN), false);
+    receipt.error = migrationCohortDiagnostic(new Error(`cannot resolve tag: HTTP 504 ${SYNTHETIC_TOKEN}`));
+    assert.equal(receipt.error, "cannot resolve tag: HTTP 504 [redacted]");
     await assert.rejects(
       () => migrationCohortFetch("https://api.github.com/repos/honua-io/honua-sdk-js/commits/js-sdk-v0.2.4", {}, {
         fetchImpl: () => {
@@ -682,8 +681,7 @@ test("receipts and thrown diagnostics omit the synthetic token", async () => {
         },
       }),
       (error) => {
-        assert.match(error.message, /connect/);
-        assert.equal(error.message.includes(SYNTHETIC_TOKEN), false);
+        assert.equal(error.message, "connect [redacted]");
         return true;
       },
     );

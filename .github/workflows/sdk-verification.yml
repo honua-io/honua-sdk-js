@@ -53,12 +53,9 @@ on:
 # Read-only for every job, and this workflow is `pull_request`, never
 # `pull_request_target` (REQ-008): a fork's code therefore never executes with a
 # write token and can never publish evidence anything downstream trusts.
-# actions:read covers migration-cohort recovery of Actions run attempts and
-# jobs. contents:read remains the tag and commit permission. Specifying any
-# permission sets the other scopes to none, so both are listed here.
-# https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+# verify-package replaces this grant with actions:read for migration-cohort
+# recovery. Other jobs keep contents:read only.
 permissions:
-  actions: read
   contents: read
 
 # Exact-head supersession (REQ-007): a new push to the same pull request cancels
@@ -671,6 +668,12 @@ jobs:
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Job permissions replace the workflow grant. actions:read covers recovery
+    # run and job reads; contents:read stays for tag and commit resolution.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     env:
       HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
     steps:

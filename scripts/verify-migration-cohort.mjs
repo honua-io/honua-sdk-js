@@ -12,7 +12,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  assignMigrationCohortError,
   migrationCohortDiagnostic,
   migrationCohortFetch,
   migrationGitHubToken,
@@ -416,7 +415,7 @@ export async function verifyMigrationCohort(argv) {
     receipt.cli = { canonicalExit: 0, legacyExit: 0, stdout: canonical.stdout, legacyWarning: legacy.stderr };
     receipt.status = "passed";
   } catch (error) {
-    assignMigrationCohortError(receipt, error);
+    receipt.error = migrationCohortDiagnostic(error);
     throw error;
   } finally {
     fs.writeFileSync(destination, `${JSON.stringify(receipt, null, 2)}\n`);

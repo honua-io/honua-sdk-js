@@ -498,8 +498,10 @@ describe("forks and untrusted heads cannot publish reusable evidence", () => {
     // the default branch's cache scope. Re-adding dispatch needs a ref
     // allow-list or caching disabled in that path.
     assert.equal("workflow_dispatch" in graph.on, false, "manual dispatch would let the actor choose the checked-out ref");
-    assert.deepEqual(graph.permissions, { actions: "read", contents: "read" });
+    assert.deepEqual(graph.permissions, { contents: "read" });
+    assert.deepEqual(graph.jobs["verify-package"].permissions, { actions: "read", contents: "read" });
     for (const [jobId, job] of Object.entries(graph.jobs)) {
+      if (jobId === "verify-package") continue;
       assert.equal(job.permissions, undefined, `${jobId} must not widen the workflow's read-only token`);
     }
   });
@@ -534,7 +536,13 @@ describe("forks and untrusted heads cannot publish reusable evidence", () => {
     assert.equal(ciSteps[0].env[tokenEnv], tokenValue);
     assert.match(ciSteps[0].run, /verify:migration-cohort:prepared/);
 
-    assertNoWritePermissions(graph.permissions);
+    assert.equal(graph.permissions.actions, undefined);
+    assert.equal(graph.permissions.contents, "read");
+    assertNoWritePermissions(graph.jobs["verify-package"].permissions);
+    for (const [jobId, job] of Object.entries(graph.jobs)) {
+      if (jobId === "verify-package") continue;
+      assert.equal(job.permissions, undefined, `${jobId} must not gain actions read for this verifier`);
+    }
     const graphSteps = allSteps(graph).filter((step) => step.env?.[tokenEnv]);
     assert.deepEqual(graphSteps.map((step) => step.name), [
       "Verify packed SDK migration cohort with default npm resolution",

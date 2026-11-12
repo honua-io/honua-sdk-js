@@ -66,10 +66,6 @@ export function migrationCohortDiagnostic(error) {
   }
 }
 
-export function assignMigrationCohortError(receipt, error) {
-  receipt.error = migrationCohortDiagnostic(error);
-}
-
 function redactError(error, token) {
   return new Error(migrationCohortFailureMessage(error, token));
 }
@@ -107,35 +103,38 @@ function nextTrustedUrl(current, location, origin) {
   }
 }
 
-async function fetchUntrusted(fetchImpl, url, init, token) {
+async function fetchUntrusted(request) {
   try {
-    return await fetchImpl(url, { ...init, headers: withoutCredentials(init?.headers) });
+    return await request.fetchImpl(request.target, {
+      ...request.init,
+      headers: withoutCredentials(request.init?.headers),
+    });
   } catch (error) {
-    throw redactError(error, token);
+    throw redactError(error, request.token);
   }
 }
 
-async function fetchTrusted(fetchImpl, initialUrl, initialTarget, init, token, origin) {
-  let current = initialUrl;
-  let target = initialTarget;
+async function fetchTrusted(request) {
+  let current = request.current;
+  let target = request.target;
   for (let redirects = 0; ; redirects += 1) {
-    const headers = withoutCredentials(init?.headers);
+    const headers = withoutCredentials(request.init?.headers);
     if (!headers.has("accept")) headers.set("accept", "application/vnd.github+json");
-    if (token) headers.set("authorization", `Bearer ${token}`);
+    if (request.token) headers.set("authorization", `Bearer ${request.token}`);
     let response;
     try {
-      response = await fetchImpl(target, {
-        ...init,
+      response = await request.fetchImpl(target, {
+        ...request.init,
         method: "GET",
         headers,
         redirect: "manual",
       });
     } catch (error) {
-      throw redactError(error, token);
+      throw redactError(error, request.token);
     }
     if (!REDIRECT_STATUSES.has(response.status)) return response;
     const location = response.headers?.get("location");
-    const next = redirects >= MAX_REDIRECTS ? undefined : nextTrustedUrl(current, location, origin);
+    const next = redirects >= MAX_REDIRECTS ? undefined : nextTrustedUrl(current, location, request.origin);
     await releaseBody(response);
     if (!next) return closedRedirect(response);
     current = next;
@@ -144,7 +143,6 @@ async function fetchTrusted(fetchImpl, initialUrl, initialTarget, init, token, o
 }
 
 export async function migrationCohortFetch(url, init = {}, options = {}) {
-  const fetchImpl = options.fetchImpl ?? fetch;
   const token = tokenFrom(options);
   const origin = migrationApiOrigin(options.apiOrigin);
   let parsed;
@@ -153,6 +151,14 @@ export async function migrationCohortFetch(url, init = {}, options = {}) {
   } catch (error) {
     throw redactError(error, token);
   }
-  if (!isTrustedApiUrl(parsed, origin)) return fetchUntrusted(fetchImpl, targetString(url), init, token);
-  return fetchTrusted(fetchImpl, parsed, targetString(url), init, token, origin);
+  const request = {
+    fetchImpl: options.fetchImpl ?? fetch,
+    init,
+    token,
+    origin,
+    current: parsed,
+    target: targetString(url),
+  };
+  if (!isTrustedApiUrl(parsed, origin)) return fetchUntrusted(request);
+  return fetchTrusted(request);
 }
