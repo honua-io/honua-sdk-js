@@ -16,7 +16,7 @@ const getRequest = RequestSchema.extend({
 
 export function registerSdkSkills(server: McpServer): void {
   const skills = loadSdkSkills();
-  server.server.registerCapabilities({ resources: {}, extensions: { [SKILLS_EXTENSION]: {} } });
+  server.server.registerCapabilities({ extensions: { [SKILLS_EXTENSION]: {} } });
   server.server.setRequestHandler(listRequest, async (request) => {
     if (request.params?.cursor !== undefined) throw new McpError(ErrorCode.InvalidParams, "Invalid skills cursor");
     return { ...cache, skills: skills.map(skillEntry) };

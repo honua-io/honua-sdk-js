@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { z } from "zod";
 import { createFixtureClient } from "../../src/certification/fixture-client.js";
 import { createBootstrapServer, createServer } from "../../src/index.js";
+import * as skillCatalog from "../../src/resources/sdk-skills-catalog.js";
 import { installedSdkRoot, loadSdkSkills } from "../../src/resources/sdk-skills-catalog.js";
 import { SKILLS_EXTENSION } from "../../src/resources/sdk-skills.js";
 
@@ -21,6 +22,7 @@ const skillSchema = z.object({
 const listSchema = z.object({ resultType: z.literal("complete"), skills: z.array(skillSchema) });
 const scratch: string[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const directory of scratch.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
@@ -57,6 +59,34 @@ async function assertInstalledSkill(client: Client, root: string, name: string) 
 }
 
 describe("installed SDK skills over MCP", () => {
+  it.each(["standalone", "bootstrap"])("advertises only usable resources with an empty catalog on %s", async (mode) => {
+    vi.spyOn(skillCatalog, "loadSdkSkills").mockReturnValue([]);
+    const { client, close } = await connectServer(() =>
+      mode === "bootstrap" ? createBootstrapServer() : createServer(createFixtureClient()),
+    );
+    try {
+      expect(client.getServerCapabilities()?.extensions).toHaveProperty(SKILLS_EXTENSION);
+      expect(await client.request({ method: "skills/list" }, listSchema)).toEqual({
+        resultType: "complete",
+        skills: [],
+      });
+      await expect(
+        client.request({ method: "skills/get", params: { uri: "skill://missing/SKILL.md" } }, z.object({})),
+      ).rejects.toThrow(/-32602/);
+      if (mode === "bootstrap") {
+        expect(client.getServerCapabilities()?.resources).toBeUndefined();
+      } else {
+        expect(client.getServerCapabilities()?.resources).toBeDefined();
+        const { resources } = await client.listResources();
+        expect(resources.map((resource) => resource.name)).toEqual(["services-catalog", "styles-catalog"]);
+        expect((await client.readResource({ uri: resources[0].uri })).contents.length).toBeGreaterThan(0);
+        expect((await client.listResourceTemplates()).resourceTemplates.length).toBeGreaterThan(0);
+      }
+    } finally {
+      await close();
+    }
+  });
+
   it.each(["standalone", "bootstrap"])("disables only skills on %s without changing other tools", async (mode) => {
     const factory = (skills: "enabled" | "disabled") =>
       mode === "bootstrap" ? createBootstrapServer({ skills }) : createServer(createFixtureClient(), { skills });
