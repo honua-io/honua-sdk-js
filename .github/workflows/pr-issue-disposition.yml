@@ -17,9 +17,10 @@ permissions:
   issues: read
   pull-requests: read
 
-concurrency:
-  group: pr-issue-disposition-${{ github.event.pull_request.number || inputs.pull_request_number }}
-  cancel-in-progress: true
+# No concurrency group: this is a required check, and a cancelled run left as the
+# newest check run of that name blocks merging even when another run passed. Each run
+# re-reads the pull request's current metadata and finishes in seconds, so every run
+# completes and the newest one reflects the current state.
 
 jobs:
   issue-disposition:
