@@ -55,14 +55,14 @@ export class StacCogAssetSession {
     if (!options || typeof options.decoderFactory !== "function") {
       throw new HonuaCogError("decoder-failed", "A caller-injected COG decoder factory is required.");
     }
-    const fetchFn = options.fetchFn ?? globalThis.fetch;
+    const fetchFn = options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     if (typeof fetchFn !== "function") {
       throw new HonuaCogError("cors-unavailable", "No Fetch implementation is available for bounded COG ranges.");
     }
     this.assetUrl = this.candidate.assetUrl;
     this.decoderFactory = options.decoderFactory;
     this.limits = normalizeCogTransferLimits(options.limits);
-    this.transport = new CogRangeTransport(this.assetUrl, options.fetchFn ?? fetchFn.bind(globalThis), this.limits);
+    this.transport = new CogRangeTransport(this.assetUrl, fetchFn, this.limits);
   }
 
   /** Inspect bounded COG metadata. Decoder and network work start lazily here. */
