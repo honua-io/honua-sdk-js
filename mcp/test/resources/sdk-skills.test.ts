@@ -79,7 +79,10 @@ describe("installed SDK skills over MCP", () => {
       }
       await expect(disabled.client.request({ method: "skills/list" }, listSchema)).rejects.toThrow(/-32601/);
       await expect(
-        disabled.client.request({ method: "skills/get", params: { uri: "skill://connect-data/SKILL.md" } }, z.object({})),
+        disabled.client.request(
+          { method: "skills/get", params: { uri: "skill://connect-data/SKILL.md" } },
+          z.object({}),
+        ),
       ).rejects.toThrow(/-32601/);
       await expect(disabled.client.readResource({ uri: "skill://connect-data/SKILL.md" })).rejects.toThrow();
     } finally {
