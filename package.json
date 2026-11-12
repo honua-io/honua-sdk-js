@@ -840,7 +840,9 @@
     "schemas/honua-map-package.v1.json",
     "support/projections/sdk-support.v1.json",
     "support/projections/connect-discovery-inventory.v1.json",
-    "support/contract/v1/schemas/support-projection.schema.json"
+    "support/contract/v1/schemas/support-projection.schema.json",
+    "skills/*/SKILL.md",
+    "skills/README.md"
   ],
   "peerDependencies": {
     "@bufbuild/protobuf": "^2.0.0",
