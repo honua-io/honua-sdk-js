@@ -1,6 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 import type { HonuaAgentWidgetQueryRequest } from "@honua/sdk-js/agent-tools";
+import { createBrowserDuckDbDriver } from "@honua/sdk-js/geoparquet";
 import {
   type AskMapState,
   createAskMapSession,
@@ -8,7 +9,6 @@ import {
   mountAskMapControl,
 } from "@honua/sdk-js/nl-map-control";
 import * as maplibregl from "maplibre-gl";
-import { createBrowserDuckDbDriver } from "../../../src/geoparquet/driver.js";
 import { FIXTURE_VERSION, INCIDENTS, ORIGIN, SCHEMA, geographic, incidentsGeoJson, projected } from "./fixture.js";
 import { type QueryResult, createIncidentRuntime, initializeFixture, reviewQuery } from "./map-runtime.js";
 import { SUGGESTIONS, authenticatedLiveModel, groundedModel, recordedModel } from "./model.js";
