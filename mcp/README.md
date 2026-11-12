@@ -416,8 +416,9 @@ hosts can use `createServer(client, { skills: "disabled" })` or
 default; this opt-out supports paired evaluations using the same installed
 packages in both arms.
 
-Any MCP client can use `resources/list` and `resources/read` to discover and read
-the Markdown. Resource metadata includes the skill description, release and
+Clients that expose `resources/list` and `resources/read` can retrieve the
+Markdown. Resource availability does not guarantee that an agent discovers or
+reads it. Resource metadata includes the skill description, release and
 `io.honua/sdkVersion`; returned text preserves the installed file bytes. Supporting
 files are separate resources returned as base64 blobs.
 
