@@ -204,7 +204,7 @@ jobs:
         run: npm ci
 
       - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
 
       - name: Test SDK publication workflow execution
         run: node --test test/scripts/publish-js-sdk-workflow.test.mjs

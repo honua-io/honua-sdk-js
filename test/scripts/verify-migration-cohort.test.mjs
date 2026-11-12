@@ -627,7 +627,7 @@ for (const status of [401, 403, 503, 504]) {
       let calls = 0;
       const fetchImpl = async (url, init) => {
         calls += 1;
-        assert.equal(String(url).includes("api.github.com"), true);
+        assert.equal(new URL(url).origin, "https://api.github.com");
         assert.equal(authorizationOf(init), `Bearer ${SYNTHETIC_TOKEN}`);
         return new Response("unavailable", { status });
       };
