@@ -16,13 +16,6 @@ There is one runnable implementation:
 npm run demo:quickstart:mock
 ```
 
-The historical commands remain compatibility aliases and execute that same app:
-
-```bash
-npm run demo:standalone
-npm run demo:standalone:mock
-```
-
 For the lower-level caller-owned-map API, see the focused
 [`mountSource` data-to-map bridge recipe](./data-to-map-bridge.md). For a framework-specific integration, keep using
 the focused [React quickstart](../examples/react-quickstart/README.md); it is not a second First Map implementation.

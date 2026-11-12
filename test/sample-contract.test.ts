@@ -260,10 +260,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(31);
+    expect(catalog.samples).toHaveLength(29);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(27);
+    ).toHaveLength(25);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -279,27 +279,10 @@ describe("sample publication contract", () => {
       lifecycle: { state: "rework", targetRelease: "0.4.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
-    expect(
-      catalog.samples.find((sample: { id: string }) => sample.id === "planning-permitting-workbench"),
-    ).toMatchObject({
-      track: "lab",
-      journeyId: "planning-permitting",
-      lifecycle: { state: "active" },
-      renderers: ["none"],
-      evidence: {
-        live: {
-          mode: "public-live",
-          status: "planned",
-          commands: ["npm run evidence:planning:live"],
-        },
-      },
-    });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
       track: "recipe",
-      lifecycle: {
-        state: "replace",
-        replacement: { kind: "journey", id: "planning-permitting" },
-      },
+      journeyId: "planning-permitting",
+      lifecycle: { state: "rework" },
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
       track: "recipe",
@@ -1134,13 +1117,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(31);
+    expect(projection.samples).toHaveLength(29);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(31);
+    expect(ciSelection.samples).toHaveLength(29);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1230,28 +1213,6 @@ describe("sample publication contract", () => {
       execution: "scheduled-only",
       commands: ["npm run evidence:cog:live"],
     });
-    const planning = ciSelection.samples.find(
-      (sample: { id: string }) => sample.id === "planning-permitting-workbench",
-    );
-    expect(planning).toMatchObject({
-      track: "lab",
-      validationProfile: "browser-lab",
-      commandPlan: {
-        validation: {
-          execution: "automatic",
-          commands: [
-            "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build",
-            "npm run test:playwright:planning-workbench",
-          ],
-        },
-        fixtureEvidence: {
-          execution: "orchestrated",
-          commands: ["npm run demo:planning-workbench:mock"],
-        },
-        liveEvidence: { execution: "scheduled-only", commands: ["npm run evidence:planning:live"] },
-      },
-    });
     expect(
       projection.routes
         .filter((route) => ["imagery-terrain", "maui-3d", "wms-overlay"].includes(String(route.id)))
@@ -1260,8 +1221,8 @@ describe("sample publication contract", () => {
     expect(
       projection.routes
         .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
-        .map((route) => String(route.sampleId)),
-    ).toEqual(["planning-permitting-workbench", "planning-permitting-workbench"]);
+        .map((route) => String(route.sampleId ?? route.ownership)),
+    ).toEqual(["edit-workflow-demo", "site-exception"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);
@@ -2323,7 +2284,7 @@ runNpmScriptSync("demo:wrong:build", {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(21);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(19);
   });
 
   it("keeps the columnar browser validation exact and bounded", async () => {

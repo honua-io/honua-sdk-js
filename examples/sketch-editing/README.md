@@ -4,10 +4,9 @@ Interactive draw/edit/delete on a MapLibre map through the SDK's
 `EditSketchWorkflowModel`, powered by the optional
 [terra-draw](https://terradraw.io) peer.
 
-This remains the focused sketching recipe. The planning and permitting journey
-owns the end-to-end search, analysis, edit, recovery, and export story; this
-sample stays narrowly responsible for terra-draw modes, snapping, history, and
-submission binding.
+This is the focused sketching recipe: terra-draw modes, snapping, history, and
+submission binding. [Edit workflow demo](../edit-workflow-demo/README.md) covers
+attributes, attachments, conflicts, and recovery.
 
 What it demonstrates:
 

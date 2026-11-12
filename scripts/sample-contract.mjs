@@ -134,7 +134,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
-  ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
   ["examples/pmtiles-static/mock-server.mjs", "demo:pmtiles-static:build"],
   ["examples/react-quickstart/mock-server.mjs", "demo:react-quickstart:build"],
   ["examples/realtime-incident-dashboard/mock-server.mjs", "demo:incident:build"],
@@ -144,7 +143,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/spatial-analytics-workbench/mock-server.mjs", "demo:spatial-analytics:build"],
   ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
   ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
-  ["examples/terrain-rgb-elevation/mock-server.mjs", "demo:terrain-elevation:build"],
 ]);
 const CHILD_PROCESS_LAUNCH_APIS = new Set([
   "exec",
@@ -388,18 +386,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       },
     },
   ],
-  [
-    "evidence:planning:live",
-    {
-      definition: "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
-      generatorPath: "scripts/planning-live-evidence.mjs",
-      dependencies: {
-        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "node scripts/clean-dist.mjs",
-        compile: "npm run clean --silent && tsc -p tsconfig.json",
-      },
-    },
-  ],
 ]);
 
 /**
@@ -436,7 +422,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "nl-map-control",
   "oauth-signin",
   "overture",
-  "planning-workbench",
   "pmtiles-static",
   "quickstart",
   "react-quickstart",
@@ -446,15 +431,12 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "spatial-analytics",
   "stac-browser",
   "temporal-playback",
-  "terrain-elevation",
   "unified-ops",
   "web-components",
 ];
 const REVIEWED_VALIDATION_SCRIPTS = new Set([
   ...REVIEWED_BUILD_TYPECHECK_DEMOS.flatMap((name) => [`demo:${name}:build`, `demo:${name}:typecheck`]),
   "demo:ai-spatial-builder:evidence",
-  "demo:kepler:build",
-  "demo:kepler:smoke",
   "demo:node-backend:smoke",
   "demo:node-backend:typecheck",
   "demo:overture:build:offline",
@@ -469,7 +451,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:migration-workbench",
   "test:playwright:overture",
-  "test:playwright:planning-workbench",
   "test:playwright:quickstart",
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
@@ -477,12 +458,10 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:stac-browser",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
-  /^npm --prefix examples\/kepler-analytics run build$/,
   /^npm run build --silent$/,
   /^node examples\/(?:ai-spatial-app-builder|spatial-analytics-workbench)\/evidence-check\.mjs$/,
   /^node examples\/node-backend-quickstart\/dist\/smoke\.js$/,
   /^node examples\/overture-geoparquet\/prepare-duckdb-extension\.mjs$/,
-  /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
   /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
   /^playwright test --config playwright\.first-map\.config\.mjs test\/playwright\/quickstart-map\.spec\.mjs$/,
   /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,

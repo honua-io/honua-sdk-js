@@ -2,7 +2,7 @@
 
 This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 31 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 29 executable examples
 
 ## Golden journey readiness
 
@@ -12,7 +12,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | --- | --- | --- |
 | `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
 | `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
-| `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
+| `planning-permitting` | planned | [`edit-workflow-demo`](#edit-workflow-demo) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | qualified | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
@@ -35,7 +35,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
 | <a id="coverages-wcs-basic"></a>[`coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff. |
-| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | planning-permitting | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | fixture | not-required | Runs a deterministic Honolulu buffer job and renders the verified polygon result. |
 | <a id="geoservices-source-app"></a>[`geoservices-source-app`](../../examples/geoservices-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
@@ -48,7 +48,6 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
-| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
@@ -60,6 +59,5 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="stac-imagery-browser"></a>[`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff. |
 | <a id="storytelling-25d-map"></a>[`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | lab | - | supported | merge | browser-lab | hybrid | legacy-unsafe | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
 | <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
-| <a id="terrain-rgb-elevation"></a>[`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Reads Terrain-RGB tiles for point elevation and route profiles. |
 
 The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.

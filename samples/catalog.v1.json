@@ -767,57 +767,6 @@
       ]
     },
     {
-      "id": "planning-permitting-workbench",
-      "title": "Planning and permitting workbench",
-      "summary": "Combines parcels, hazards, sketching, editing, and export in a task-oriented application.",
-      "tier": "flagship",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "rework",
-        "reason": "Retain as the primary complete-application journey and simplify its first task."
-      },
-      "sourcePath": "examples/planning-permitting-workbench",
-      "docsPath": "examples/planning-permitting-workbench/README.md",
-      "capabilities": [
-        "editing",
-        "map",
-        "planning",
-        "query"
-      ],
-      "protocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed Maui planning fixtures.",
-        "attribution": "Dataset attribution is visible per layer.",
-        "freshness": "Fixture version committed with the repository."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:planning-workbench:mock"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Mutation and print actions disable with explicit reasons when capabilities are absent.",
-      "validation": [
-        "npm run demo:planning-workbench:typecheck",
-        "npm run demo:planning-workbench:build"
-      ]
-    },
-    {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
       "summary": "Loads a static PMTiles archive without a Honua server.",
@@ -1373,57 +1322,6 @@
         "npm run demo:temporal-playback:typecheck",
         "npm run demo:temporal-playback:build"
       ]
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "title": "Terrain RGB elevation",
-      "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",
-      "tier": "advanced",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "merge",
-        "reason": "Combine point/profile proof with the imagery and 3D flagship."
-      },
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "docsPath": "examples/terrain-rgb-elevation/README.md",
-      "capabilities": [
-        "elevation",
-        "profile",
-        "terrain"
-      ],
-      "protocols": [
-        "terrain-rgb"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_TERRAIN_BASE_URL"
-        ],
-        "provenance": "Committed Oahu DEM fixture or configured terrain service.",
-        "attribution": "Elevation-source attribution displayed with results.",
-        "freshness": "Fixture asset version or live response time."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:terrain-elevation:mock"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Profile and map terrain expose independent capability failures.",
-      "validation": [
-        "npm run demo:terrain-elevation:typecheck",
-        "npm run demo:terrain-elevation:build"
-      ]
     }
   ],
   "siteMappings": [
@@ -1545,8 +1443,16 @@
     {
       "id": "planning-permitting",
       "route": "demo-planning-permitting.html",
-      "ownership": "sdk-projection",
-      "sampleId": "planning-permitting-workbench"
+      "ownership": "site-exception",
+      "exceptionReason": "The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned.",
+      "title": "Planning and permitting",
+      "summary": "Site-owned planning and permitting presentation.",
+      "tier": "reference",
+      "supportStatus": "deprecated",
+      "capabilities": [
+        "editing",
+        "planning"
+      ]
     },
     {
       "id": "public-safety",
