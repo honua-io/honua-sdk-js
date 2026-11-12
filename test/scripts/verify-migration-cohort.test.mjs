@@ -2,18 +2,26 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
 import { expectedSdkPublicationRef, migrationConsumerEnv, migrationNpmEnv, migratorCompatPackageName, parseArgs, recoverSdkPublicationRef, validateLock, verifyMigrationPublication } from "../../scripts/verify-migration-cohort.mjs";
+import { assignMigrationCohortError, migrationCohortFetch } from "../../scripts/lib/migration-cohort-github.mjs";
+
+// Drop a workflow token before any test reads it. The verifier process is
+// separate and still sees the step env; these tests supply their own synthetic.
+delete process.env.HONUA_MIGRATION_GITHUB_TOKEN;
+
+const SYNTHETIC_TOKEN = "ghp_SyntheticMigrationCohortToken0123456789";
 
 test("installed consumer processes receive runtime settings without publishing credentials or hooks", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "migration-consumer-env-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sensitiveKeys = [
     "ACTIONS_ID_TOKEN_REQUEST_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_URL", "ACTIONS_RUNTIME_TOKEN",
-    "GH_TOKEN", "GITHUB_TOKEN", "NODE_AUTH_TOKEN", "NPM_TOKEN", "AWS_ACCESS_KEY_ID",
+    "GH_TOKEN", "GITHUB_TOKEN", "HONUA_MIGRATION_GITHUB_TOKEN", "NODE_AUTH_TOKEN", "NPM_TOKEN", "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AZURE_CLIENT_SECRET", "GOOGLE_APPLICATION_CREDENTIALS",
     "NODE_OPTIONS", "NODE_PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
     "HONUA_BUILD_RESERVATION", "HONUA_BUILD_RESERVATION_TOKEN", "FUTURE_PUBLISH_CREDENTIAL",
@@ -53,6 +61,21 @@ test("only script-disabled npm commands retain the existing build admission leas
   });
   assert.equal(consumer.HONUA_BUILD_RESERVATION, undefined);
   assert.equal(consumer.HONUA_BUILD_RESERVATION_TOKEN, undefined);
+});
+
+test("npm commands do not inherit the migration GitHub token", () => {
+  const consumer = { PATH: "/runtime/bin", npm_config_registry: "https://registry.npmjs.org" };
+  const base = {
+    HONUA_MIGRATION_GITHUB_TOKEN: SYNTHETIC_TOKEN,
+    GITHUB_TOKEN: "ghp_AmbientTokenMustStayUnused0123456789xx",
+    GH_TOKEN: "ghp_AmbientGhTokenMustStayUnused012345678",
+  };
+  const env = migrationNpmEnv(consumer, base);
+  assert.equal(env.HONUA_MIGRATION_GITHUB_TOKEN, undefined);
+  assert.equal(env.GITHUB_TOKEN, undefined);
+  assert.equal(env.GH_TOKEN, undefined);
+  assert.equal(JSON.stringify(env).includes("Synthetic"), false);
+  assert.equal(JSON.stringify(env).includes("Ambient"), false);
 });
 
 const options = { sdkVersion: "0.2.4", migrateVersion: "0.3.0-beta.0", sdkSource: "registry" };
@@ -404,4 +427,265 @@ test("a valid recovery run cannot authorize corrupted installed package bytes", 
   assert.equal(proof.recoveryPublication, undefined);
   assert.ok(proof.artifacts[0].checks.some((check) => check.id === "dist-integrity" && check.status === "fail"));
   assert.ok([...fixture.fetches.keys()].every((url) => !url.includes("/actions/")));
+});
+
+const TOKEN_ENV = "HONUA_MIGRATION_GITHUB_TOKEN";
+
+async function withMigrationToken(token, run) {
+  const previous = process.env[TOKEN_ENV];
+  if (token === undefined) delete process.env[TOKEN_ENV];
+  else process.env[TOKEN_ENV] = token;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env[TOKEN_ENV];
+    else process.env[TOKEN_ENV] = previous;
+  }
+}
+
+function authorizationOf(init) {
+  return new Headers(init?.headers).get("authorization");
+}
+
+function observeFetch(inner) {
+  const observed = [];
+  const fetchImpl = async (url, init) => {
+    observed.push({
+      url: String(url),
+      authorization: authorizationOf(init),
+      redirect: init?.redirect ?? null,
+    });
+    return inner(url, init);
+  };
+  return { observed, fetchImpl };
+}
+
+test("a synthetic token authorizes tag resolution and recovery reads only", async () => {
+  await withMigrationToken(SYNTHETIC_TOKEN, async () => {
+    const fixture = publicationFixture();
+    const { observed, fetchImpl } = observeFetch(fixture.fetch);
+    const proof = await verifyMigrationPublication(fixture.item, { sdkVersion: "0.2.4" }, fetchImpl);
+    assert.equal(proof.status, "verified", JSON.stringify(proof.failures));
+    const github = observed.filter((entry) => entry.url.startsWith("https://api.github.com/"));
+    assert.ok(github.some((entry) => entry.url.endsWith("/commits/js-sdk-v0.2.4")));
+    assert.ok(github.some((entry) => entry.url.endsWith("/actions/runs/123/attempts/2")));
+    assert.ok(github.some((entry) => entry.url.includes("/attempts/2/jobs?")));
+    for (const entry of github) {
+      assert.equal(entry.authorization, `Bearer ${SYNTHETIC_TOKEN}`);
+      assert.equal(entry.redirect, "manual");
+    }
+    const elsewhere = observed.filter((entry) => !entry.url.startsWith("https://api.github.com/"));
+    assert.ok(elsewhere.some((entry) => entry.url.startsWith("https://registry.npmjs.org/")));
+    assert.ok(elsewhere.some((entry) => entry.url.includes("/attestations/")));
+    for (const entry of elsewhere) assert.equal(entry.authorization, null);
+    assert.equal(JSON.stringify(proof).includes(SYNTHETIC_TOKEN), false);
+    assert.equal(JSON.stringify(observed).includes("authorization"), true);
+  });
+});
+
+test("anonymous execution does not send a token, including an ambient GITHUB_TOKEN", async () => {
+  const ambient = "ghp_AmbientTokenMustStayUnused0123456789xx";
+  const savedGithub = process.env.GITHUB_TOKEN;
+  const savedGh = process.env.GH_TOKEN;
+  process.env.GITHUB_TOKEN = ambient;
+  process.env.GH_TOKEN = "ghp_AmbientGhTokenMustStayUnused012345678";
+  try {
+    await withMigrationToken(undefined, async () => {
+      const fixture = publicationFixture();
+      const { observed, fetchImpl } = observeFetch(fixture.fetch);
+      const proof = await verifyMigrationPublication(fixture.item, { sdkVersion: "0.2.4" }, fetchImpl);
+      assert.equal(proof.status, "verified", JSON.stringify(proof.failures));
+      assert.ok(observed.some((entry) => entry.url.includes("/commits/")));
+      assert.ok(observed.some((entry) => entry.url.includes("/actions/runs/")));
+      for (const entry of observed) assert.equal(entry.authorization, null);
+      assert.equal(JSON.stringify(observed).includes(ambient), false);
+      assert.equal(JSON.stringify(proof).includes(ambient), false);
+    });
+  } finally {
+    if (savedGithub === undefined) delete process.env.GITHUB_TOKEN;
+    else process.env.GITHUB_TOKEN = savedGithub;
+    if (savedGh === undefined) delete process.env.GH_TOKEN;
+    else process.env.GH_TOKEN = savedGh;
+  }
+});
+
+test("non-GitHub origins never receive the migration token, even from caller headers", async () => {
+  await withMigrationToken(SYNTHETIC_TOKEN, async () => {
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push({ url: String(url), authorization: authorizationOf(init) });
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    };
+    for (const url of [
+      "https://registry.npmjs.org/@honua%2Fsdk-js",
+      "https://registry.npmjs.org/-/npm/v1/attestations/@honua%2Fsdk-js@0.2.4",
+      "https://example.test/arbitrary",
+      "http://api.github.com/repos/honua-io/honua-sdk-js/commits/js-sdk-v0.2.4",
+      "https://api.github.com.evil.test/repos/honua-io/honua-sdk-js/commits/js-sdk-v0.2.4",
+      "https://user:pass@api.github.com/repos/honua-io/honua-sdk-js/commits/js-sdk-v0.2.4",
+    ]) {
+      await migrationCohortFetch(url, { headers: { authorization: `Bearer ${SYNTHETIC_TOKEN}` } }, { fetchImpl });
+    }
+    assert.equal(calls.length, 6);
+    for (const call of calls) assert.equal(call.authorization, null);
+    assert.equal(JSON.stringify(calls).includes(SYNTHETIC_TOKEN), false);
+  });
+});
+
+function listen(handler) {
+  const server = createServer(handler);
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      resolve({
+        origin: `http://127.0.0.1:${port}`,
+        close: () => new Promise((done, fail) => {
+          server.close((error) => error ? fail(error) : done());
+        }),
+      });
+    });
+  });
+}
+
+test("redirects stay on the trusted origin and use real fetch forwarding", async (t) => {
+  const seen = [];
+  let untrustedOrigin = "";
+  const trusted = await listen((request, response) => {
+    seen.push({ host: "trusted", url: request.url, authorization: request.headers.authorization ?? null });
+    if (request.url === "/same") {
+      response.writeHead(302, { location: "/landed" }).end();
+      return;
+    }
+    if (request.url === "/absolute") {
+      response.writeHead(302, { location: `${trusted.origin}/landed` }).end();
+      return;
+    }
+    if (request.url === "/away") {
+      response.writeHead(302, { location: `${untrustedOrigin}/steal` }).end();
+      return;
+    }
+    response.writeHead(200, { "content-type": "application/json" }).end('{"sha":"abc"}');
+  });
+  const untrusted = await listen((request, response) => {
+    seen.push({ host: "untrusted", url: request.url, authorization: request.headers.authorization ?? null });
+    response.writeHead(200, { "content-type": "application/json" }).end('{"stolen":true}');
+  });
+  untrustedOrigin = untrusted.origin;
+  t.after(() => trusted.close());
+  t.after(() => untrusted.close());
+
+  // Actual fetch follows the cross-origin redirect. A mock that returns one
+  // response and never contacts the next host would hide that.
+  seen.length = 0;
+  const followed = await fetch(`${trusted.origin}/away`, {
+    redirect: "follow",
+    headers: { authorization: `Bearer ${SYNTHETIC_TOKEN}` },
+  });
+  assert.equal(followed.status, 200);
+  assert.ok(seen.some((hit) => hit.host === "untrusted" && hit.url === "/steal"));
+
+  seen.length = 0;
+  const same = await migrationCohortFetch(`${trusted.origin}/same`, {}, {
+    apiOrigin: trusted.origin,
+    token: SYNTHETIC_TOKEN,
+  });
+  assert.equal(same.status, 200);
+  assert.deepEqual(seen.map((hit) => hit.authorization), [
+    `Bearer ${SYNTHETIC_TOKEN}`,
+    `Bearer ${SYNTHETIC_TOKEN}`,
+  ]);
+
+  seen.length = 0;
+  const absolute = await migrationCohortFetch(`${trusted.origin}/absolute`, {}, {
+    apiOrigin: trusted.origin,
+    token: SYNTHETIC_TOKEN,
+  });
+  assert.equal(absolute.status, 200);
+  assert.equal(seen.filter((hit) => hit.host === "untrusted").length, 0);
+  assert.deepEqual(seen.map((hit) => hit.authorization), [
+    `Bearer ${SYNTHETIC_TOKEN}`,
+    `Bearer ${SYNTHETIC_TOKEN}`,
+  ]);
+
+  seen.length = 0;
+  const away = await migrationCohortFetch(`${trusted.origin}/away`, {}, {
+    apiOrigin: trusted.origin,
+    token: SYNTHETIC_TOKEN,
+  });
+  assert.equal(away.ok, false);
+  assert.equal(seen.some((hit) => hit.host === "untrusted"), false);
+  assert.equal(seen.some((hit) => hit.authorization === `Bearer ${SYNTHETIC_TOKEN}`), true);
+  assert.equal(JSON.stringify(seen).includes(SYNTHETIC_TOKEN) || seen.length > 0, true);
+  const awayText = JSON.stringify(seen);
+  assert.equal(awayText.includes(`${untrusted.origin}`), false);
+});
+
+for (const status of [401, 403, 503, 504]) {
+  test(`HTTP ${status} on tag resolution fails closed without a retry`, async () => {
+    await withMigrationToken(SYNTHETIC_TOKEN, async () => {
+      let calls = 0;
+      const fetchImpl = async (url, init) => {
+        calls += 1;
+        assert.equal(String(url).includes("api.github.com"), true);
+        assert.equal(authorizationOf(init), `Bearer ${SYNTHETIC_TOKEN}`);
+        return new Response("unavailable", { status });
+      };
+      await assert.rejects(
+        () => verifyMigrationPublication({ name: "@honua/sdk-js", version: "0.2.4" }, { sdkVersion: "0.2.4" }, fetchImpl),
+        (error) => {
+          assert.match(error.message, new RegExp(`HTTP ${status}`));
+          assert.equal(error.message.includes(SYNTHETIC_TOKEN), false);
+          return true;
+        },
+      );
+      assert.equal(calls, 1);
+    });
+  });
+}
+
+test("HTTP 503 on publication recovery fails closed without a retry", async () => {
+  await withMigrationToken(SYNTHETIC_TOKEN, async () => {
+    const fixture = publicationFixture();
+    let recoveryCalls = 0;
+    const inner = fixture.fetch;
+    const fetchImpl = async (url, init) => {
+      if (String(url).includes("/actions/runs/")) {
+        recoveryCalls += 1;
+        assert.equal(authorizationOf(init), `Bearer ${SYNTHETIC_TOKEN}`);
+        return new Response("unavailable", { status: 503 });
+      }
+      return inner(url, init);
+    };
+    await assert.rejects(
+      () => verifyMigrationPublication(fixture.item, { sdkVersion: "0.2.4" }, fetchImpl),
+      (error) => {
+        assert.match(error.message, /HTTP 503/);
+        assert.equal(error.message.includes(SYNTHETIC_TOKEN), false);
+        return true;
+      },
+    );
+    assert.equal(recoveryCalls, 1);
+  });
+});
+
+test("receipts and thrown diagnostics omit the synthetic token", async () => {
+  await withMigrationToken(SYNTHETIC_TOKEN, async () => {
+    const receipt = {};
+    assignMigrationCohortError(receipt, new Error(`cannot resolve tag: HTTP 504 ${SYNTHETIC_TOKEN}`));
+    assert.match(receipt.error, /HTTP 504/);
+    assert.equal(receipt.error.includes(SYNTHETIC_TOKEN), false);
+    await assert.rejects(
+      () => migrationCohortFetch("https://api.github.com/repos/honua-io/honua-sdk-js/commits/js-sdk-v0.2.4", {}, {
+        fetchImpl: () => {
+          throw new Error(`connect ${SYNTHETIC_TOKEN}`);
+        },
+      }),
+      (error) => {
+        assert.match(error.message, /connect/);
+        assert.equal(error.message.includes(SYNTHETIC_TOKEN), false);
+        return true;
+      },
+    );
+  });
 });

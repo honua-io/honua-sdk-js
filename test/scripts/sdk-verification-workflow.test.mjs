@@ -498,9 +498,83 @@ describe("forks and untrusted heads cannot publish reusable evidence", () => {
     // the default branch's cache scope. Re-adding dispatch needs a ref
     // allow-list or caching disabled in that path.
     assert.equal("workflow_dispatch" in graph.on, false, "manual dispatch would let the actor choose the checked-out ref");
-    assert.deepEqual(graph.permissions, { contents: "read" });
+    assert.deepEqual(graph.permissions, { actions: "read", contents: "read" });
     for (const [jobId, job] of Object.entries(graph.jobs)) {
       assert.equal(job.permissions, undefined, `${jobId} must not widen the workflow's read-only token`);
+    }
+  });
+
+  it("authenticates migration-cohort GitHub reads with a read-only token on that step only", () => {
+    const tokenEnv = "HONUA_MIGRATION_GITHUB_TOKEN";
+    const tokenValue = "${{ github.token }}";
+    const publish = readWorkflow(".github/workflows/publish-js-sdk.yml");
+    const pin = readWorkflow(".github/workflows/mcp-pin-live.yml");
+    const allSteps = (document) => Object.values(document.jobs).flatMap((job) => job.steps ?? []);
+    const assertNoWritePermissions = (permissions, allowedWrite = []) => {
+      assert.equal(permissions.actions, "read");
+      assert.equal(permissions.contents, "read");
+      for (const [key, value] of Object.entries(permissions)) {
+        if (value === "write") {
+          assert.ok(allowedWrite.includes(key), `${key} write is outside the migration read scope`);
+        }
+      }
+    };
+
+    assert.equal(ci.permissions.actions, undefined);
+    assert.equal(ci.permissions.contents, "read");
+    assertNoWritePermissions(ci.jobs["js-sdk"].permissions);
+    for (const [jobId, job] of Object.entries(ci.jobs)) {
+      if (jobId === "js-sdk") continue;
+      assert.notEqual(job.permissions?.actions, "read", `${jobId} must not gain actions read for this verifier`);
+    }
+    const ciSteps = allSteps(ci).filter((step) => step.env?.[tokenEnv]);
+    assert.deepEqual(ciSteps.map((step) => step.name), [
+      "Verify packed SDK migration cohort with default npm resolution",
+    ]);
+    assert.equal(ciSteps[0].env[tokenEnv], tokenValue);
+    assert.match(ciSteps[0].run, /verify:migration-cohort:prepared/);
+
+    assertNoWritePermissions(graph.permissions);
+    const graphSteps = allSteps(graph).filter((step) => step.env?.[tokenEnv]);
+    assert.deepEqual(graphSteps.map((step) => step.name), [
+      "Verify packed SDK migration cohort with default npm resolution",
+    ]);
+    assert.equal(graphSteps[0].env[tokenEnv], tokenValue);
+
+    const publishJob = publish.jobs["publish-js-packages"];
+    assertNoWritePermissions(publishJob.permissions, ["id-token"]);
+    const publishNames = publishJob.steps.map((step) => step.name);
+    const prerequisite = publishNames.indexOf("Verify publication prerequisites");
+    const cohort = publishNames.indexOf("Verify packed SDK migration cohort");
+    const publishStep = publishNames.indexOf("Publish split packages");
+    assert.ok(prerequisite >= 0 && prerequisite < cohort && cohort < publishStep);
+    assert.equal(publishJob.steps[cohort].env[tokenEnv], tokenValue);
+    assert.equal(publishJob.steps[publishStep].env?.[tokenEnv], undefined);
+    assert.equal(publishJob.steps[publishStep].run.includes("verify:migration-cohort"), false);
+    assert.equal(publishJob.steps[prerequisite].env?.[tokenEnv], undefined);
+    const registryJob = publish.jobs["verify-published-release"];
+    assertNoWritePermissions(registryJob.permissions);
+    const registrySteps = registryJob.steps.filter((step) => step.env?.[tokenEnv]);
+    assert.deepEqual(registrySteps.map((step) => step.name), [
+      "Verify installed published migration dependency cohort",
+    ]);
+    assert.equal(registrySteps[0].env[tokenEnv], tokenValue);
+    assert.match(registrySteps[0].run, /verify-migration-cohort\.mjs/);
+
+    assertNoWritePermissions(pin.jobs["verify-pin"].permissions);
+    const pinSteps = allSteps(pin).filter((step) => step.env?.[tokenEnv]);
+    assert.deepEqual(pinSteps.map((step) => step.name), [
+      "Verify the published migration cohort and installed forwarding surfaces",
+    ]);
+    assert.equal(pinSteps[0].env[tokenEnv], tokenValue);
+    assert.match(pinSteps[0].run, /verify:migration-cohort:registry/);
+
+    for (const document of [ci, graph, publish, pin]) {
+      for (const step of allSteps(document)) {
+        if (step.env?.[tokenEnv] === undefined) continue;
+        assert.equal(step.env[tokenEnv], tokenValue);
+        assert.match(step.run, /migration-cohort/);
+      }
     }
   });
 

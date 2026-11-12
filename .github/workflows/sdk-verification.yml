@@ -53,7 +53,12 @@ on:
 # Read-only for every job, and this workflow is `pull_request`, never
 # `pull_request_target` (REQ-008): a fork's code therefore never executes with a
 # write token and can never publish evidence anything downstream trusts.
+# actions:read covers migration-cohort recovery of Actions run attempts and
+# jobs. contents:read remains the tag and commit permission. Specifying any
+# permission sets the other scopes to none, so both are listed here.
+# https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
 permissions:
+  actions: read
   contents: read
 
 # Exact-head supersession (REQ-007): a new push to the same pull request cancels
@@ -704,6 +709,8 @@ jobs:
           npx playwright install chromium
 
       - name: Verify packed SDK migration cohort with default npm resolution
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:prepared
 
       - name: Upload migration cohort receipt and installed lock
