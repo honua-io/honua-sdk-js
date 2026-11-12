@@ -1,5 +1,6 @@
 /** Internal raw OGC API Records metadata projection for connect(). */
 
+import { discoverOgcVectorTemplate } from "./connect-ogc-vector-template.js";
 import type { ConnectDiscoverySourceSnapshot, ConnectOptions } from "./connect.js";
 import type {
   DiscoveryCacheIdentity,
@@ -180,7 +181,9 @@ export interface OgcRenderDiscoveryResult {
  * reviewed `Source` executes whether the tiles are served by the Honua facade
  * (`/ogc/tiles`) or a third-party root. Performs three bounded metadata
  * requests — landing, conformance, and the OGC API Common collections list —
- * and derives effective capabilities only from advertised conformance
+ * plus advertised vector tileset lists and at most one metadata link per
+ * supported tileset. Optional tileset failures leave the source discoverable
+ * without a native rendering template. Effective capabilities come from advertised conformance
  * intersected against the render-only Tiles adapter surface (`render`,
  * `tiles`); a service that advertises no Tiles conformance discovers a
  * structured `not-advertised` decision rather than an adapter default.
@@ -201,7 +204,7 @@ export async function discoverOgcTilesSources(
     client.listOgcCollections({ ...request, layout: ogcCollectionsLayout(basePath) }),
   ]);
   throwIfAborted(options.signal);
-  return projectRenderSources(
+  const discovered = projectRenderSources(
     "ogc-tiles",
     TILES_ADAPTER_SCOPE,
     identity.endpoint,
@@ -212,6 +215,20 @@ export async function discoverOgcTilesSources(
     collections,
     "OGC API Tiles",
   );
+  const sources: ConnectDiscoverySourceSnapshot[] = [];
+  const supportsTiles = negotiateOgcCapabilities("ogc-tiles", conformance).has("tiles");
+  for (const source of discovered.sources) {
+    const collection = collections.collections.find((entry) => entry.id === source.id)!;
+    const tileUrlTemplate = supportsTiles
+      ? await discoverOgcVectorTemplate(client, collection, { basePath, signal: options.signal })
+      : undefined;
+    sources.push(
+      tileUrlTemplate
+        ? Object.freeze({ ...source, locator: Object.freeze({ ...source.locator, tileUrlTemplate }) })
+        : source,
+    );
+  }
+  return Object.freeze({ ...discovered, sources: Object.freeze(sources) });
 }
 
 /**

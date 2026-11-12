@@ -8,6 +8,7 @@
 
 import type { Source } from "../contract/types.js";
 import { type HonuaErrorOptions, HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js";
+import { isOgcVectorTileTemplate } from "../core/ogc-vector-tile-template.js";
 import { canonicalStringify, toJsonValue } from "../query-planner/canonical.js";
 import { queryIrSourceIdentity } from "../query-planner/ir.js";
 import { hashQueryPlanV1 } from "../query-planner/planner.js";
@@ -293,7 +294,10 @@ export async function mountAutomaticSourceToMapLibre<T>(
   if (!selected) {
     throw new HonuaAutomaticMapLibreStrategyError(
       "no-eligible-strategy",
-      "The strategy plan has no eligible selection.",
+      `The strategy plan has no eligible selection. ${plan.diagnostics
+        .filter((diagnostic) => diagnostic.code !== "protocol-mismatch")
+        .map((diagnostic) => `${diagnostic.strategy}: ${diagnostic.message}`)
+        .join(" ")}`,
       {
         sourceId: plan.sourceId,
         diagnostics: plan.diagnostics,
@@ -411,6 +415,15 @@ function evaluateCandidate<T>(
       return reject("protocol-mismatch", "The protocol is not a native vector-tile protocol.");
     }
     if (!source.capabilities.has("tiles")) return reject("capability-mismatch", "The source does not advertise tiles.");
+    if (
+      source.descriptor.protocol === "ogc-tiles" &&
+      !isOgcVectorTileTemplate(source.descriptor.locator.tileUrlTemplate)
+    ) {
+      return reject(
+        "missing-metadata",
+        "OGC vector rendering requires a discovered WebMercatorQuad MVT item template.",
+      );
+    }
     if (!safeHttpUrl(source.descriptor.locator.url)) return reject("unsafe-url", "The vector tile URL is unsafe.");
     if (!nonEmpty(options.sourceLayer))
       return reject("missing-metadata", "Vector rendering requires sourceLayer metadata.");
@@ -479,7 +492,11 @@ function nativeProjection<T>(
   } else {
     spec = Object.freeze({
       type: "vector",
-      tiles: Object.freeze([source.descriptor.locator.url]),
+      tiles: Object.freeze([
+        source.descriptor.protocol === "ogc-tiles"
+          ? source.descriptor.locator.tileUrlTemplate!
+          : source.descriptor.locator.url,
+      ]),
       ...(source.descriptor.attribution ? { attribution: source.descriptor.attribution } : {}),
     });
   }
