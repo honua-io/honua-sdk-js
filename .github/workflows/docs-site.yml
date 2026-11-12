@@ -1,50 +1,18 @@
 name: Docs site
 
 # Build and publish the SDK documentation site (guides + TypeDoc API reference +
-# demo gallery) to GitHub Pages on every trunk merge. Decision record:
-# docs/decisions/sdk-docs-hosting.md.
+# demo gallery). Daily and manual runs stay strict: a trunk push deployed before
+# Release Please created the immutable SDK tag and before derived artifacts were
+# regenerated. Release automation still dispatches this workflow.
+# Decision record: docs/decisions/sdk-docs-hosting.md.
 
 on:
-  push:
-    branches:
-      - trunk
-    paths:
-      - "README.md"
-      - "INSTALL.md"
-      - "docs/**"
-      - "src/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.docs.json"
-      - ".release-please-manifest.json"
-      - "release-please-config.json"
-      - "CHANGELOG.md"
-      - "samples/catalog.v2.json"
-      - "samples/contract/v2/**"
-      - "samples/dist/honua-site-samples.v2.json"
-      - "samples/dist/capability-sample-matrix.v1.json"
-      - "samples/dist/golden-journey-visual-evidence.v1.json"
-      - "samples/dist/honua-site-consumer-handoff.v1.json"
-      - "scripts/build-docs-site.mjs"
-      - "scripts/docs-api.mjs"
-      - "scripts/check-docs-site-links.mjs"
-      - "scripts/check-docs-versions-site.mjs"
-      - "scripts/docs-versions.mjs"
-      - "scripts/check-docs-release.mjs"
-      - "config/docs-unpublished-releases.json"
-      - "scripts/generate-llms-txt.mjs"
-      - "scripts/generate-comparison-page.mjs"
-      - "scripts/generate-mcp-eval-scorecard.mjs"
-      - "scripts/lib/mcp-eval-scorecard.mjs"
-      - "mcp/evals/runs/**"
-      - "scripts/lib/docs-gallery-client.mjs"
-      - "scripts/lib/docs-gallery.mjs"
-      - "scripts/sample-contract.mjs"
-      - "test/scripts/docs-gallery.test.mjs"
-      - ".github/workflows/docs-site.yml"
+  schedule:
+    # After the 07:23 UTC derived-artifact regeneration, outside the push-before-tag race.
+    - cron: "47 9 * * *"
   workflow_dispatch:
 
-# Allow the workflow token to publish to Pages; no additional secrets needed.
+# Pages publish token. Issue writes belong only to the failure reporter.
 permissions:
   contents: read
   pages: write
@@ -62,14 +30,13 @@ jobs:
   build:
     name: Build site
     runs-on: ubuntu-latest
-    # Derived-artifact decoupling (#677): llms.txt, docs/comparison.md, and the
-    # sample gallery projection are regenerated on trunk by the
-    # regenerate-derived-artifacts workflow. Its commit re-triggers this job on
-    # the paths below, so the site is (re)built from fresh artifacts. The merge
-    # commit that lands before regeneration must not fail these freshness gates,
-    # so they run relaxed here.
-    env:
-      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.event_name == 'push' && github.ref == 'refs/heads/trunk' && '1' || '' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    # Schedule and workflow_dispatch stay strict. The old relax applied only to
+    # the trunk push that landed before derived-artifact regeneration. That
+    # push is no longer a trigger, and these runs must not inherit it.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -114,7 +81,7 @@ jobs:
 
       - name: Verify documentation release tags
         env:
-          # Release Please creates the tag from the same trunk push. Tolerate
+          # A manual or release dispatch can still race tag creation. Tolerate
           # that bounded race, but never publish a selector with a missing tag.
           HONUA_DOCS_TAG_VERIFY_ATTEMPTS: "12"
         run: npm run docs:versions:verify-tags
@@ -148,6 +115,10 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -169,3 +140,59 @@ jobs:
           HONUA_DOCS_DEPLOY_VERIFY_ATTEMPTS: "12"
           HONUA_DOCS_EXPECT_SOURCE_REVISION: ${{ github.sha }}
         run: node scripts/check-docs-release.mjs hosted
+
+  report-failure:
+    name: Report deployment failure
+    needs: [build, deploy]
+    if: "${{ !cancelled() && (needs.build.result == 'failure' || needs.deploy.result == 'failure') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # One queued writer. Search-then-create would otherwise duplicate the issue.
+    concurrency:
+      group: docs-site-failure-report
+      cancel-in-progress: false
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the deployment failure issue
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title='Docs site deployment failure'
+          case "${BUILD_RESULT}" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'invalid build result' >&2; exit 1 ;;
+          esac
+          case "${DEPLOY_RESULT}" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'invalid deploy result' >&2; exit 1 ;;
+          esac
+          repository="${GITHUB_REPOSITORY:-}"
+          run_id="${GITHUB_RUN_ID:-}"
+          server_url="${GITHUB_SERVER_URL:-}"
+          [[ "${repository}" =~ ^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?/[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$ ]] || { echo 'invalid repository' >&2; exit 1; }
+          [[ "${run_id}" =~ ^[0-9]+$ ]] || { echo 'invalid run id' >&2; exit 1; }
+          [[ "${server_url}" == 'https://github.com' ]] || { echo 'invalid server url' >&2; exit 1; }
+          run_url="${server_url}/${repository}/actions/runs/${run_id}"
+          body=$(printf 'Build result: %s\nDeploy result: %s\nRun: %s\n' "${BUILD_RESULT}" "${DEPLOY_RESULT}" "${run_url}")
+          query=$(jq -nr --arg repo "${repository}" --arg title "${title}" '"repo:\($repo) is:issue in:title \"\($title)\""')
+          response=$(gh api --method GET search/issues --raw-field "q=${query}" --raw-field per_page=100)
+          printf '%s' "${response}" | jq -e '.items | type == "array"' >/dev/null
+          incomplete=$(printf '%s' "${response}" | jq -r '.incomplete_results | if . == true then "true" else "false" end')
+          number=$(printf '%s' "${response}" | jq -r --arg title "${title}" '[.items[] | select(.title == $title and (.pull_request | not))] | sort_by(.number) | .[0].number // empty')
+          if [[ -z "${number}" && "${incomplete}" == 'true' ]]; then
+            echo 'issue search incomplete; refusing to create a duplicate' >&2
+            exit 1
+          fi
+          if [[ -n "${number}" ]]; then
+            [[ "${number}" =~ ^[0-9]+$ ]] || { echo 'invalid issue number' >&2; exit 1; }
+            jq -n --arg title "${title}" --arg body "${body}" '{title:$title, body:$body, state:"open"}' \
+              | gh api --method PATCH "repos/${repository}/issues/${number}" --input -
+          else
+            jq -n --arg title "${title}" --arg body "${body}" '{title:$title, body:$body}' \
+              | gh api --method POST "repos/${repository}/issues" --input -
+          fi

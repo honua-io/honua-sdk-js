@@ -164,6 +164,9 @@ jobs:
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
 
+      - name: Test docs site deployment policy
+        run: node --test test/scripts/docs-site-workflow.test.mjs
+
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
 
