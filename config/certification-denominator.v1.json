@@ -90,7 +90,7 @@
     "browsers": [
       "chromium"
     ],
-    "evidenceDigest": "sha256:5b3b4cc4e3c34ea10c41fdebb0fa27b57c7259a9230b53da94220ab5b9cbfc74",
+    "evidenceDigest": "sha256:32bf6495ce83af86aff9ab564124acffa33ac19047eff158c186c764f0576b5b",
     "maturityDigest": "sha256:513fb375243700b82ce78151cd156f3e27f89b716d0d36f3ac8dbdc15a5bfdc2"
   },
   "inputs": [
@@ -102,7 +102,7 @@
     {
       "path": "config/app-platform-reference-qualification.v1.json",
       "bytes": 6811,
-      "sha256": "sha256:272a6d1f0cae704b78837b1f41e272325376e6bc55e17fb1cafcbe626bcaf90f"
+      "sha256": "sha256:429f194a64256e7fb1be3bc02b68c17d620f86d2be49ec7befdd4071d6664bfd"
     },
     {
       "path": "config/capability-crosswalk.v1.json",
@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83301,
-      "sha256": "sha256:0dcbe9e5031e8e752067d98161bdf526fed420685bd660e27809eb266b97b214"
+      "bytes": 83369,
+      "sha256": "sha256:ae7c3fd51118beb9f541370caec913ce0221e3cbc297591f7f92e862029adb56"
     }
   ],
   "profiles": {
@@ -533,7 +533,7 @@
     }
   },
   "digests": {
-    "inputs": "sha256:7eebf1c0abd971bcb7d475fb2942c3a6870a271236a054012d46668b5dc4c579",
+    "inputs": "sha256:575717b7f5be3c7f0e130cc86d6f363456f7d8184e37ba9729722be557a1330c",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
     "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
     "rows": "sha256:6dce302f6687ef355c8bbc13b09f5c4600e3f150045721ea8c36ab7831287f6e"

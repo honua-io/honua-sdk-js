@@ -41,6 +41,41 @@ protocol evidence is deliberately separate and remains `not-recorded` until a
 run gated by `HONUA_APP_PLATFORM_LIVE_ENABLED=true` records endpoint, version,
 auth mode, observation date, expiry, and receipt paths.
 
+## Observation receipt: November 12, 2026
+
+The automated evidence was rerun on SDK commit
+`9ddd349c11cde4000379086ee21371e6dc2f8e71` before renewing the 90-day window.
+All commands used the repository build-slot runner and prepared-build ownership
+checks. The input digest was
+`85b389d957b3e99f8cc48bfa4a32293f850721a92beec3126df625bc56d0365b`.
+
+| Observation | Result | Run receipt |
+| --- | --- | --- |
+| Eight cited unit suites | 195 tests passed | `04d24afd-dbf3-40d9-9fcd-c2b1d86c6172` |
+| Four cited Chromium suites, including CSP and WeakRef disposal | 13 tests passed | `d9ab87ad-a913-4837-963d-78e178052635` |
+| Installed split-package consumers and both reference host lanes | Passed; first use 1,674 ms, interaction 1 ms, 10 DOM nodes, zero egress attempts | `66ffd2c6-699d-48d1-ab27-46a7d056e86b` |
+| Published entrypoint bundle budgets | All 50 passed; web components 349.7 KiB gzip against the 364,681-byte ceiling | `npm run verify:bundle-budgets` |
+
+The unit and browser builds had distribution digest
+`67890b3eae311c2c3b2570359f3aaecf7f6e004d6ca07d7c39953306b7895e61`.
+The installed-consumer run adopted the split-package build with digest
+`2a2d74163e4e51d14c7b53a5e560c0bed2581e0c47d7e4b4c734bf73973556d4`.
+
+Reproduce the observations before renewing the input timestamps, then run the
+generator and drift check above:
+
+```sh
+npm test -- test/web-components-localization-german.test.ts test/web-components-rtl.test.ts test/web-components-csp.test.ts test/web-components-application-context.test.ts test/web-components-lifecycle-gates.test.ts test/offline-status.test.ts test/feature-inspection-qualification.test.ts test/web-components-feature-editor-element.test.ts
+npm run test:playwright:prepared -- test/playwright/app-platform-reference-components.spec.mjs test/playwright/web-components-basic.spec.mjs test/playwright/web-components-csp.spec.mjs test/playwright/web-components-memory-leak.spec.mjs
+npm run verify:split-packages:prepared
+npm run verify:bundle-budgets
+```
+
+This renewal retains the five open component gates and the open retained-heap
+budget. WeakRef collectibility does not measure retained bytes per cycle.
+Accessibility qualification and the live-service lane have no new observations;
+coverage remains the two named components and Chromium.
+
 <!-- app-platform-reference-qualification:start -->
 
 | Supported component | Maturity | Unit / contract | Browser artifact | Packed journey | Open gates |
@@ -48,7 +83,7 @@ auth mode, observation date, expiry, and receipt paths.
 | `honua-feature-inspection` | `production-tier` | 1 | 1 | 1 | 2 (`reference.automated-axe`, `reference.manual-screen-reader`) |
 | `honua-feature-editor` | `production-tier` | 1 | 1 | 1 | 3 (`reference.automated-axe`, `reference.browser-functional`, `reference.manual-screen-reader`) |
 
-Evidence observed **2026-08-14T12:00:00.000Z** and expires **2026-11-12T12:00:00.000Z**. The fixture is `packed` and zero-egress is `true`.
+Evidence observed **2026-11-12T19:16:30.625Z** and expires **2027-02-10T19:16:30.625Z**. The fixture is `packed` and zero-egress is `true`.
 
 Live lane: `not-recorded` (gate: `HONUA_APP_PLATFORM_LIVE_ENABLED=true`).
 Open budget gates: **1**.

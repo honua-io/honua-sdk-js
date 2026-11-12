@@ -378,6 +378,8 @@ export interface SourceLocator {
   basePath?: string;
   /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
   tileMatrixSetId?: string;
+  /** Discovered WebMercatorQuad vector item URL, normalized to MapLibre XYZ placeholders. */
+  tileUrlTemplate?: string;
   /** OGC API Maps / Tiles style identifier for styled-output endpoints. */
   styleId?: string;
   /** Exact, capability-reviewed raster operation selected by `connect()`. */

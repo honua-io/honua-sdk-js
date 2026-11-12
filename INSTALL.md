@@ -8,7 +8,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 26 experimental,
+It projects 22 supported (documented below as stable), 27 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -81,6 +81,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
 | `@honua/sdk-js/zarr` | Experimental Honua Server `/api/v1` Zarr registration and metadata inspection, a byte-bounded datacube PNG tile handoff, and a bounded direct reader for reviewed static or object-store chunks. The server facade does not read object stores itself ([guide](./docs/zarr.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
+| `@honua/sdk-js/geoparquet/node` | Native Node DuckDB factory for local and HTTP GeoParquet; requires the optional `@duckdb/node-api` peer ([guide](./docs/geoparquet.md#node-quickstart)). |
 | `@honua/sdk-js/columnar-workflow` | Bounded GeoParquet inspection and query planning plus Honua Arrow and Parquet feature-query workflows, with explicit decoder, memory, transfer, and handoff limits ([guide](./docs/columnar-workflow-capability-matrix.md)). |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |

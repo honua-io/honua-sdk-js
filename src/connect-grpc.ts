@@ -32,7 +32,6 @@ import {
   type GeoServicesDiscoveryResult,
   capabilitiesFromMetadata,
   layerUrl,
-  mapWithConcurrency,
   provenanceFor,
 } from "./connect-geoservices.js";
 import type { ConnectDiscoverySourceSnapshot, ConnectSourceSchemaProjection } from "./connect.js";
@@ -41,6 +40,7 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } fro
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import { mapWithConcurrency } from "./core/map-with-concurrency.js";
 import type { HonuaLayerMetadata, HonuaQueryResponse } from "./core/types.js";
 
 /** The full capability surface Honua gRPC discovery may ever advertise. */

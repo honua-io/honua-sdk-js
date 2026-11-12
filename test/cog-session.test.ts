@@ -93,6 +93,24 @@ function fixtureDecoder(overrides: Partial<CogDecoder> = {}): CogDecoder {
 }
 
 describe("direct STAC-to-COG S1 boundary", () => {
+  it("binds the default browser fetch receiver while preserving range requests", async () => {
+    const previous = globalThis.fetch;
+    const requests: Array<{ range: string; init: RequestInit }> = [];
+    const rangeFetch = partialRangeFetch(fixtureBytes, requests);
+    globalThis.fetch = function (this: unknown, input, init) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return rangeFetch(input, init);
+    };
+    try {
+      const session = await openStacCogAsset(candidate(), { decoderFactory: async () => fixtureDecoder() });
+      await session.inspect();
+      expect(requests.map((request) => request.range)).toEqual(["bytes=0-7", "bytes=32-35"]);
+      await session.dispose();
+    } finally {
+      globalThis.fetch = previous;
+    }
+  });
+
   it("consumes the evidence-classified COG candidate emitted by static STAC discovery", async () => {
     const item = {
       stac_version: "1.1.0",

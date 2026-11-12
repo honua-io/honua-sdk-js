@@ -2,9 +2,11 @@
   "format": "honua.component-versions/v1",
   "component": "honua-sdk-js",
   "contractVersions": {
-    "connect-parity": "1.0"
+    "connect-parity": "1.0",
+    "connect-source-descriptor": "4.0"
   },
   "schemaVersions": {
+    "capability-sample-matrix": "2.0",
     "conformance": "1.0.6",
     "diagnostic-bundle": "1.0",
     "certification-evidence-receipt": "2.0"

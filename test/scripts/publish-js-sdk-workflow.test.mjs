@@ -9,6 +9,8 @@ import { parse } from "yaml";
 
 const workflow = parse(fs.readFileSync(new URL("../../.github/workflows/publish-js-sdk.yml", import.meta.url), "utf8"));
 const steps = workflow.jobs["publish-js-packages"].steps;
+const prerequisite = steps.find((step) => step.name === "Verify publication prerequisites").run;
+const cohort = steps.find((step) => step.name === "Verify packed SDK migration cohort").run;
 const publish = steps.find((step) => step.name === "Publish split packages").run;
 const summary = steps.find((step) => step.name === "Publish summary").run;
 const packages = ["honua-sdk", "honua-sdk-client-compat", "honua-react", "honua-geometry", "honua-app-platform"];
@@ -115,15 +117,26 @@ for (const dryRun of [true, false]) {
 
 it("stops before publishing when client-pair verification fails", (t) => {
   const { run, calls } = fixture(t, false, true);
-  assert.notEqual(run(publish).status, 0);
+  assert.notEqual(run(prerequisite).status, 0);
   assert.equal(calls().some((call) => call.command === "publish"), false);
+  assert.equal(publish.includes("verify:client-pair"), false);
+  assert.equal(publish.includes("verify:migration-cohort"), false);
 });
 
 it("stops before any package publication when migration cohort verification fails", (t) => {
   const { run, calls } = fixture(t, false, false, false, true);
-  assert.notEqual(run(publish).status, 0);
+  const names = steps.map((step) => step.name);
+  const prerequisiteIndex = names.indexOf("Verify publication prerequisites");
+  const cohortIndex = names.indexOf("Verify packed SDK migration cohort");
+  const publishIndex = names.indexOf("Publish split packages");
+  assert.ok(prerequisiteIndex >= 0 && prerequisiteIndex < cohortIndex && cohortIndex < publishIndex);
+  assert.equal(steps[cohortIndex].env.HONUA_MIGRATION_GITHUB_TOKEN, "${{ github.token }}");
+  assert.equal(steps[prerequisiteIndex].env?.HONUA_MIGRATION_GITHUB_TOKEN, undefined);
+  assert.equal(steps[publishIndex].env?.HONUA_MIGRATION_GITHUB_TOKEN, undefined);
+  assert.notEqual(run(cohort).status, 0);
   assert.equal(calls().filter((call) => call.target === "verify:migration-cohort:prepared").length, 1);
   assert.equal(calls().some((call) => call.command === "publish"), false);
+  assert.equal(publish.includes("verify:migration-cohort"), false);
 });
 
 for (const dryRun of [true, false]) {
