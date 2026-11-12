@@ -76,6 +76,9 @@ const NEXT_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-proje
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const CAPABILITY_SAMPLE_MATRIX_V2_PATH = "samples/dist/capability-sample-matrix.v2.json";
+const CAPABILITY_SAMPLE_MATRIX_V2_SCHEMA_PATH =
+  "schemas/capability-sample-matrix.v2.schema.json";
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
@@ -3737,9 +3740,10 @@ function normalizedPackageExports(packageJson, supportTruth) {
   return exportSubpaths.map((subpath) => {
     const target = packageJson.exports[subpath];
     invariant(target && typeof target === "object" && !Array.isArray(target), `${subpath}: export target must be an object`);
+    const runtimeCondition = subpath === "./geoparquet/node" ? "node" : "default";
     invariant(
-      Object.keys(target).sort().join(",") === "default,types",
-      `${subpath}: export target must declare exactly default and types`,
+      Object.keys(target).sort().join(",") === `${runtimeCondition},types`,
+      `${subpath}: export target must declare exactly ${runtimeCondition} and types`,
     );
     for (const [condition, value] of Object.entries(target)) {
       invariant(typeof value === "string", `${subpath}: ${condition} export target must be a string`);
@@ -3751,11 +3755,11 @@ function normalizedPackageExports(packageJson, supportTruth) {
       );
     }
     invariant(target.types.endsWith(".d.ts"), `${subpath}: types export target must end in .d.ts`);
-    invariant(target.default.endsWith(".js"), `${subpath}: default export target must end in .js`);
+    invariant(target[runtimeCondition].endsWith(".js"), `${subpath}: ${runtimeCondition} export target must end in .js`);
     return {
       subpath,
       lifecycle: lifecycleBySubpath.get(subpath),
-      targets: { types: target.types, default: target.default },
+      targets: { types: target.types, [runtimeCondition]: target[runtimeCondition] },
     };
   });
 }
@@ -5918,8 +5922,8 @@ export function generateCapabilitySampleMatrix(catalog, packageJson, supportTrut
     exports: packageJson.exports,
   };
   return {
-    format: "honua.site.sdk-capability-sample-matrix.v1",
-    schemaVersion: 1,
+    format: "honua.site.sdk-capability-sample-matrix.v2",
+    schemaVersion: 2,
     sdk: { package: packageJson.name, version: packageJson.version },
     inputs: {
       supportTruth: {
@@ -5976,6 +5980,24 @@ export function generateCapabilitySampleMatrix(catalog, packageJson, supportTrut
     packageEntrypoints,
     gaps,
   };
+}
+
+// Existing site handoffs consume only the v1 default-export inventory. Preserve
+// the complete package input digest; v2 is the authoritative conditional inventory.
+export function projectLegacyCapabilitySampleMatrix(matrix) {
+  if (matrix.schemaVersion === 1) return matrix;
+  invariant(
+    matrix.format === "honua.site.sdk-capability-sample-matrix.v2" && matrix.schemaVersion === 2,
+    "legacy capability projection requires matrix v1 or v2",
+  );
+  const legacy = structuredClone(matrix);
+  legacy.format = "honua.site.sdk-capability-sample-matrix.v1";
+  legacy.schemaVersion = 1;
+  legacy.packageEntrypoints = legacy.packageEntrypoints.filter((entrypoint) => "default" in entrypoint.targets);
+  const subpaths = new Set(legacy.packageEntrypoints.map((entrypoint) => entrypoint.subpath));
+  legacy.dimensions.packageEntrypoints = [...subpaths];
+  legacy.gaps = legacy.gaps.filter((gap) => gap.targetType !== "package-entrypoint" || subpaths.has(gap.targetId));
+  return legacy;
 }
 
 function evidenceEntryFromBinding(binding) {
@@ -6155,7 +6177,10 @@ async function validateEvidenceBindingFiles(binding, now, options = {}) {
 
 export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
   validateSensitiveMetadata(matrix, "capability sample matrix");
-  await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  await validateJsonSchema(
+    matrix,
+    matrix.schemaVersion === 1 ? CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH : CAPABILITY_SAMPLE_MATRIX_V2_SCHEMA_PATH,
+  );
   const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
   invariant(sampleById.size === matrix.samples.length, "capability matrix sample IDs must be unique");
   invariant(
@@ -6337,7 +6362,8 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
       inputs.supportTruth,
       inputs.qualificationEvidence,
     );
-    invariant(JSON.stringify(matrix) === JSON.stringify(expected), "capability matrix does not match its source truth");
+    const projection = matrix.schemaVersion === 1 ? projectLegacyCapabilitySampleMatrix(expected) : expected;
+    invariant(JSON.stringify(matrix) === JSON.stringify(projection), "capability matrix does not match its source truth");
   }
 }
 
@@ -6829,6 +6855,7 @@ function siteConsumerHandoffContract(projection) {
 }
 
 export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  matrix = projectLegacyCapabilitySampleMatrix(matrix);
   const contract = siteConsumerHandoffContract(projection);
   invariant(
     matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
@@ -7952,7 +7979,8 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [LEGACY_SITE_PROJECTION_PATH, stableJson(legacyProjection)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [NEXT_SITE_PROJECTION_PATH, stableJson(nextProjection)],
-    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
+    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(projectLegacyCapabilitySampleMatrix(capabilityMatrix))],
+    [CAPABILITY_SAMPLE_MATRIX_V2_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
@@ -8042,6 +8070,18 @@ async function validateGoldenVisualFreshnessRenewability(outputs) {
       `ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS as a historically validated archive. A window nobody renews expires ` +
       `on the calendar and wedges the sample publication gate (honua-io/honua-sdk-js#1266)`,
   );
+}
+
+export async function readGeneratedOutputs(relativePaths, root = PROJECT_ROOT) {
+  const outputs = new Map();
+  for (const relativePath of relativePaths) {
+    try {
+      outputs.set(relativePath, await readFile(path.join(root, relativePath), "utf8"));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return outputs;
 }
 
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {
@@ -8331,10 +8371,7 @@ async function runContract(command, options = {}) {
       await writeFile(path.join(PROJECT_ROOT, relativePath), expected, "utf8");
     }
   } else {
-    const currentOutputs = new Map();
-    for (const relativePath of outputs.keys()) {
-      currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
-    }
+    const currentOutputs = await readGeneratedOutputs(outputs.keys());
     const drift = generatedOutputDrift(outputs, currentOutputs);
     validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }

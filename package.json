@@ -274,6 +274,10 @@
       "types": "./dist/src/geoparquet/index.d.ts",
       "default": "./dist/src/geoparquet/index.js"
     },
+    "./geoparquet/node": {
+      "types": "./dist/src/geoparquet/node.d.ts",
+      "node": "./dist/src/geoparquet/node.js"
+    },
     "./columnar-workflow": {
       "types": "./dist/src/columnar-workflow/index.d.ts",
       "default": "./dist/src/columnar-workflow/index.js"
@@ -346,6 +350,8 @@
     "verify:client-pair": "npm run build --silent && node --test test/scripts/verify-client-pair-install.test.mjs test/scripts/sync-mcp-pin.test.mjs test/scripts/mcp-peer-artifact.test.mjs && node scripts/verify-client-pair-install.mjs",
     "verify:client-pair:registry": "npm run build --silent && node scripts/verify-client-pair-install.mjs --sdk-source registry",
     "verify:split-packages:prepared": "npm run build:split-packages:prepared --silent && node scripts/verify-split-packages.mjs",
+    "verify:node-geoparquet": "npm run prepare:test-sdk --silent && node scripts/verify-node-geoparquet.mjs",
+    "verify:node-geoparquet:prepared": "npm run prepare:test-sdk:already --silent && node scripts/verify-node-geoparquet.mjs",
     "security:binary-artifacts": "node scripts/check-binary-artifacts.mjs",
     "security:desktop-client-containment": "node --test test/scripts/desktop-client-containment.test.mjs && node scripts/check-desktop-client-containment.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
@@ -743,6 +749,7 @@
     "@deck.gl/core": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@duckdb/node-api": "^2.0.0-r.1",
     "@playwright/test": "^1.58.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -825,6 +832,7 @@
     "@connectrpc/connect-web": "^2.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@duckdb/node-api": "^2.0.0-r.1",
     "@kepler.gl/actions": "^3.0.0",
     "@kepler.gl/processors": "^3.0.0",
     "@turf/area": "^7.0.0",
@@ -865,6 +873,18 @@
       "optional": true
     },
     "@deck.gl/layers": {
+      "optional": true
+    },
+    "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "@duckdb/node-api": {
+      "optional": true
+    },
+    "@kepler.gl/actions": {
+      "optional": true
+    },
+    "@kepler.gl/processors": {
       "optional": true
     },
     "@turf/area": {
@@ -910,15 +930,6 @@
       "optional": true
     },
     "@turf/union": {
-      "optional": true
-    },
-    "@duckdb/duckdb-wasm": {
-      "optional": true
-    },
-    "@kepler.gl/actions": {
-      "optional": true
-    },
-    "@kepler.gl/processors": {
       "optional": true
     },
     "apache-arrow": {
