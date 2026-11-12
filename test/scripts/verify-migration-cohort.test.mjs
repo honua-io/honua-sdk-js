@@ -479,7 +479,6 @@ test("a synthetic token authorizes tag resolution and recovery reads only", asyn
     assert.ok(elsewhere.some((entry) => entry.url.includes("/attestations/")));
     for (const entry of elsewhere) assert.equal(entry.authorization, null);
     assert.equal(JSON.stringify(proof).includes(SYNTHETIC_TOKEN), false);
-    assert.equal(JSON.stringify(observed).includes("authorization"), true);
   });
 });
 
@@ -591,9 +590,9 @@ test("redirects stay on the trusted origin and use real fetch forwarding", async
     token: SYNTHETIC_TOKEN,
   });
   assert.equal(same.status, 200);
-  assert.deepEqual(seen.map((hit) => hit.authorization), [
-    `Bearer ${SYNTHETIC_TOKEN}`,
-    `Bearer ${SYNTHETIC_TOKEN}`,
+  assert.deepEqual(seen, [
+    { host: "trusted", url: "/same", authorization: `Bearer ${SYNTHETIC_TOKEN}` },
+    { host: "trusted", url: "/landed", authorization: `Bearer ${SYNTHETIC_TOKEN}` },
   ]);
 
   seen.length = 0;
@@ -602,10 +601,9 @@ test("redirects stay on the trusted origin and use real fetch forwarding", async
     token: SYNTHETIC_TOKEN,
   });
   assert.equal(absolute.status, 200);
-  assert.equal(seen.filter((hit) => hit.host === "untrusted").length, 0);
-  assert.deepEqual(seen.map((hit) => hit.authorization), [
-    `Bearer ${SYNTHETIC_TOKEN}`,
-    `Bearer ${SYNTHETIC_TOKEN}`,
+  assert.deepEqual(seen, [
+    { host: "trusted", url: "/absolute", authorization: `Bearer ${SYNTHETIC_TOKEN}` },
+    { host: "trusted", url: "/landed", authorization: `Bearer ${SYNTHETIC_TOKEN}` },
   ]);
 
   seen.length = 0;
@@ -613,12 +611,46 @@ test("redirects stay on the trusted origin and use real fetch forwarding", async
     apiOrigin: trusted.origin,
     token: SYNTHETIC_TOKEN,
   });
+  assert.equal(away.status, 302);
   assert.equal(away.ok, false);
-  assert.equal(seen.some((hit) => hit.host === "untrusted"), false);
-  assert.equal(seen.some((hit) => hit.authorization === `Bearer ${SYNTHETIC_TOKEN}`), true);
-  assert.equal(JSON.stringify(seen).includes(SYNTHETIC_TOKEN) || seen.length > 0, true);
-  const awayText = JSON.stringify(seen);
-  assert.equal(awayText.includes(`${untrusted.origin}`), false);
+  assert.equal(away.body, null);
+  assert.deepEqual(seen, [
+    { host: "trusted", url: "/away", authorization: `Bearer ${SYNTHETIC_TOKEN}` },
+  ]);
+});
+
+test("trusted redirects stop after five hops with a closed response", async () => {
+  const url = "https://api.github.com/redirect-loop";
+  let calls = 0;
+  const { observed, fetchImpl } = observeFetch(async () => {
+    calls += 1;
+    // A finite sentinel makes a missing redirect cap fail instead of hanging.
+    if (calls > 6) return new Response("unexpected success", { status: 200 });
+    return new Response("redirect body", { status: 302, headers: { location: url } });
+  });
+  const response = await migrationCohortFetch(url, {}, { token: SYNTHETIC_TOKEN, fetchImpl });
+  assert.equal(response.status, 302);
+  assert.equal(response.ok, false);
+  assert.equal(response.body, null);
+  assert.deepEqual(observed, Array.from({ length: 6 }, () => ({
+    url,
+    authorization: `Bearer ${SYNTHETIC_TOKEN}`,
+    redirect: "manual",
+  })));
+});
+
+test("a trusted redirect without Location closes after one request", async () => {
+  const url = "https://api.github.com/missing-location";
+  const { observed, fetchImpl } = observeFetch(async () => new Response("redirect body", { status: 302 }));
+  const response = await migrationCohortFetch(url, {}, { token: SYNTHETIC_TOKEN, fetchImpl });
+  assert.equal(response.status, 302);
+  assert.equal(response.ok, false);
+  assert.equal(response.body, null);
+  assert.deepEqual(observed, [{
+    url,
+    authorization: `Bearer ${SYNTHETIC_TOKEN}`,
+    redirect: "manual",
+  }]);
 });
 
 for (const status of [401, 403, 503, 504]) {
