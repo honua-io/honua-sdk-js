@@ -62,7 +62,7 @@ export class StacCogAssetSession {
     this.assetUrl = this.candidate.assetUrl;
     this.decoderFactory = options.decoderFactory;
     this.limits = normalizeCogTransferLimits(options.limits);
-    this.transport = new CogRangeTransport(this.assetUrl, fetchFn, this.limits);
+    this.transport = new CogRangeTransport(this.assetUrl, options.fetchFn ?? fetchFn.bind(globalThis), this.limits);
   }
 
   /** Inspect bounded COG metadata. Decoder and network work start lazily here. */
