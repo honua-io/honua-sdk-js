@@ -153,5 +153,8 @@ ids (`honua_map_package.v1`) and `schemas/honua-map-package.v1.json`.
 | `BuilderWorkspaceController#appPackage` | `appVersion` |
 | `BuilderWorkspaceController#bindMapPackage()` | `bindMapDocument()` |
 | `HonuaMapDocumentError#name` `"HonuaMapPackageError"` | `"HonuaMapDocumentError"` |
+| `ExportMapDocumentOptions#maxPackageBytes`, `ImportMapDocumentOptions#maxPackageBytes` | `maxMapDocumentBytes` |
 
 Error and status messages say "map document" where they said "MapPackage" or "map package".
+
+Not yet renamed (follow-up, renamed outright when done): the `HonuaMapRuntime#mapPackage` getter and the `"package-loaded"` and `"package-refined"` builder event kinds.

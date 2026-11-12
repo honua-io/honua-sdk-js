@@ -550,7 +550,7 @@ test("honua-map package-url failures render persistent status text", async ({ pa
       return element.shadowRoot?.querySelector(".map__status")?.textContent ?? "";
     });
 
-    expect(statusText).not.toBe("Loading map package");
+    expect(statusText).not.toBe("Loading map document");
     expect(statusText.length).toBeGreaterThan(0);
   } finally {
     await server.close();

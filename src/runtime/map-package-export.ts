@@ -116,7 +116,7 @@ export interface ExportMapDocumentOptions {
   /** Per-value inline-data budget in bytes. Defaults to {@link DEFAULT_MAX_EMBEDDED_BYTES}. */
   readonly maxEmbeddedBytes?: number;
   /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_MAP_DOCUMENT_BYTES}. */
-  readonly maxPackageBytes?: number;
+  readonly maxMapDocumentBytes?: number;
   /** Timestamp stamped on the envelope. Defaults to now. */
   readonly exportedAt?: string | Date;
   /**
@@ -131,7 +131,7 @@ export interface ImportMapDocumentOptions {
   /** Per-value inline-data budget in bytes. Defaults to {@link DEFAULT_MAX_EMBEDDED_BYTES}. */
   readonly maxEmbeddedBytes?: number;
   /** Whole-envelope budget in bytes. Defaults to {@link DEFAULT_MAX_MAP_DOCUMENT_BYTES}. */
-  readonly maxPackageBytes?: number;
+  readonly maxMapDocumentBytes?: number;
   /**
    * Skip the stamped-fingerprint comparison. Only for callers that knowingly
    * rewrote the package after export; the default is to fail closed.
@@ -164,7 +164,7 @@ export function exportMapDocument(
 ): HonuaMapDocumentExport {
   const packageId = typeof pkg?.mapPackageId === "string" ? pkg.mapPackageId : undefined;
   const maxEmbeddedBytes = normalizeBudget(options.maxEmbeddedBytes, DEFAULT_MAX_EMBEDDED_BYTES);
-  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
+  const maxMapDocumentBytes = normalizeBudget(options.maxMapDocumentBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
   const rejectCredentials = options.credentials === "reject";
 
   if (options.allowInvalid !== true) {
@@ -232,7 +232,7 @@ export function exportMapDocument(
   };
 
   const serialized = JSON.stringify(envelope);
-  assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "export");
+  assertWithinPackageBudget(serialized, maxMapDocumentBytes, packageId, "export");
   // Layer two: the finished bytes are re-scanned. Reaching here with credential
   // material means the projection above has a bug, and failing closed is the
   // only honest response.
@@ -271,10 +271,10 @@ export function importMapDocument(value: unknown, options: ImportMapDocumentOpti
   const mapPackage = value.mapPackage as unknown as HonuaMapDocument;
   const packageId = typeof mapPackage.mapPackageId === "string" ? mapPackage.mapPackageId : undefined;
   const maxEmbeddedBytes = normalizeBudget(options.maxEmbeddedBytes, DEFAULT_MAX_EMBEDDED_BYTES);
-  const maxPackageBytes = normalizeBudget(options.maxPackageBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
+  const maxMapDocumentBytes = normalizeBudget(options.maxMapDocumentBytes, DEFAULT_MAX_MAP_DOCUMENT_BYTES);
 
   const serialized = JSON.stringify(value);
-  assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "import");
+  assertWithinPackageBudget(serialized, maxMapDocumentBytes, packageId, "import");
   assertNoPublicationPointers(value, packageId);
   // The deep walk, not the shallow one: the top-level `mapPackage` object has
   // no `data`/`features` key of its own, so the shallow check passed an inline
@@ -688,17 +688,20 @@ function assertEmbeddedDataWithinBudgetDeep(
 
 function assertWithinPackageBudget(
   serialized: string,
-  maxPackageBytes: number,
+  maxMapDocumentBytes: number,
   packageId: string | undefined,
   stage: "export" | "import",
 ): void {
   const bytes = byteLength(serialized);
-  if (bytes <= maxPackageBytes) return;
-  throw new HonuaMapDocumentError(`Map document export is ${bytes} bytes, over the ${maxPackageBytes}-byte budget.`, {
-    packageId,
-    stage,
-    detail: { bytes, maxPackageBytes },
-  });
+  if (bytes <= maxMapDocumentBytes) return;
+  throw new HonuaMapDocumentError(
+    `Map document export is ${bytes} bytes, over the ${maxMapDocumentBytes}-byte budget.`,
+    {
+      packageId,
+      stage,
+      detail: { bytes, maxMapDocumentBytes },
+    },
+  );
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────

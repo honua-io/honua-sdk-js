@@ -310,7 +310,7 @@ describe("unbounded embedded data is refused", () => {
 
   test("the whole-envelope budget is enforced on import as well as export", () => {
     const envelope = exportMapDocument(basePackage());
-    expect(() => importMapDocument(JSON.parse(JSON.stringify(envelope)), { maxPackageBytes: 64 })).toThrow(
+    expect(() => importMapDocument(JSON.parse(JSON.stringify(envelope)), { maxMapDocumentBytes: 64 })).toThrow(
       HonuaMapDocumentError,
     );
   });
