@@ -62,8 +62,8 @@ import {
   sanitizeHonuaExportHeaders,
   stripCredentialsFromUrl,
 } from "../../src/core/credential-redaction.js";
-import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, exportMapDocument } from "../../src/runtime/index.js";
-import { PLANTED, recorder, recordingClient, utf8Bytes } from "./harness.js";
+import { type HonuaMapDocument, exportMapDocument } from "../../src/runtime/index.js";
+import { PLANTED, baseMapDocument, recorder, recordingClient, utf8Bytes } from "./harness.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -121,31 +121,6 @@ function skillInstructions(): Array<[string, string]> {
           ],
       ),
   ];
-}
-
-function basePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
-  return {
-    mapPackageId: "pkg-1425-security",
-    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
-    status: "Ready",
-    sourceBindings: [
-      {
-        sourceId: "parcels",
-        protocol: "ogc_features",
-        locator: { url: "https://gis.example.test/ogc/collections/parcels" },
-        attribution: "City of Example",
-      },
-    ],
-    mapSpec: {
-      version: 8,
-      sources: {},
-      layers: [{ id: "parcels-fill", type: "fill", source: "parcels", paint: { "fill-color": "#cccccc" } }],
-    },
-    initialView: { center: [-122.4, 37.8], zoom: 11 },
-    attribution: [{ text: "City of Example", url: "https://example.test/credits", required: true }],
-    provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
-    ...overrides,
-  } as HonuaMapDocument;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -257,7 +232,7 @@ describe("secret disclosure :: command receipts", () => {
         "publish",
         "map-ops",
         "--package",
-        JSON.stringify(basePackage()),
+        JSON.stringify(baseMapDocument()),
         "--yes",
         "--json",
         "--base-url",
@@ -304,7 +279,7 @@ describe("secret disclosure :: exported map artifacts", () => {
     // below is a real one: a signed tile URL, basic-auth userinfo, a request
     // header map, a token-named property, and credential text hiding in
     // free-form attribution.
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       sourceBindings: [
         {
           sourceId: "parcels",
@@ -347,7 +322,7 @@ describe("secret disclosure :: exported map artifacts", () => {
     // ships the cleaned artifact, and never learns that its own source binding
     // is now unusable. `credentials: "reject"` is how a pipeline opts into
     // failing loudly instead.
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       sourceBindings: [{ sourceId: "parcels", protocol: "ogc_features", locator: { url: PLANTED.signedUrl } }],
     } as Partial<HonuaMapDocument>);
     expect(() => exportMapDocument(pkg, { credentials: "reject", allowInvalid: true })).toThrow(HonuaExportSafetyError);
@@ -360,7 +335,7 @@ describe("secret disclosure :: exported map artifacts", () => {
     // bytes were not scanned separately, a data URI would be a hole straight
     // through the export pipeline.
     const hidden = Buffer.from(`aws_access_key_id=${PLANTED.awsKeyId}`, "utf8").toString("base64");
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       sourceBindings: [
         {
           sourceId: "parcels",
@@ -377,7 +352,7 @@ describe("secret disclosure :: exported map artifacts", () => {
     // Attacker: `data:text/plain,token%3D...` — a payload the decoder refuses
     // is a payload nothing scans. "Cannot decode" must mean "withhold", never
     // "assume safe".
-    const pkg = basePackage({
+    const pkg = baseMapDocument({
       sourceBindings: [
         {
           sourceId: "parcels",
