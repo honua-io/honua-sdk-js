@@ -13,6 +13,7 @@ import {
   HonuaOperatorExecutionError,
   OPERATOR_EXECUTION_OUTPUT_KEY,
   type OperatorClient,
+  type OperatorClientApi,
   OperatorWorkspace,
   type WorkspaceEvent,
 } from "@honua/sdk-js/operator";
@@ -506,38 +507,12 @@ describe("OperatorWorkspace", () => {
 
   it("forwards plan revision notes through OperatorClient.revisePlan", async () => {
     const captured: Array<{ intentId: string; notes: string | undefined }> = [];
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId, notes) {
-          captured.push({ intentId, notes });
-          return { ...makePlan(intentId), id: "plan-revised" };
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async revisePlan(intentId, notes) {
+        captured.push({ intentId, notes });
+        return { ...makePlan(intentId), id: "plan-revised" };
       },
-    };
+    });
     const workspace = new OperatorWorkspace({ client });
 
     await workspace.planReview.load("intent-rev");
@@ -619,44 +594,21 @@ describe("OperatorWorkspace", () => {
     const fastIntent: AnalysisIntent = { ...makeIntent(false), id: "intent-fast" };
     let sendIndex = 0;
 
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          sendIndex += 1;
-          const ownIndex = sendIndex;
-          if (ownIndex === 1) {
-            await slowGate;
-            yield { turnId: "agent-slow", delta: "slow", done: true, intentDraft: slowIntent };
-          } else {
-            yield { turnId: "agent-fast", delta: "fast", done: true, intentDraft: fastIntent };
-          }
-        },
-        async clarify() {
-          return fastIntent;
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async *chat(): AsyncIterable<ChatChunk> {
+        sendIndex += 1;
+        const ownIndex = sendIndex;
+        if (ownIndex === 1) {
+          await slowGate;
+          yield { turnId: "agent-slow", delta: "slow", done: true, intentDraft: slowIntent };
+        } else {
+          yield { turnId: "agent-fast", delta: "fast", done: true, intentDraft: fastIntent };
+        }
       },
-    };
+      async clarify() {
+        return fastIntent;
+      },
+    });
 
     const events: WorkspaceEvent[] = [];
     const workspace = new OperatorWorkspace({ client });
@@ -698,37 +650,11 @@ describe("OperatorWorkspace", () => {
     };
     const revivedA: AnalysisIntent = { ...intentA, clarifications: [] };
 
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return slowClarify;
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async clarify() {
+        return slowClarify;
       },
-    };
+    });
 
     const events: WorkspaceEvent[] = [];
     const workspace = new OperatorWorkspace({ client });
@@ -759,41 +685,15 @@ describe("OperatorWorkspace", () => {
       releaseA = resolve;
     });
 
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          if (intentId === "intent-A") {
-            await aGate;
-            return planA;
-          }
-          return planB;
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async getPlan(intentId) {
+        if (intentId === "intent-A") {
+          await aGate;
+          return planA;
+        }
+        return planB;
       },
-    };
+    });
 
     const events: WorkspaceEvent[] = [];
     const workspace = new OperatorWorkspace({ client });
@@ -834,39 +734,13 @@ describe("OperatorWorkspace", () => {
     };
 
     let submitCount = 0;
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          submitCount += 1;
-          if (submitCount === 1) return slowSubmit;
-          return new FakeJobRun(fastResult);
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async submitPlan() {
+        submitCount += 1;
+        if (submitCount === 1) return slowSubmit;
+        return new FakeJobRun(fastResult);
       },
-    };
+    });
 
     const workspace = new OperatorWorkspace({ client });
 
@@ -975,38 +849,15 @@ describe("OperatorWorkspace", () => {
       audit: [{ at: 2, actor: "policy", action: "pending" }],
     };
 
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval(operationId) {
-          if (operationId === "op-A") return aGate;
-          return decisionB;
-        },
-        async confirmApproval() {
-          return decisionB;
-        },
+    const client = makeStubClient({
+      async getApproval(operationId) {
+        if (operationId === "op-A") return aGate;
+        return decisionB;
       },
-    };
+      async confirmApproval() {
+        return decisionB;
+      },
+    });
 
     const events: WorkspaceEvent[] = [];
     const workspace = new OperatorWorkspace({ client });
@@ -1052,38 +903,12 @@ describe("OperatorWorkspace", () => {
     const firstRun = new FakeJobRun(firstResult);
     const secondRun = new FakeJobRun(secondResult);
     let runIndex = 0;
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          runIndex += 1;
-          return runIndex === 1 ? firstRun : secondRun;
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async submitPlan() {
+        runIndex += 1;
+        return runIndex === 1 ? firstRun : secondRun;
       },
-    };
+    });
     const events: WorkspaceEvent[] = [];
     const workspace = new OperatorWorkspace({
       client,
@@ -1138,37 +963,14 @@ describe("OperatorWorkspace", () => {
     const typedError = new HonuaOperatorApprovalError("policy gate refused the load", {
       detail: { operationId: "op-typed", reason: "PolicyDenied" },
     });
-    const client: OperatorClient = {
-      operator: {
-        async *chat(): AsyncIterable<ChatChunk> {
-          yield { turnId: "agent-1", delta: "ok", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          throw typedError;
-        },
-        async confirmApproval() {
-          throw typedError;
-        },
+    const client = makeStubClient({
+      async getApproval() {
+        throw typedError;
       },
-    };
+      async confirmApproval() {
+        throw typedError;
+      },
+    });
     const workspace = new OperatorWorkspace({ client });
 
     await expect(workspace.approval.load("op-typed")).rejects.toBe(typedError);
@@ -1224,45 +1026,19 @@ describe("OperatorWorkspace", () => {
     const slowGate = new Promise<void>((resolve) => {
       resolveSlow = resolve;
     });
-    const client: OperatorClient = {
-      operator: {
-        async *chat(_text, signal): AsyncIterable<ChatChunk> {
-          if (signal) {
-            signal.addEventListener("abort", () => {
-              observedAbort = true;
-              resolveSlow();
-            });
-          }
-          await slowGate;
-          if (signal?.aborted) return;
-          yield { turnId: "agent-1", delta: "late", done: true };
-        },
-        async clarify() {
-          return makeIntent(false);
-        },
-        async getPlan(intentId) {
-          return makePlan(intentId);
-        },
-        async revisePlan(intentId) {
-          return makePlan(intentId);
-        },
-        async submitPlan() {
-          return new FakeJobRun({ kind: "analysis" });
-        },
-        async refineMap() {
-          return makeMapPackage();
-        },
-        async refineApp() {
-          return makeAppVersion();
-        },
-        async getApproval() {
-          return makeDecision("pending");
-        },
-        async confirmApproval() {
-          return makeDecision("granted");
-        },
+    const client = makeStubClient({
+      async *chat(_text, signal): AsyncIterable<ChatChunk> {
+        if (signal) {
+          signal.addEventListener("abort", () => {
+            observedAbort = true;
+            resolveSlow();
+          });
+        }
+        await slowGate;
+        if (signal?.aborted) return;
+        yield { turnId: "agent-1", delta: "late", done: true };
       },
-    };
+    });
     const workspace = new OperatorWorkspace({ client });
     const send = workspace.chat.send("hello").catch(() => undefined);
 
@@ -1354,75 +1130,7 @@ class SilentDismissJobRun implements IJobRun<ExecutionResult> {
   }
 }
 
-function makeClientWithRun(run: IJobRun<ExecutionResult>): OperatorClient {
-  return {
-    operator: {
-      async *chat(): AsyncIterable<ChatChunk> {
-        yield { turnId: "agent-1", delta: "ok", done: true };
-      },
-      async clarify() {
-        return makeIntent(false);
-      },
-      async getPlan(intentId) {
-        return makePlan(intentId);
-      },
-      async revisePlan(intentId) {
-        return makePlan(intentId);
-      },
-      async submitPlan() {
-        return run;
-      },
-      async refineMap() {
-        return makeMapPackage();
-      },
-      async refineApp() {
-        return makeAppVersion();
-      },
-      async getApproval() {
-        return makeDecision("pending");
-      },
-      async confirmApproval() {
-        return makeDecision("granted");
-      },
-    },
-  };
-}
-
-function makeFailingSubmitClient(failure: Error): OperatorClient {
-  return {
-    operator: {
-      async *chat(): AsyncIterable<ChatChunk> {
-        yield { turnId: "agent-1", delta: "ok", done: true };
-      },
-      async clarify() {
-        return makeIntent(false);
-      },
-      async getPlan(intentId) {
-        return makePlan(intentId);
-      },
-      async revisePlan(intentId) {
-        return makePlan(intentId);
-      },
-      async submitPlan() {
-        throw failure;
-      },
-      async refineMap() {
-        return makeMapPackage();
-      },
-      async refineApp() {
-        return makeAppVersion();
-      },
-      async getApproval() {
-        return makeDecision("pending");
-      },
-      async confirmApproval() {
-        return makeDecision("granted");
-      },
-    },
-  };
-}
-
-function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
+function makeStubClient(overrides: Partial<OperatorClientApi>): OperatorClient {
   return {
     operator: {
       async *chat(): AsyncIterable<ChatChunk> {
@@ -1441,7 +1149,7 @@ function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
         return new FakeJobRun({ kind: "analysis" });
       },
       async refineMap() {
-        return refined;
+        return makeMapPackage();
       },
       async refineApp() {
         return makeAppVersion();
@@ -1452,6 +1160,31 @@ function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
       async confirmApproval() {
         return makeDecision("granted");
       },
+      ...overrides,
     },
   };
+}
+
+function makeClientWithRun(run: IJobRun<ExecutionResult>): OperatorClient {
+  return makeStubClient({
+    async submitPlan() {
+      return run;
+    },
+  });
+}
+
+function makeFailingSubmitClient(failure: Error): OperatorClient {
+  return makeStubClient({
+    async submitPlan() {
+      throw failure;
+    },
+  });
+}
+
+function makeRefiningClient(refined: HonuaMapDocument): OperatorClient {
+  return makeStubClient({
+    async refineMap() {
+      return refined;
+    },
+  });
 }
