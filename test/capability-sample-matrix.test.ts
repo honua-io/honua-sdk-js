@@ -187,11 +187,11 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 66 = 59 original package entrypoints + the experimental STAC, raster,
+    // 67 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
     // and Studio agent session, plus the experimental local installer, plus
-    // `./client-compat`.
-    expect(matrix.packageEntrypoints).toHaveLength(66);
+    // `./client-compat` and the Node-only GeoParquet driver.
+    expect(matrix.packageEntrypoints).toHaveLength(67);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
@@ -543,6 +543,46 @@ describe("capability-to-sample matrix contract", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("preserves Node-only exports without adding a browser fallback", async () => {
+    const inputs = await canonicalInputs();
+    const matrix = generateCapabilitySampleMatrix(
+      inputs.catalog,
+      inputs.packageJson,
+      inputs.supportTruth,
+      inputs.qualificationEvidence,
+    );
+    const entry = matrix.packageEntrypoints.find((candidate) => candidate.subpath === "./geoparquet/node");
+    const nativeTargets = {
+      types: "./dist/src/geoparquet/node.d.ts",
+      node: "./dist/src/geoparquet/node.js",
+    };
+    expect(entry?.targets).toEqual(nativeTargets);
+    await expect(validateCapabilitySampleMatrix(matrix, inputs)).resolves.toBeUndefined();
+    for (const targets of [
+      { types: "./dist/src/geoparquet/node.d.ts", default: "./dist/src/geoparquet/node.js" },
+      { ...nativeTargets, default: "./dist/src/geoparquet/node.js" },
+      { ...nativeTargets, browser: "./dist/src/geoparquet/node.js" },
+      { types: "./dist/src/geoparquet/node.d.ts", node: "./dist/../outside.js" },
+      { types: "./dist/src/geoparquet/node.d.ts", node: "./dist/src/geoparquet/node.json" },
+    ]) {
+      const invalidPackage = structuredClone(inputs.packageJson);
+      invalidPackage.exports["./geoparquet/node"] = targets;
+      expect(() =>
+        generateCapabilitySampleMatrix(
+          inputs.catalog,
+          invalidPackage,
+          inputs.supportTruth,
+          inputs.qualificationEvidence,
+        ),
+      ).toThrow();
+    }
+    const invalidMatrix = structuredClone(matrix);
+    const nativeEntry = invalidMatrix.packageEntrypoints.find((candidate) => candidate.subpath === "./geoparquet/node");
+    if (!nativeEntry) throw new Error("Missing native entry");
+    nativeEntry.targets = { ...nativeTargets, default: "./dist/src/geoparquet/node.js" };
+    await expect(validateCapabilitySampleMatrix(invalidMatrix)).rejects.toThrow();
   });
 
   it("rejects export, join, target, and support-claim reference drift", async () => {

@@ -3737,9 +3737,10 @@ function normalizedPackageExports(packageJson, supportTruth) {
   return exportSubpaths.map((subpath) => {
     const target = packageJson.exports[subpath];
     invariant(target && typeof target === "object" && !Array.isArray(target), `${subpath}: export target must be an object`);
+    const runtimeCondition = subpath === "./geoparquet/node" ? "node" : "default";
     invariant(
-      Object.keys(target).sort().join(",") === "default,types",
-      `${subpath}: export target must declare exactly default and types`,
+      Object.keys(target).sort().join(",") === `${runtimeCondition},types`,
+      `${subpath}: export target must declare exactly ${runtimeCondition} and types`,
     );
     for (const [condition, value] of Object.entries(target)) {
       invariant(typeof value === "string", `${subpath}: ${condition} export target must be a string`);
@@ -3751,11 +3752,11 @@ function normalizedPackageExports(packageJson, supportTruth) {
       );
     }
     invariant(target.types.endsWith(".d.ts"), `${subpath}: types export target must end in .d.ts`);
-    invariant(target.default.endsWith(".js"), `${subpath}: default export target must end in .js`);
+    invariant(target[runtimeCondition].endsWith(".js"), `${subpath}: ${runtimeCondition} export target must end in .js`);
     return {
       subpath,
       lifecycle: lifecycleBySubpath.get(subpath),
-      targets: { types: target.types, default: target.default },
+      targets: { types: target.types, [runtimeCondition]: target[runtimeCondition] },
     };
   });
 }
