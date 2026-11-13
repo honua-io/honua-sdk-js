@@ -259,10 +259,11 @@ returns one disposable handle whose `setFilter()`/`refresh()` diff-update in pla
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import * as maplibregl from "maplibre-gl";
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
-const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+await using honua = createHonua();
+const data = await honua.connect(FEATURE_LAYER_URL);
 const mounted = await mountSource(map, data.source(), {
   popup: { factory: () => new maplibregl.Popup() },
   hover: true,
