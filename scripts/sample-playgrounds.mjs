@@ -953,6 +953,22 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+export function playgroundArtifactMatches(committedBytes, expectedBytes, mode = "strict") {
+  if (mode !== "feature-pr") return committedBytes === expectedBytes;
+  try {
+    const committed = JSON.parse(committedBytes);
+    const expected = JSON.parse(expectedBytes);
+    validateArtifact(committed);
+    validateArtifact(expected);
+    for (const artifact of [committed, expected]) {
+      for (const exclusion of artifact.excluded) exclusion.detail = "";
+    }
+    return stableJson(committed) === stableJson(expected);
+  } catch {
+    return false;
+  }
+}
+
 function collectPlan() {
   const catalog = readJson(CATALOG_PATH);
   const manifest = loadTemplateManifest(PACKAGE_ROOT);
@@ -1103,7 +1119,10 @@ function main() {
   const committedArtifact = fs.existsSync(path.join(ROOT, ARTIFACT_PATH))
     ? fs.readFileSync(path.join(ROOT, ARTIFACT_PATH), "utf8")
     : "";
-  if (committedArtifact !== artifactBytes) problems.push(`${ARTIFACT_PATH} has drifted`);
+  const artifactMode = process.env.HONUA_DERIVED_ARTIFACTS_RELAX === "1" ? "feature-pr" : "strict";
+  if (!playgroundArtifactMatches(committedArtifact, artifactBytes, artifactMode)) {
+    problems.push(`${ARTIFACT_PATH} has drifted`);
+  }
   if (problems.length > 0) reportDrift(problems);
 
   process.stdout.write(

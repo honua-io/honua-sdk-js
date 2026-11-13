@@ -35,6 +35,10 @@ Now:
   from source and packed SDK (`samples:run -- verify --kit --sdk-mode
   source|packed`) all run at PR time. **A PR that genuinely breaks a sample
   still fails.**
+- Playground artifact checks allow exclusion diagnostic text to await trunk
+  regeneration in PR relaxed mode. Artifact schemas, exclusion identities and
+  categories, SDK pins, qualified projects, catalog links, and README blocks
+  remain checked; strict mode requires byte equality.
 - **After merge**, `.github/workflows/regenerate-derived-artifacts.yml`
   (trunk-only, serialized) rebuilds every derived artifact, reseals sample
   evidence **strictly bound to the trunk source digest**, and commits the result
