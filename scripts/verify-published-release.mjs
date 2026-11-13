@@ -196,16 +196,8 @@ export function planPublishedReleaseTargets({
  */
 export function planPublishedArtifactTarget({ manifest, artifactId, tag, commit, readPackageVersion }) {
   const artifact = (manifest?.included ?? []).find((candidate) => candidate.id === artifactId);
-  if (!artifact) return { targets: [], errors: [`${MANIFEST_PATH} includes no artifact "${artifactId}"`] };
-  if (artifact.sourceBinding !== "own-release-tag") {
-    return {
-      targets: [],
-      errors: [`"${artifactId}" is bound to the sealed js-sdk cut; verify it with --tag and --commit for the whole cut`],
-    };
-  }
-  if (!COMMIT_PATTERN.test(commit ?? "")) {
-    return { targets: [], errors: [`--commit must be a full 40-character commit sha, got "${commit ?? ""}"`] };
-  }
+  const refusal = ownTagArtifactRefusal(artifact, artifactId, commit);
+  if (refusal) return { targets: [], errors: [refusal] };
   const { version, error: versionError } = readArtifactVersion(artifact, readPackageVersion);
   if (versionError) return { targets: [], errors: [versionError] };
   const expectedTag = releaseTagFor(artifact.publish.releaseTagPrefix, version);
@@ -216,6 +208,15 @@ export function planPublishedArtifactTarget({ manifest, artifactId, tag, commit,
     };
   }
   return { targets: [verificationTarget(artifact, { version, tag, commit, expectedRef: `refs/tags/${tag}` })], errors: [] };
+}
+
+function ownTagArtifactRefusal(artifact, artifactId, commit) {
+  if (!artifact) return `${MANIFEST_PATH} includes no artifact "${artifactId}"`;
+  if (artifact.sourceBinding !== "own-release-tag") {
+    return `"${artifactId}" is bound to the sealed js-sdk cut; verify it with --tag and --commit for the whole cut`;
+  }
+  if (!COMMIT_PATTERN.test(commit ?? "")) return `--commit must be a full 40-character commit sha, got "${commit ?? ""}"`;
+  return undefined;
 }
 
 function readArtifactVersion(artifact, readPackageVersion) {
