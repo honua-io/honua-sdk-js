@@ -94,8 +94,8 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.3.3`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 26 experimental subpaths may change before 1.0, and
+**Release status: beta** (`0.3.4`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+by an API-surface gate; 27 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -322,14 +322,14 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/geocoding` | 9.3 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
-| `@honua/sdk-js/map` | 55.9 KiB |
-| `@honua/sdk-js` (root) | 202.7 KiB |
+| `@honua/sdk-js/map` | 56.1 KiB |
+| `@honua/sdk-js` (root) | 203.6 KiB |
 | `{ HonuaClient }` from the root (tree-shake guard) | 59.2 KiB |
-| `{ connect }` from the root (tree-shake guard) | 163.1 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.1 KiB |
+| `{ connect }` from the root (tree-shake guard) | 164.1 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 193.0 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 163.1 KiB gzip and `{ createHonua }` 192.1 KiB against the 202.7 KiB root, so size-sensitive
+alone costs 164.1 KiB gzip and `{ createHonua }` 193.0 KiB against the 203.6 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -742,9 +742,9 @@ correctly use this SDK:
     The agent surface's security posture is documented in the
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
+    `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/geoparquet/node`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
     `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 27 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -867,7 +867,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 26 experimental,
+It projects 22 supported (documented below as stable), 27 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -940,6 +940,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
 | `@honua/sdk-js/zarr` | Experimental Honua Server `/api/v1` Zarr registration and metadata inspection, a byte-bounded datacube PNG tile handoff, and a bounded direct reader for reviewed static or object-store chunks. The server facade does not read object stores itself ([guide](./docs/zarr.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
+| `@honua/sdk-js/geoparquet/node` | Native Node DuckDB factory for local and HTTP GeoParquet; requires the optional `@duckdb/node-api` peer ([guide](./docs/geoparquet.md#node-quickstart)). |
 | `@honua/sdk-js/columnar-workflow` | Bounded GeoParquet inspection and query planning plus Honua Arrow and Parquet feature-query workflows, with explicit decoder, memory, transfer, and handoff limits ([guide](./docs/columnar-workflow-capability-matrix.md)). |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
@@ -1169,7 +1170,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.3.3)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.3.4)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1200,7 +1201,8 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.3.3` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.3/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.2...js-sdk-v0.3.3) |
+| `0.3.4` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.4/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.3...js-sdk-v0.3.4) |
+| `0.3.3` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.3/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.2...js-sdk-v0.3.3) |
 | `0.3.2` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.2/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.1...js-sdk-v0.3.2) |
 | `0.3.1` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.1/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.0...js-sdk-v0.3.1) |
 | `0.3.0` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.2.10...js-sdk-v0.3.0) |
@@ -1461,7 +1463,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.3 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.3.4 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1921,13 +1923,13 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-12 at commit `a6584654a`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `c01a830f4`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 758.8 KiB | 202.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 761.8 KiB | 203.6 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 232.7 KiB | 59.2 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
@@ -1943,8 +1945,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 758.8 KiB ≈ **2.29 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 202.7 KiB ≈ **0.62 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 761.8 KiB ≈ **2.30 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 203.6 KiB ≈ **0.62 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -11852,23 +11854,23 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-12 at commit `a6584654a`._
+_Generated 2026-11-13 at commit `c01a830f4`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 758.8 KiB | 829.3 KiB | 202.7 KiB | 211.8 KiB |
-| `/honua` | 933.7 KiB | 1033.4 KiB | 250.6 KiB | 278.1 KiB |
+| `.` (root) | 761.8 KiB | 829.3 KiB | 203.6 KiB | 211.8 KiB |
+| `/honua` | 936.7 KiB | 1033.4 KiB | 251.5 KiB | 278.1 KiB |
 | `/contract` | 383.9 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 824.2 KiB | 859.4 KiB | 194.8 KiB | 195.3 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 827.1 KiB | 859.4 KiB | 195.9 KiB | 196.3 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 858.1 KiB | 961.8 KiB | 204.2 KiB | 237.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 861.1 KiB | 961.8 KiB | 205.2 KiB | 237.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 68.4 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
 | `/agent-tools` | 46.0 KiB | 48.1 KiB | 12.7 KiB | 13.3 KiB |
 | `/agent-safety` | 69.1 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.5 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
 | `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.1 KiB | 20.8 KiB |
-| `/runtime` | 717.5 KiB | 752.5 KiB | 184.7 KiB | 198.6 KiB |
+| `/runtime` | 718.0 KiB | 752.5 KiB | 184.9 KiB | 198.6 KiB |
 | `/realtime` | 82.3 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
 | `/offline` | 171.5 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 706.8 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
@@ -11880,26 +11882,26 @@ _Generated 2026-11-12 at commit `a6584654a`._
 | `/routing` | 28.7 KiB | 28.7 KiB | 8.6 KiB | 9.5 KiB |
 | `/auth` | 28.2 KiB | 30.6 KiB | 7.7 KiB | 8.7 KiB |
 | `/style` | 65.2 KiB | 69.0 KiB | 16.4 KiB | 17.2 KiB |
-| `/map` | 196.7 KiB | 198.2 KiB | 55.9 KiB | 56.2 KiB |
+| `/map` | 197.2 KiB | 198.2 KiB | 56.1 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 147.6 KiB | 154.9 KiB | 44.2 KiB | 46.6 KiB |
-| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
+| `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.9 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 326.2 KiB | 364.2 KiB | 87.2 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1205.4 KiB | 1275.0 KiB | 316.4 KiB | 344.5 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1315.1 KiB | 1395.4 KiB | 349.7 KiB | 356.1 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1206.1 KiB | 1275.0 KiB | 316.6 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1315.8 KiB | 1395.4 KiB | 349.9 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 563.2 KiB | 619.8 KiB | 152.5 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 759.1 KiB | 832.8 KiB | 202.8 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 758.6 KiB | 828.5 KiB | 202.6 KiB | 221.7 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 762.0 KiB | 832.8 KiB | 203.7 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 761.6 KiB | 828.5 KiB | 203.6 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 232.7 KiB | 280.2 KiB | 59.2 KiB | 74.3 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 616.2 KiB | 695.1 KiB | 163.1 KiB | 186.7 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 619.2 KiB | 695.1 KiB | 164.1 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.2 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.7 KiB | 17.1 KiB | 4.4 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.1 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 718.4 KiB | 791.3 KiB | 192.1 KiB | 210.6 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 721.4 KiB | 791.3 KiB | 193.0 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 256.8 KiB | 296.3 KiB | 65.5 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.0 KiB | 316.3 KiB | 65.2 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.2 KiB | 54.4 KiB | 15.0 KiB | 16.4 KiB |
@@ -13809,17 +13811,17 @@ surface to throw and require the escape hatch.
 
 ---
 type: reference
-title: "GeoParquet / DuckDB-WASM source"
-description: "Run the same protocol-neutral Query against GeoParquet files in the browser with DuckDB-WASM: install, quickstart, SQL compilation, lossless results, aggregation, limits and the Overture recipe."
+title: "GeoParquet / DuckDB source"
+description: "Run the same protocol-neutral Query against GeoParquet files in Node or the browser with DuckDB: install, quickstart, SQL compilation, lossless results, aggregation, limits and the Overture recipe."
 resource: "honua://capability/format.geoarrow"
 ---
-# GeoParquet / DuckDB-WASM source
+# GeoParquet / DuckDB source
 
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same
 protocol-neutral `Query`** you use against a FeatureServer or an OGC API
-Features collection — but against GeoParquet files, in the browser, via
-[DuckDB-WASM](https://duckdb.org/docs/api/wasm/overview) and its `spatial`
-extension. The query compiles to SQL over `read_parquet(...)` and returns the
+Features collection — against GeoParquet files with native DuckDB in Node or
+[DuckDB-WASM](https://duckdb.org/docs/api/wasm/overview) in the browser, using the
+`spatial` extension. The query compiles to SQL over `read_parquet(...)` and returns the
 standard `Result` (GeoJSON features + schema), so results render through the
 same query-tiles runtime path as any other source.
 
@@ -13827,7 +13829,7 @@ This is the "query Overture GeoParquet in the browser via DuckDB-WASM" reference
 architecture, slotted directly into the `Dataset → Source → Query → Result`
 contract.
 
-## Install
+## Browser install
 
 `@duckdb/duckdb-wasm` is an **optional peer dependency** — it is not bundled and
 not pulled into the `/contract` or `/honua` entrypoints. Install it (and its
@@ -13842,7 +13844,60 @@ dependency edge from the core SDK. If the peer is missing, constructing a query
 throws a clear "install `@duckdb/duckdb-wasm`" error rather than failing
 opaquely.
 
-## Quickstart
+## Node quickstart
+
+Use Node 22.12 or newer and install the native engine explicitly:
+
+```bash
+npm install @honua/sdk-js @duckdb/node-api
+```
+
+The experimental Node factory has a separate import. It uses the same query
+planner and result decoder as the browser driver, without workers or WASM:
+
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { GeoparquetRuntime, geoparquetSource } from "@honua/sdk-js/geoparquet";
+import { createNodeDuckDbDriver } from "@honua/sdk-js/geoparquet/node";
+
+const runtime = new GeoparquetRuntime({ driverFactory: createNodeDuckDbDriver });
+try {
+  const places = geoparquetSource({
+    id: "places",
+    protocol: "geoparquet",
+    locator: { url: "/absolute/path/to/places.parquet" }, // Or a range-readable HTTP URL.
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
+  }, { runtime });
+  const result = await places.query({ outFields: ["id", "name"], pagination: { limit: 10 } });
+  console.log(result.features);
+} finally {
+  await runtime.dispose();
+}
+```
+
+The supported native peer range is `@duckdb/node-api ^2.0.0-r.1`. The factory
+installs and loads DuckDB's `spatial` extension by default; first use needs network
+access and a writable DuckDB extension cache. HTTP reads may also install
+`httpfs`. For offline execution, provision extensions matching the native
+DuckDB version in its cache before running. Set `loadSpatial: false` only for
+attribute-only SQL that does not call spatial functions.
+
+Use absolute file paths or HTTP URLs. Unlike the browser driver,
+`registerFileBuffer()` deliberately rejects: write bytes to a file and pass its
+absolute path. No process-wide working-directory or file-search-path changes
+are made. An `AbortSignal` cancels running and queued queries; abandoning a
+stream with `break` releases its connection. Always dispose the runtime, which
+also closes a stream whose consumer is paused between batches.
+
+The native peer is optional and is not installed for ordinary SDK consumers.
+Only the Node export condition resolves `/geoparquet/node`; browser imports of
+that entrypoint fail during bundling. Browser and split-package entrypoints do
+not import native bindings. Run `npm run verify:node-geoparquet` to check a packed
+SDK in an isolated consumer; add `-- --public` to also query the commit-pinned
+public fixture and emit its SHA-256 and result counts. The regular CI gate uses
+the local fixture so public hosting is not a test dependency.
+
+## Browser quickstart
 
 Wire the resolver into `createDataset`. One `GeoparquetRuntime` — one shared
 DuckDB Web Worker — backs every geoparquet source in the dataset.
@@ -15274,6 +15329,25 @@ correlation is preserved end-to-end.
   supported as long as they satisfy the `MaplibreMap` method shape.
 - `popupFactory` keeps the popup dependency on the host side; omit it
   when the app does not call `runtime.bindPopup`.
+
+## OGC vector tile discovery
+
+For sources discovered with `protocol: "ogc-tiles"`, automatic mounting uses the
+advertised WebMercatorQuad MVT item template. Discovery follows same-origin
+vector tileset list and metadata links, and normalizes `{tileMatrix}`,
+`{tileRow}`, and `{tileCol}` to MapLibre's `{z}`, `{y}`, and `{x}`. It does not
+infer an XYZ template from the service root. Unsupported matrix sets or missing
+item metadata leave the source available for inspection; automatic mounting
+reports the missing metadata before changing the map. An optional tileset
+metadata request failure likewise leaves other collections discoverable.
+
+Pass `sourceLayer` with the internal MVT layer name when mounting vector tiles.
+The collection identifier alone does not establish that name. Plan and mount
+failures identify missing item templates and missing `sourceLayer` separately.
+
+The `connect-source-descriptor` contract version in release metadata tracks the
+normalized discovery cache projection. Version 4 invalidates older cached
+descriptors so discovery can populate the vector item template.
 
 ---
 
@@ -17279,6 +17353,46 @@ approval fingerprint.
 - `honua://services`
 - `honua://services/{encodedServiceId}/layers/{layerId}`
 - `honua://styles`, `honua://styles/{styleId}` — structured-unavailable on a plain FeatureServer
+- `skill://{name}/SKILL.md` — agent instructions from the installed `@honua/sdk-js` package
+
+### Installed SDK skills
+
+The standalone and bootstrap servers expose the skills shipped by their installed
+SDK peer dependency, currently `build-a-map-app` and `connect-data`. Pin the SDK
+version in your application's lockfile for reproducible instructions. MCP does not
+maintain a separate copy or fetch instructions from a website. Restart the server
+after changing the installed SDK; removed skills then disappear from discovery.
+
+Pass `--no-skills` to `honua-mcp` to omit skill resources and the `skills/list`
+and `skills/get` handlers. Other tools and resources remain available. Embedded
+hosts can use `createServer(client, { skills: "disabled" })` or
+`createBootstrapServer({ skills: "disabled" })`. Skill exposure is enabled by
+default; this opt-out supports paired evaluations using the same installed
+packages in both arms.
+
+Clients that expose `resources/list` and `resources/read` can retrieve the
+Markdown. Resource availability does not guarantee that an agent discovers or
+reads it. Resource metadata includes the skill description, release and
+`io.honua/sdkVersion`; returned text preserves the installed file bytes. Supporting
+files are separate resources returned as base64 blobs.
+
+Extension-aware clients can also call `skills/list` and `skills/get` with
+`{"uri":"skill://connect-data/SKILL.md"}`. Entries include complete YAML
+frontmatter and a resource manifest with SHA-256 digests and byte sizes. The
+`io.modelcontextprotocol/skills` extension is advertised in initialization
+capabilities. This is a compatibility binding of the
+[beta Skills extension](https://github.com/modelcontextprotocol/ext-skills/blob/main/specification/beta/skills.mdx)
+to the MCP library's 2025-11-25 protocol. It does not implement the newer
+2026-07-28 `server/discover` protocol; standard resource reads remain the portable
+client path. The catalog is returned in one page; unknown cursors and skill URIs
+are rejected.
+
+The SDK's `skills/README.md` evidence gate controls which skills are published.
+MCP serves that published set, validates its metadata, and fails startup on invalid
+skills instead of quietly omitting them. It does not independently certify model
+performance. Skills are instruction content: reading one grants no permissions and
+executes no tools. The release's paired evaluation must pin both packages and
+record the served skill digests alongside its token and task outcomes.
 
 ## Certification
 
@@ -17620,8 +17734,10 @@ live `tools/list`, never against the vendored certification index).
 
 # Honua SDK agent skills
 
-Each skill here passed a paired evaluation: the same task, run by an agent with
-and without the skill, against the live Maui County demo server
+The published SDK 0.3.2 skill bodies passed the paired evaluation below. These
+results do not validate later skill changes, native Node GeoParquet guidance, or
+MCP delivery. The same task was run by an agent with and without the skill,
+against the live Maui County demo server
 (`https://demo.honua.io`). The tasks came from the Maui demo requirements, and
 an independent checker graded each outcome. The bars were preregistered
 before the runs. Opus 5.5 and gpt-6.1-sol ran both arms in a sandbox that hid
@@ -17689,7 +17805,8 @@ with no skill is **none**.
 
 ## Drift gates
 
-The table above and everything it claims are checked, not trusted:
+The checks below validate catalog metadata and drift. They do not rerun or
+certify the performance evidence above:
 
 ```bash
 npm run verify:skills   # frontmatter, release, stage ids, tools, versions, secrets, README freshness

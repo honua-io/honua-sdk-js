@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { type SnappingConfig, resolveSnappingConfig } from "../src/contract/edit-snapping.js";
 import type {
   HonuaMeasureChangeDetail,
   HonuaMeasureControlMessages,
@@ -311,5 +312,105 @@ describe("measure and sketch control elements", () => {
     expect(html).toContain("Punkt");
     expect(html).toContain("Linie");
     expect(html).toContain("Polygon");
+  });
+});
+
+interface SnappingSketchControl {
+  controller?: SnappingControllerStub;
+  snappingOptions: Record<string, unknown> | undefined;
+  addVertex(pointer: { x: number; y: number }): { x: number; y: number };
+  connectedCallback(): void;
+}
+
+interface SnappingControllerStub extends ControllerStub {
+  setSketchSnapping(config: SnappingConfig): void;
+}
+
+function snappingController(received: SnappingConfig[]): SnappingControllerStub {
+  return {
+    ...baseControllerStub,
+    canMeasure: () => false,
+    canSketch: () => true,
+    setMeasureMode: () => Promise.resolve({ mode: "off", status: "unsupported" } as HonuaMeasureChangeDetail),
+    setSketchMode: (mode: HonuaSketchMode) => Promise.resolve({ mode, status: "ready" } as HonuaSketchChangeDetail),
+    setSketchSnapping: (config) => {
+      received.push(config);
+    },
+  };
+}
+
+describe("sketch control snapping", () => {
+  async function sketchControl(): Promise<SnappingSketchControl> {
+    const { HonuaSketchControlElement } = await loadElements();
+    return new HonuaSketchControlElement() as unknown as SnappingSketchControl;
+  }
+
+  it("places vertices unchanged while snapping is off", async () => {
+    const control = await sketchControl();
+    control.addVertex({ x: 0, y: 0 });
+    expect(control.addVertex({ x: 0.5, y: 0.5 })).toEqual({ x: 0.5, y: 0.5 });
+  });
+
+  it("returns a placed vertex the caller can adjust", async () => {
+    const { HonuaSketchControlElement } = await loadElements();
+    const placed = new HonuaSketchControlElement().addVertex({ x: 2, y: 3 });
+    placed.x += 1;
+    expect(placed).toEqual({ x: 3, y: 3 });
+  });
+
+  it("snaps a vertex to an earlier vertex inside the tolerance and leaves it outside", async () => {
+    const control = await sketchControl();
+    control.snappingOptions = { enabled: true, tolerance: 5 };
+    control.addVertex({ x: 0, y: 0 });
+    expect(control.addVertex({ x: 3, y: 4 })).toEqual({ x: 0, y: 0 });
+    expect(control.addVertex({ x: 40, y: 40 })).toEqual({ x: 40, y: 40 });
+  });
+
+  it("snaps onto an edge of the sketch through the canonical engine", async () => {
+    const control = await sketchControl();
+    control.snappingOptions = { enabled: true, distance: 4 };
+    control.addVertex({ x: 0, y: 0 });
+    control.addVertex({ x: 100, y: 0 });
+    expect(control.addVertex({ x: 50, y: 3 })).toEqual({ x: 50, y: 0 });
+  });
+
+  it("honours the candidate kinds in the snapping options", async () => {
+    const control = await sketchControl();
+    control.snappingOptions = { enabled: true, tolerance: 4, kinds: ["vertex"] };
+    control.addVertex({ x: 0, y: 0 });
+    control.addVertex({ x: 100, y: 0 });
+    expect(control.addVertex({ x: 50, y: 3 })).toEqual({ x: 50, y: 3 });
+  });
+
+  it("forwards the resolved snapping config to the sketch provider through the controller", async () => {
+    const received: SnappingConfig[] = [];
+    const control = await sketchControl();
+    control.controller = snappingController(received);
+    control.connectedCallback();
+    expect(received).toEqual([]);
+
+    control.snappingOptions = { enabled: true, distance: 8, sources: { parcels: true } };
+    expect(received.at(-1)).toEqual(resolveSnappingConfig({ enabled: true, tolerance: 8, sources: { parcels: true } }));
+  });
+
+  it("forwards disabled snapping to the provider when the options are cleared", async () => {
+    const received: SnappingConfig[] = [];
+    const control = await sketchControl();
+    control.controller = snappingController(received);
+    control.snappingOptions = { enabled: true, tolerance: 5 };
+    control.snappingOptions = undefined;
+    expect(received.at(-1)).toEqual(resolveSnappingConfig({ enabled: false }));
+
+    control.addVertex({ x: 0, y: 0 });
+    expect(control.addVertex({ x: 1, y: 1 })).toEqual({ x: 1, y: 1 });
+  });
+
+  it("forwards snapping set before the controller once the controller arrives", async () => {
+    const received: SnappingConfig[] = [];
+    const control = await sketchControl();
+    control.snappingOptions = { enabled: true };
+    control.controller = snappingController(received);
+    control.connectedCallback();
+    expect(received.at(-1)).toEqual(resolveSnappingConfig({ enabled: true }));
   });
 });

@@ -48,7 +48,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 
 - [OGC API Client](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/ogc-api.md): OGC API Features / Tiles / Maps / Processes and STAC cookbooks.
 - [WFS 2.0 adapter](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/wfs.md): WFS 2.0 adapter usage, filters, and exception handling.
-- [GeoParquet / DuckDB-WASM source](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geoparquet.md): GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.
+- [GeoParquet / DuckDB source](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/geoparquet.md): GeoParquet / DuckDB-WASM Source: contract Query compiled to SQL over read_parquet, spatial pushdown, Overture recipe.
 - [WebMap JSON Compatibility Contract](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/webmap-json-compatibility.md): Parsing Esri WebMap JSON into Honua sources and MapLibre style.
 
 ## Map runtime

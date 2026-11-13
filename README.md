@@ -19,7 +19,7 @@ surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimen
 
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
@@ -84,7 +84,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.3.3`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.3.4`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 27 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -312,14 +312,14 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/geocoding` | 9.3 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
-| `@honua/sdk-js/map` | 55.9 KiB |
-| `@honua/sdk-js` (root) | 202.7 KiB |
+| `@honua/sdk-js/map` | 56.1 KiB |
+| `@honua/sdk-js` (root) | 203.6 KiB |
 | `{ HonuaClient }` from the root (tree-shake guard) | 59.2 KiB |
-| `{ connect }` from the root (tree-shake guard) | 163.1 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.1 KiB |
+| `{ connect }` from the root (tree-shake guard) | 164.1 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 193.0 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 163.1 KiB gzip and `{ createHonua }` 192.1 KiB against the 202.7 KiB root, so size-sensitive
+alone costs 164.1 KiB gzip and `{ createHonua }` 193.0 KiB against the 203.6 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -337,15 +337,13 @@ verbs in order: **connect → query → explain** (the fourth verb, **mount**, i
 the hero at the top of this page).
 
 ```ts doc-test=compile
-import { connect, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
+import { createHonua, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
 
-// 1. connect — a public Esri Living Atlas FeatureServer; nothing of Honua's is running.
-const data = await connect({
-  endpoint:
-    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+// 1. connect — a public FeatureServer; nothing of Honua's is running.
+await using honua = createHonua();
+const data = await honua.connect(
+  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+);
 const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 
 // 2. query — one typed, protocol-neutral filter expression.

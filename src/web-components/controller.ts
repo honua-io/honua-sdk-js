@@ -1,3 +1,4 @@
+import type { SnappingConfig } from "../contract/edit-snapping.js";
 import type { FeatureId, Query } from "../contract/index.js";
 import { trimChar } from "../core/path-utils.js";
 import type { HonuaTypedFeature } from "../core/types.js";
@@ -420,6 +421,10 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
         message: error instanceof Error ? error.message : "Sketch provider failed.",
       };
     }
+  }
+
+  public setSketchSnapping(config: SnappingConfig): void {
+    this.#sketchGeometry?.setSnapping?.(config);
   }
 
   public destroy(): void {
