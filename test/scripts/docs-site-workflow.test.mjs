@@ -83,7 +83,7 @@ test("docs site runs daily and on manual dispatch, not on push", () => {
 
 test("publication gates stay present and strict", () => {
   assert.equal(workflow.includes("HONUA_DERIVED_ARTIFACTS_RELAX"), false);
-  assert.equal(ci.split("HONUA_DERIVED_ARTIFACTS_RELAX:").length - 1, 3);
+  assert.equal(ci.split("HONUA_DERIVED_ARTIFACTS_RELAX:").length - 1, 4);
   assert.equal(
     ci.split(
       "HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release-please--branches--trunk' && inputs.release_head_sha == github.sha) && '1' || '' }}",
