@@ -66,17 +66,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `c01a830f4`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `c3d45b356`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 761.8 KiB | 203.6 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 232.7 KiB | 59.2 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 762.3 KiB | 203.9 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 233.2 KiB | 59.4 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
-| Client compatibility layer (drop-in migration surface) | 1076.8 KiB | 270.7 KiB |
+| Client compatibility layer (drop-in migration surface) | 1077.3 KiB | 271.2 KiB |
 | Geocoding client | 33.0 KiB | 9.3 KiB |
 | Routing client | 28.7 KiB | 8.6 KiB |
 
@@ -88,8 +88,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 761.8 KiB ≈ **2.30 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 203.6 KiB ≈ **0.62 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 762.3 KiB ≈ **2.30 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 203.9 KiB ≈ **0.62 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
