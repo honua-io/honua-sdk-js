@@ -167,16 +167,16 @@ have exactly one positive `discovery` support claim, and rejects source-backed
 entries outside the connector inventory.
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js/honua";
+import { createHonua } from "@honua/sdk-js";
 
-const connection = await connect({
-  endpoint: "https://demo.pygeoapi.io/master",
+await using honua = createHonua();
+const connection = await honua.connect({
+  url: "https://demo.pygeoapi.io/master",
   protocol: "ogc-features",
-  authorizationScopeFingerprint: "anonymous",
   collectionId: "lakes",
 });
 
-const inspection = connection.inspection.sources[0];
+const inspection = (await connection.inspect()).sources[0];
 // Capabilities are the intersection of the SDK adapter and advertised
 // conformance evidence, never PROTOCOL_DEFAULT_CAPABILITIES by assumption.
 const lakes = connection.source();
@@ -187,14 +187,12 @@ layer/table metadata with a maximum concurrency of four. A layer URL performs
 only the single selected-layer metadata request:
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js/honua";
+import { createHonua } from "@honua/sdk-js";
 
-const parcels = await connect({
-  endpoint:
-    "https://sampleserver.example/arcgis/rest/services/Cadastre/Parcels/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "anonymous",
-});
+await using honua = createHonua();
+const parcels = await honua.connect(
+  "https://sampleserver.example/arcgis/rest/services/Cadastre/Parcels/FeatureServer/0",
+);
 
 const layer = parcels.source();
 // locator.serviceId === "Cadastre/Parcels"; locator.layerId === 0

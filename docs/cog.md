@@ -27,6 +27,9 @@ operation; it never receives an unbounded Fetch function. This keeps a
 preferred GeoTIFF package lazy and application-owned while Honua enforces the
 network and lifecycle policy.
 
+This recipe uses the lower-level `connect()` rather than `createHonua().connect()`: the static STAC
+asset candidates are on its synchronous `inspection`, which the kernel connection does not expose.
+
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 import { openStacCogAsset, type CogDecoderFactory } from "@honua/sdk-js/cog";
