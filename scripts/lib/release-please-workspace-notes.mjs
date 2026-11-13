@@ -128,7 +128,10 @@ export async function normalizeReleasePleaseWorkspaceNotes(input, request = gith
       api, headSha, headRefName,
       changes: [{ path: CHANGELOG, mode: "100644", type: "blob", content: normalized.changelog }],
       message: "chore: align generated MCP workspace notes with package declarations",
-    }, { request, assertCurrent: () => assertCurrent(headSha) });
+    }, {
+      request, assertCurrent: () => assertCurrent(headSha), wait: input.wait,
+      pullRequestHead: async () => (await loadExactReleasePleasePullRequest(repository, request, headRefName))?.headSha,
+    });
   }
   if (normalized.body !== current.body) {
     await assertCurrent(nextHead);

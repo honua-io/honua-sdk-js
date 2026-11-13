@@ -76,6 +76,9 @@ test("mismatched MCP release versions and missing local SDK identity fail closed
 function harness(options = {}) {
   const calls = [];
   let graphqlReads = 0;
+  let branchHead = HEAD;
+  let pullRequestHead = HEAD;
+  let pendingHeadSyncReads = 0;
   const source = files(options.sdkVersion);
   const pullRequest = {
     number: 2405, body: "generated body", title: "chore(trunk): release mcp-server 0.3.2", state: "OPEN", updatedAt: "now",
@@ -92,8 +95,10 @@ function harness(options = {}) {
     calls.push({ path, method: init.method ?? "GET", body });
     if (path === "/graphql") {
       graphqlReads++;
+      if (graphqlReads % 2 === 1 && pendingHeadSyncReads > 0) pendingHeadSyncReads -= 1;
+      if (pendingHeadSyncReads === 0) pullRequestHead = branchHead;
       return { data: { repository: { nameWithOwner: REPO, pullRequest: {
-        ...pullRequest, ...(options.moveAfterRead && graphqlReads > (options.moveAfterRead === true ? 2 : options.moveAfterRead) ? { headRefOid: NEXT } : {}),
+        ...pullRequest, headRefOid: pullRequestHead, ...(options.moveAfterRead && graphqlReads > (options.moveAfterRead === true ? 2 : options.moveAfterRead) ? { headRefOid: NEXT } : {}),
       } } } };
     }
     if (path === "/pulls") return parsed.searchParams.get("head") === `honua-io:${BRANCH}` ? [{ number: 2405, head: { sha: HEAD } }] : [];
@@ -103,14 +108,17 @@ function harness(options = {}) {
     }
     if (path.startsWith("/git/ref/heads/")) {
       const branch = path.slice(15);
-      return { ref: `refs/heads/${branch}`, object: { type: "commit", sha: branch === "trunk" ? BASE : HEAD } };
+      return { ref: `refs/heads/${branch}`, object: { type: "commit", sha: branch === "trunk" ? BASE : branchHead } };
     }
     if (path === `/git/commits/${HEAD}`) return { sha: HEAD, tree: { sha: TREE } };
     if (path === "/git/trees") return { sha: TREE };
     if (path === "/git/commits") return { sha: NEXT, tree: { sha: TREE }, parents: [{ sha: options.commitParent ?? HEAD }] };
     if (path === `/git/refs/heads/${BRANCH}`) {
       if (options.refFailure) throw new Error("Non-fast-forward update rejected");
-      return { object: { sha: options.updatedHead ?? NEXT } };
+      branchHead = options.updatedHead ?? NEXT;
+      pendingHeadSyncReads = options.headSyncLagReads ?? 0;
+      if (pendingHeadSyncReads === 0) pullRequestHead = branchHead;
+      return { object: { sha: branchHead } };
     }
     throw new Error(`Unexpected request ${url}`);
   };
@@ -118,6 +126,16 @@ function harness(options = {}) {
 }
 
 const INPUT = { repository: REPO, trustedPolicySha: BASE };
+
+test("lock normalization returns only after the pull request reports the new head", async () => {
+  const waits = [];
+  const { request, calls } = harness({ headSyncLagReads: 2 });
+  assert.deepEqual(await normalizeReleasePleaseLockfiles({ ...INPUT, wait: async (ms) => { waits.push(ms); } }, request),
+    [{ pullRequestNumber: 2405, headSha: NEXT, status: "normalized" }]);
+  assert.equal(waits.length, 1);
+  const patch = calls.findIndex(({ method }) => method === "PATCH");
+  assert.ok(calls.slice(patch).some(({ path }) => path === "/graphql"));
+});
 
 test("trusted candidate is read at exact head and corrected with a non-force child commit", async () => {
   const { request, calls } = harness();

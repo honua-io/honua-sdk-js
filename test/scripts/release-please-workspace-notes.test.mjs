@@ -119,21 +119,34 @@ function candidateFiles(data) {
   };
 }
 
+/** The PR snapshot reports a published ref head only after `lagReads` snapshot reads, as GitHub does. */
+function candidateHead(initial, lagReads = 0) {
+  let ref = initial;
+  let reported = initial;
+  let pendingReads = 0;
+  return {
+    ref: () => ref,
+    reported: () => reported,
+    move(sha) { ref = sha; reported = sha; },
+    publish(sha) { ref = sha; pendingReads = lagReads; if (pendingReads === 0) reported = sha; },
+    read() { pendingReads = Math.max(0, pendingReads - 1); if (pendingReads === 0) reported = ref; },
+  };
+}
+
 function harness(options = {}) {
   const data = options.branch === componentBranch ? componentFixture() : fixture();
   const candidateBranch = options.branch ?? branch;
   const title = options.title ?? (candidateBranch === componentBranch ? "chore(trunk): release mcp-server 0.2.0" : "chore: release trunk");
   if (options.mutate) options.mutate(data);
-  let currentHead = headSha;
+  const head = candidateHead(headSha, options.headSyncLagReads);
   let currentBody = data.body;
   let snapshotReads = 0;
   const mutations = [];
   const calls = [];
-  const files = candidateFiles(data);
   const rest = () => ({
     number: 2074, body: currentBody, title, state: "open", updated_at: "2026-10-13T07:00:00Z",
     user: { login: options.author ?? "github-actions", type: "Bot" },
-    head: { ref: candidateBranch, sha: currentHead, repo: { full_name: options.headRepository ?? repository } },
+    head: { ref: candidateBranch, sha: head.reported(), repo: { full_name: options.headRepository ?? repository } },
     base: { ref: "trunk", sha: options.baseSha ?? baseSha, repo: { full_name: repository } },
   });
   const request = async (url, input = {}) => {
@@ -143,12 +156,13 @@ function harness(options = {}) {
     if (pathname.endsWith("/pulls")) {
       snapshotReads += 1;
       if (snapshotReads === options.bodyRaceOnSnapshot) currentBody += "\nconcurrent edit";
-      if (snapshotReads >= (options.raceOnSnapshot ?? (options.headRace ? 2 : Infinity))) currentHead = "f".repeat(40);
+      if (snapshotReads >= (options.raceOnSnapshot ?? (options.headRace ? 2 : Infinity))) head.move("f".repeat(40));
+      head.read();
       return options.absent ? [] : options.ambiguous ? [rest(), rest()] : [rest()];
     }
     if (pathname === "/graphql") return { data: { repository: { nameWithOwner: repository, pullRequest: {
       number: 2074, body: currentBody, title, state: "OPEN", updatedAt: "2026-10-13T07:00:00Z",
-      headRefName: options.graphqlBranch ?? candidateBranch, headRefOid: currentHead, headRepository: { nameWithOwner: options.headRepository ?? repository },
+      headRefName: options.graphqlBranch ?? candidateBranch, headRefOid: head.reported(), headRepository: { nameWithOwner: options.headRepository ?? repository },
       baseRefName: "trunk", baseRefOid: options.baseSha ?? baseSha, baseRepository: { nameWithOwner: repository },
       author: { login: options.author ?? "github-actions", __typename: "Bot" },
       closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false } },
@@ -156,20 +170,20 @@ function harness(options = {}) {
     if (pathname.includes("/contents/")) {
       assert.ok([headSha, baseSha].includes(searchParams.get("ref")));
       const path = pathname.split("/contents/")[1];
-      const value = path === "mcp/package.json" && searchParams.get("ref") === baseSha ? data.baseMcp : files[path];
+      const value = path === "mcp/package.json" && searchParams.get("ref") === baseSha ? data.baseMcp : candidateFiles(data)[path];
       return { type: "file", encoding: "base64", content: Buffer.from(typeof value === "string" ? value : JSON.stringify(value)).toString("base64") };
     }
     if (pathname.includes("/git/ref/heads/")) {
       const name = pathname.split("/git/ref/heads/")[1];
-      return { ref: `refs/heads/${name}`, object: { type: "commit", sha: name === "trunk" ? (options.baseRace ? "f".repeat(40) : baseSha) : options.refRace ? "f".repeat(40) : currentHead } };
+      return { ref: `refs/heads/${name}`, object: { type: "commit", sha: name === "trunk" ? (options.baseRace ? "f".repeat(40) : baseSha) : options.refRace ? "f".repeat(40) : head.ref() } };
     }
     if (pathname.endsWith(`/git/commits/${headSha}`)) return { sha: headSha, tree: { sha: oldTree } };
     if (pathname.endsWith("/git/trees")) return { sha: newTree };
     if (pathname.endsWith("/git/commits")) return { sha: nextSha, tree: { sha: newTree }, parents: [{ sha: options.commitParent ?? headSha }] };
     if (pathname.endsWith(`/git/refs/heads/${candidateBranch}`)) {
       if (options.refFailure) throw new Error("Non-fast-forward update rejected");
-      currentHead = options.updatedHead ?? nextSha;
-      return { object: { sha: currentHead } };
+      head.publish(options.updatedHead ?? nextSha);
+      return { object: { sha: head.ref() } };
     }
     if (pathname.endsWith("/pulls/2074")) {
       currentBody = JSON.parse(input.body).body;
@@ -224,6 +238,26 @@ describe("trusted generated-note publication", () => {
     await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /Invalid normalized candidate commit/);
     assert.ok(mutations.some((call) => call.pathname.endsWith("/git/commits")));
     assert.ok(mutations.every((call) => call.method !== "PATCH"));
+  });
+  it("waits for the pull request to report the new head before publishing the body", async () => {
+    const waits = [];
+    const { request, mutations } = harness({ headSyncLagReads: 2 });
+    assert.deepEqual(await normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async (ms) => { waits.push(ms); } }, request),
+      { status: "normalized", headSha: nextSha });
+    assert.equal(waits.length, 1);
+    assert.ok(mutations.at(-1).pathname.endsWith("/pulls/2074"));
+  });
+  it("fails closed when the pull request never reports the new head", async () => {
+    const { request, mutations } = harness({ headSyncLagReads: Infinity });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async () => {} }, request),
+      /did not report the normalized candidate head/);
+    assert.ok(mutations.every((call) => !call.pathname.endsWith("/pulls/2074")));
+  });
+  it("fails closed when the pull request reports a third head after the update", async () => {
+    const { request, mutations } = harness({ headSyncLagReads: 1, raceOnSnapshot: 4 });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async () => {} }, request),
+      /unexpected candidate head/);
+    assert.ok(mutations.every((call) => !call.pathname.endsWith("/pulls/2074")));
   });
   it("does not update the body after rejected or unconfirmed ref updates", async () => {
     for (const options of [{ refFailure: true }, { updatedHead: headSha }]) {
