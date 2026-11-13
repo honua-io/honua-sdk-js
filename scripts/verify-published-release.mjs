@@ -501,14 +501,6 @@ async function checkAsync(id, description, evaluate) {
   }
 }
 
-/**
- * A companion gap: a package that publishes from its own Release Please tag
- * (the MCP server, the scaffold) whose tagged version the registry has never
- * received, while the registry does serve the package. That is a release that
- * did not happen, reported apart from an SDK package that is missing or fails a
- * check. A published companion that fails integrity, provenance or source
- * checks, or a registry that cannot be read, stays a failure.
- */
 function isPackumentFor(packument, npmName) {
   const versions = packument?.versions;
   return (
@@ -521,6 +513,7 @@ function isPackumentFor(packument, npmName) {
   );
 }
 
+/** A companion release that never happened, reported apart from SDK package failures. */
 function isCompanionGap(target, checks) {
   if (target.sourceBinding !== "own-release-tag") return false;
   const failures = checks.filter((entry) => entry.status === "fail");
