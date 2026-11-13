@@ -576,7 +576,10 @@ jobs:
 
       - name: Regenerate sample dist projections
         if: steps.decision.outputs.skip == 'false'
-        run: npm run samples:generate
+        run: |
+          node scripts/sample-playgrounds.mjs write-artifact
+          node scripts/sample-playgrounds.mjs check
+          npm run samples:generate
 
       # samples:generate rewrites docs/generated/sample-catalog.md, which is an
       # input to llms-full.txt. Refresh both deterministic llms outputs only

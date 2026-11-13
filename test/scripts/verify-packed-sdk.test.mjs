@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { prepareNlMapConsumer } from "../../scripts/lib/nl-map-packed-consumer.mjs";
 
 import {
   ADMIN_JOURNEY_GROUPS,
@@ -230,4 +233,45 @@ test("the stage 8 entry carries the exact honua-release#123 approval command sha
     "approver",
     "--yes",
   ]);
+});
+
+function sampleConsumerFixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "honua-sample-consumer-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const projectRoot = path.join(root, "project");
+  const consumerRoot = path.join(root, "consumer");
+  const sample = path.join(projectRoot, "examples", "nl-map-control");
+  const sdk = path.join(consumerRoot, "node_modules", "@honua", "sdk-js");
+  fs.mkdirSync(path.join(sample, "src"), { recursive: true });
+  fs.mkdirSync(sdk, { recursive: true });
+  fs.writeFileSync(path.join(sample, "src", "main.ts"), 'import { available } from "@honua/sdk-js"; void available;\n');
+  fs.writeFileSync(path.join(sample, "index.html"), '<script type="module" src="/src/main.ts"></script>');
+  fs.writeFileSync(path.join(sample, "evaluation.v1.json"), '{}\n');
+  fs.writeFileSync(path.join(sample, "tsconfig.json"), JSON.stringify({ compilerOptions: {
+    target: "ES2022", module: "ESNext", moduleResolution: "Bundler", noEmit: true, types: [],
+    baseUrl: ".", paths: { "@honua/sdk-js": ["../../src/index.ts"] },
+  } }));
+  fs.writeFileSync(path.join(sdk, "package.json"), JSON.stringify({ name: "@honua/sdk-js", types: "index.d.ts" }));
+  fs.writeFileSync(path.join(sdk, "index.d.ts"), 'export declare const available: number;\n');
+  return { projectRoot, consumerRoot, sdk };
+}
+
+test("copied sample resolves installed declarations and refuses missing exports or repository imports", (t) => {
+  const fixture = sampleConsumerFixture(t);
+  const sample = prepareNlMapConsumer(fixture);
+  const config = JSON.parse(fs.readFileSync(path.join(sample, "tsconfig.json"), "utf8"));
+  assert.equal(config.compilerOptions.paths, undefined);
+  assert.equal(config.compilerOptions.baseUrl, undefined);
+  const compiler = fileURLToPath(new URL("../../node_modules/typescript/bin/tsc", import.meta.url));
+  const compile = () => spawnSync(process.execPath, [compiler, "-p", sample], { encoding: "utf8", timeout: 30_000 });
+  const valid = compile();
+  assert.equal(valid.status, 0, valid.stderr + valid.stdout);
+  fs.writeFileSync(path.join(fixture.sdk, "index.d.ts"), 'export declare const other: number;\n');
+  const missing = compile();
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stdout, /no exported member 'available'/);
+  fs.writeFileSync(path.join(sample, "src", "main.ts"), 'import { available } from "../../../src/index.js"; void available;\n');
+  const escaping = compile();
+  assert.notEqual(escaping.status, 0);
+  assert.match(escaping.stdout, /Cannot find module '\.\.\/\.\.\/\.\.\/src\/index.js'/);
 });

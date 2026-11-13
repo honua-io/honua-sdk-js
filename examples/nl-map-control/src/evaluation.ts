@@ -1,5 +1,5 @@
+import { type DuckDbDriver, createBrowserDuckDbDriver } from "@honua/sdk-js/geoparquet";
 import { HonuaAskMapClarification, HonuaNlMapControlError, createNlMapControl } from "@honua/sdk-js/nl-map-control";
-import { type DuckDbDriver, createBrowserDuckDbDriver } from "../../../src/geoparquet/driver.js";
 import corpus from "../evaluation.v1.json" with { type: "json" };
 import { CRS, FIXTURE_VERSION, ORIGIN, SCHEMA } from "./fixture.js";
 import { type QueryResult, createIncidentRuntime, initializeFixture, reviewQuery } from "./map-runtime.js";

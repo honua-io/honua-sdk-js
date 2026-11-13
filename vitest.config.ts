@@ -165,6 +165,14 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/react/index.ts"),
       },
       {
+        find: "@honua/sdk-js/geoparquet",
+        replacement: path.resolve(import.meta.dirname, "src/geoparquet/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/source-schema",
+        replacement: path.resolve(import.meta.dirname, "src/source-schema.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(import.meta.dirname, "src/index.ts"),
       },
