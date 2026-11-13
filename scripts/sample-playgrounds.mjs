@@ -36,6 +36,7 @@
  *
  * Run with:
  *   npm run samples:playgrounds:generate   # write projects + catalog overlay + sample READMEs
+ *   node scripts/sample-playgrounds.mjs write-artifact   # trunk's derived-artifact refresh only
  *   npm run samples:playgrounds:check      # fail on drift
  */
 
@@ -1043,8 +1044,8 @@ function reportDrift(problems) {
 
 function main() {
   const mode = process.argv[2] ?? "check";
-  if (mode !== "write" && mode !== "check") {
-    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|check]\n");
+  if (!["write", "write-artifact", "check"].includes(mode)) {
+    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|write-artifact|check]\n");
     process.exit(1);
   }
   const { decisions, files, catalogEntries, sampleReadmes, sdkVersion } = collectPlan();
@@ -1060,6 +1061,12 @@ function main() {
   const artifact = renderPlaygroundArtifact(decisions, catalogEntries, sdkVersion);
   validateArtifact(artifact);
   const artifactBytes = stableJson(artifact);
+
+  if (mode === "write-artifact") {
+    fs.writeFileSync(path.join(ROOT, ARTIFACT_PATH), artifactBytes);
+    process.stdout.write(`samplePlaygroundArtifactWritten=${ARTIFACT_PATH}\n`);
+    return;
+  }
 
   if (mode === "write") {
     fs.rmSync(path.join(ROOT, PLAYGROUND_ROOT), { recursive: true, force: true });

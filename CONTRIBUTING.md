@@ -38,7 +38,8 @@ Now:
 - Playground artifact checks allow exclusion diagnostic text to await trunk
   regeneration in derived-artifact relaxed mode. Artifact schemas, exclusion identities and
   categories, SDK pins, qualified projects, catalog links, and README blocks
-  remain checked; strict mode requires byte equality.
+  remain checked; strict mode requires byte equality. The scheduled regeneration
+  workflow refreshes only the decision artifact and then runs the strict check.
 - **After merge**, `.github/workflows/regenerate-derived-artifacts.yml`
   (trunk-only, serialized) rebuilds every derived artifact, reseals sample
   evidence **strictly bound to the trunk source digest**, and commits the result
