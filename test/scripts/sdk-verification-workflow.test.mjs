@@ -778,6 +778,7 @@ describe("ci.yml keeps legacy jobs for rollback and manual dispatch", () => {
       // the merge ref, which is the composition check working as intended.
       "node test/scripts/stranded-merge-detector.test.mjs",
       "node test/scripts/second-review-summary.test.mjs",
+      "node test/scripts/docs-site-workflow.test.mjs",
     ];
     for (const jobId of ["pr-fast", "js-sdk"]) {
       const commands = jobCommands(ci, jobId);
