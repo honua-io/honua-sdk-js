@@ -490,6 +490,54 @@ function normalizeQualificationBootstrapSampleIds(value) {
   return ids;
 }
 
+const SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX = "test/fixtures/sample-contract/";
+
+function syntheticConfigurationFixtureIds(value) {
+  invariant(
+    value === undefined || Array.isArray(value),
+    "syntheticConfigurationFixtures must be an array of sample ids",
+  );
+  const ids = new Set();
+  for (const id of value ?? []) {
+    invariant(
+      typeof id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id),
+      "synthetic configuration fixture sample id is invalid",
+    );
+    invariant(!ids.has(id), `duplicate synthetic configuration fixture: ${id}`);
+    ids.add(id);
+  }
+  return ids;
+}
+
+function validateSyntheticConfigurationFixtures(catalog, value) {
+  const ids = syntheticConfigurationFixtureIds(value);
+  for (const sampleId of ids) {
+    invariant(
+      catalog.samples.some((sample) => sample.id === sampleId),
+      `synthetic configuration fixture is not in the catalog: ${sampleId}`,
+    );
+  }
+  return ids;
+}
+
+function validateSampleSourceKind(sample, syntheticConfigurationFixtures) {
+  // Named fixtures retain every configuration invariant and must stay inside
+  // the test fixture tree; naming a shipped sample therefore fails closed.
+  if (syntheticConfigurationFixtures.has(sample.id)) {
+    invariant(
+      sample.sourcePath.startsWith(SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX),
+      `${sample.id}: synthetic configuration fixture source must live under ${SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX}`,
+    );
+    return;
+  }
+  invariant(
+    sample.sourceKind === "root-example"
+      ? sample.sourcePath.startsWith("examples/")
+      : sample.sourcePath.startsWith("docs/examples/"),
+    `${sample.id}: sourceKind does not match sourcePath`,
+  );
+}
+
 function sortedUnique(values, label) {
   invariant(Array.isArray(values) && values.length > 0, `${label} must be a non-empty array`);
   const sorted = [...values].sort();
@@ -3027,6 +3075,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     `${CAPABILITY_CROSSWALK_PATH} must use honua.sdk.capability-crosswalk.v1 schema version 1`,
   );
   const { keys: canonicalCapabilityKeys, source: capabilityKeyListSource } = await loadCapabilityKeyList();
+  const syntheticConfigurationFixtures = validateSyntheticConfigurationFixtures(catalog, options.syntheticConfigurationFixtures);
   for (const sample of catalog.samples) {
     invariant(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sample.id), `invalid sample id: ${sample.id}`);
     invariant(!sampleIds.has(sample.id), `duplicate sample id: ${sample.id}`);
@@ -3050,12 +3099,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     assertRelativePath(sample.docsPath, `${sample.id}.docsPath`);
     invariant(await pathExists(sample.sourcePath), `${sample.id}: sourcePath does not exist: ${sample.sourcePath}`);
     invariant(await pathExists(sample.docsPath), `${sample.id}: docsPath does not exist: ${sample.docsPath}`);
-    invariant(
-      sample.sourceKind === "root-example"
-        ? sample.sourcePath.startsWith("examples/")
-        : sample.sourcePath.startsWith("docs/examples/"),
-      `${sample.id}: sourceKind does not match sourcePath`,
-    );
+    validateSampleSourceKind(sample, syntheticConfigurationFixtures);
     sourcePaths.add(sample.sourcePath);
     sortedUnique(sample.capabilities, `${sample.id}.capabilities`);
     const expectedCapabilityKeys = deriveCapabilityKeys(sample.capabilities, capabilityCrosswalk);
@@ -3418,7 +3462,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
-    .filter((sample) => sample.sourceKind === "root-example")
+    .filter((sample) => sample.sourceKind === "root-example" && !syntheticConfigurationFixtures.has(sample.id))
     .map((sample) => sample.sourcePath)
     .sort();
   invariant(
@@ -3427,7 +3471,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   );
   const docsExamples = await runnableDocsExampleDirectories();
   const representedDocsExamples = catalog.samples
-    .filter((sample) => sample.sourceKind === "docs-example")
+    .filter((sample) => sample.sourceKind === "docs-example" && !syntheticConfigurationFixtures.has(sample.id))
     .map((sample) => sample.sourcePath)
     .sort();
   invariant(

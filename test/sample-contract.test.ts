@@ -1743,16 +1743,12 @@ describe("sample publication contract", () => {
       "node-backend-quickstart: configuration declaration drift",
     );
 
-    // This proved "browser-public credentials require legacy-unsafe status and
-    // bounded rework" by flipping kepler-analytics to approved. #1674 retired
-    // that sample, and no survivor can reach the same invariant: every sample
-    // left with a browser-public credential also passes a whole import.meta.env
-    // object, which trips an earlier guard as soon as the status is approved.
-    //
-    // The bounded-rework half is still reachable, so it is asserted here rather
-    // than dropped with the rest. The status half remains enforced in
-    // scripts/sample-contract.mjs but is currently unexercised by any shipped
-    // sample; restoring it needs a fixture, not a catalog mutation (#1687).
+    // Bounded rework is still proved here, on a shipped sample whose legacy
+    // configuration declares no names. Approving a browser-public credential
+    // cannot be proved on a shipped sample: the ones that declare one also
+    // pass a whole import.meta.env object, so the earlier whole-environment
+    // guard fires first. The status rule is proved by the named-key fixture
+    // in the next test.
     const unboundedRework = structuredClone(catalog);
     const legacyUnsafeSample = unboundedRework.samples.find(
       (sample: { id: string }) => sample.id === "cesium-route-playback",
