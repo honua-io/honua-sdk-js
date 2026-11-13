@@ -15,7 +15,7 @@ export async function runSpatialAnalyticsCycles(operationCount: number) {
       if (!estimate.plan) throw new Error("Expected a bounded-local plan");
       fingerprints.add(estimate.plan.fingerprint);
       const executed = await controller.execute(controller.accept(estimate));
-      rowsValid &&= executed.aggregateRows.length === 3;
+      rowsValid &&= executed.aggregateRows?.length === 3;
     }
     return {
       totalDurationMs: performance.now() - startedAt,
