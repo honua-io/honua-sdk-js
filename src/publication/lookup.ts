@@ -17,7 +17,7 @@ export interface PublicationQueryBudget {
 /** Budget for a parcel-identity lookup, set from the county-scale browser measurement. */
 export const PUBLICATION_LOOKUP_BUDGET: PublicationQueryBudget = Object.freeze({
   maxBytes: 2 * 1024 * 1024,
-  maxTimeToFirstResultMs: 1_500,
+  maxTimeToFirstResultMs: 2_000,
 });
 
 /** Why a lookup left the browser path, in words an app can show as they are. */
