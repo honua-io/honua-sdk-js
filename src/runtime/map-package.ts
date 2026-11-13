@@ -1,5 +1,5 @@
 /**
- * Typed map document mirroring the server-produced composition contract. The
+ * Typed mirror of the server-produced map document. The
  * package shape is `honua_map_package.v1` — the format string is the
  * canonical version gate and the runtime loader refuses other values.
  *
