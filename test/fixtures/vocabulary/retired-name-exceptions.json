@@ -1,7 +1,7 @@
 {
   "$comment": "Exceptions for test/vocabulary-public-names.test.ts. Policy: honua-server docs/concepts/domain/README.md and scripts/ci/retired-terms.v1.json. Every exported name containing a retired term must be listed here; shrink these lists, do not grow them.",
   "renamed": {
-    "reason": "Pre-vocabulary names renamed outright in #2348 (old -> new), mirrored in docs/vocabulary-renames.md. The product is unreleased, so there are no deprecated aliases; none of these may be exported again.",
+    "reason": "Pre-vocabulary names renamed outright in #2348 (old -> new), mirrored in docs/vocabulary-renames.md. There are no deprecated aliases; none of these may be exported again.",
     "names": {
       "AppPackage": "AppVersion",
       "BoundedMapPackageFetchCache": "BoundedMapDocumentFetchCache",
