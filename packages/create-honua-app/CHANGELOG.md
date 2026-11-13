@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.4...create-honua-app-v0.2.5) (2026-11-13)
+
+
+### Bug Fixes
+
+* **create-honua-app:** certify the starter on published SDK 0.3.4 ([#2371](https://github.com/honua-io/honua-sdk-js/issues/2371)) ([54c4877](https://github.com/honua-io/honua-sdk-js/commit/54c487708fe3de3151a9ebb22f53b786fbd41931))
+* **release:** pin starters, playgrounds and generated MCP clients to the published SDK 0.3.4 and MCP 0.3.2 ([9c519c0](https://github.com/honua-io/honua-sdk-js/commit/9c519c016f8a238e7ffdf2be8ace2a5ed904ffbc))
+
 ## [0.2.4](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.3...create-honua-app-v0.2.4) (2026-10-30)
 
 
