@@ -61,6 +61,10 @@ function graphqlPayload(snapshot) {
   };
 }
 
+function pullListReads(calls) {
+  return calls.filter(({ url }) => new URL(url).pathname.endsWith("/pulls")).length;
+}
+
 function harness(options = {}) {
   const stale = { ...fixture, ...(options.snapshot ?? {}) };
   const refreshed = {
@@ -71,20 +75,15 @@ function harness(options = {}) {
   };
   const calls = [];
   let updateAccepted = false;
-  let pullListReads = 0;
   const request = async (url, requestOptions = {}) => {
     calls.push({ url, options: requestOptions });
     const pathname = new URL(url).pathname;
-    if (pathname.endsWith("/pulls")) pullListReads += 1;
-    const settled = options.settlesAfterReads !== undefined && pullListReads > options.settlesAfterReads;
+    const settled = pullListReads(calls) > (options.settlesAfterReads ?? Number.POSITIVE_INFINITY);
     const current = (updateAccepted && options.confirmRefresh !== false) || settled ? refreshed : stale;
     if (pathname.endsWith("/pulls")) return options.noPullRequest ? [] : [restPull(current)];
     if (pathname.endsWith("/graphql")) return graphqlPayload(current);
     if (pathname.endsWith("/git/ref/heads/trunk")) {
-      return {
-        ref: "refs/heads/trunk",
-        object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha },
-      };
+      return { ref: "refs/heads/trunk", object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha } };
     }
     if (pathname.endsWith(`/git/ref/heads/${stale.headRefName}`)) {
       return {
@@ -143,8 +142,7 @@ describe("trusted Release Please base refresh", () => {
     const updateIndex = testHarness.calls.findIndex(({ url }) => new URL(url).pathname.endsWith("/update-branch"));
     const update = testHarness.calls[updateIndex];
     assert.equal(update.options.method, "PUT");
-    const readsBeforeUpdate = testHarness.calls.slice(0, updateIndex).filter(({ url }) => new URL(url).pathname.endsWith("/pulls"));
-    assert.equal(readsBeforeUpdate.length, 1);
+    assert.equal(pullListReads(testHarness.calls.slice(0, updateIndex)), 1);
     assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: fixture.headSha });
   });
 
@@ -220,7 +218,8 @@ describe("trusted Release Please base refresh", () => {
   it("waits for a reported Release Please update to settle on trusted trunk", async () => {
     const testHarness = harness({ settlesAfterReads: 2 });
     const result = await refreshReleasePleaseBase(
-      { repository, trustedPolicySha, releasePleaseReportedUpdate: true, confirmationAttempts: 3, confirmationDelayMs: 0 },
+      { repository, trustedPolicySha, releasePleaseReportedUpdate: true,
+        confirmationAttempts: 3, confirmationDelayMs: 0 },
       testHarness.request,
     );
     assert.equal(result.status, "release-please-updated");
@@ -232,7 +231,8 @@ describe("trusted Release Please base refresh", () => {
     const testHarness = harness();
     await assert.rejects(
       refreshReleasePleaseBase(
-        { repository, trustedPolicySha, releasePleaseReportedUpdate: true, confirmationAttempts: 2, confirmationDelayMs: 0 },
+        { repository, trustedPolicySha, releasePleaseReportedUpdate: true,
+          confirmationAttempts: 2, confirmationDelayMs: 0 },
         testHarness.request,
       ),
       /reported an update but left its pull request on a stale trusted base/u,
