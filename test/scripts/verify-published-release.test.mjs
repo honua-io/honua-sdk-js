@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import test from "node:test";
 
 import {
@@ -12,14 +9,26 @@ import {
   attestationsUrl,
   packumentUrl,
   parseVerifyPublishedReleaseArgs,
-  planPublishedArtifactTarget,
   planPublishedReleaseTargets,
   receiptJson,
   releaseTagFor,
   resolveDistTag,
-  subjectPurl,
   verifyPublishedRelease,
 } from "../../scripts/verify-published-release.mjs";
+
+import {
+  CREATE_APP_VERSION,
+  NOW,
+  OWN_TAG_COMMIT,
+  REPOSITORY,
+  SEALED_COMMIT,
+  SEALED_TAG,
+  VERSION,
+  artifactOf,
+  failedCheck,
+  fakeRegistry,
+  manifest,
+} from "./verify-published-release-fixture.mjs";
 
 // "Publish succeeded" has never been evidence that consumers can install the
 // release (#1337 AC6): 0.0.19 published while `@honua/react` 404'd, `latest`
@@ -27,16 +36,6 @@ import {
 // all with green workflows. These tests drive the verifier against a fake
 // registry so every one of those failures is proven to fail closed, and prove
 // the receipt #39 consumes is deterministic.
-
-const REPOSITORY = "honua-io/honua-sdk-js";
-const SEALED_COMMIT = "1".repeat(40);
-const OWN_TAG_COMMIT = "2".repeat(40);
-const VERSION = "0.1.7-beta.0";
-const CREATE_APP_VERSION = "0.1.2";
-const SEALED_TAG = `js-sdk-v${VERSION}`;
-const NOW = () => new Date("2026-08-24T00:00:00.000Z");
-
-const manifest = JSON.parse(fs.readFileSync(path.resolve("config/release-artifacts.v1.json"), "utf8"));
 
 function versionFor(versionSource) {
   if (versionSource === "packages/create-honua-app/package.json") return CREATE_APP_VERSION;
@@ -54,135 +53,6 @@ function planReal(overrides = {}) {
   });
 }
 
-/** Tarball bytes are per-package so a swapped tarball cannot pass by accident. */
-function tarballFor(npmName, version) {
-  return Buffer.from(`tarball:${npmName}@${version}`, "utf8");
-}
-
-function provenanceStatement(target, tarball, overrides = {}) {
-  const statement = {
-    _type: "https://in-toto.io/Statement/v1",
-    subject: [
-      {
-        name: subjectPurl(target.npmName, target.version),
-        digest: { sha512: createHash("sha512").update(tarball).digest("hex") },
-      },
-    ],
-    predicateType: PROVENANCE_PREDICATE_TYPE,
-    predicate: {
-      buildDefinition: {
-        buildType: "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1",
-        externalParameters: {
-          workflow: {
-            ref: `refs/tags/${target.tag}`,
-            repository: `https://github.com/${REPOSITORY}`,
-            path: target.workflow,
-          },
-        },
-        resolvedDependencies: [
-          {
-            uri: `git+https://github.com/${REPOSITORY}@refs/tags/${target.tag}`,
-            digest: { gitCommit: target.commit },
-          },
-        ],
-      },
-      runDetails: { builder: { id: "https://github.com/actions/runner/github-hosted" } },
-    },
-  };
-  return overrides.mutate ? (overrides.mutate(statement), statement) : statement;
-}
-
-function publishStatement(target, tarball, overrides = {}) {
-  const statement = {
-    _type: "https://in-toto.io/Statement/v1",
-    subject: [
-      {
-        name: subjectPurl(target.npmName, target.version),
-        digest: { sha512: createHash("sha512").update(tarball).digest("hex") },
-      },
-    ],
-    predicateType: PUBLISH_PREDICATE_TYPE,
-    predicate: { name: target.npmName, version: target.version, registry: DEFAULT_REGISTRY },
-  };
-  return overrides.mutate ? (overrides.mutate(statement), statement) : statement;
-}
-
-function envelope(statement) {
-  return {
-    predicateType: statement.predicateType,
-    bundle: {
-      mediaType: "application/vnd.dev.sigstore.bundle+json;version=0.2",
-      dsseEnvelope: {
-        payloadType: "application/vnd.in-toto+json",
-        payload: Buffer.from(JSON.stringify(statement), "utf8").toString("base64"),
-      },
-    },
-  };
-}
-
-/**
- * A registry that answers only what the verifier asks for. `mutate` edits the
- * built fixture so each test changes exactly one fact.
- */
-function fakeRegistry(targets, mutate = () => {}) {
-  const packuments = new Map();
-  const attestations = new Map();
-  const tarballs = new Map();
-
-  for (const target of targets) {
-    const tarball = tarballFor(target.npmName, target.version);
-    const tarballUrl = `https://registry.npmjs.org/${target.npmName}/-/tarball-${target.version}.tgz`;
-    tarballs.set(tarballUrl, tarball);
-    packuments.set(packumentUrl(DEFAULT_REGISTRY, target.npmName), {
-      name: target.npmName,
-      "dist-tags": { [target.distTag]: target.version },
-      versions: {
-        [target.version]: {
-          name: target.npmName,
-          version: target.version,
-          dist: {
-            tarball: tarballUrl,
-            integrity: `sha512-${createHash("sha512").update(tarball).digest("base64")}`,
-            shasum: createHash("sha1").update(tarball).digest("hex"),
-          },
-        },
-      },
-    });
-    attestations.set(attestationsUrl(DEFAULT_REGISTRY, target.npmName, target.version), {
-      attestations: [envelope(provenanceStatement(target, tarball)), envelope(publishStatement(target, tarball))],
-    });
-  }
-
-  const registry = {
-    packuments,
-    attestations,
-    tarballs,
-    envelope,
-    provenanceStatement,
-    publishStatement,
-    tarballFor,
-  };
-  mutate(registry);
-
-  return async (url) => {
-    if (registry.packuments.has(url)) {
-      return { ok: true, status: 200, json: async () => registry.packuments.get(url) };
-    }
-    if (registry.attestations.has(url)) {
-      return { ok: true, status: 200, json: async () => registry.attestations.get(url) };
-    }
-    if (registry.tarballs.has(url)) {
-      const bytes = registry.tarballs.get(url);
-      return {
-        ok: true,
-        status: 200,
-        arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-      };
-    }
-    return { ok: false, status: 404, json: async () => ({ error: "Not found" }) };
-  };
-}
-
 async function verify(mutate = () => {}, planOverrides = {}, selection = "release-channel") {
   const { targets, errors } = planReal(planOverrides);
   return await verifyPublishedRelease({
@@ -195,18 +65,6 @@ async function verify(mutate = () => {}, planOverrides = {}, selection = "releas
     now: NOW,
     selection,
   });
-}
-
-function artifactOf(receipt, npmName) {
-  const artifact = receipt.artifacts.find((entry) => entry.npmName === npmName);
-  assert.ok(artifact, `receipt has no entry for ${npmName}`);
-  return artifact;
-}
-
-function failedCheck(receipt, npmName, checkId) {
-  const check = artifactOf(receipt, npmName).checks.find((entry) => entry.id === checkId);
-  assert.ok(check, `${npmName} has no "${checkId}" check`);
-  return check;
 }
 
 test("the dist tag matches the one publish-js-sdk.yml computes", () => {
@@ -732,98 +590,4 @@ test("the CLI requires both the tag and the sealed commit", () => {
     "refs/heads/trunk",
   ]);
   assert.equal(recovery.publishRef, "refs/heads/trunk");
-});
-
-const MCP_VERSION = "0.3.2";
-const MCP_TAG = `mcp-server-v${MCP_VERSION}`;
-
-function planMcp(overrides = {}) {
-  return planPublishedArtifactTarget({
-    manifest,
-    artifactId: "mcp-server",
-    tag: MCP_TAG,
-    commit: OWN_TAG_COMMIT,
-    readPackageVersion: () => MCP_VERSION,
-    ...overrides,
-  });
-}
-
-async function verifyAlreadyPublished(mutate = () => {}) {
-  const { targets, errors } = planMcp();
-  return await verifyPublishedRelease({
-    targets,
-    sealedTag: MCP_TAG,
-    sealedCommit: OWN_TAG_COMMIT,
-    repository: REPOSITORY,
-    fetchImpl: fakeRegistry(targets, mutate),
-    planningErrors: errors,
-    now: NOW,
-    selection: "exact-version",
-  });
-}
-
-test("a single own-tag artifact is planned against its own tag, ref and commit", () => {
-  const { targets, errors } = planMcp();
-  assert.deepEqual(errors, []);
-  assert.equal(targets.length, 1);
-  assert.equal(targets[0].npmName, "@honua/mcp-server");
-  assert.equal(targets[0].tag, MCP_TAG);
-  assert.equal(targets[0].commit, OWN_TAG_COMMIT);
-  assert.equal(targets[0].expectedRef, `refs/tags/${MCP_TAG}`);
-  assert.equal(targets[0].workflow, ".github/workflows/publish-mcp-server.yml");
-});
-
-test("single-artifact planning refuses unknown, sealed and mismatched artifacts", () => {
-  assert.match(planMcp({ artifactId: "nope" }).errors.join("\n"), /no artifact "nope"/u);
-  assert.match(
-    planMcp({ artifactId: "sdk-js", tag: SEALED_TAG }).errors.join("\n"),
-    /bound to the sealed js-sdk cut/u,
-  );
-  assert.match(planMcp({ tag: "mcp-server-v0.3.1" }).errors.join("\n"), /is at 0\.3\.2/u);
-  assert.match(planMcp({ commit: "abc" }).errors.join("\n"), /full 40-character commit/u);
-  assert.match(planMcp({ readPackageVersion: () => "" }).errors.join("\n"), /carries no version/u);
-  for (const plan of [planMcp({ artifactId: "nope" }), planMcp({ tag: "mcp-server-v0.3.1" })]) {
-    assert.deepEqual(plan.targets, []);
-  }
-});
-
-test("an already-published version from the same tag and commit verifies", async () => {
-  const receipt = await verifyAlreadyPublished();
-  assert.equal(receipt.status, "verified");
-  assert.deepEqual(
-    receipt.artifacts.map((artifact) => `${artifact.npmName}@${artifact.version}`),
-    [`@honua/mcp-server@${MCP_VERSION}`],
-  );
-});
-
-test("an already-published version built from another commit does not verify", async () => {
-  const receipt = await verifyAlreadyPublished((registry) => {
-    const url = attestationsUrl(DEFAULT_REGISTRY, "@honua/mcp-server", MCP_VERSION);
-    const target = {
-      npmName: "@honua/mcp-server",
-      version: MCP_VERSION,
-      tag: MCP_TAG,
-      commit: "3".repeat(40),
-      workflow: ".github/workflows/publish-mcp-server.yml",
-    };
-    registry.attestations.get(url).attestations[0] = registry.envelope(
-      registry.provenanceStatement(target, registry.tarballFor("@honua/mcp-server", MCP_VERSION)),
-    );
-  });
-  assert.equal(receipt.status, "failed");
-  assert.match(failedCheck(receipt, "@honua/mcp-server", "source-revision").detail, /3{40}/u);
-});
-
-test("an already-published version whose bytes do not match its integrity does not verify", async () => {
-  const receipt = await verifyAlreadyPublished((registry) => {
-    for (const url of registry.tarballs.keys()) registry.tarballs.set(url, Buffer.from("tampered"));
-  });
-  assert.equal(receipt.status, "failed");
-  assert.equal(failedCheck(receipt, "@honua/mcp-server", "dist-integrity").status, "fail");
-});
-
-test("the CLI accepts a single artifact to verify", () => {
-  const options = parseVerifyPublishedReleaseArgs(["--artifact", "mcp-server", "--tag", MCP_TAG, "--commit", OWN_TAG_COMMIT]);
-  assert.equal(options.artifact, "mcp-server");
-  assert.equal(options.tag, MCP_TAG);
 });
