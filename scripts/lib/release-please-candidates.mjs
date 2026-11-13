@@ -3,8 +3,8 @@ import { RELEASE_PLEASE_HEAD, RELEASE_PLEASE_HEADS } from "./release-please-disp
 import { normalizeReleasePleaseLockfiles } from "./release-please-lockfiles.mjs";
 import { normalizeMcpComponentReleaseNotes, normalizeReleasePleaseWorkspaceNotes } from "./release-please-workspace-notes.mjs";
 
-// Pinned action v5 emits `prs` only for created/updated PRs. release-please
-// 17.6.0 returns undefined for an existing PR with unchanged release notes.
+// Pinned action v5 emits `prs` only for created/updated PRs. With
+// `always-update`, every open release PR is rebuilt and reported.
 export function parseReleasePleasePullRequests(value) {
   const records = JSON.parse(value || "[]");
   if (!Array.isArray(records)) throw new Error("Release Please prs output must be an array.");
