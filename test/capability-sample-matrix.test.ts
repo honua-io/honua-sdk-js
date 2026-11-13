@@ -188,11 +188,12 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 67 = 59 original package entrypoints + the experimental STAC, raster,
+    // 68 = 59 original package entrypoints + the experimental STAC, raster,
     // PMTiles, zarr, and the experimental declarative-interactions compiler
     // and Studio agent session, plus the experimental local installer, plus
-    // `./client-compat` and the Node-only GeoParquet driver.
-    expect(matrix.packageEntrypoints).toHaveLength(67);
+    // `./client-compat`, the Node-only GeoParquet driver and the experimental
+    // paired-publication entrypoint.
+    expect(matrix.packageEntrypoints).toHaveLength(68);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
