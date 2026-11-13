@@ -44,30 +44,61 @@ export interface PublicationSource<T = Record<string, unknown>> extends Capabili
   verifyGeoParquetArtifact(options?: PublicationLookupOptions): Promise<void>;
 }
 
+interface SharedCheck {
+  readonly promise: Promise<void>;
+  readonly controller: AbortController;
+  waiters: number;
+  settled: boolean;
+}
+
 /**
- * Checks the GeoParquet artifact's embedded stamp once per source. The shared
- * check runs without any caller's signal; each caller only stops waiting.
+ * Checks the GeoParquet artifact's embedded stamp once per source. Callers
+ * share one check; it is cancelled only when every caller waiting on it has
+ * cancelled, so one caller's cancellation never fails another's lookup.
  */
 function geoParquetVerification(runtime: GeoparquetRuntime, publication: Publication) {
-  let verified: Promise<void> | undefined;
+  let shared: SharedCheck | undefined;
   const url = stringLiteral(publication.geoparquetUrl);
-  async function check(): Promise<void> {
+  async function check(signal: AbortSignal): Promise<void> {
     // Artifact paths are immutable per publication version, so caching their
     // HEAD and footer metadata cannot serve a stale read.
-    await runtime.query("SET parquet_metadata_cache = true");
-    await runtime.query("SET enable_http_metadata_cache = true");
+    await runtime.query("SET parquet_metadata_cache = true", { signal });
+    await runtime.query("SET enable_http_metadata_cache = true", { signal });
     const rows = await runtime.query(
       `SELECT decode(value) AS value FROM parquet_kv_metadata(${url}) WHERE decode(key) = ${stringLiteral(PUBLICATION_STAMP_KEY)}`,
+      { signal },
     );
     const stamp = typeof rows[0]?.value === "string" ? JSON.parse(rows[0].value) : undefined;
     assertArtifactStamp(publication, "geoparquet", stamp);
   }
+  function start(): SharedCheck {
+    const controller = new AbortController();
+    const entry: SharedCheck = { controller, waiters: 0, settled: false, promise: Promise.resolve() };
+    const promise = check(controller.signal).then(
+      () => {
+        entry.settled = true;
+      },
+      (error) => {
+        entry.settled = true;
+        if (shared === entry) shared = undefined;
+        throw error;
+      },
+    );
+    return Object.assign(entry, { promise });
+  }
   return (signal?: AbortSignal): Promise<void> => {
-    verified ??= check().catch((error) => {
-      verified = undefined;
-      throw error;
+    shared ??= start();
+    const entry = shared;
+    entry.waiters++;
+    const wait = settleOrAbort(entry.promise, signal);
+    wait.catch(() => {
+      if (!signal?.aborted || entry.settled) return;
+      entry.waiters--;
+      if (entry.waiters > 0) return;
+      if (shared === entry) shared = undefined;
+      entry.controller.abort();
     });
-    return settleOrAbort(verified, signal);
+    return wait;
   };
 }
 

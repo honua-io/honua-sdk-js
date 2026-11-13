@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ const artifacts = {
   "/maui/parcels.pmtiles": path.join(fixture, "parcels.pmtiles"),
 };
 const parcel = "234030888";
+const fixtureParquetBytes = statSync(path.join(fixture, "parcels.parquet")).size;
 
 test.setTimeout(120_000);
 
@@ -67,6 +68,9 @@ test("a publication host without CORS fails the browser lookup instead of answer
   }
 });
 
+// DuckDB-WASM cannot interrupt a statement already running in its worker, so
+// the footer read in flight at cancellation may finish; no later statement and
+// no row-group read may start.
 test("cancelling a lookup stops further range requests", async ({ page }) => {
   const harness = await openHarness(page, { artifactDelayMs: 300 });
   try {
@@ -77,9 +81,13 @@ test("cancelling a lookup stops further range requests", async ({ page }) => {
     const result = await pending;
     expect(result).toMatchObject({ ok: false });
     expect(result.name).toMatch(/Abort/);
-    const afterCancel = harness.data.requests.length;
-    await page.waitForTimeout(1_500);
-    expect(harness.data.requests.length).toBeLessThanOrEqual(afterCancel + 1);
+    await page.waitForTimeout(1_000);
+    const settled = harness.data.requests.length;
+    await page.waitForTimeout(2_000);
+    expect(harness.data.requests.length).toBe(settled);
+    const footerStart = fixtureParquetBytes - 64 * 1024;
+    const dataReads = parquetReads(harness).filter((entry) => Number(/^bytes=(\d+)-/.exec(entry.range ?? "")?.[1] ?? 0) < footerStart && entry.range !== "bytes=0-");
+    expect(dataReads).toEqual([]);
   } finally {
     await harness.close();
   }
