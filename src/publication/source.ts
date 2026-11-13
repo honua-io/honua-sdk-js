@@ -1,6 +1,7 @@
 import type { CapabilityAwareSource, Query, Source } from "../contract/types.js";
-import { type DuckDbDriverFactory, GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
+import { type DuckDbDriverFactory, type GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
 import { settleOrAbort, sharedTask } from "./abort.js";
+import { publicationRuntime } from "./engine.js";
 import { HonuaPublicationError } from "./errors.js";
 import { csvDocument, featureCollection } from "./export.js";
 import { type PublicFieldGuard, publicFieldGuard } from "./guard.js";
@@ -121,8 +122,7 @@ export function publicationSource<T = Record<string, unknown>>(
   options: PublicationSourceOptions = {},
 ): PublicationSource<T> {
   const sourceDescriptor = publication.sourceDescriptors(options.id).query;
-  const runtime =
-    options.runtime ?? new GeoparquetRuntime(options.driverFactory ? { driverFactory: options.driverFactory } : {});
+  const runtime = publicationRuntime(options);
   const inner = geoparquetSource<T>(sourceDescriptor, { runtime });
   const guard = publicFieldGuard(publication, sourceDescriptor.id);
   const parquet = publicationParquet(publication, options.fetch ?? ((input, init) => globalThis.fetch(input, init)));

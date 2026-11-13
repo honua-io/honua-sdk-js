@@ -18,4 +18,5 @@ export function startStaticRangeServer(options: {
   readonly delayMs?: number;
   readonly cors?: boolean;
   readonly cacheControl?: string;
+  readonly rangeSupport?: "full" | "get-only" | "none";
 }): Promise<StaticRangeServer>;

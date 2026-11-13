@@ -25,6 +25,7 @@ export interface FixtureOverrides {
   readonly parquet?: string;
   readonly descriptor?: string;
   readonly delayMs?: number;
+  readonly rangeSupport?: "full" | "get-only" | "none";
 }
 
 export async function serveFixture(overrides: FixtureOverrides = {}): Promise<RangeServer> {
@@ -35,6 +36,7 @@ export async function serveFixture(overrides: FixtureOverrides = {}): Promise<Ra
       "/maui/parcels.pmtiles": path.join(FIXTURE_DIRECTORY, "parcels.pmtiles"),
     },
     ...(overrides.delayMs ? { delayMs: overrides.delayMs } : {}),
+    ...(overrides.rangeSupport ? { rangeSupport: overrides.rangeSupport } : {}),
   });
 }
 

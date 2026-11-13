@@ -220,7 +220,8 @@ test("parcel-ID lookups on the full Maui County pair stay within the lookup budg
         machine: `${os.cpus()[0]?.model} x${os.cpus().length}, ${Math.round(os.totalmem() / 2 ** 30)} GiB, ${os.platform()} ${os.release()}`,
         node: process.version,
         browser: `${browser.browserType().name()} ${browser.version()} (headless)`,
-        engine: "DuckDB-WASM eh bundle, parquet extension only (no spatial), self-hosted",
+        engine:
+          "identity lookups through the hyparquet reader; attribute filter through DuckDB-WASM eh bundle with PUBLICATION_ENGINE_FILESYSTEM, parquet extension only (no spatial), self-hosted",
         server: hostedDescriptorUrl
           ? `page and engine on a Node static server on 127.0.0.1; artifacts from ${hostedDescriptorUrl}`
           : "Node static range server on 127.0.0.1, one origin for the page and engine, another for the artifacts",

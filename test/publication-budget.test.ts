@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { queryFilter } from "../src/contract/query-filter.js";
 import type { Query, Result, Source } from "../src/contract/types.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
@@ -147,5 +148,38 @@ describe("time budget", () => {
     });
     await expect(source.lookup(MERGED_MULTIPART_PARCEL)).rejects.toThrow("live service unavailable");
     expect(calls).toBe(1);
+  });
+});
+
+describe("hosts without byte ranges", () => {
+  const stalledEngine = () => new GeoparquetRuntime({ driverFactory: () => new Promise(() => undefined) });
+
+  it("counts the whole file against the byte budget and lets the live service answer", async () => {
+    const server = await serveWithOptions({ rangeSupport: "none" });
+    const live = liveService();
+    const source = await pairedSource(server, { serverSource: live });
+    const lookup = await source.lookup(MERGED_MULTIPART_PARCEL);
+    expect(lookup).toMatchObject({ answeredBy: "server", limit: { kind: "bytes" } });
+    expect(lookup.limit?.observed).toBe(FIXTURE_DESCRIPTOR.artifacts.geoparquet.bytes);
+    expect(parquetRequests(server).filter((entry) => entry.method === "GET")).toHaveLength(1);
+  });
+
+  it("refuses engine queries before the engine reads the file", async () => {
+    const runtime = stalledEngine();
+    track(() => runtime.dispose());
+    const source = await fixtureSource(await serveWithOptions({ rangeSupport: "none" }), { runtime });
+    await expect(source.query({ filter: queryFilter.eq("zone", "3") })).rejects.toMatchObject({
+      code: "query-budget-exceeded",
+      message: expect.stringMatching(
+        /does not serve byte ranges, so reading it in the browser would download the whole/,
+      ),
+    });
+  });
+
+  it("looks up through a host whose HEAD ignores the Range header", async () => {
+    const server = await serveWithOptions({ rangeSupport: "get-only" });
+    const lookup = await (await pairedSource(server)).lookup(MERGED_MULTIPART_PARCEL);
+    expect(lookup.answeredBy).toBe("geoparquet");
+    expect(parquetRequests(server).every((entry) => entry.method === "GET" && entry.status === 206)).toBe(true);
   });
 });

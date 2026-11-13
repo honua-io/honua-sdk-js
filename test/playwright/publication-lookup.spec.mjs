@@ -114,3 +114,38 @@ test("an over-budget lookup falls back to the live service and says why in plain
     await harness.close();
   }
 });
+
+test("opens a pair from a host whose HEAD ignores the Range header, for lookups and engine queries", async ({ page }) => {
+  const harness = await openHarness(page, { artifactRangeSupport: "get-only" });
+  try {
+    await page.evaluate((url) => window.publicationHarness.open(url), `${harness.data.origin}/maui/descriptor.json`);
+    const found = await page.evaluate((id) => window.publicationHarness.lookup(id), parcel);
+    expect(found).toMatchObject({ ok: true, answeredBy: "geoparquet", attributes: { tmk_txt: parcel, plat: "030" } });
+    const filtered = await page.evaluate(() => window.publicationHarness.filter("parcel", "888"));
+    expect(filtered).toMatchObject({ ok: true });
+    expect(filtered.returnedFeatures).toBeGreaterThan(0);
+    const fullReads = parquetReads(harness).filter((entry) => entry.status !== 206);
+    expect(fullReads).toEqual([]);
+    await page.evaluate(() => window.publicationHarness.dispose());
+  } finally {
+    await harness.close();
+  }
+});
+
+test("a host without byte ranges is refused before the engine reads the file", async ({ page }) => {
+  const harness = await openHarness(page, { artifactRangeSupport: "none" });
+  try {
+    await page.evaluate((url) => window.publicationHarness.open(url), `${harness.data.origin}/maui/descriptor.json`);
+    const found = await page.evaluate((id) => window.publicationHarness.lookup(id), parcel);
+    expect(found).toMatchObject({ ok: false, code: "query-budget-exceeded" });
+    expect(found.message).toMatch(/^Looking up 234030888 in the browser would download about 0\.1 MB/);
+    const filtered = await page.evaluate(() => window.publicationHarness.filter("parcel", "888"));
+    expect(filtered).toMatchObject({ ok: false, code: "query-budget-exceeded" });
+    expect(harness.engineRequests()).toEqual([]);
+    const refusedOperations = 2;
+    expect(parquetReads(harness)).toHaveLength(refusedOperations);
+  } finally {
+    await harness.close();
+  }
+});
+
