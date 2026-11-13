@@ -16,7 +16,7 @@ export const RELEASE_PLEASE_HEADS = Object.freeze([
   RELEASE_PLEASE_MCP_HEAD,
   `${RELEASE_PLEASE_HEAD}--components--create-honua-app`,
 ]);
-/** Bind rediscovery to the previously authenticated candidate, including absence. */
+/** Require rediscovery to match the expected authenticated candidate, including its absence. */
 export function assertExpectedReleasePleaseCandidate(current, expectedCandidates, headRefName) {
   if (expectedCandidates === undefined) return;
   const matches = expectedCandidates.filter((candidate) => candidate.headRefName === headRefName);
