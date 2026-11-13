@@ -112,6 +112,20 @@ test('invalid and duplicate baseline rows fail closed', () => {
   assert.throws(() => budgets([{ identity: ['max-depth', 'a.ts', 'invalid'], count: 1 }]), /Invalid/);
 });
 
+test('same-named block-local functions cannot transfer baseline debt', async () => {
+  await fixture(async findings => {
+    for (const binding of ['const run = () => { BODY };', 'function run() { BODY }']) {
+      const template = `function outer(flag: boolean) { if (flag) { ${binding} } else { ${binding} } }`;
+      const old = template.replace('BODY', '\nPromise.resolve(1);\n').replace('BODY', '\nvoid Promise.resolve(1);\n');
+      const moved = template.replace('BODY', '\nvoid Promise.resolve(1);\n').replace('BODY', '\nPromise.resolve(1);\n');
+      const baseline = await findings(old);
+      assert.equal(baseline.size, 1);
+      assert.equal(additions(await findings(moved), baseline).length, 1, binding);
+      assert.equal(additions(await findings('\n' + old), baseline).length, 0);
+    }
+  });
+});
+
 test('production config resolves SDK source imports without built declarations', async () => {
   const filename = path.resolve('examples/review-baseline-regression.ts');
   const text = "import { HonuaClient } from '@honua/sdk-js';\nnew HonuaClient({ baseUrl: 'https://example.invalid' }).queryFeatures({ serviceId: 'a', layerId: 0 });\n";

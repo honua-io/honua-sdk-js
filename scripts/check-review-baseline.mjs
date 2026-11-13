@@ -74,13 +74,19 @@ function contextName(node, source) {
 
 const anonymousSites = new WeakMap();
 
+function bindingName(node, source) {
+  if (ts.isFunctionExpression(node) || ts.isClassExpression(node)) return undefined;
+  const name = node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
+  return name?.getText(source);
+}
+
 function anonymousContext(node, source) {
   if (!anonymousSites.has(source)) {
     const sites = new Map();
     const counts = new Map();
     function visit(candidate) {
       if (ts.isObjectLiteralExpression(candidate) || ts.isFunctionLike(candidate) || ts.isClassLike(candidate)) {
-        const context = candidate.kind + ':' + contextName(candidate, source);
+        const context = candidate.kind + ':' + (bindingName(candidate, source) ?? contextName(candidate, source));
         const ordinal = nextOrdinal(counts, candidate, context);
         sites.set(candidate, context + ':occurrence' + ordinal);
       }
@@ -97,12 +103,9 @@ export function scopeAt(source, position) {
   function visit(node) {
     if (position < node.getStart(source) || position >= node.end) return;
     if (ts.isClassLike(node) || ts.isFunctionLike(node) || ts.isObjectLiteralExpression(node)) {
-      const expression = ts.isFunctionExpression(node) || ts.isClassExpression(node);
-      const name = expression ? undefined :
-        node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
       const member = ts.isMethodDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || ts.isConstructorDeclaration(node);
       const kind = member ? `${ts.SyntaxKind[node.kind]}:${node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.StaticKeyword) ? 'static' : 'instance'}:` : '';
-      names.push(kind + (name?.getText(source) ?? anonymousContext(node, source)));
+      names.push(kind + anonymousContext(node, source));
     }
     ts.forEachChild(node, visit);
   }
