@@ -1,6 +1,6 @@
 /**
  * `MapWorkspaceController` — orchestrates the `HonuaMapRuntime` and the
- * `ExplorationContext` for a single result `MapPackage`. The controller
+ * `ExplorationContext` for a single result `HonuaMapDocument`. The controller
  * owns no MapLibre source/style code of its own — every map mutation
  * delegates to the runtime from `src/runtime/`.
  *
@@ -77,7 +77,7 @@ export class MapWorkspaceController {
   // Bumped on every loadMapDocument() / refine() / dispose() entry. The
   // operation captures it before awaiting and only commits state when
   // the captured value still matches at resolution time. Parallel
-  // loads or refinements thereby cannot let an older `MapPackage`
+  // loads or refinements thereby cannot let an older `HonuaMapDocument`
   // overwrite a newer one.
   #opGeneration = 0;
 
@@ -110,7 +110,7 @@ export class MapWorkspaceController {
   }
 
   /**
-   * Load a `MapPackage` into a fresh runtime + exploration context.
+   * Load a `HonuaMapDocument` into a fresh runtime + exploration context.
    * Tears down any previously loaded package; safe to call repeatedly.
    *
    * Concurrent loads supersede each other via `#opGeneration`: an
@@ -200,7 +200,7 @@ export class MapWorkspaceController {
 
   /**
    * Natural-language refinement. The server returns an updated
-   * `MapPackage`; the runtime's diff path applies it incrementally.
+   * `HonuaMapDocument`; the runtime's diff path applies it incrementally.
    * Source-binding failures inside the runtime are forwarded via
    * `runtime.reportSourceError(...)` rather than thrown.
    */

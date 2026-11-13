@@ -1,5 +1,5 @@
 /**
- * Popup bindings. The runtime wires `MapPackage.popupBindings[]` into
+ * Popup bindings. The runtime wires `HonuaMapDocument.popupBindings[]` into
  * MapLibre `click` handlers using a duck-typed map interface (no runtime
  * dependency on `maplibre-gl`). The default DOM renderer is intentionally
  * unstyled — `#29` operator components replace it with richer popup UIs.

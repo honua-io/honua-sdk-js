@@ -1,6 +1,6 @@
 /**
  * `loadMapDocument` — the first-class entry point that turns a server
- * `MapPackage` into a running MapLibre GL JS map. The caller owns the
+ * `HonuaMapDocument` into a running MapLibre GL JS map. The caller owns the
  * `MaplibreMap` instance (peer dependency); the runtime composes the
  * style, resolves bindings through the shared contract, and hands the
  * composed style to `map.setStyle`.
@@ -180,7 +180,7 @@ function bindOfflineRegionStyle(
 }
 
 /**
- * Load a `MapPackage` onto a caller-provided `MaplibreMap`. Returns a
+ * Load a `HonuaMapDocument` onto a caller-provided `MaplibreMap`. Returns a
  * runtime handle that exposes the operational API. Throws
  * `HonuaMapDocumentError` on binding failure. Query-time adapter errors
  * (`HonuaHttpError`, `HonuaCapabilityNotSupportedError`, ...) continue
