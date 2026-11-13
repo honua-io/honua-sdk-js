@@ -111,6 +111,14 @@ describe("managed MCP workspace notes", () => {
   });
 });
 
+function candidateFiles(data) {
+  return {
+    "mcp/package.json": data.mcp, "mcp/package-lock.json": data.mcpLock, "package.json": data.sdk,
+    "config/mcp-sdk-peer-policy.v1.json": data.policy, "release-please-config.json": data.releaseConfig,
+    "mcp/CHANGELOG.md": data.changelog,
+  };
+}
+
 function harness(options = {}) {
   const data = options.branch === componentBranch ? componentFixture() : fixture();
   const candidateBranch = options.branch ?? branch;
@@ -121,11 +129,7 @@ function harness(options = {}) {
   let snapshotReads = 0;
   const mutations = [];
   const calls = [];
-  const files = {
-    "mcp/package.json": data.mcp, "mcp/package-lock.json": data.mcpLock, "package.json": data.sdk,
-    "config/mcp-sdk-peer-policy.v1.json": data.policy, "release-please-config.json": data.releaseConfig,
-    "mcp/CHANGELOG.md": data.changelog,
-  };
+  const files = candidateFiles(data);
   const rest = () => ({
     number: 2074, body: currentBody, title, state: "open", updated_at: "2026-10-13T07:00:00Z",
     user: { login: options.author ?? "github-actions", type: "Bot" },
