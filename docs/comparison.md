@@ -66,19 +66,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `ad8d5628d`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `df1690950`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 763.0 KiB | 204.0 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 763.2 KiB | 204.0 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 233.5 KiB | 59.5 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.4 KiB | 15.1 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 384.1 KiB | 104.3 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.5 KiB | 15.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 384.2 KiB | 104.3 KiB |
 | Client compatibility layer (drop-in migration surface) | 1077.6 KiB | 271.3 KiB |
-| Geocoding client | 33.2 KiB | 9.4 KiB |
-| Routing client | 28.9 KiB | 8.7 KiB |
+| Geocoding client | 33.3 KiB | 9.4 KiB |
+| Routing client | 29.0 KiB | 8.7 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
@@ -88,7 +88,7 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 763.0 KiB ≈ **2.30 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 763.2 KiB ≈ **2.30 MB**.
 - **Gzip:** engine 433.2 KiB + Honua root 204.0 KiB ≈ **0.62 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
