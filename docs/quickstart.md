@@ -31,15 +31,13 @@ verbs without a map. Capability gaps throw `HonuaCapabilityNotSupportedError`
 rather than returning empty data.
 
 ```ts doc-test=compile
-import { connect, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
+import { createHonua, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
 
 // 1. connect — a public FeatureServer; nothing of Honua's is running.
-const data = await connect({
-  endpoint:
-    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+await using honua = createHonua();
+const data = await honua.connect(
+  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+);
 const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 
 // 2. query — one typed, protocol-neutral filter expression.

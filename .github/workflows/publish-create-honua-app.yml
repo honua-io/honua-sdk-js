@@ -21,6 +21,15 @@ on:
 permissions:
   contents: read
 
+# A release's tag push and the release workflow's dispatch both start this
+# workflow for the same tag. Queue them so the second run starts only after the
+# first has published, then takes the already-published path below. Dry runs
+# queue separately: GitHub keeps one pending run per group, so a dry run in the
+# publish group could replace a pending publish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') && 'dry-run' || 'publish' }}
+  cancel-in-progress: false
+
 jobs:
   publish-create-honua-app:
     runs-on: ubuntu-latest
@@ -141,7 +150,11 @@ jobs:
           fi
 
           if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
-            echo "${package_name}@${package_version} is already published; skipping."
+            echo "${package_name}@${package_version} is already published; verifying the registry copy against ${GITHUB_REF_NAME} instead of publishing."
+            if ! node ../../scripts/verify-published-release.mjs --artifact create-honua-app --tag "${GITHUB_REF_NAME}" --commit "${GITHUB_SHA}" --receipt "${RUNNER_TEMP}/already-published-verification.json"; then
+              echo "::error::${package_name}@${package_version} is on the registry but its integrity, provenance or source commit does not match ${GITHUB_REF_NAME} at ${GITHUB_SHA}."
+              exit 1
+            fi
             exit 0
           fi
 

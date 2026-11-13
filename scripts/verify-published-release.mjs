@@ -149,17 +149,9 @@ export function planPublishedReleaseTargets({
   }
 
   for (const artifact of manifest?.included ?? []) {
-    let version;
-    try {
-      version = readPackageVersion(artifact.versionSource);
-    } catch (error) {
-      errors.push(
-        `cannot read the published version of "${artifact.npmName}" from ${artifact.versionSource}: ${messageOf(error)}`,
-      );
-      continue;
-    }
-    if (typeof version !== "string" || version.length === 0) {
-      errors.push(`${artifact.versionSource} carries no version for "${artifact.npmName}"`);
+    const { version, error: versionError } = readArtifactVersion(artifact, readPackageVersion);
+    if (versionError) {
+      errors.push(versionError);
       continue;
     }
 
@@ -188,21 +180,74 @@ export function planPublishedReleaseTargets({
       }
     }
 
-    targets.push({
-      id: artifact.id,
-      npmName: artifact.npmName,
-      version,
-      distTag: resolveDistTag(version),
-      tag,
-      commit,
-      expectedRef: sealed ? sealedRef : `refs/tags/${tag}`,
-      workflow: artifact.publish.workflow,
-      sourceBinding: artifact.sourceBinding,
-    });
+    targets.push(verificationTarget(artifact, { version, tag, commit, expectedRef: sealed ? sealedRef : `refs/tags/${tag}` }));
   }
 
   targets.sort((left, right) => left.npmName.localeCompare(right.npmName));
   return { targets, errors };
+}
+
+/**
+ * Plan the verification of one artifact that publishes from its own Release
+ * Please tag (the MCP server, the scaffold), for a publish run that finds its
+ * version already on the registry. The run's own tag and commit are the
+ * expected source, so a second run for the same tag ends green only when the
+ * registry copy is the one this tag built.
+ *
+ * @returns {{targets: object[], errors: string[]}}
+ */
+export function planPublishedArtifactTarget({ manifest, artifactId, tag, commit, readPackageVersion }) {
+  const artifact = (manifest?.included ?? []).find((candidate) => candidate.id === artifactId);
+  const refusal = ownTagArtifactRefusal(artifact, artifactId, commit);
+  if (refusal) return { targets: [], errors: [refusal] };
+  const { version, error: versionError } = readArtifactVersion(artifact, readPackageVersion);
+  if (versionError) return { targets: [], errors: [versionError] };
+  const expectedTag = releaseTagFor(artifact.publish.releaseTagPrefix, version);
+  if (tag !== expectedTag) {
+    return {
+      targets: [],
+      errors: [`"${artifact.npmName}" is at ${version}, so its release tag is ${expectedTag}, not ${tag ?? "<missing>"}`],
+    };
+  }
+  return { targets: [verificationTarget(artifact, { version, tag, commit, expectedRef: `refs/tags/${tag}` })], errors: [] };
+}
+
+function ownTagArtifactRefusal(artifact, artifactId, commit) {
+  if (!artifact) return `${MANIFEST_PATH} includes no artifact "${artifactId}"`;
+  if (artifact.sourceBinding !== "own-release-tag") {
+    return `"${artifactId}" is bound to the sealed js-sdk cut; verify it with --tag and --commit for the whole cut`;
+  }
+  if (!COMMIT_PATTERN.test(commit ?? "")) return `--commit must be a full 40-character commit sha, got "${commit ?? ""}"`;
+  return undefined;
+}
+
+function readArtifactVersion(artifact, readPackageVersion) {
+  let version;
+  try {
+    version = readPackageVersion(artifact.versionSource);
+  } catch (error) {
+    return {
+      error: `cannot read the published version of "${artifact.npmName}" from ${artifact.versionSource}: ${messageOf(error)}`,
+    };
+  }
+  if (typeof version !== "string" || version.length === 0) {
+    return { error: `${artifact.versionSource} carries no version for "${artifact.npmName}"` };
+  }
+  return { version };
+}
+
+function verificationTarget(artifact, { version, tag, commit, expectedRef }) {
+  return {
+    id: artifact.id,
+    npmName: artifact.npmName,
+    version,
+    distTag: resolveDistTag(version),
+    tag,
+    commit,
+    expectedRef,
+    workflow: artifact.publish.workflow,
+    sourceBinding: artifact.sourceBinding,
+  };
 }
 
 function messageOf(error) {
@@ -581,6 +626,7 @@ export function parseVerifyPublishedReleaseArgs(argv) {
     else if (flag === "--publish-ref") options.publishRef = value;
     else if (flag === "--registry") options.registry = value;
     else if (flag === "--receipt") options.receipt = value;
+    else if (flag === "--artifact") options.artifact = value;
     else throw new Error(`Unknown verify-published-release argument: ${flag}`);
     index += 1;
   }
@@ -605,14 +651,23 @@ function resolveTagCommitWith(root) {
 async function main(argv) {
   const options = parseVerifyPublishedReleaseArgs(argv);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, MANIFEST_PATH), "utf8"));
-  const { targets, errors } = planPublishedReleaseTargets({
-    manifest,
-    sealedTag: options.tag,
-    sealedCommit: options.commit,
-    publishRef: options.publishRef,
-    readPackageVersion: readPackageVersionFrom(ROOT),
-    resolveTagCommit: resolveTagCommitWith(ROOT),
-  });
+  const readPackageVersion = readPackageVersionFrom(ROOT);
+  const { targets, errors } = options.artifact
+    ? planPublishedArtifactTarget({
+        manifest,
+        artifactId: options.artifact,
+        tag: options.tag,
+        commit: options.commit,
+        readPackageVersion,
+      })
+    : planPublishedReleaseTargets({
+        manifest,
+        sealedTag: options.tag,
+        sealedCommit: options.commit,
+        publishRef: options.publishRef,
+        readPackageVersion,
+        resolveTagCommit: resolveTagCommitWith(ROOT),
+      });
 
   const receipt = await verifyPublishedRelease({
     targets,
@@ -621,6 +676,7 @@ async function main(argv) {
     registry: options.registry,
     repository: manifest.repository,
     planningErrors: errors,
+    selection: options.artifact ? "exact-version" : "release-channel",
   });
 
   const receiptPath = path.resolve(ROOT, options.receipt);
