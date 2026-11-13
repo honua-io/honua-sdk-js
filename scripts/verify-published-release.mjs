@@ -317,6 +317,15 @@ function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
   return expectedName;
 }
 
+async function fetchPackument(target, { registry, fetchImpl }) {
+  const packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+  expect(
+    isPackumentFor(packument, target.npmName),
+    `the registry response is not a packument for ${target.npmName} with a versions map`,
+  );
+  return packument;
+}
+
 /**
  * Verify one planned target against the registry.
  *
@@ -327,23 +336,13 @@ async function verifyTarget(target, { registry, repository, fetchImpl, selection
   const checks = [];
   let packument;
   try {
-    packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+    packument = await fetchPackument(target, { registry, fetchImpl });
   } catch (error) {
     checks.push({
       id: "registry-packument",
       description: "the registry serves a packument for this package",
       status: "fail",
       detail: messageOf(error),
-    });
-    return finishTarget(target, checks, {});
-  }
-
-  if (!isPackumentFor(packument, target.npmName)) {
-    checks.push({
-      id: "registry-packument",
-      description: "the registry serves a packument for this package",
-      status: "fail",
-      detail: `the registry response is not a packument for ${target.npmName} with a versions map`,
     });
     return finishTarget(target, checks, {});
   }
