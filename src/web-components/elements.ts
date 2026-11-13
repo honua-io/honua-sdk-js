@@ -1,13 +1,14 @@
+import {
+  type SnapScreenPoint,
+  type SnappingConfig,
+  createSnapIndex,
+  resolveSnapCandidate,
+  resolveSnappingConfig,
+} from "../contract/edit-snapping.js";
 import type { HonuaClient } from "../core/client.js";
 import type { FilterClause } from "../filter-registry/index.js";
 import type { MapPackageLocator } from "../runtime/index.js";
-import {
-  type HistogramStats,
-  type SnapPoint,
-  histogramBins,
-  histogramRangeFilter,
-  snapVertex,
-} from "../widget-capabilities.js";
+import { type HistogramStats, histogramBins, histogramRangeFilter } from "../widget-capabilities.js";
 import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { createHonuaWebComponentController } from "./controller.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
@@ -2491,6 +2492,17 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
 }
 
 /**
+ * Snapping for `<honua-sketch-control>`: the canonical {@link SnappingConfig},
+ * with `distance` accepted as an alias of `tolerance` (pixels). Snapping is
+ * off unless `enabled` is true.
+ */
+type HonuaSketchSnappingOptions = Partial<SnappingConfig> & { distance?: number };
+
+const SKETCH_SNAP_SOURCE_ID = "sketch";
+const SKETCH_SNAP_FEATURE_ID = "vertices";
+const screenSpace = (position: readonly [number, number]): SnapScreenPoint => ({ x: position[0], y: position[1] });
+
+/**
  * `<honua-sketch-control>` renders point/line/polygon drawing modes.
  *
  * Like {@link HonuaMeasureControlElement}, the control is only interactive when
@@ -2498,12 +2510,6 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
  * {@link CreateHonuaWebComponentControllerOptions}). Without one the modes
  * render disabled with a "configure a provider" affordance.
  */
-type HonuaSketchSnappingOptions = {
-  enabled?: boolean;
-  distance?: number;
-  tolerance?: number;
-};
-
 export class HonuaSketchControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -2511,10 +2517,11 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
 
   #mode: HonuaSketchMode = "off";
   #messages: HonuaSketchControlMessages = {};
-  #vertices: SnapPoint[] = [];
-  #snapEnabled = false;
-  #snapTolerance = 1;
+  #vertices: Array<[number, number]> = [];
+  readonly #sketchSnapIndex = createSnapIndex();
   #snappingOptions: HonuaSketchSnappingOptions | undefined;
+  #snappingAssigned = false;
+  #snappingConfig: SnappingConfig = resolveSnappingConfig({ enabled: false });
 
   public get snappingOptions(): HonuaSketchSnappingOptions | undefined {
     return this.#snappingOptions;
@@ -2522,16 +2529,36 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
 
   public set snappingOptions(options: HonuaSketchSnappingOptions | undefined) {
     this.#snappingOptions = options;
-    this.#snapEnabled = options?.enabled === true;
-    const tolerance = options?.tolerance ?? options?.distance;
-    if (typeof tolerance === "number" && Number.isFinite(tolerance)) this.#snapTolerance = tolerance;
+    this.#snappingAssigned = true;
+    const { distance, ...config } = options ?? {};
+    this.#snappingConfig = resolveSnappingConfig({
+      ...config,
+      enabled: options?.enabled === true,
+      ...(config.tolerance === undefined && distance !== undefined ? { tolerance: distance } : {}),
+    });
+    this.#forwardSnapping();
   }
 
-  /** Places a vertex, snapping to an existing one when snapping is on and the pointer is inside the tolerance. */
-  public addVertex(pointer: SnapPoint): SnapPoint {
-    const snapped = snapVertex(pointer, this.#vertices, this.#snapEnabled, this.#snapTolerance);
-    this.#vertices.push({ x: snapped.x, y: snapped.y });
-    return snapped;
+  /**
+   * Places a vertex (screen pixels), snapping it to the vertices and edges
+   * already placed in this sketch through the shared snapping engine.
+   */
+  public addVertex(pointer: SnapScreenPoint): { x: number; y: number } {
+    const position: [number, number] = [pointer.x, pointer.y];
+    const resolution = resolveSnapCandidate(
+      this.#sketchSnapIndex,
+      { point: pointer, position, project: screenSpace },
+      this.#snappingConfig,
+    );
+    const placed: [number, number] = resolution.candidate
+      ? [resolution.candidate.position[0], resolution.candidate.position[1]]
+      : position;
+    this.#vertices.push(placed);
+    this.#sketchSnapIndex.upsertFeature(SKETCH_SNAP_SOURCE_ID, {
+      id: SKETCH_SNAP_FEATURE_ID,
+      geometry: { type: "LineString", coordinates: this.#vertices },
+    });
+    return { x: placed[0], y: placed[1] };
   }
 
   /** Caller-supplied localized status, action, and empty-state messages. */
@@ -2550,7 +2577,13 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   }
 
   protected controllerChanged(): void {
+    this.#forwardSnapping();
     this.render();
+  }
+
+  #forwardSnapping(): void {
+    if (!this.#snappingAssigned) return;
+    this.controller?.setSketchSnapping?.(this.#snappingConfig);
   }
 
   protected render(): void {
