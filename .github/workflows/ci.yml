@@ -719,7 +719,7 @@ jobs:
 
       - name: Gallery sample playgrounds
         env:
-          HONUA_DERIVED_ARTIFACTS_RELAX: ${{ github.event_name == 'pull_request' && github.base_ref == 'trunk' && '1' || '' }}
+          HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
         # Generated standalone projects for every qualifying gallery sample
         # (#958): drift against the committed sample source fails here, and both
         # copies must still compile against the SDK source.

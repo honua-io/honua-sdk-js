@@ -36,7 +36,7 @@ Now:
   source|packed`) all run at PR time. **A PR that genuinely breaks a sample
   still fails.**
 - Playground artifact checks allow exclusion diagnostic text to await trunk
-  regeneration in PR relaxed mode. Artifact schemas, exclusion identities and
+  regeneration in derived-artifact relaxed mode. Artifact schemas, exclusion identities and
   categories, SDK pins, qualified projects, catalog links, and README blocks
   remain checked; strict mode requires byte equality.
 - **After merge**, `.github/workflows/regenerate-derived-artifacts.yml`

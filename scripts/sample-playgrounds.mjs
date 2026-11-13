@@ -954,7 +954,7 @@ function stableJson(value) {
 }
 
 export function playgroundArtifactMatches(committedBytes, expectedBytes, mode = "strict") {
-  if (mode !== "feature-pr") return committedBytes === expectedBytes;
+  if (mode !== "derived-artifact-relaxed") return committedBytes === expectedBytes;
   try {
     const committed = JSON.parse(committedBytes);
     const expected = JSON.parse(expectedBytes);
@@ -1119,7 +1119,7 @@ function main() {
   const committedArtifact = fs.existsSync(path.join(ROOT, ARTIFACT_PATH))
     ? fs.readFileSync(path.join(ROOT, ARTIFACT_PATH), "utf8")
     : "";
-  const artifactMode = process.env.HONUA_DERIVED_ARTIFACTS_RELAX === "1" ? "feature-pr" : "strict";
+  const artifactMode = process.env.HONUA_DERIVED_ARTIFACTS_RELAX === "1" ? "derived-artifact-relaxed" : "strict";
   if (!playgroundArtifactMatches(committedArtifact, artifactBytes, artifactMode)) {
     problems.push(`${ARTIFACT_PATH} has drifted`);
   }
