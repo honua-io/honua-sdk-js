@@ -243,6 +243,10 @@ classification is conservatively non-retryable.
 | `core.coverage.unsupported-format` | `core` | `capability` | no | Coverage format is unsupported |
 | `core.coverage.service-error` | `core` | `protocol` | no | Coverage service rejected the request |
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
+| `core.publication.invalid-descriptor` | `core` | `validation` | no | Publication descriptor is invalid or not validated |
+| `core.publication.artifact-mismatch` | `core` | `protocol` | no | Publication artifact does not match its descriptor |
+| `core.publication.non-public-field` | `core` | `validation` | no | Field is not public in the publication |
+| `core.publication.query-budget-exceeded` | `core` | `capability` | no | Browser query would exceed the publication query budget |
 | `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |
 | `core.zarr.invalid-response` | `core` | `protocol` | no | Zarr response is invalid |
 | `core.zarr.response-too-large` | `core` | `validation` | no | Zarr response exceeds its byte limit |

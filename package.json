@@ -294,6 +294,10 @@
       "types": "./dist/src/pmtiles/index.d.ts",
       "default": "./dist/src/pmtiles/index.js"
     },
+    "./publication": {
+      "types": "./dist/src/publication/index.d.ts",
+      "default": "./dist/src/publication/index.js"
+    },
     "./raster": {
       "types": "./dist/src/raster/index.d.ts",
       "default": "./dist/src/raster/index.js"
@@ -803,6 +807,7 @@
     "!dist/src/migration/**",
     "dist/browser/*.js",
     "dist/browser/honua-sdk.browser-artifacts.v1.json",
+    "dist/config/publication-descriptor.v1.schema.json",
     "dist/config/raster-source-registry.v1.json",
     "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
