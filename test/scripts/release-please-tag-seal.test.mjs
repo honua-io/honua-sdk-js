@@ -9,6 +9,7 @@ import { runInNewContext } from "node:vm";
 // Current trunk executes this entrypoint before merge; include ancestor recovery
 // controls here so a new workflow step is not their first actual validation.
 import "./sealed-ancestor-recovery.test.mjs";
+import "./release-please-lockfiles.test.mjs";
 
 // Where a release tag ends up decides whether a published version can ever pass
 // `release-seal check`. It stopped producing publishable tags for three
