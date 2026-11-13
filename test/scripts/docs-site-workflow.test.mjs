@@ -41,7 +41,7 @@ const build = job(workflow, "build");
 const deploy = job(workflow, "deploy");
 const reporter = job(workflow, "report-failure");
 
-function runScript(jobText) {
+function stepShellBody(jobText) {
   const runAt = jobText.indexOf("\n        run: |\n");
   assert.ok(runAt >= 0, "reporter run block");
   const lines = jobText.slice(runAt + "\n        run: |\n".length).split("\n");
@@ -67,7 +67,7 @@ function assertOrder(source, parts) {
   }
 }
 
-const reporterScript = runScript(reporter);
+const reporterScript = stepShellBody(reporter);
 
 test("docs site runs daily and on manual dispatch, not on push", () => {
   assert.match(triggers, /schedule:\n(?:    #[^\n]*\n)?    - cron: "47 9 \* \* \*"/u);
@@ -195,7 +195,9 @@ function runReport(env, listBody, options = {}) {
   chmodSync(bin, 0o755);
   writeFileSync(log, "");
   writeFileSync(listFile, listBody);
-  const result = spawnSync("bash", ["-c", reporterScript], {
+  const reporterScriptFile = path.join(dir, "report-failure.sh");
+  writeFileSync(reporterScriptFile, reporterScript);
+  const result = spawnSync("bash", [reporterScriptFile], {
     encoding: "utf8",
     env: {
       PATH: `${dir}:${process.env.PATH}`,
