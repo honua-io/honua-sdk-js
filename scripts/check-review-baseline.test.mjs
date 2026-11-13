@@ -165,3 +165,21 @@ test('compliant returns and calls in unrelated functions preserve existing budge
     }
   });
 });
+
+
+test('class member kind and static identity prevent baseline transfers', async () => {
+  await fixture(async findings => {
+    for (const declaration of [
+      'run() { BODY } static run() { SAFE }',
+      'get value() { BODY return 1; } set value(value: number) { SAFE }',
+    ]) {
+      const template = `class Example { ${declaration} }`;
+      const old = template.replace('BODY', '\nPromise.resolve(1);\n').replace('SAFE', '\nvoid Promise.resolve(1);\n');
+      const moved = template.replace('BODY', '\nvoid Promise.resolve(1);\n').replace('SAFE', '\nPromise.resolve(1);\n');
+      const baseline = await findings(old);
+      assert.equal(baseline.size, 1);
+      assert.equal(additions(await findings(moved), baseline).length, 1, declaration);
+      assert.equal(additions(await findings('\n' + old), baseline).length, 0);
+    }
+  });
+});

@@ -100,7 +100,9 @@ export function scopeAt(source, position) {
       const expression = ts.isFunctionExpression(node) || ts.isClassExpression(node);
       const name = expression ? undefined :
         node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
-      names.push(name?.getText(source) ?? anonymousContext(node, source));
+      const member = ts.isMethodDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || ts.isConstructorDeclaration(node);
+      const kind = member ? `${ts.SyntaxKind[node.kind]}:${node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.StaticKeyword) ? 'static' : 'instance'}:` : '';
+      names.push(kind + (name?.getText(source) ?? anonymousContext(node, source)));
     }
     ts.forEachChild(node, visit);
   }
