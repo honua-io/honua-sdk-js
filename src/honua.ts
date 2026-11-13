@@ -452,6 +452,16 @@ export type {
   HonuaOgcCollectionMapOptions,
   HonuaOgcMapsOptions,
 } from "./core/ogc-maps.js";
+export type {
+  HonuaCatalogExtentGeometry,
+  HonuaCatalogItem,
+  HonuaCatalogItemProperties,
+  HonuaCatalogItemType,
+  HonuaCatalogPage,
+  HonuaCatalogQuery,
+  HonuaCatalogRequestOptions,
+  HonuaCatalogResourceType,
+} from "./core/catalog.js";
 export {
   createHonuaOgcRecords,
   HonuaOgcRecordCollection,
