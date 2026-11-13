@@ -11,7 +11,7 @@ function requireThat(condition, message) {
  * GitHub moves the ref at once but reports the new pull-request head only after a short sync,
  * during which REST and GraphQL snapshots can disagree. Any other reported head fails closed.
  */
-async function awaitPullRequestHead(pullRequestHead, previousHead, nextHead, wait) {
+async function awaitPullRequestHead({ pullRequestHead, previousHead, nextHead, wait }) {
   for (let attempt = 1; ; attempt += 1) {
     const reported = await pullRequestHead().catch((error) => ({ error }));
     if (reported === nextHead) return;
@@ -42,6 +42,6 @@ export async function updateReleasePleaseCandidate(candidate, { request, assertC
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sha: commit.sha, force: false }),
   });
   requireThat(updated?.object?.sha === commit.sha, "Normalized candidate head update was not confirmed.");
-  await awaitPullRequestHead(pullRequestHead, headSha, commit.sha, wait);
+  await awaitPullRequestHead({ pullRequestHead, previousHead: headSha, nextHead: commit.sha, wait });
   return commit.sha;
 }
