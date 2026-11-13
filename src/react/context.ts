@@ -26,7 +26,7 @@ HonuaContext.displayName = "HonuaContext";
 
 /** Value carried by {@link HonuaMapContext}: the runtime owned by a `HonuaMap`. */
 export interface HonuaMapContextValue {
-  /** `null` until `HonuaMap` has finished loading its `MapPackage`. */
+  /** `null` until `HonuaMap` has finished loading its `HonuaMapDocument`. */
   readonly runtime: HonuaMapRuntime | null;
   /** The underlying MapLibre map instance, or `null` before it exists. */
   readonly map: MaplibreMap | null;

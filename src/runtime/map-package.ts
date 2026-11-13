@@ -14,9 +14,10 @@
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
 
-/** Canonical format string for the v1 HonuaMapDocument shape. */
+/** Canonical format string of a v1 map document. */
 export const HONUA_MAP_DOCUMENT_FORMAT_V1 = "honua_map_package.v1" as const;
 
+/** Type of the v1 map document format string. */
 export type HonuaMapDocumentFormat = typeof HONUA_MAP_DOCUMENT_FORMAT_V1;
 
 /** Lifecycle states a map document may occupy server-side. */
@@ -251,7 +252,7 @@ export interface HonuaMapDocumentProvenance {
 }
 
 /**
- * v1 HonuaMapDocument shape — mirrors the draft server type in
+ * v1 map document shape — mirrors the draft server type in
  * `/home/makani/honua-server/src/Honua.Core/Features/Geoprocessing/Domain/MapPackage.cs`.
  * Unknown fields are preserved through `updateMapDocument` round-trip so
  * minor additive changes do not break runtime consumers.

@@ -1,5 +1,5 @@
 /**
- * `MapPackage` validation.
+ * `HonuaMapDocument` validation.
  *
  * The *structural* rules — which properties exist, which are required, which
  * scalar types and enum members are legal, how long a string may be — are not
@@ -145,7 +145,7 @@ function jsonPointerToPath(pointer: string): string {
 }
 
 /**
- * Validate the server-produced `MapPackage` wire shape and runtime binding
+ * Validate the server-produced `HonuaMapDocument` wire shape and runtime binding
  * assumptions without throwing raw JSON/type errors. Diagnostics are
  * stable-enough for hosts to show or log directly.
  */
