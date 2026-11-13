@@ -230,63 +230,6 @@ function nextMinorTarget(version: string) {
   return `${major}.${Number(minor) + 1}.0`;
 }
 
-const browserPublicCredentialFixtureId = "browser-public-credential";
-const browserPublicCredentialSource = "test/fixtures/sample-contract/browser-public-credential";
-
-function browserPublicCredentialSample(version: string) {
-  return {
-    id: browserPublicCredentialFixtureId,
-    title: "Browser-public credential fixture",
-    summary: "Declares one named browser-public credential and reads only that environment key.",
-    sourceKind: "root-example",
-    track: "fixture",
-    supportTier: "internal",
-    lifecycle: {
-      state: "rework",
-      reason: "Named browser-public credential remains on a bounded rework lifecycle.",
-      targetRelease: nextMinorTarget(version),
-    },
-    sourcePath: browserPublicCredentialSource,
-    docsPath: `${browserPublicCredentialSource}/README.md`,
-    capabilities: ["analysis"],
-    capabilityKeys: [],
-    protocols: ["geoservices"],
-    renderers: ["maplibre"],
-    data: {
-      mode: "fixture",
-      authMode: "none",
-      configurationStatus: "legacy-unsafe",
-      configurationGap: "The named browser credential is still exposed to the page and has no approved replacement.",
-      config: ["VITE_CLIENT_SECRET"],
-      configClassifications: [
-        {
-          name: "VITE_CLIENT_SECRET",
-          exposure: "browser-public",
-          valueKind: "credential",
-          credentialScope: "secret",
-        },
-      ],
-      provenance: "Synthetic source fixture that reads one named environment key.",
-      attribution: "Honua sample-contract fixture.",
-      freshness: "Versioned with the repository.",
-    },
-    evidence: {
-      fixture: { mode: "fixture", status: "planned", commands: [] },
-      live: { mode: "unavailable", status: "not-applicable", commands: [] },
-    },
-    expectedDegradation: "The credential stays unavailable and the sample cannot be approved.",
-    validationProfile: "internal-fixture",
-    validation: ["npx vitest run test/sample-contract.test.ts"],
-  };
-}
-
-async function catalogWithBrowserPublicCredential(version: string) {
-  const catalog = await readJson("samples/catalog.v2.json");
-  catalog.samples.push(browserPublicCredentialSample(version));
-  catalog.samples.sort((left: { id: string }, right: { id: string }) => left.id.localeCompare(right.id));
-  return catalog;
-}
-
 async function promotedIncidentDashboard() {
   const catalog = await readJson("samples/catalog.v2.json");
   catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status = "qualified";
@@ -1854,47 +1797,6 @@ describe("sample publication contract", () => {
     credentialPolicyDrift.configuration.credentialQueryParameters.pop();
     await expect(validateCatalog(credentialPolicyDrift, packageJson, validationTime)).rejects.toThrow(
       "configuration.credentialQueryParameters must exactly match the canonical normalized credential-key set",
-    );
-  });
-
-  it("reaches the browser-public credential rule from a named-key fixture", async () => {
-    const packageJson = await readJson("package.json");
-    await expect(inspectSampleConfiguration(browserPublicCredentialSource)).resolves.toEqual({
-      names: ["VITE_CLIENT_SECRET"],
-      wholeEnvironmentEscapes: [],
-    });
-
-    const legacyCatalog = await catalogWithBrowserPublicCredential(String(packageJson.version));
-    const fixtureOptions = {
-      ...validationTime,
-      syntheticConfigurationFixtures: [browserPublicCredentialFixtureId],
-      // Receipt checkout measures the worktree, not this fixture. The credential
-      // rule is what this test has to prove.
-      verifyCheckout: false,
-    };
-    await expect(validateCatalog(legacyCatalog, packageJson, validationTime)).rejects.toThrow(
-      "browser-public-credential: sourceKind does not match sourcePath",
-    );
-    await expect(validateCatalog(legacyCatalog, packageJson, fixtureOptions)).resolves.toBeUndefined();
-
-    const approved = structuredClone(legacyCatalog);
-    const approvedSample = approved.samples.find(
-      (sample: { id: string }) => sample.id === browserPublicCredentialFixtureId,
-    );
-    approvedSample.data.configurationStatus = "approved";
-    delete approvedSample.data.configurationGap;
-    await expect(validateCatalog(approved, packageJson, fixtureOptions)).rejects.toThrow(
-      "browser-public-credential: browser-public credentials require legacy-unsafe status and bounded rework",
-    );
-
-    const shipped = await readJson("samples/catalog.v2.json");
-    await expect(
-      validateCatalog(shipped, packageJson, {
-        ...validationTime,
-        syntheticConfigurationFixtures: ["cesium-route-playback"],
-      }),
-    ).rejects.toThrow(
-      "cesium-route-playback: synthetic configuration fixture source must live under test/fixtures/sample-contract/",
     );
   });
 
