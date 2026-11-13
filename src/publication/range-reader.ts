@@ -84,8 +84,9 @@ async function checkedResponse(
 /**
  * Reads a published artifact by HTTP range requests only. A response that is
  * not a 206 whose `Content-Range` names exactly the requested bytes of a file
- * of the descriptor's size is refused before its body is read, so a host without range support never costs a full download. A file
- * small enough to be requested whole may also come back as a 200.
+ * of the descriptor's size is refused before its body is read, so a host
+ * without range support never costs a full download. A file small enough to
+ * be requested whole may also come back as a 200.
  */
 export function artifactRangeReader(url: string, byteLength: number, fetchImpl: typeof fetch): ArtifactRangeReader {
   const cache = new Map<string, ArrayBuffer>();
