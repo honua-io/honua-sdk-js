@@ -52,6 +52,7 @@ jobs:
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       prs: ${{ steps.release-pr.outputs.prs }}
+      release_pr_outcome: ${{ steps.release-pr.outcome }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       # Release identity (#1093). The release pull request must be authored by
@@ -778,13 +779,16 @@ jobs:
           if-no-files-found: warn
 
 
+  # Draft recovery skips release-pr and must touch nothing but the finish path.
+  # A queued run waits instead of cancelling a running one, so no run stops
+  # between refreshing a candidate and committing its normalization.
   release-please-refresh:
     needs: release-please
-    if: ${{ always() && needs.release-please.result == 'success' }}
+    if: ${{ always() && needs.release-please.result == 'success' && needs.release-please.outputs.release_pr_outcome == 'success' }}
     runs-on: ubuntu-latest
     concurrency:
       group: release-please-base-refresh-${{ github.repository }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -881,6 +885,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_PLEASE_PR_READY: ${{ needs.release-please-refresh.outputs.release_pr_present }}
+          RELEASE_HEAD_SHA: ${{ needs.release-please-refresh.outputs.release_head_sha }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
