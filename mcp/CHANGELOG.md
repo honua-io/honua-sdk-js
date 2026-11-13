@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.3](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.2...mcp-server-v0.3.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **mcp:** pin generated clients to published @honua/mcp-server 0.3.2 ([#2371](https://github.com/honua-io/honua-sdk-js/issues/2371)) ([5262473](https://github.com/honua-io/honua-sdk-js/commit/5262473bf5509a860a6d51904799ad4b1cc0af88))
+* **release:** pin starters, playgrounds and generated MCP clients to the published SDK 0.3.4 and MCP 0.3.2 ([9c519c0](https://github.com/honua-io/honua-sdk-js/commit/9c519c016f8a238e7ffdf2be8ace2a5ed904ffbc))
+
 ## [0.3.2](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.1...mcp-server-v0.3.2) (2026-11-13)
 
 
