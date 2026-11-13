@@ -105,7 +105,7 @@ async function assertRefreshCommit(repository, newHeadSha, oldHeadSha, trustedPo
   }
 }
 
-async function readCandidate(repository, trustedPolicySha, headRefName, reportedPullRequestNumber, request) {
+async function readCandidate({ repository, trustedPolicySha, headRefName, reportedPullRequestNumber }, request) {
   const current = await loadExactReleasePleasePullRequest(repository, request, headRefName);
   if (reportedPullRequestNumber !== undefined && current?.pullRequestNumber !== reportedPullRequestNumber) {
     throw new Error("Release Please action output does not match the exact current candidate.");
@@ -143,8 +143,9 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   // GitHub settles a force-pushed pull request's head and base metadata shortly
   // after the push, so a reported update is read until it settles.
   const settleAttempts = releasePleaseReportedUpdate ? attempts : 1;
-  const read = () =>
-    readCandidate(repository, trustedPolicySha, headRefName, input?.reportedPullRequestNumber, request);
+  const reportedPullRequestNumber = input?.reportedPullRequestNumber;
+  const target = { repository, trustedPolicySha, headRefName, reportedPullRequestNumber };
+  const read = () => readCandidate(target, request);
   let candidate = await read();
   for (let attempt = 1; attempt < settleAttempts && !isSettled(candidate, trustedPolicySha); attempt += 1) {
     await new Promise((resolve) => wait(resolve, delayMs));
