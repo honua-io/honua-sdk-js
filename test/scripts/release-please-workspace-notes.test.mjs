@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 
@@ -160,10 +161,11 @@ function harness(options = {}) {
     }
     if (pathname.endsWith(`/git/commits/${headSha}`)) return { sha: headSha, tree: { sha: oldTree } };
     if (pathname.endsWith("/git/trees")) return { sha: newTree };
-    if (pathname.endsWith("/git/commits")) return { sha: nextSha, tree: { sha: newTree }, parents: [{ sha: headSha }] };
+    if (pathname.endsWith("/git/commits")) return { sha: nextSha, tree: { sha: newTree }, parents: [{ sha: options.commitParent ?? headSha }] };
     if (pathname.endsWith(`/git/refs/heads/${candidateBranch}`)) {
-      currentHead = nextSha;
-      return { object: { sha: options.refRace ? "f".repeat(40) : currentHead } };
+      if (options.refFailure) throw new Error("Non-fast-forward update rejected");
+      currentHead = options.updatedHead ?? nextSha;
+      return { object: { sha: currentHead } };
     }
     if (pathname.endsWith("/pulls/2074")) {
       currentBody = JSON.parse(input.body).body;
@@ -213,6 +215,23 @@ describe("trusted generated-note publication", () => {
     assert.ok(mutations.some((call) => call.pathname.endsWith("/git/trees")));
     assert.ok(mutations.every((call) => !call.pathname.includes("/git/refs/") && !call.pathname.endsWith("/pulls/2074")));
   });
+  it("rejects a commit with the wrong parent before publishing notes", async () => {
+    const { request, mutations } = harness({ commitParent: baseSha });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /Invalid normalized candidate commit/);
+    assert.ok(mutations.some((call) => call.pathname.endsWith("/git/commits")));
+    assert.ok(mutations.every((call) => call.method !== "PATCH"));
+  });
+  it("does not update the body after rejected or unconfirmed ref updates", async () => {
+    for (const options of [{ refFailure: true }, { updatedHead: headSha }]) {
+      const { request, mutations } = harness(options);
+      await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /rejected|not confirmed/);
+      const updates = mutations.filter((call) => call.method === "PATCH");
+      assert.equal(updates.length, 1);
+      assert.ok(updates[0].pathname.endsWith(`/git/refs/heads/${branch}`));
+      assert.deepEqual(JSON.parse(updates[0].body), { sha: nextSha, force: false });
+    }
+  });
+
 });
 
 
@@ -298,4 +317,19 @@ it("refuses an untrusted workflow before discovering any component candidate", (
   assert.equal(result.status, 1);
   assert.match(result.stderr, /only for a trunk push or manual dispatch/);
   assert.equal(result.stdout, "");
+});
+
+
+it("normalizes MCP notes from trusted policy after lockfiles and before candidate refresh", () => {
+  const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
+  const start = workflow.indexOf("      - name: Normalize generated MCP component dependency notes");
+  const end = workflow.indexOf("      - name: Retain sealed-ancestor recovery verification", start);
+  const hook = workflow.slice(start, end);
+  assert.ok(start > workflow.indexOf("run: node scripts/normalize-release-please-lockfiles.mjs"));
+  assert.ok(end < workflow.indexOf("  release-please-refresh:"));
+  assert.match(hook, /if: steps.release-pr.outcome == 'success'/u);
+  assert.match(hook, /working-directory: trusted-lockfile-policy/u);
+  assert.match(hook, /GITHUB_TOKEN: \$\{\{ steps.release-pr-token.outputs.token \|\| secrets.GITHUB_TOKEN \}\}/u);
+  assert.match(hook, /TRUSTED_POLICY_SHA: \$\{\{ github.sha \}\}/u);
+  assert.match(hook, /run: node scripts\/normalize-release-please-mcp-notes.mjs/u);
 });
