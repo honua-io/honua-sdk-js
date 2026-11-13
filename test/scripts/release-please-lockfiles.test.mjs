@@ -153,7 +153,7 @@ test("workflow normalizes only successful normal PR generation using trusted pol
   const end = workflow.indexOf("- name: Retain sealed-ancestor recovery verification", start);
   const hook = workflow.slice(start, end);
   assert.ok(start > workflow.indexOf("- name: Generate release PR after publication handling"));
-  assert.equal((hook.match(/if: steps.release-pr.outcome == 'success'/gu) ?? []).length, 3);
+  assert.equal((hook.match(/if: steps.release-pr.outcome == 'success'/gu) ?? []).length, 4);
   assert.match(hook, /ref: \$\{\{ github.sha \}\}/u);
   assert.match(hook, /persist-credentials: false/u);
   assert.match(hook, /working-directory: trusted-lockfile-policy/u);

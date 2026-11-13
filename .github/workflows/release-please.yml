@@ -791,6 +791,14 @@ jobs:
           TRUSTED_POLICY_SHA: ${{ github.sha }}
         run: node scripts/normalize-release-please-lockfiles.mjs
 
+      - name: Normalize generated MCP component dependency notes
+        if: steps.release-pr.outcome == 'success'
+        working-directory: trusted-lockfile-policy
+        env:
+          GITHUB_TOKEN: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: node scripts/normalize-release-please-mcp-notes.mjs
+
       - name: Retain sealed-ancestor recovery verification
         if: always() && inputs.recover_sealed_source != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
