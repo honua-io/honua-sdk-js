@@ -32,6 +32,7 @@ export async function prepareReleasePleaseCandidates(input, dependencies = {}) {
       reportedPullRequestNumber: updates.get(headRefName) });
     candidates.push({ ...result, headRefName });
   }
+  const refreshedCandidates = structuredClone(candidates);
   // Every stale base must be repaired before either normalizer can enforce
   // its exact trusted-base transaction guard.
   const lockResults = await locks({ ...input, expectedCandidates: structuredClone(candidates) });
@@ -61,5 +62,5 @@ export async function prepareReleasePleaseCandidates(input, dependencies = {}) {
       throw new Error("Release Please candidate moved during normalization.");
     }
   }
-  return { legacy, candidates };
+  return { legacy, candidates, refreshedCandidates };
 }

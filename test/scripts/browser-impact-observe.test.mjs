@@ -614,6 +614,14 @@ test("a superseded record refuses an unrecognised or missing reason", () => {
     observerRunId: "2",
     observerRunAttempt: "1",
   };
+  const cancelled = supersededRecord({
+    ...base,
+    reason: "source-run-cancelled-before-jobs",
+    sourceRunConclusion: "cancelled",
+  });
+  assert.equal(cancelled.observed, false);
+  assert.equal(cancelled.reason, "source-run-cancelled-before-jobs");
+  assert.equal(cancelled.comparison, undefined);
   for (const reason of [undefined, "", "flake", "unknown"]) {
     assert.throws(() => supersededRecord({ ...base, reason }), /unknown superseded reason/u);
   }
