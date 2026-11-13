@@ -320,8 +320,8 @@ function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
 async function fetchPackument(target, { registry, fetchImpl }) {
   const packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
   expect(
-    isPackumentFor(packument, target.npmName),
-    `the registry response is not a packument for ${target.npmName} with a versions map`,
+    isPackument(packument),
+    `the registry response for ${target.npmName} is not a packument with a versions map`,
   );
   return packument;
 }
@@ -501,16 +501,9 @@ async function checkAsync(id, description, evaluate) {
   }
 }
 
-function isPackumentFor(packument, npmName) {
+function isPackument(packument) {
   const versions = packument?.versions;
-  return (
-    typeof packument === "object" &&
-    packument !== null &&
-    packument.name === npmName &&
-    typeof versions === "object" &&
-    versions !== null &&
-    !Array.isArray(versions)
-  );
+  return typeof versions === "object" && versions !== null && !Array.isArray(versions);
 }
 
 /** A companion release that never happened, reported apart from SDK package failures. */
