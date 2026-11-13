@@ -1,11 +1,10 @@
+import { assertExpectedReleasePleaseCandidate, RELEASE_PLEASE_HEADS } from "./release-please-disposition-check.mjs";
 import { updateReleasePleaseCandidate } from "./release-please-candidate-update.mjs";
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
 import { automationExemption } from "./pr-issue-disposition.mjs";
 
 const SHA = /^[0-9a-f]{40}$/u;
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
-const BRANCHES = ["release-please--branches--trunk", ...["js-sdk", "mcp-server", "create-honua-app"]
-  .map((component) => `release-please--branches--trunk--components--${component}`)];
 const PATHS = ["package.json", "package-lock.json", "mcp/package.json", "mcp/package-lock.json"];
 
 function requireThat(condition, message) {
@@ -48,7 +47,7 @@ function candidateContext(input, request) {
 
 async function loadCandidate(context, number) {
   const snapshot = await loadCurrentPullRequestDisposition({ repository: context.repository, pullRequestNumber: number }, context.request);
-  requireThat(automationExemption(snapshot) === "Release Please automation" && BRANCHES.includes(snapshot.headRefName),
+  requireThat(automationExemption(snapshot) === "Release Please automation" && RELEASE_PLEASE_HEADS.includes(snapshot.headRefName),
     "Candidate does not match Release Please automation identity.");
   requireThat(snapshot.baseSha === context.trustedPolicySha, "Candidate base moved from trusted workflow revision.");
   return snapshot;
@@ -96,8 +95,9 @@ function commitChanges(context, snapshot, changes) {
 export async function normalizeReleasePleaseLockfiles(input, request = githubRequest) {
   const context = candidateContext(input, request);
   const results = [];
-  for (const branch of BRANCHES) {
+  for (const branch of RELEASE_PLEASE_HEADS) {
     const candidate = await findCandidate(context, branch);
+    assertExpectedReleasePleaseCandidate(candidate, input.expectedCandidates, branch);
     if (!candidate) continue;
     const changes = normalizeCandidateLockfiles(await readCandidateFiles(context, candidate));
     const headSha = changes.length ? await commitChanges(context, candidate, changes) : candidate.headSha;

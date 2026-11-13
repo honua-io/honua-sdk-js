@@ -3,9 +3,8 @@
 import fs from "node:fs";
 import process from "node:process";
 
-import { refreshReleasePleaseBase } from "./lib/release-please-base-refresh.mjs";
+import { prepareReleasePleaseCandidates } from "./lib/release-please-candidates.mjs";
 import { validateTrustedReleasePleaseWorkflowContext } from "./lib/release-please-disposition-check.mjs";
-import { normalizeReleasePleaseWorkspaceNotes } from "./lib/release-please-workspace-notes.mjs";
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -13,13 +12,7 @@ function requiredEnvironment(name) {
   return value;
 }
 
-function exactBooleanEnvironment(name) {
-  const value = requiredEnvironment(name);
-  if (value !== "true" && value !== "false") throw new Error(`${name} must be true or false.`);
-  return value === "true";
-}
-
-function writeResult(result) {
+function writeResult(result, candidates) {
   const present = result.status !== "not-found";
   const lines = [
     "## Trusted Release Please base refresh",
@@ -39,7 +32,7 @@ function writeResult(result) {
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(
       process.env.GITHUB_OUTPUT,
-      `release_pr_present=${present}\nrelease_head_sha=${result.headSha ?? ""}\nrefresh_status=${result.status}\n`,
+      `release_pr_present=${present}\nrelease_head_sha=${result.headSha ?? ""}\nrefresh_status=${result.status}\ncandidates=${JSON.stringify(candidates)}\n`,
     );
   }
   process.stdout.write(summary);
@@ -52,17 +45,12 @@ async function main() {
     trustedPolicySha: requiredEnvironment("TRUSTED_POLICY_SHA"),
     githubSha: requiredEnvironment("GITHUB_SHA"),
   });
-  const result = await refreshReleasePleaseBase({
+  const { legacy, candidates } = await prepareReleasePleaseCandidates({
     repository: requiredEnvironment("GITHUB_REPOSITORY"),
     trustedPolicySha,
-    releasePleaseReportedUpdate: exactBooleanEnvironment("RELEASE_PLEASE_PRS_CREATED"),
+    releasePleasePullRequests: process.env.RELEASE_PLEASE_PRS ?? "[]",
   });
-  if (result.status !== "not-found") {
-    const notes = await normalizeReleasePleaseWorkspaceNotes(result);
-    result.headSha = notes.headSha;
-    result.workspaceNotes = notes.status;
-  }
-  writeResult(result);
+  writeResult(legacy, candidates);
 }
 
 try {

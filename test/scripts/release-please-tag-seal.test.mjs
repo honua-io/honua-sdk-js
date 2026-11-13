@@ -572,7 +572,7 @@ test("release PR generation follows the finish path with a fresh token and separ
     assert.equal(token.match(pattern)[1], initialToken.match(pattern)[1]);
   }
   assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/u);
-  assert.match(job, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
+  assert.match(job, /prs: \$\{\{ steps\.release-pr\.outputs\.prs \}\}/u);
   assert.match(job, /releases_created: \$\{\{ steps\.release\.outputs\.releases_created \}\}/u);
   assert.match(job, /tag_name: \$\{\{ steps\.release\.outputs\.tag_name \}\}/u);
 });

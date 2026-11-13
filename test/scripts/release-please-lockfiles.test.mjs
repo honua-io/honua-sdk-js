@@ -1,3 +1,4 @@
+import { prepareReleasePleaseCandidates } from "../../scripts/lib/release-please-candidates.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -147,17 +148,16 @@ test("untrusted or moved candidate cannot update a branch", async () => {
   }
 });
 
-test("workflow normalizes only successful normal PR generation using trusted policy", () => {
+test("workflow prepares candidates only after successful generation using trusted policy", () => {
   const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
-  const start = workflow.indexOf("- name: Check out trusted candidate lockfile policy");
-  const end = workflow.indexOf("- name: Retain sealed-ancestor recovery verification", start);
-  const hook = workflow.slice(start, end);
-  assert.ok(start > workflow.indexOf("- name: Generate release PR after publication handling"));
-  assert.equal((hook.match(/if: steps.release-pr.outcome == 'success'/gu) ?? []).length, 4);
+  const hook = workflow.slice(workflow.indexOf("  release-please-refresh:"), workflow.indexOf("  release-please-ci:"));
+  assert.match(hook, /needs: release-please/u);
+  assert.match(hook, /needs.release-please.result == 'success'/u);
   assert.match(hook, /ref: \$\{\{ github.sha \}\}/u);
   assert.match(hook, /persist-credentials: false/u);
-  assert.match(hook, /working-directory: trusted-lockfile-policy/u);
-  assert.match(hook, /run: node scripts\/normalize-release-please-lockfiles.mjs/u);
+  assert.match(hook, /working-directory: trusted-refresh-policy/u);
+  assert.match(hook, /node scripts\/refresh-release-please-base.mjs/u);
+  assert.doesNotMatch(workflow, /RELEASE_PLEASE_PRS_CREATED/u);
 });
 
 test("lock normalization rejects a commit with the wrong parent before publishing", async () => {
@@ -179,5 +179,23 @@ test("lock normalization does not report success for rejected or unconfirmed ref
     const { request, calls } = harness(options);
     await assert.rejects(normalizeReleasePleaseLockfiles(INPUT, request), /rejected|not confirmed/);
     assert.deepEqual(calls.filter(({ method }) => method === "PATCH").map(({ body }) => body), [{ sha: NEXT, force: false }]);
+  }
+});
+
+
+test("orchestration rejects replaced lock candidates before reading files or mutating", async () => {
+  for (const expected of [
+    { pullRequestNumber: 2405, headSha: NEXT, status: "already-current" },
+    { pullRequestNumber: 2406, headSha: HEAD, status: "already-current" },
+    { status: "not-found" },
+  ]) {
+    const { request, calls } = harness();
+    await assert.rejects(prepareReleasePleaseCandidates(INPUT, {
+      refresh: async ({ headRefName }) => headRefName === BRANCH ? expected : { status: "not-found" },
+      locks: (input) => normalizeReleasePleaseLockfiles(input, request),
+      mcpNotes: async () => { throw new Error("Notes must not run after candidate drift"); },
+    }), /moved before normalization/);
+    assert.ok(!calls.some(({ path }) => path.startsWith("/contents/")));
+    assert.ok(calls.every(({ method, path }) => method === "GET" || path === "/graphql"));
   }
 });

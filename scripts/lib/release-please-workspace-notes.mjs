@@ -1,7 +1,7 @@
 import { updateReleasePleaseCandidate } from "./release-please-candidate-update.mjs";
 import { githubRequest } from "./github-pr-issue-disposition.mjs";
 import { loadExactReleasePleasePullRequest } from "./release-please-base-refresh.mjs";
-import { RELEASE_PLEASE_BASE, RELEASE_PLEASE_HEAD, RELEASE_PLEASE_MCP_HEAD } from "./release-please-disposition-check.mjs";
+import { assertExpectedReleasePleaseCandidate, RELEASE_PLEASE_BASE, RELEASE_PLEASE_HEAD, RELEASE_PLEASE_MCP_HEAD } from "./release-please-disposition-check.mjs";
 import { verifyManagedMcpPeerPolicy } from "../verify-mcp-pin.mjs";
 
 const SDK = "@honua/sdk-js";
@@ -93,7 +93,8 @@ export async function normalizeReleasePleaseWorkspaceNotes(input, request = gith
     "Workspace note normalization requires an exact repository and source identities.");
   const api = `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${repository}`;
   const current = await loadExactReleasePleasePullRequest(repository, request, headRefName);
-  requireThat(current?.headSha === headSha && current.baseSha === trustedPolicySha, "Release Please notes source moved.");
+  requireThat(current?.headSha === headSha && current.baseSha === trustedPolicySha &&
+    (input.pullRequestNumber === undefined || current.pullRequestNumber === input.pullRequestNumber), "Release Please notes source moved.");
   const readFile = async (path, ref) => {
     const result = await request(`${api}/contents/${path}?ref=${ref}`);
     requireThat(result?.type === "file" && result.encoding === "base64" && typeof result.content === "string",
@@ -143,9 +144,10 @@ export async function normalizeReleasePleaseWorkspaceNotes(input, request = gith
 /** Normalize only the authenticated MCP component candidate emitted by the trusted workflow. */
 export async function normalizeMcpComponentReleaseNotes(input, request = githubRequest) {
   const current = await loadExactReleasePleasePullRequest(input.repository, request, RELEASE_PLEASE_MCP_HEAD);
+  assertExpectedReleasePleaseCandidate(current, input.expectedCandidates, RELEASE_PLEASE_MCP_HEAD);
   if (!current) return { status: "absent" };
   return normalizeReleasePleaseWorkspaceNotes({
     repository: input.repository, trustedPolicySha: input.trustedPolicySha,
-    headSha: current.headSha, headRefName: RELEASE_PLEASE_MCP_HEAD,
+    headSha: current.headSha, headRefName: RELEASE_PLEASE_MCP_HEAD, pullRequestNumber: current.pullRequestNumber,
   }, request);
 }
