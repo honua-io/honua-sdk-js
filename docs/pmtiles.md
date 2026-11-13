@@ -31,17 +31,14 @@ evidence and causes an `ambiguous-protocol` error before cache, authentication,
 or network work begins.
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 
-const connection = await connect({
-  endpoint: "pmtiles://https://example.com/basemaps/hawaii.pmtiles",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+await using honua = createHonua();
+const connection = await honua.connect("pmtiles://https://example.com/basemaps/hawaii.pmtiles");
 
 const source = connection.source();
 console.log(source.descriptor.locator.sourceType); // "vector" or "raster"
-console.log(connection.inspection.sources[0]?.metadata?.pmtiles?.bounds);
+console.log((await connection.inspect()).sources[0]?.metadata?.pmtiles?.bounds);
 ```
 
 Discovery runs through the normal client auth/interceptor/timeout pipeline and

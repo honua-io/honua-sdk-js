@@ -19,7 +19,7 @@ surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimen
 
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`.
+A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
@@ -337,15 +337,13 @@ verbs in order: **connect → query → explain** (the fourth verb, **mount**, i
 the hero at the top of this page).
 
 ```ts doc-test=compile
-import { connect, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
+import { createHonua, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
 
-// 1. connect — a public Esri Living Atlas FeatureServer; nothing of Honua's is running.
-const data = await connect({
-  endpoint:
-    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+// 1. connect — a public FeatureServer; nothing of Honua's is running.
+await using honua = createHonua();
+const data = await honua.connect(
+  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+);
 const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 
 // 2. query — one typed, protocol-neutral filter expression.
