@@ -1,3 +1,4 @@
+import { assertExpectedReleasePleaseCandidate } from "./release-please-disposition-check.mjs";
 import { updateReleasePleaseCandidate } from "./release-please-candidate-update.mjs";
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
 import { automationExemption } from "./pr-issue-disposition.mjs";
@@ -98,6 +99,7 @@ export async function normalizeReleasePleaseLockfiles(input, request = githubReq
   const results = [];
   for (const branch of BRANCHES) {
     const candidate = await findCandidate(context, branch);
+    assertExpectedReleasePleaseCandidate(candidate, input.expectedCandidates, branch);
     if (!candidate) continue;
     const changes = normalizeCandidateLockfiles(await readCandidateFiles(context, candidate));
     const headSha = changes.length ? await commitChanges(context, candidate, changes) : candidate.headSha;

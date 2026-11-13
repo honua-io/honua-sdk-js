@@ -10,6 +10,23 @@ export const GITHUB_ACTIONS_APP_ID = 15368;
 export const RELEASE_PLEASE_BASE = "trunk";
 export const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
 export const RELEASE_PLEASE_MCP_HEAD = `${RELEASE_PLEASE_HEAD}--components--mcp-server`;
+export const RELEASE_PLEASE_HEADS = Object.freeze([
+  RELEASE_PLEASE_HEAD,
+  `${RELEASE_PLEASE_HEAD}--components--js-sdk`,
+  RELEASE_PLEASE_MCP_HEAD,
+  `${RELEASE_PLEASE_HEAD}--components--create-honua-app`,
+]);
+/** Bind rediscovery to the previously authenticated candidate, including absence. */
+export function assertExpectedReleasePleaseCandidate(current, expectedCandidates, headRefName) {
+  if (expectedCandidates === undefined) return;
+  const matches = expectedCandidates.filter((candidate) => candidate.headRefName === headRefName);
+  const expected = matches[0];
+  if (matches.length !== 1 || (expected.status === "not-found" ? current !== null :
+      !current || current.pullRequestNumber !== expected.pullRequestNumber || current.headSha !== expected.headSha)) {
+    throw new Error("Release Please candidate moved before normalization.");
+  }
+}
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 
@@ -88,7 +105,7 @@ function releasePleaseCandidateFromRest(pullRequest, repository) {
 /** Locate the one exact, open, same-repository Release Please pull request. */
 export async function findCurrentReleasePleasePullRequest(repository, request = githubRequest, headRefName = RELEASE_PLEASE_HEAD) {
   assertRepository(repository);
-  if (![RELEASE_PLEASE_HEAD, RELEASE_PLEASE_MCP_HEAD].includes(headRefName)) {
+  if (!RELEASE_PLEASE_HEADS.includes(headRefName)) {
     throw new Error("Unsupported exact Release Please candidate branch.");
   }
   const [owner] = repository.split("/");

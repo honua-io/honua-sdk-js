@@ -51,7 +51,7 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
-      prs_created: ${{ steps.release-pr.outputs.prs_created }}
+      prs: ${{ steps.release-pr.outputs.prs }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       # Release identity (#1093). The release pull request must be authored by
@@ -769,36 +769,6 @@ jobs:
           manifest-file: .release-please-manifest.json
           skip-github-release: true
 
-      - name: Check out trusted candidate lockfile policy
-        if: steps.release-pr.outcome == 'success'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.sha }}
-          path: trusted-lockfile-policy
-          persist-credentials: false
-
-      - name: Set up Node for candidate lockfile normalization
-        if: steps.release-pr.outcome == 'success'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with:
-          node-version: '22.23.3'
-
-      - name: Normalize generated candidate local lock versions
-        if: steps.release-pr.outcome == 'success'
-        working-directory: trusted-lockfile-policy
-        env:
-          GITHUB_TOKEN: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
-          TRUSTED_POLICY_SHA: ${{ github.sha }}
-        run: node scripts/normalize-release-please-lockfiles.mjs
-
-      - name: Normalize generated MCP component dependency notes
-        if: steps.release-pr.outcome == 'success'
-        working-directory: trusted-lockfile-policy
-        env:
-          GITHUB_TOKEN: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
-          TRUSTED_POLICY_SHA: ${{ github.sha }}
-        run: node scripts/normalize-release-please-mcp-notes.mjs
-
       - name: Retain sealed-ancestor recovery verification
         if: always() && inputs.recover_sealed_source != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -822,6 +792,7 @@ jobs:
       release_pr_present: ${{ steps.refresh.outputs.release_pr_present }}
       release_head_sha: ${{ steps.refresh.outputs.release_head_sha }}
       refresh_status: ${{ steps.refresh.outputs.refresh_status }}
+      candidates: ${{ steps.refresh.outputs.candidates }}
     steps:
       - name: Check out trusted base-refresh policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -863,12 +834,12 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
           owner: honua-io
 
-      - name: Refresh the unchanged exact Release Please branch onto trusted trunk
+      - name: Refresh and normalize exact Release Please candidates onto trusted trunk
         id: refresh
         working-directory: trusted-refresh-policy
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
-          RELEASE_PLEASE_PRS_CREATED: ${{ needs.release-please.outputs.prs_created || 'false' }}
+          RELEASE_PLEASE_PRS: ${{ needs.release-please.outputs.prs || '[]' }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"

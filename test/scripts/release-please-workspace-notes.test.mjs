@@ -324,16 +324,22 @@ it("refuses an untrusted workflow before discovering any component candidate", (
 });
 
 
-it("normalizes MCP notes from trusted policy after lockfiles and before candidate refresh", () => {
-  const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
-  const start = workflow.indexOf("      - name: Normalize generated MCP component dependency notes");
-  const end = workflow.indexOf("      - name: Retain sealed-ancestor recovery verification", start);
-  const hook = workflow.slice(start, end);
-  assert.ok(start > workflow.indexOf("run: node scripts/normalize-release-please-lockfiles.mjs"));
-  assert.ok(end < workflow.indexOf("  release-please-refresh:"));
-  assert.match(hook, /if: steps.release-pr.outcome == 'success'/u);
-  assert.match(hook, /working-directory: trusted-lockfile-policy/u);
-  assert.match(hook, /GITHUB_TOKEN: \$\{\{ steps.release-pr-token.outputs.token \|\| secrets.GITHUB_TOKEN \}\}/u);
-  assert.match(hook, /TRUSTED_POLICY_SHA: \$\{\{ github.sha \}\}/u);
-  assert.match(hook, /run: node scripts\/normalize-release-please-mcp-notes.mjs/u);
+it("pins MCP rediscovery to the post-lock number, head and absence before mutation", async () => {
+  for (const expected of [
+    { pullRequestNumber: 2074, headSha: nextSha, status: "already-current" },
+    { pullRequestNumber: 2075, headSha, status: "already-current" },
+    { status: "not-found" },
+  ]) {
+    const { request, mutations, calls } = harness({ branch: componentBranch });
+    await assert.rejects(normalizeMcpComponentReleaseNotes({ repository, trustedPolicySha: baseSha,
+      expectedCandidates: [{ ...expected, headRefName: componentBranch }],
+    }, request), /moved before normalization/);
+    assert.deepEqual(mutations, []);
+    assert.ok(!calls.some(({ pathname }) => pathname.includes("/contents/")));
+  }
+  const { request, mutations } = harness({ branch: componentBranch, absent: true });
+  await assert.rejects(normalizeMcpComponentReleaseNotes({ repository, trustedPolicySha: baseSha,
+    expectedCandidates: [{ headRefName: componentBranch, pullRequestNumber: 2074, headSha }],
+  }, request), /moved before normalization/);
+  assert.deepEqual(mutations, []);
 });
