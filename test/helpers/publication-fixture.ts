@@ -1,9 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DuckDBInstance } from "@duckdb/node-api";
+import { afterEach } from "vitest";
 
+import { GeoparquetRuntime } from "../../src/geoparquet/index.js";
 import { createNodeDuckDbDriver } from "../../src/geoparquet/node.js";
 import {
   type Publication,
@@ -102,4 +104,36 @@ export async function storedGeometry(identity: string): Promise<Array<Array<Arra
     connection.closeSync();
     instance.closeSync();
   }
+}
+
+export const FIXTURE_DESCRIPTOR = JSON.parse(readFileSync(path.join(FIXTURE_DIRECTORY, "descriptor.json"), "utf8"));
+export const NON_PUBLIC_FIELDS: string[] = FIXTURE_DESCRIPTOR.fields
+  .filter((field: { public: boolean }) => !field.public)
+  .map((field: { name: string }) => field.name);
+export const FIXTURE_STAMP = {
+  publicationId: FIXTURE_DESCRIPTOR.publicationId,
+  version: FIXTURE_DESCRIPTOR.version,
+  captureId: FIXTURE_DESCRIPTOR.capture.captureId,
+};
+
+/** Fixture servers and paired sources that are closed after each test. */
+export function publicationTestBed() {
+  const cleanups: Array<() => Promise<void> | void> = [];
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  });
+  const track = (cleanup: () => Promise<void> | void) => cleanups.push(cleanup);
+  return {
+    track,
+    async served(overrides: FixtureOverrides = {}): Promise<RangeServer> {
+      const server = await serveFixture(overrides);
+      track(() => server.close());
+      return server;
+    },
+    async pairedSource(server: RangeServer, options: PublicationSourceOptions = {}) {
+      const runtime = new GeoparquetRuntime({ driverFactory: nodeDriver });
+      track(() => runtime.dispose());
+      return fixtureSource(server, { runtime, ...options });
+    },
+  };
 }

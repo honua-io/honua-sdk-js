@@ -1,33 +1,17 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { Query, Result, Source } from "../src/contract/types.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
 import {
   MERGED_MULTIPART_PARCEL,
-  type RangeServer,
   fixtureSource,
-  nodeDriver,
   parquetRequests,
-  serveFixture,
+  publicationTestBed,
 } from "./helpers/publication-fixture.js";
 
-const cleanups: Array<() => Promise<void> | void> = [];
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
-});
-
-async function served(delayMs = 0): Promise<RangeServer> {
-  const server = await serveFixture(delayMs ? { delayMs } : {});
-  cleanups.push(() => server.close());
-  return server;
-}
-
-async function pairedSource(server: RangeServer, options: Parameters<typeof fixtureSource>[1] = {}) {
-  const runtime = new GeoparquetRuntime({ driverFactory: nodeDriver });
-  cleanups.push(() => runtime.dispose());
-  return fixtureSource(server, { runtime, ...options });
-}
+const { served: serveWithOptions, pairedSource, track } = publicationTestBed();
+const served = (delayMs = 0) => serveWithOptions(delayMs ? { delayMs } : {});
 
 function liveService() {
   const requests: Query[] = [];
@@ -138,7 +122,7 @@ describe("time budget", () => {
   it("falls back on time even when the browser engine never finishes starting", async () => {
     const live = liveService();
     const runtime = new GeoparquetRuntime({ driverFactory: () => new Promise(() => undefined) });
-    cleanups.push(() => runtime.dispose());
+    track(() => runtime.dispose());
     const source = await fixtureSource(await served(), {
       runtime,
       budget: { maxBytes: PUBLICATION_LOOKUP_BUDGET.maxBytes, maxTimeToFirstResultMs: 200 },
