@@ -88,7 +88,10 @@ function commitChanges(context, snapshot, changes) {
   return updateReleasePleaseCandidate({
     api: context.api, headSha: snapshot.headSha, headRefName: snapshot.headRefName, changes,
     message: "chore: align generated local lock versions with candidate manifests",
-  }, { request: context.request, assertCurrent: () => assertCurrent(context, snapshot) });
+  }, {
+    request: context.request, assertCurrent: () => assertCurrent(context, snapshot), wait: context.wait,
+    pullRequestHead: async () => (await loadCandidate(context, snapshot.pullRequestNumber)).headSha,
+  });
 }
 
 /** Normalize the bounded set of authenticated release candidates, without executing candidate code. */

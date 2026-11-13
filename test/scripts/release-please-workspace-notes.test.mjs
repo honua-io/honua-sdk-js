@@ -125,6 +125,8 @@ function harness(options = {}) {
   const title = options.title ?? (candidateBranch === componentBranch ? "chore(trunk): release mcp-server 0.2.0" : "chore: release trunk");
   if (options.mutate) options.mutate(data);
   let currentHead = headSha;
+  let pullRequestHead = headSha;
+  let pendingHeadSyncReads = 0;
   let currentBody = data.body;
   let snapshotReads = 0;
   const mutations = [];
@@ -133,7 +135,7 @@ function harness(options = {}) {
   const rest = () => ({
     number: 2074, body: currentBody, title, state: "open", updated_at: "2026-10-13T07:00:00Z",
     user: { login: options.author ?? "github-actions", type: "Bot" },
-    head: { ref: candidateBranch, sha: currentHead, repo: { full_name: options.headRepository ?? repository } },
+    head: { ref: candidateBranch, sha: pullRequestHead, repo: { full_name: options.headRepository ?? repository } },
     base: { ref: "trunk", sha: options.baseSha ?? baseSha, repo: { full_name: repository } },
   });
   const request = async (url, input = {}) => {
@@ -144,11 +146,13 @@ function harness(options = {}) {
       snapshotReads += 1;
       if (snapshotReads === options.bodyRaceOnSnapshot) currentBody += "\nconcurrent edit";
       if (snapshotReads >= (options.raceOnSnapshot ?? (options.headRace ? 2 : Infinity))) currentHead = "f".repeat(40);
+      if (pendingHeadSyncReads > 0) pendingHeadSyncReads -= 1;
+      if (pendingHeadSyncReads === 0) pullRequestHead = currentHead;
       return options.absent ? [] : options.ambiguous ? [rest(), rest()] : [rest()];
     }
     if (pathname === "/graphql") return { data: { repository: { nameWithOwner: repository, pullRequest: {
       number: 2074, body: currentBody, title, state: "OPEN", updatedAt: "2026-10-13T07:00:00Z",
-      headRefName: options.graphqlBranch ?? candidateBranch, headRefOid: currentHead, headRepository: { nameWithOwner: options.headRepository ?? repository },
+      headRefName: options.graphqlBranch ?? candidateBranch, headRefOid: pullRequestHead, headRepository: { nameWithOwner: options.headRepository ?? repository },
       baseRefName: "trunk", baseRefOid: options.baseSha ?? baseSha, baseRepository: { nameWithOwner: repository },
       author: { login: options.author ?? "github-actions", __typename: "Bot" },
       closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false } },
@@ -169,9 +173,12 @@ function harness(options = {}) {
     if (pathname.endsWith(`/git/refs/heads/${candidateBranch}`)) {
       if (options.refFailure) throw new Error("Non-fast-forward update rejected");
       currentHead = options.updatedHead ?? nextSha;
+      pendingHeadSyncReads = options.headSyncLagReads ?? 0;
+      if (pendingHeadSyncReads === 0) pullRequestHead = currentHead;
       return { object: { sha: currentHead } };
     }
     if (pathname.endsWith("/pulls/2074")) {
+      assert.equal(pullRequestHead, currentHead, "the body is published only after the PR reports the new head");
       currentBody = JSON.parse(input.body).body;
       return rest();
     }
@@ -224,6 +231,26 @@ describe("trusted generated-note publication", () => {
     await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /Invalid normalized candidate commit/);
     assert.ok(mutations.some((call) => call.pathname.endsWith("/git/commits")));
     assert.ok(mutations.every((call) => call.method !== "PATCH"));
+  });
+  it("waits for the pull request to report the new head before publishing the body", async () => {
+    const waits = [];
+    const { request, mutations } = harness({ headSyncLagReads: 2 });
+    assert.deepEqual(await normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async (ms) => { waits.push(ms); } }, request),
+      { status: "normalized", headSha: nextSha });
+    assert.equal(waits.length, 1);
+    assert.ok(mutations.at(-1).pathname.endsWith("/pulls/2074"));
+  });
+  it("fails closed when the pull request never reports the new head", async () => {
+    const { request, mutations } = harness({ headSyncLagReads: Infinity });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async () => {} }, request),
+      /did not report the normalized candidate head/);
+    assert.ok(mutations.every((call) => !call.pathname.endsWith("/pulls/2074")));
+  });
+  it("fails closed when the pull request reports a third head after the update", async () => {
+    const { request, mutations } = harness({ headSyncLagReads: 1, raceOnSnapshot: 4 });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes({ ...input, wait: async () => {} }, request),
+      /unexpected candidate head/);
+    assert.ok(mutations.every((call) => !call.pathname.endsWith("/pulls/2074")));
   });
   it("does not update the body after rejected or unconfirmed ref updates", async () => {
     for (const options of [{ refFailure: true }, { updatedHead: headSha }]) {
