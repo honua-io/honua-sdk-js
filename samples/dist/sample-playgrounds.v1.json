@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.2.10"
+    "version": "0.3.4"
   },
   "playgrounds": [
     {
@@ -190,7 +190,7 @@
     {
       "sampleId": "nl-map-control",
       "category": "shared-repository-source",
-      "detail": "Source imports repository files outside the sample: ../../../src/contract/schema.js, ../../../src/geoparquet/driver.js, ../../../src/source-schema.js, ../evaluation.v1.json."
+      "detail": "Source imports repository files outside the sample: ../evaluation.v1.json."
     },
     {
       "sampleId": "node-backend-quickstart",

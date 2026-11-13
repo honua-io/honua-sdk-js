@@ -527,6 +527,8 @@ jobs:
       # resolves the tag and may recover the publisher run.
       # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
       actions: read
+    outputs:
+      companion_gap: ${{ steps.verify.outputs.companion_gap }}
     defaults:
       run:
         shell: bash
@@ -546,6 +548,7 @@ jobs:
           node-version: "22.23.3"
 
       - name: Verify registry versions, integrity, provenance, and source SHA
+        id: verify
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('js-sdk-v{0}', github.event.inputs.release_version) }}
           SEALED_COMMIT: ${{ github.sha }}
@@ -557,22 +560,35 @@ jobs:
           # verified rather than failed after the packages are already live;
           # the commit check still pins every artifact to SEALED_COMMIT.
           PUBLISH_REF: ${{ github.ref }}
+          # Registry metadata, tarballs and attestations propagate separately.
+          # 0.1.14 took about 17 minutes to become visible.
+          REGISTRY_RETRY_MINUTES: "45"
+          # A companion (MCP server, scaffold) publishes from its own tag and
+          # can trail this run. After this long, a companion that is still
+          # missing while every SDK package verifies is reported as a gap.
+          COMPANION_GAP_GRACE_MINUTES: "10"
         run: |
           set -euo pipefail
-          # Registry metadata, tarballs and attestations propagate separately.
-          # 0.1.14 took about 17 minutes to become visible. Retry the complete
-          # verifier for up to 45 minutes; every integrity/provenance gate still
-          # has to pass on the same attempt and the final receipt stays red.
-          deadline=$((SECONDS + 45 * 60))
+          # Every integrity/provenance gate has to pass on the same attempt and
+          # the final receipt stays red.
+          deadline=$((SECONDS + REGISTRY_RETRY_MINUTES * 60))
+          gap_grace_deadline=$((SECONDS + COMPANION_GAP_GRACE_MINUTES * 60))
           delay=15
           attempt=0
           while true; do
             attempt=$((attempt + 1))
-            if node scripts/verify-published-release.mjs \
+            verifier_exit=0
+            node scripts/verify-published-release.mjs \
               --tag "${RELEASE_TAG}" \
               --commit "${SEALED_COMMIT}" \
               --publish-ref "${PUBLISH_REF}" \
-              --receipt test-results/published-release-verification.v1.json; then
+              --receipt test-results/published-release-verification.v1.json || verifier_exit=$?
+            if (( verifier_exit == 0 )); then
+              exit 0
+            fi
+            if (( verifier_exit == 3 && SECONDS >= gap_grace_deadline )); then
+              echo "companion_gap=true" >> "${GITHUB_OUTPUT}"
+              echo "::warning title=Companion package gap for ${RELEASE_TAG}::Every SDK package verified. A companion package version is tagged but not on the registry; see the receipt and the tracking issue."
               exit 0
             fi
             remaining=$((deadline - SECONDS))
@@ -601,13 +617,17 @@ jobs:
             echo
             RECEIPT="$receipt" node -e '
               const receipt = JSON.parse(require("fs").readFileSync(process.env.RECEIPT, "utf8"));
-              console.log(`- status: \`${receipt.status}\``);
+              console.log(`- status: \`${receipt.status}\` (outcome \`${receipt.outcome}\`)`);
               console.log(`- tag: \`${receipt.sealedTag}\` on \`${receipt.sealedCommit}\``);
               console.log("");
               console.log("| package | version | dist-tag | source commit | status |");
               console.log("| --- | --- | --- | --- | --- |");
               for (const artifact of receipt.artifacts) {
                 console.log(`| \`${artifact.npmName}\` | ${artifact.version} | ${artifact.distTag} | \`${artifact.sourceRevision ?? "unverified"}\` | ${artifact.status} |`);
+              }
+              for (const gap of receipt.companionGaps ?? []) {
+                console.log("");
+                console.log(`- COMPANION GAP: \`${gap.npmName}@${gap.version}\` is tagged \`${gap.tag}\` but not on the registry`);
               }
               for (const failure of receipt.failures) {
                 console.log("");
@@ -637,3 +657,38 @@ jobs:
           name: published-release-verification
           path: test-results/published-release-verification.v1.json
           if-no-files-found: error
+
+  # One open tracking issue per companion package whose tagged version never
+  # reached the registry. Serialized across runs so two releases cannot both
+  # find no issue and open one each.
+  report-companion-gaps:
+    name: Report companion package gaps
+    needs: verify-published-release
+    if: ${{ !cancelled() && needs.verify-published-release.outputs.companion_gap == 'true' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: companion-gap-tracking-issues
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22.23.3"
+
+      - name: Download the published-release receipt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: published-release-verification
+          path: test-results
+
+      - name: Open or update the tracking issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/report-companion-gaps.mjs --receipt test-results/published-release-verification.v1.json --run-url "${RUN_URL}"

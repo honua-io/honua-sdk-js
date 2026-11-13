@@ -1,0 +1,98 @@
+{
+  "repository": "honua-io/honua-server",
+  "commit": "fa01f672aa3e716e2ed64925acac7e38fedfcd5a",
+  "files": {
+    "config/publication-descriptor.v1.schema.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1.schema.json",
+      "sha256": "1bb27bc27afec425baa84a51c37200dd9474b50f960d43344cfa233cbec49e1f"
+    },
+    "test/fixtures/publication/descriptor-v1/maui-county-parcels.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/maui-county-parcels.json",
+      "sha256": "1822498f2fb4280edc17f5e22d3a37345690a9ea6cc8a6ad532eb925e657949b"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/artifact-without-checksum.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/artifact-without-checksum.json",
+      "sha256": "e8d3806d3a2e3dc6a2c235a0379c3e4614c33bb53cc246437b31c03837b8bb84"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/bounds-out-of-range.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/bounds-out-of-range.json",
+      "sha256": "c2a5640be5afe2aed5305124f3c2f3a58cab8d1bf9a7fd15b4f31761d1ffe8d0"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/capture-id-mismatch.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/capture-id-mismatch.json",
+      "sha256": "04bf15d5ed2f458a294347e0bbdf7cb7c36fd973d715551954175887ed467c4c"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/duplicate-field-name.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/duplicate-field-name.json",
+      "sha256": "ae8a11e3b66695d6d0d8778cbb5ef61d0afcbde039f85a21acabbb0a0d07a864"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/expected.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/expected.json",
+      "sha256": "ca36ad77f28e96decf5c7b2593554f3b86515e38850034a54c3fd87418cb1750"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/field-without-public-flag.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/field-without-public-flag.json",
+      "sha256": "53f5f3c73a83d7203c8a3c7dccfa772ff325820bb33383c9fb17cb22dddc95f5"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/identity-field-not-public.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/identity-field-not-public.json",
+      "sha256": "e40b0c44c6fbada36cc2c026b3685280c95fb00aefb34ef41b55eaa88c84368a"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/identity-maps-to-other-field.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/identity-maps-to-other-field.json",
+      "sha256": "e1c44eccde0d4fa13cfb9eca2d7e60bd67778692378cb92ec626f23e154d3d2a"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/identity-not-in-geoparquet.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/identity-not-in-geoparquet.json",
+      "sha256": "5fb79d43c73ce65bdb4141e97954a852e478783929b51210789891bf1f563313"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/inverted-bounds.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/inverted-bounds.json",
+      "sha256": "e02c0627991dc4edf35c8992169fef4d6712b59494c38a8ed8a2777197fa2311"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/inverted-filter-bounds.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/inverted-filter-bounds.json",
+      "sha256": "d1d6e7e60009ec2720705919bb749ec6d7e05402605668355cd0577e46d3d45d"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/inverted-zoom-range.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/inverted-zoom-range.json",
+      "sha256": "873f6055887a3e72e76a5f6d548acdfaa3b8cba4d2dd35544a00efb335ad01f0"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/missing-capture.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/missing-capture.json",
+      "sha256": "cf049d8738f20cde1119c9e4eeeae50e243625afc719b4cfe4c183dd24b68ea6"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/missing-crs.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/missing-crs.json",
+      "sha256": "80cb84885c9cb3b138807e0b6619efbed4e98f5a0f0960161e18ce8b27c497c6"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/missing-geoparquet-artifact.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/missing-geoparquet-artifact.json",
+      "sha256": "4851107b71a2c26f546b10180d7487a908e5c75960f1d78c935e5eca875bb3a1"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/missing-pmtiles-artifact.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/missing-pmtiles-artifact.json",
+      "sha256": "deb82141b17995266ec0f6cd72e37a30f355030f5af72ff93a1b7e38059b4ecf"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/missing-stac-link.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/missing-stac-link.json",
+      "sha256": "5527455b853775ce2956ddefd7258ccfcc435613384258835742d4fda628f08f"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/non-public-field-in-artifact.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/non-public-field-in-artifact.json",
+      "sha256": "4d5fd90b839a32ba23ea027f3559d2701bf5d31758906544fb51bcc8bd6dd8dc"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/numeric-identity.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/numeric-identity.json",
+      "sha256": "e84c46d67487f74a74d72fd131295a9ebe8c289e6bff16bff94a62eafd026be6"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/pmtiles-crs-not-web-mercator.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/pmtiles-crs-not-web-mercator.json",
+      "sha256": "e58e08318c5cac32182143ebeafed10440507d1aa554e8228ecc8ad500ca38b3"
+    },
+    "test/fixtures/publication/descriptor-v1/invalid/undeclared-field-in-artifact.json": {
+      "source": "docs/gis/schemas/publication-descriptor.v1/invalid/undeclared-field-in-artifact.json",
+      "sha256": "0a5770f6d9a66e281e65b5fb0345260609134eb56662b36de41d456ff1a618d2"
+    }
+  }
+}

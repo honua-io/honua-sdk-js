@@ -141,6 +141,9 @@ jobs:
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
+
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
 
@@ -344,6 +347,9 @@ jobs:
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
+
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
 
@@ -447,7 +453,7 @@ jobs:
         run: npm run docs:quickstart:time-to-map:test
 
       - name: Test SDK publication workflow execution
-        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/publish-own-tag-workflows.test.mjs
 
       - name: Test derived-artifact publication and superseded-source policy
         run: node --test test/scripts/automation-pr-cleanup.test.mjs
@@ -516,7 +522,7 @@ jobs:
       - name: Validate release artifact manifest
         run: |
           npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs
+          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs test/scripts/report-companion-gaps.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Regenerates the
       # denominator from config/support-manifest.v1.json,

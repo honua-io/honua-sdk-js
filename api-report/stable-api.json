@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "db8c2a1203e67a69c6974a9c71e41f31dd372dce841bddfba7446ce47469840b",
+      "signatureSha256": "49e307fffc2de369af80d957847684c6b431c7387436b0e08337a34149bb4796",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -191,7 +191,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "db8c2a1203e67a69c6974a9c71e41f31dd372dce841bddfba7446ce47469840b",
+      "signatureSha256": "49e307fffc2de369af80d957847684c6b431c7387436b0e08337a34149bb4796",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -376,8 +376,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1193,
-      "signatureSha256": "4d4af2e8c161d27cc5fea424c80b306d9cca2b82a2636978dd1900f4e72bbd66",
+      "exportCount": 1201,
+      "signatureSha256": "66208139e0e06d8153513a44c885dd90f9ea45b045f0689e694cac980adb72b9",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -658,6 +658,14 @@
         "HonuaCacheStatus — type",
         "HonuaCacheValidator — interface",
         "HonuaCapabilityNotSupportedError — class",
+        "HonuaCatalogExtentGeometry — interface",
+        "HonuaCatalogItem — interface",
+        "HonuaCatalogItemProperties — interface",
+        "HonuaCatalogItemType — type",
+        "HonuaCatalogPage — interface",
+        "HonuaCatalogQuery — interface",
+        "HonuaCatalogRequestOptions — interface",
+        "HonuaCatalogResourceType — type",
         "HonuaClient — class",
         "HonuaClientOptions — interface",
         "HonuaCompatibilityRequest — interface",
@@ -1607,7 +1615,7 @@
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
       "exportCount": 476,
-      "signatureSha256": "3b738beb4a7b143074805f01862ed429a5735793ffb0a8ddfcb589d9ade096eb",
+      "signatureSha256": "92838c5b760424514876725d7395ea4e39299219f1d9e2ba91743e96f8e9c2ae",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",

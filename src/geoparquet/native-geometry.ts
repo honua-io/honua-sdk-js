@@ -134,7 +134,8 @@ function fail(
  * dimensions — this is the hostile-input boundary for depth/shape mismatches
  * arriving from an untrusted parquet file.
  */
-function readCoordinate(value: unknown, dimensions: GeoParquetNativeDimensions, path: string): GeoArrowPosition {
+function readCoordinate(raw: unknown, dimensions: GeoParquetNativeDimensions, path: string): GeoArrowPosition {
+  const value = isArrowStructRow(raw) ? raw.toJSON() : raw;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     fail("GEOPARQUET_NATIVE_INVALID_VALUE", path, { reason: "expected a coordinate struct" });
   }
@@ -158,9 +159,31 @@ function readCoordinate(value: unknown, dimensions: GeoParquetNativeDimensions, 
   return Object.freeze([x, y]);
 }
 
+// DuckDB-WASM's Arrow `toJSON()` leaves nested lists as Arrow vectors and
+// their elements as struct rows; the Node driver materializes plain arrays.
+function isArrowVector(value: unknown): value is Iterable<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { toArray?: unknown }).toArray === "function" &&
+    typeof (value as { [Symbol.iterator]?: unknown })[Symbol.iterator] === "function"
+  );
+}
+
+function isArrowStructRow(value: unknown): value is { toJSON(): unknown } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    !isArrowVector(value) &&
+    typeof (value as { toJSON?: unknown }).toJSON === "function"
+  );
+}
+
 function asRow(value: unknown, path: string): readonly unknown[] {
-  if (!Array.isArray(value)) fail("GEOPARQUET_NATIVE_INVALID_VALUE", path, { reason: "expected an array" });
-  return value;
+  if (Array.isArray(value)) return value;
+  if (isArrowVector(value)) return Array.from(value);
+  fail("GEOPARQUET_NATIVE_INVALID_VALUE", path, { reason: "expected an array" });
 }
 
 function readPoint(value: unknown, dims: GeoParquetNativeDimensions, path: string): GeoArrowPoint | null {

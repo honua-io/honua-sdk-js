@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Open GIS SDK for MapLibre — one typed client for GeoServices REST, OGC API, WFS, WMS, STAC, OData, and GeoParquet, plus a migration codemod, geocoding, and routing",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -294,6 +294,10 @@
       "types": "./dist/src/pmtiles/index.d.ts",
       "default": "./dist/src/pmtiles/index.js"
     },
+    "./publication": {
+      "types": "./dist/src/publication/index.d.ts",
+      "default": "./dist/src/publication/index.js"
+    },
     "./raster": {
       "types": "./dist/src/raster/index.d.ts",
       "default": "./dist/src/raster/index.js"
@@ -338,7 +342,7 @@
     "ci:baseline:report": "node scripts/ci-timing-baseline.mjs report",
     "ci:parity:collect": "node scripts/ci-shadow-parity.mjs collect",
     "ci:parity:report": "node scripts/ci-shadow-parity.mjs report",
-    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/reseal-token-lifetime.test.mjs && node scripts/browser-shards.mjs check",
+    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/publish-own-tag-workflows.test.mjs test/scripts/reseal-token-lifetime.test.mjs && node scripts/browser-shards.mjs check",
     "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
     "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
@@ -362,7 +366,7 @@
     "test:installed-quickstart": "node scripts/installed-quickstart-budget.mjs",
     "certify:installed-examples": "node scripts/installed-example-certification.mjs",
     "test:installed-package-certification": "node --test test/scripts/installed-package-certification.test.mjs test/scripts/installed-candidate-input.test.mjs test/scripts/verify-candidate-python-requirements.test.mjs test/scripts/installed-certification-identity.test.mjs test/scripts/installed-example-certification.test.mjs test/scripts/installed-candidate-fixture.test.mjs test/scripts/first-map-budget.test.mjs test/scripts/qualify-ogc-processes-candidate.test.mjs",
-    "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs && node scripts/verify-published-release.mjs",
+    "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs && node scripts/verify-published-release.mjs",
     "verify:packed-sdk": "node --test test/scripts/npm-cli.test.mjs test/scripts/windows-fixture-startup.test.mjs test/scripts/verify-packed-sdk.test.mjs && node scripts/verify-packed-sdk.mjs",
     "verify:public-surface": "node --test test/scripts/verify-public-surface.test.mjs && node scripts/verify-public-surface.mjs",
     "support:generate": "node scripts/support-manifest.mjs write",
@@ -803,6 +807,7 @@
     "!dist/src/migration/**",
     "dist/browser/*.js",
     "dist/browser/honua-sdk.browser-artifacts.v1.json",
+    "dist/config/publication-descriptor.v1.schema.json",
     "dist/config/raster-source-registry.v1.json",
     "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",

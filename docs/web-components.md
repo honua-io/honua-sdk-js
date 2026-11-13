@@ -233,6 +233,16 @@ buttons and typed events (`honua-measure-change`, `honua-sketch-change`). Until
 a geometry editing or measurement adapter is attached to the shared controller,
 they render visible unsupported messaging instead of disappearing.
 
+`honua-sketch-control` snapping uses the same engine as the feature editor.
+Set `snappingOptions` to a partial `SnappingConfig` (`enabled`, `tolerance` in
+pixels, or its alias `distance`, `kinds`, `sources`); snapping stays off unless
+`enabled` is `true`. The control snaps the vertices it places with
+`addVertex()` to the vertices and edges already in the sketch, and hands the
+resolved config to the controller's sketch provider through
+`HonuaSketchProvider.setSnapping`, so a terra-draw provider can pass it to
+`createTerraDrawSnapping({ index, config })` for vertex, edge, and feature
+snapping on the map.
+
 `honua-print-export` emits `honua-export` for print, snapshot, and JSON export
 actions. Browser print calls `window.print()` when available. Snapshot and state
 export **fail closed** until an application supplies an export adapter — see

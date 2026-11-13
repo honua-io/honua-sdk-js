@@ -30,12 +30,13 @@ test doubles used by the SDK's own suites.
 
 ```ts doc-test=skip reason="requires a browser MapLibre host"
 import * as maplibregl from "maplibre-gl";
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
 const map = new maplibregl.Map({ container: "map", style: BASEMAP_STYLE_URL, center: [-98, 39], zoom: 3 });
 await map.once("load");
-const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+await using honua = createHonua();
+const data = await honua.connect(FEATURE_LAYER_URL);
 const mounted = await mountSource(map, data.source(), {
   popup: { factory: () => new maplibregl.Popup(), fields: ["NAME"] },
   hover: true,
