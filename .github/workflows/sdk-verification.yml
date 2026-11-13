@@ -148,6 +148,9 @@ jobs:
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
+
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
 
