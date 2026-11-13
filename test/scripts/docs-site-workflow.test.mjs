@@ -4,6 +4,7 @@ import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { fakeGh } from "./docs-site-fake-gh.mjs";
 
 const workflow = readFileSync(new URL("../../.github/workflows/docs-site.yml", import.meta.url), "utf8");
 const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
@@ -21,8 +22,8 @@ function section(source, start, end) {
   return source.slice(from, to);
 }
 
-function job(id) {
-  const lines = workflow.split("\n");
+function job(source, id) {
+  const lines = source.split("\n");
   const start = lines.indexOf(`  ${id}:`);
   assert.ok(start >= 0, id);
   let end = lines.length;
@@ -36,9 +37,9 @@ function job(id) {
 }
 
 const triggers = section(workflow, "\non:\n", "\npermissions:\n");
-const build = job("build");
-const deploy = job("deploy");
-const reporter = job("report-failure");
+const build = job(workflow, "build");
+const deploy = job(workflow, "deploy");
+const reporter = job(workflow, "report-failure");
 
 function runScript(jobText) {
   const runAt = jobText.indexOf("\n        run: |\n");
@@ -130,17 +131,7 @@ test("required SDK, MCP, and disposition checks stay named", () => {
   const verification = readFileSync(new URL("../../.github/workflows/sdk-verification.yml", import.meta.url), "utf8");
   assert.equal(verification.split("node --test test/scripts/docs-site-workflow.test.mjs").length - 1, 1);
   for (const jobId of ["pr-fast", "js-sdk"]) {
-    const lines = ci.split("\n");
-    const start = lines.indexOf(`  ${jobId}:`);
-    assert.ok(start >= 0, jobId);
-    let end = lines.length;
-    for (let index = start + 1; index < lines.length; index += 1) {
-      if (/^  [a-z0-9-]+:$/u.test(lines[index])) {
-        end = index;
-        break;
-      }
-    }
-    const jobText = lines.slice(start, end).join("\n");
+    const jobText = job(ci, jobId);
     assert.equal(jobText.split("node --test test/scripts/docs-site-workflow.test.mjs").length - 1, 1, jobId);
   }
 });
@@ -190,65 +181,6 @@ test("only the reporter may write issues, and it does not execute repository cod
 
 const LIST_ENDPOINT = "repos/honua-io/honua-sdk-js/issues?state=all&per_page=100";
 
-const fakeGh = `#!/bin/bash
-set -euo pipefail
-if [[ "\${1:-}" != "api" ]]; then
-  echo "unexpected gh command: $*" >&2
-  exit 2
-fi
-shift
-method="GET"
-endpoint=""
-input=""
-paginate=0
-fields=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --method|-X) method="$2"; shift 2 ;;
-    --input) input="$2"; shift 2 ;;
-    --raw-field|-f) fields+=("$2"); shift 2 ;;
-    --paginate) paginate=1; shift ;;
-    --slurp|--include|-i)
-      echo "unexpected gh flag: $1" >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$1" == -* ]]; then
-        echo "unexpected gh flag: $1" >&2
-        exit 2
-      fi
-      endpoint="$1"
-      shift
-      ;;
-  esac
-done
-body=""
-if [[ "\${input}" == "-" ]]; then
-  body="$(cat)"
-fi
-field_json="[]"
-if [[ \${#fields[@]} -gt 0 ]]; then
-  field_json=$(printf '%s\\n' "\${fields[@]}" | jq -R . | jq -s .)
-fi
-jq -nc --arg method "$method" --arg endpoint "$endpoint" --arg body "$body" --argjson paginate "$paginate" --argjson fields "$field_json" \\
-  '{method:$method, endpoint:$endpoint, body:$body, paginate:($paginate == 1), fields:$fields}' >> "$GH_FAKE_LOG"
-if [[ "$endpoint" == *search* ]]; then
-  echo "search endpoint used: $endpoint" >&2
-  exit 2
-fi
-if [[ "$method" == "GET" ]]; then
-  [[ "$paginate" == 1 ]] || { echo "issue list was not paginated" >&2; exit 2; }
-  [[ -f "$GH_LIST_FILE" ]] || { echo "missing issue list" >&2; exit 2; }
-  cat "$GH_LIST_FILE"
-  exit "\${GH_LIST_STATUS:-0}"
-fi
-if [[ "$method" == "POST" || "$method" == "PATCH" ]]; then
-  printf '%s\\n' '{"number":1}'
-  exit 0
-fi
-echo "unexpected gh api call: $method $endpoint" >&2
-exit 2
-`;
 
 function pagesJson(pages) {
   return `${pages.map((page) => JSON.stringify(page)).join("\n")}\n`;
