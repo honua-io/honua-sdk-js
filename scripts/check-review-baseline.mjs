@@ -44,7 +44,7 @@ function callSite(call, source) {
   return callSites.get(source).get(call);
 }
 
-function anonymousContext(node, source) {
+function contextName(node, source) {
   let child = node;
   for (let parent = node.parent; parent; child = parent, parent = parent.parent) {
     if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
@@ -57,11 +57,32 @@ function anonymousContext(node, source) {
   return '<anonymous>';
 }
 
+const anonymousSites = new WeakMap();
+
+function anonymousContext(node, source) {
+  if (!anonymousSites.has(source)) {
+    const sites = new Map();
+    const counts = new Map();
+    function visit(candidate) {
+      if (ts.isObjectLiteralExpression(candidate) || ts.isFunctionLike(candidate) || ts.isClassLike(candidate)) {
+        const context = candidate.kind + ':' + contextName(candidate, source);
+        const ordinal = counts.get(context) ?? 0;
+        counts.set(context, ordinal + 1);
+        sites.set(candidate, context + ':occurrence' + ordinal);
+      }
+      ts.forEachChild(candidate, visit);
+    }
+    visit(source);
+    anonymousSites.set(source, sites);
+  }
+  return anonymousSites.get(source).get(node);
+}
+
 export function scopeAt(source, position) {
   const names = [];
   function visit(node) {
     if (position < node.getStart(source) || position >= node.end) return;
-    if (ts.isClassLike(node) || ts.isFunctionLike(node)) {
+    if (ts.isClassLike(node) || ts.isFunctionLike(node) || ts.isObjectLiteralExpression(node)) {
       const name = node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
       names.push(name?.getText(source) ?? anonymousContext(node, source));
     }

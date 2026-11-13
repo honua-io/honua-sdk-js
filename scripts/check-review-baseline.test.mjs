@@ -85,6 +85,26 @@ test('sibling callbacks cannot transfer debt even with identical callees or labe
   });
 });
 
+test('object methods, property callbacks and returned siblings cannot transfer debt', async () => {
+  await fixture(async findings => {
+    for (const declaration of [
+      'const first = { run() { BODY } }; const second = { run() { SAFE } };',
+      'const first = { run: () => { BODY } }; const second = { run: () => { SAFE } };',
+      'const handlers = [{ run() { BODY } }, { run() { SAFE } }];',
+      'if (flag) return () => { BODY }; return () => { SAFE };',
+      'if (flag) return { run() { BODY } }; return { run() { SAFE } };',
+    ]) {
+      const template = `function outer(flag: boolean) { ${declaration} }`;
+      const old = template.replace('BODY', '\nPromise.resolve(1);\n').replace('SAFE', '\nvoid Promise.resolve(1);\n');
+      const moved = template.replace('BODY', '\nvoid Promise.resolve(1);\n').replace('SAFE', '\nPromise.resolve(1);\n');
+      const baseline = await findings(old);
+      assert.equal(baseline.size, 1);
+      assert.equal(additions(await findings(moved), baseline).length, 1, declaration);
+      assert.equal(additions(await findings('\n' + old), baseline).length, 0);
+    }
+  });
+});
+
 test('invalid and duplicate baseline rows fail closed', () => {
   const row = { identity: JSON.parse(findingIdentity(['max-depth', 'a.ts', 'message', 'old', 'line'])), count: 1 };
   assert.throws(() => budgets([row, row]), /Duplicate/);
