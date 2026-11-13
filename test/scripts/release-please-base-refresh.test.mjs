@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { refreshReleasePleaseBase } from "../../scripts/lib/release-please-base-refresh.mjs";
-import { RELEASE_PLEASE_HEAD } from "../../scripts/lib/release-please-disposition-check.mjs";
+import { RELEASE_PLEASE_HEADS } from "../../scripts/lib/release-please-disposition-check.mjs";
 
 const repository = "honua-io/honua-sdk-js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -83,9 +83,9 @@ function harness(options = {}) {
         object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha },
       };
     }
-    if (pathname.endsWith(`/git/ref/heads/${RELEASE_PLEASE_HEAD}`)) {
+    if (pathname.endsWith(`/git/ref/heads/${stale.headRefName}`)) {
       return {
-        ref: `refs/heads/${RELEASE_PLEASE_HEAD}`,
+        ref: `refs/heads/${stale.headRefName}`,
         object: {
           type: "commit",
           sha: options.releaseBranchHead ?? current.headSha,
@@ -140,6 +140,49 @@ describe("trusted Release Please base refresh", () => {
     const update = testHarness.calls.find(({ url }) => new URL(url).pathname.endsWith("/update-branch"));
     assert.equal(update.options.method, "PUT");
     assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: fixture.headSha });
+  });
+
+  it("refreshes each exact component with expected-head and ordered two-parent guards", async () => {
+    for (const headRefName of RELEASE_PLEASE_HEADS.slice(1)) {
+      const component = headRefName.split("--components--")[1];
+      const h = harness({ snapshot: { headRefName, title: `chore(trunk): release ${component} 0.2.1` } });
+      const result = await refreshReleasePleaseBase({ repository, trustedPolicySha, headRefName,
+        releasePleaseReportedUpdate: false, confirmationAttempts: 1, confirmationDelayMs: 0 }, h.request);
+      assert.equal(result.status, "refreshed");
+      const update = h.calls.find(({ url }) => url.endsWith("/update-branch"));
+      assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: fixture.headSha });
+    }
+  });
+
+  it("rejects action identity mismatches, absent reported PRs, and stale final confirmations before writes", async () => {
+    for (const [options, input, message] of [
+      [{}, { reportedPullRequestNumber: fixture.pullRequestNumber + 1 }, /does not match/],
+      [{ noPullRequest: true }, { reportedPullRequestNumber: fixture.pullRequestNumber }, /does not match/],
+      [{}, { requireCurrent: true }, /base moved during normalization/],
+      [{}, { headRefName: "attacker" }, /Unsupported exact/],
+    ]) {
+      const h = harness(options);
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false, ...input }, h.request), message);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PUT"));
+    }
+  });
+
+  it("requires strict ancestry fields and exact ordered refresh parents", async () => {
+    const valid = { status: "ahead", ahead_by: 2, behind_by: 0,
+      base_commit: { sha: fixture.baseSha }, merge_base_commit: { sha: fixture.baseSha },
+      commits: [{ sha: trustedPolicySha }] };
+    for (const change of [{ ahead_by: 0 }, { behind_by: 1 }, { base_commit: { sha: trustedPolicySha } },
+      { merge_base_commit: { sha: trustedPolicySha } }, { commits: [{ sha: fixture.baseSha }] }]) {
+      const h = harness({ comparison: { ...valid, ...change } });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /not a strict ancestor/);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PUT"));
+    }
+    const h = harness({ refreshCommit: { sha: refreshedHeadSha,
+      parents: [{ sha: trustedPolicySha }, { sha: fixture.headSha }] } });
+    await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+      releasePleaseReportedUpdate: false, confirmationAttempts: 1 }, h.request), /two-parent/);
   });
 
   it("does not write when no release PR exists or the exact PR is already current", async () => {

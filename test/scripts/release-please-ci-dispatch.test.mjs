@@ -239,6 +239,22 @@ describe("trusted Release Please canonical CI dispatch", () => {
       false,
     );
   });
+  it("fails closed before dispatch when the current head is not the reported normalized head", async () => {
+    const testHarness = harness({ confirmedRuns: [workflowRun()] });
+    await assert.rejects(
+      dispatchReleasePleaseCi(
+        { repository, trustedPolicySha: fixture.baseSha, expectedHeadSha: "f".repeat(40) },
+        testHarness.request,
+      ),
+      /not the normalized head the refresh job reported/u,
+    );
+    assert.equal(
+      testHarness.calls.some(({ url }) =>
+        new URL(url).pathname.endsWith("/actions/workflows/ci.yml/dispatches"),
+      ),
+      false,
+    );
+  });
 });
 
 describe("Release Please workflow policy", () => {
@@ -253,8 +269,13 @@ describe("Release Please workflow policy", () => {
     const jsSdk = jobSlice(ci, "js-sdk");
     const mcpSdk = jobSlice(ci, "mcp-sdk");
 
-    assert.match(release, /prs_created: \$\{\{ steps\.release-pr\.outputs\.prs_created \}\}/u);
-    assert.match(refresher, /if: \$\{\{ always\(\) && needs\.release-please\.result == 'success' \}\}/u);
+    assert.match(release, /prs: \$\{\{ steps\.release-pr\.outputs\.prs \}\}/u);
+    assert.match(release, /release_pr_outcome: \$\{\{ steps\.release-pr\.outcome \}\}/u);
+    assert.equal(
+      refresher.match(/^    if: .*$/mu)?.[0],
+      "    if: ${{ always() && needs.release-please.result == 'success' && needs.release-please.outputs.release_pr_outcome == 'success' }}",
+    );
+    assert.match(refresher, /concurrency:\n      group: release-please-base-refresh-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n/u);
     assert.match(refresher, /permissions:\n      contents: write\n      pull-requests: write/u);
     assert.match(refresher, /persist-credentials: false/u);
     assert.match(refresher, /node scripts\/refresh-release-please-base\.mjs/u);
@@ -267,6 +288,7 @@ describe("Release Please workflow policy", () => {
     assert.match(dispatcher, /ref: \$\{\{ github\.sha \}\}/u);
     assert.match(dispatcher, /persist-credentials: false/u);
     assert.match(dispatcher, /node scripts\/dispatch-release-please-ci\.mjs/u);
+    assert.match(dispatcher, /RELEASE_HEAD_SHA: \$\{\{ needs\.release-please-refresh\.outputs\.release_head_sha \}\}/u);
     assert.doesNotMatch(dispatcher, /checks: write|contents: write|pull-requests: write/u);
     assert.match(disposition, /needs: \[release-please, release-please-refresh, release-please-ci\]/u);
     assert.match(disposition, /needs\.release-please-ci\.result == 'success'/u);

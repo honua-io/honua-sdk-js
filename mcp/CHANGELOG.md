@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.2](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.1...mcp-server-v0.3.2) (2026-11-13)
+
+
+### Features
+
+* **mcp:** expose installed SDK skills and verified resources ([#2428](https://github.com/honua-io/honua-sdk-js/issues/2428)) ([abe20de](https://github.com/honua-io/honua-sdk-js/commit/abe20de293741cf83cdb25b3b84e22a63a0a29f1))
+
+
+### Bug Fixes
+
+* **mcp:** refresh Hono server security dependency ([#2435](https://github.com/honua-io/honua-sdk-js/issues/2435)) ([e8962fc](https://github.com/honua-io/honua-sdk-js/commit/e8962fcecb831df006458ac9cf8fa98fae2aba6d))
+
 ## [0.3.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.0...mcp-server-v0.3.1) (2026-11-10)
 
 

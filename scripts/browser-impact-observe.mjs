@@ -11,6 +11,7 @@ const DEFAULT_POLICY = resolve(ROOT, ".github/data/browser-impact-policy.v1.json
 const OBSERVATION_SCHEMA = "honua.sdk.browser-impact-observation/v2";
 const SUPERSEDED_SCHEMA = "honua.sdk.browser-impact-superseded/v1";
 const SUPERSEDE_REASONS = new Set([
+  "source-run-cancelled-before-jobs",
   "pull-request-association-withdrawn",
   "source-run-head-superseded",
   "pull-request-head-moved",

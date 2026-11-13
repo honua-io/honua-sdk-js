@@ -7,6 +7,7 @@ import {
   publishReleasePleaseDispositionCheck,
   validateTrustedReleasePleaseWorkflowContext,
 } from "./lib/release-please-disposition-check.mjs";
+import { renderReleasePleaseDispositionSummary } from "./lib/release-please-run-summary.mjs";
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -22,16 +23,7 @@ function workflowRunUrl() {
 }
 
 function writeSummary(result) {
-  const lines = ["## Trusted Release Please issue disposition", ""];
-  if (result.status === "not-found") {
-    lines.push("No open Release Please pull request exists; no disposition check was emitted.");
-  } else {
-    lines.push(`Exempt: ${result.exemption}.`);
-    lines.push(`Validated ${result.repository}#${result.pullRequestNumber} at ${result.headSha}.`);
-    lines.push(`Created source-bound check run ${result.checkRunId}.`);
-  }
-  lines.push(`Trusted trunk policy revision: ${result.trustedPolicySha}.`);
-  const summary = `${lines.join("\n")}\n`;
+  const summary = renderReleasePleaseDispositionSummary(result);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   process.stdout.write(summary);
 }

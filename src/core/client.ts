@@ -12,6 +12,8 @@ import {
   withHonuaCacheState,
   withoutHonuaCacheState,
 } from "./cache-state.js";
+import { getCatalogItem, listCatalog } from "./catalog.js";
+import type { HonuaCatalogItem, HonuaCatalogPage, HonuaCatalogQuery, HonuaCatalogRequestOptions } from "./catalog.js";
 import {
   HONUA_MINIMUM_SUPPORTED_SERVER_VERSION,
   MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL,
@@ -1615,6 +1617,21 @@ export class HonuaClient {
 
   public async fetchOgcRecordRaw(request: OgcRecordRawItemRequest): Promise<Response> {
     return fetchOgcRecordRaw(this.protocolTransport, request);
+  }
+
+  // ── Public catalog ──────────────────────────────────────────
+
+  /**
+   * List one page of the published services and Layers the caller may see.
+   * The server applies access filtering before paging and counting.
+   */
+  public async listCatalog(query: HonuaCatalogQuery = {}): Promise<HonuaCatalogPage> {
+    return listCatalog(this.protocolTransport, query);
+  }
+
+  /** Read one catalog record by its id (`service:<name>` or `layer:<publicationId>`). */
+  public async getCatalogItem(id: string, options: HonuaCatalogRequestOptions = {}): Promise<HonuaCatalogItem> {
+    return getCatalogItem(this.protocolTransport, id, options);
   }
 
   // ── WMS 1.3 ─────────────────────────────────────────────────

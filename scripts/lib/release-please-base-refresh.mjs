@@ -8,6 +8,7 @@ import {
   RELEASE_PLEASE_BASE,
   RELEASE_PLEASE_EXEMPTION,
   RELEASE_PLEASE_HEAD,
+  RELEASE_PLEASE_HEADS,
 } from "./release-please-disposition-check.mjs";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
@@ -109,6 +110,8 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   const repository = String(input?.repository ?? "");
   const trustedPolicySha = String(input?.trustedPolicySha ?? "");
   const releasePleaseReportedUpdate = input?.releasePleaseReportedUpdate;
+  const headRefName = input?.headRefName ?? RELEASE_PLEASE_HEAD;
+  if (!RELEASE_PLEASE_HEADS.includes(headRefName)) throw new Error("Unsupported exact Release Please candidate branch.");
   if (!REPOSITORY_PATTERN.test(repository)) throw new Error("A valid repository owner/name pair is required.");
   assertSha(trustedPolicySha, "Trusted policy revision");
   if (typeof releasePleaseReportedUpdate !== "boolean") {
@@ -116,13 +119,16 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   }
   const { attempts, delayMs } = pollingOptions(input ?? {});
 
-  const current = await loadExactReleasePleasePullRequest(repository, request);
+  const current = await loadExactReleasePleasePullRequest(repository, request, headRefName);
+  if (input?.reportedPullRequestNumber !== undefined && current?.pullRequestNumber !== input.reportedPullRequestNumber) {
+    throw new Error("Release Please action output does not match the exact current candidate.");
+  }
   if (!current) return { status: "not-found", repository, trustedPolicySha };
   const trustedBranchHead = await branchHead(repository, RELEASE_PLEASE_BASE, request);
   if (trustedBranchHead !== trustedPolicySha) {
     throw new Error("The trusted trunk branch moved before Release Please base refresh.");
   }
-  const currentBranchHead = await branchHead(repository, RELEASE_PLEASE_HEAD, request);
+  const currentBranchHead = await branchHead(repository, headRefName, request);
   if (currentBranchHead !== current.headSha) {
     throw new Error("The Release Please branch does not match the validated pull-request head.");
   }
@@ -138,6 +144,7 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   if (releasePleaseReportedUpdate) {
     throw new Error("Release Please reported an update but left its pull request on a stale trusted base.");
   }
+  if (input.requireCurrent === true) throw new Error("Release Please candidate base moved during normalization.");
 
   await assertRefreshAncestry(repository, current.baseSha, trustedPolicySha, request);
   const response = await request(
@@ -151,12 +158,12 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   validateUpdateResponse(response, repository, current.pullRequestNumber);
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const refreshed = await loadExactReleasePleasePullRequest(repository, request);
+    const refreshed = await loadExactReleasePleasePullRequest(repository, request, headRefName);
     if (!refreshed || refreshed.pullRequestNumber !== current.pullRequestNumber) {
       throw new Error("The exact Release Please pull request disappeared during base refresh.");
     }
     if (refreshed.baseSha === trustedPolicySha && refreshed.headSha !== current.headSha) {
-      const refreshedBranchHead = await branchHead(repository, RELEASE_PLEASE_HEAD, request);
+      const refreshedBranchHead = await branchHead(repository, headRefName, request);
       if (refreshedBranchHead !== refreshed.headSha) {
         throw new Error("The refreshed Release Please branch does not match its pull-request head.");
       }

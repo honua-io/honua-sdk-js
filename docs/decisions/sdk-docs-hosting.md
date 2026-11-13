@@ -40,12 +40,12 @@ The org's marketing + platform docs hub (`honua-io/honua-site`) is authored in
 **GitBook** (Markdown + `SUMMARY.md` + `.gitbook.yaml`). We considered homing
 the SDK reference there. We chose a **repo-local** site because:
 
-1. **Lock-step with trunk.** The SDK reference (TypeDoc API + `docs/` corpus +
-   `llms.txt`) must never drift from the code it documents. Building from this
-   repo on every trunk merge — and gating the publish on the existing
-   `verify:llms` freshness check (REQ-004) — makes drift structurally
-   impossible. A separately-authored GitBook space would reintroduce the drift
-   the ticket exists to close.
+1. **Built from the same source.** The SDK reference (TypeDoc API + `docs/`
+   corpus + `llms.txt`) is built from a single repository checkout. Daily and
+   dispatched publication gate on `verify:llms` and strict release/sample
+   checks; the hosted site can lag trunk until publication succeeds. A
+   separately authored GitBook space would introduce another source to keep
+   aligned.
 2. **TypeDoc is not a GitBook-native artifact.** The API reference is generated
    HTML; mounting it under `/api/` from the same pipeline that renders the
    guides keeps one build, one deploy, one source of truth.
@@ -107,13 +107,17 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 
 ## CI
 
-`.github/workflows/docs-site.yml` runs on `push` to `trunk` and
-`workflow_dispatch`: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
+`.github/workflows/docs-site.yml` runs daily and on `workflow_dispatch`,
+including the derived-artifact workflow's dispatch. It does not deploy on a
+trunk push, which raced Release Please's immutable SDK tag. The publication
+gates stay strict: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
 `samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
-`deploy-pages`. Catalog verification schema-checks the public projection and
-its generated consumer digest before publication. Gallery recipe/lab profile
-gates remain declarations rather than receipt claims; `samples:verify`
+`deploy-pages`. A failed build or deploy opens or updates one tracking issue
+without checking out repository code. Catalog verification schema-checks the
+public projection and its generated consumer digest before publication. Gallery
+recipe/lab profile gates remain declarations rather than receipt claims;
+`samples:verify`
 receipt-validates any qualified golden journey before the docs build may
 publish it. `node_modules` is cached and the full SDK test suite is intentionally
 skipped to hold the ≤ 5 min budget (NFR-001).

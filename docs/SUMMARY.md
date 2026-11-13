@@ -89,6 +89,7 @@
 * [Publish MVT to PMTiles](pmtiles-lifecycle.md)
 * [PMTiles](pmtiles.md)
 * [Protocol × Capability Matrix](protocol-capability-matrix.md)
+* [Public catalog](public-catalog.md)
 * [Deterministic query planner](query-planner.md)
 * [Unified raster capability matrix](raster-capability-matrix.md)
 * [React bindings](react.md)

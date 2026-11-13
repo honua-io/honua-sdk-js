@@ -1,3 +1,4 @@
+import { prepareReleasePleaseCandidates } from "../../scripts/lib/release-please-candidates.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -75,6 +76,9 @@ test("mismatched MCP release versions and missing local SDK identity fail closed
 function harness(options = {}) {
   const calls = [];
   let graphqlReads = 0;
+  let branchHead = HEAD;
+  let pullRequestHead = HEAD;
+  let pendingHeadSyncReads = 0;
   const source = files(options.sdkVersion);
   const pullRequest = {
     number: 2405, body: "generated body", title: "chore(trunk): release mcp-server 0.3.2", state: "OPEN", updatedAt: "now",
@@ -91,8 +95,10 @@ function harness(options = {}) {
     calls.push({ path, method: init.method ?? "GET", body });
     if (path === "/graphql") {
       graphqlReads++;
+      if (graphqlReads % 2 === 1 && pendingHeadSyncReads > 0) pendingHeadSyncReads -= 1;
+      if (pendingHeadSyncReads === 0) pullRequestHead = branchHead;
       return { data: { repository: { nameWithOwner: REPO, pullRequest: {
-        ...pullRequest, ...(options.moveAfterRead && graphqlReads > (options.moveAfterRead === true ? 2 : options.moveAfterRead) ? { headRefOid: NEXT } : {}),
+        ...pullRequest, headRefOid: pullRequestHead, ...(options.moveAfterRead && graphqlReads > (options.moveAfterRead === true ? 2 : options.moveAfterRead) ? { headRefOid: NEXT } : {}),
       } } } };
     }
     if (path === "/pulls") return parsed.searchParams.get("head") === `honua-io:${BRANCH}` ? [{ number: 2405, head: { sha: HEAD } }] : [];
@@ -102,14 +108,17 @@ function harness(options = {}) {
     }
     if (path.startsWith("/git/ref/heads/")) {
       const branch = path.slice(15);
-      return { ref: `refs/heads/${branch}`, object: { type: "commit", sha: branch === "trunk" ? BASE : HEAD } };
+      return { ref: `refs/heads/${branch}`, object: { type: "commit", sha: branch === "trunk" ? BASE : branchHead } };
     }
     if (path === `/git/commits/${HEAD}`) return { sha: HEAD, tree: { sha: TREE } };
     if (path === "/git/trees") return { sha: TREE };
     if (path === "/git/commits") return { sha: NEXT, tree: { sha: TREE }, parents: [{ sha: options.commitParent ?? HEAD }] };
     if (path === `/git/refs/heads/${BRANCH}`) {
       if (options.refFailure) throw new Error("Non-fast-forward update rejected");
-      return { object: { sha: options.updatedHead ?? NEXT } };
+      branchHead = options.updatedHead ?? NEXT;
+      pendingHeadSyncReads = options.headSyncLagReads ?? 0;
+      if (pendingHeadSyncReads === 0) pullRequestHead = branchHead;
+      return { object: { sha: branchHead } };
     }
     throw new Error(`Unexpected request ${url}`);
   };
@@ -117,6 +126,16 @@ function harness(options = {}) {
 }
 
 const INPUT = { repository: REPO, trustedPolicySha: BASE };
+
+test("lock normalization returns only after the pull request reports the new head", async () => {
+  const waits = [];
+  const { request, calls } = harness({ headSyncLagReads: 2 });
+  assert.deepEqual(await normalizeReleasePleaseLockfiles({ ...INPUT, wait: async (ms) => { waits.push(ms); } }, request),
+    [{ pullRequestNumber: 2405, headSha: NEXT, status: "normalized" }]);
+  assert.equal(waits.length, 1);
+  const patch = calls.findIndex(({ method }) => method === "PATCH");
+  assert.ok(calls.slice(patch).some(({ path }) => path === "/graphql"));
+});
 
 test("trusted candidate is read at exact head and corrected with a non-force child commit", async () => {
   const { request, calls } = harness();
@@ -147,17 +166,16 @@ test("untrusted or moved candidate cannot update a branch", async () => {
   }
 });
 
-test("workflow normalizes only successful normal PR generation using trusted policy", () => {
+test("workflow prepares candidates only after successful generation using trusted policy", () => {
   const workflow = readFileSync(".github/workflows/release-please.yml", "utf8");
-  const start = workflow.indexOf("- name: Check out trusted candidate lockfile policy");
-  const end = workflow.indexOf("- name: Retain sealed-ancestor recovery verification", start);
-  const hook = workflow.slice(start, end);
-  assert.ok(start > workflow.indexOf("- name: Generate release PR after publication handling"));
-  assert.equal((hook.match(/if: steps.release-pr.outcome == 'success'/gu) ?? []).length, 4);
+  const hook = workflow.slice(workflow.indexOf("  release-please-refresh:"), workflow.indexOf("  release-please-ci:"));
+  assert.match(hook, /needs: release-please/u);
+  assert.match(hook, /needs.release-please.result == 'success'/u);
   assert.match(hook, /ref: \$\{\{ github.sha \}\}/u);
   assert.match(hook, /persist-credentials: false/u);
-  assert.match(hook, /working-directory: trusted-lockfile-policy/u);
-  assert.match(hook, /run: node scripts\/normalize-release-please-lockfiles.mjs/u);
+  assert.match(hook, /working-directory: trusted-refresh-policy/u);
+  assert.match(hook, /node scripts\/refresh-release-please-base.mjs/u);
+  assert.doesNotMatch(workflow, /RELEASE_PLEASE_PRS_CREATED/u);
 });
 
 test("lock normalization rejects a commit with the wrong parent before publishing", async () => {
@@ -179,5 +197,23 @@ test("lock normalization does not report success for rejected or unconfirmed ref
     const { request, calls } = harness(options);
     await assert.rejects(normalizeReleasePleaseLockfiles(INPUT, request), /rejected|not confirmed/);
     assert.deepEqual(calls.filter(({ method }) => method === "PATCH").map(({ body }) => body), [{ sha: NEXT, force: false }]);
+  }
+});
+
+
+test("orchestration rejects replaced lock candidates before reading files or mutating", async () => {
+  for (const expected of [
+    { pullRequestNumber: 2405, headSha: NEXT, status: "already-current" },
+    { pullRequestNumber: 2406, headSha: HEAD, status: "already-current" },
+    { status: "not-found" },
+  ]) {
+    const { request, calls } = harness();
+    await assert.rejects(prepareReleasePleaseCandidates(INPUT, {
+      refresh: async ({ headRefName }) => headRefName === BRANCH ? expected : { status: "not-found" },
+      locks: (input) => normalizeReleasePleaseLockfiles(input, request),
+      mcpNotes: async () => { throw new Error("Notes must not run after candidate drift"); },
+    }), /moved before normalization/);
+    assert.ok(!calls.some(({ path }) => path.startsWith("/contents/")));
+    assert.ok(calls.every(({ method, path }) => method === "GET" || path === "/graphql"));
   }
 });

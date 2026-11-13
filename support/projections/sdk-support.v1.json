@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.3.3",
+    "version": "0.3.4",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -2988,6 +2988,10 @@
       },
       {
         "subpath": "./pmtiles",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./publication",
         "status": "experimental"
       },
       {
