@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import openapiTS, { astToString } from "openapi-typescript";
 import { assertReleaseAdminContract } from "./lib/admin-release-contract.mjs";
 
+import { nativeApplicationPathNotice } from "./lib/native-documentation.mjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sourceManifestPath = path.join(root, "config", "admin-client.v1.json");
 const generatedTypesPath = path.join(root, "src", "control-plane", "generated", "admin-api.ts");
@@ -382,6 +384,8 @@ function renderReference(source, operations, coverage) {
     "<!-- Regenerate with: npm run admin-client:generate -->",
     "",
     "# `honua admin` command reference",
+    "",
+    nativeApplicationPathNotice,
     "",
     `Generated from \`${source.serverRepository}@${source.serverSha}\` (${operations.length} REST operations).`,
     "",
