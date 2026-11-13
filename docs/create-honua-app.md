@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/create-honua-app"
 ---
 # create-honua-app
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `create-honua-app` scaffolds a Vite + TypeScript application that already connects to a geospatial endpoint and mounts
 a source on MapLibre. It exists so the first minute with the SDK is spent reading a working workflow instead of
 assembling peer dependencies.

@@ -1,5 +1,7 @@
 # Shared sample kit
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The sample kit gives maintained examples one execution contract instead of a
 different set of assumptions in every Vite app. Its manifest binds each pilot
 to the exact Vite and TypeScript configs, Playwright test, responsive

@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Source capability profiles
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > **Experimental.** `@honua/sdk-js/source-capabilities` is the canonical v2
 > claimed/observed/effective capability evaluator and source support-check
 > surface. Its evaluator-only graph does not perform discovery or execution;

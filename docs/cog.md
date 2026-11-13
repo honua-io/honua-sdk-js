@@ -6,6 +6,8 @@ resource: "honua://capability/raster.cloud-cog-serving"
 ---
 # Direct COG inspection, bounded reads, and MapLibre rendering
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/cog` is an experimental, browser-safe boundary from static STAC
 asset discovery to direct Cloud Optimized GeoTIFF inspection, pixel-window
 reads, and an opt-in MapLibre image-source renderer. It is intentionally a

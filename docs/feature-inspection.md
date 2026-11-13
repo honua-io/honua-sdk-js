@@ -6,6 +6,8 @@ resource: "honua://capability/serve.ogc-api-features"
 ---
 # Feature inspection
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/web-components` provides one inspection workflow for a map hit,
 feature search result, or table row. The workflow keeps source-qualified
 feature identity, authoritative details, overlapping-result navigation,

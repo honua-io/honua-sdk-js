@@ -6,6 +6,8 @@ resource: "honua://capability/plugin.sdk"
 ---
 # Plugin manifest and certification contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK.
 It lets a third-party package describe its compatibility and authority boundary
 as inert JSON, produces a deterministic report for a specific host, and runs an

@@ -5,6 +5,8 @@ description: "Managed publication order and bounded peer policy for the SDK mino
 ---
 # MCP compatibility across the Node 22 transition
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The generated installer pins a published MCP package. SDK publication proves
 that its packed SDK installs beside that exact public MCP under npm's default
 peer resolver. MCP publication independently proves that its packed MCP installs

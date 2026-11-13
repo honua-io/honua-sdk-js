@@ -6,6 +6,8 @@ resource: "honua://capability/discovery.capability-manifest"
 ---
 # Discovery truth and cache identity
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The protocol-neutral truth contract used by endpoint detectors and
 metadata adapters. It does not claim that every protocol can already be
 passed to one `connect()` implementation.

@@ -1,5 +1,7 @@
 # ArcGIS Migration Workbench
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This sample presents the committed, deterministic artifacts produced by the
 repository's `honua-migrate` CLI for the Honua-authored `geoservices-source-app`
 fixture. It is an evidence viewer and browser runtime proof, not a second

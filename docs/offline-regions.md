@@ -6,6 +6,8 @@ resource: "honua://capability/fieldops.offline-sync"
 ---
 # Downloadable offline regions (experimental)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/offline` defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
 store, durable edit queue, and composed local-first status. It does not make the

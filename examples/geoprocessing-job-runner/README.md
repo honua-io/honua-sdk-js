@@ -1,5 +1,7 @@
 # Run a buffer job and collect the result
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This public walkthrough uses the JavaScript SDK's real OGC API Processes surface:
 
 ```ts doc-test=skip reason="partial excerpt requires the walkthrough's initialized client and pinned WKB input"

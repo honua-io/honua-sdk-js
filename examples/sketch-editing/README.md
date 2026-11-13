@@ -1,5 +1,7 @@
 # Sketch editing with terra-draw
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Interactive draw/edit/delete on a MapLibre map through the SDK's
 `EditSketchWorkflowModel`, powered by the optional
 [terra-draw](https://terradraw.io) peer.

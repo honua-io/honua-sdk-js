@@ -6,7 +6,7 @@
 
 ## Quickstart
 
-* [Put a map on the page](quickstart.md)
+* [Start native, then connect an existing map](quickstart.md)
 * [When the quickstart does not render](quickstart-troubleshooting.md)
 * [Server-optional quickstart](standalone-quickstart.md)
 
@@ -27,6 +27,7 @@
 * [@honua/mcp-server: the standalone MCP server](mcp-server.md)
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
+* [Start with gRPC and cloud-native files](native-data-paths.md)
 * [Zero-install playgrounds](playgrounds.md)
 * [Source schema v2 migration](source-schema-v2-migration.md)
 * [Unified agent workflows](unified-agent-workflows.md)
