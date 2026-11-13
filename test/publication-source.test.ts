@@ -311,6 +311,36 @@ describe("guard rails", () => {
     expect((await second).result.features[0]?.attributes).toMatchObject({ tmk_txt: LEADING_ZERO_PARCEL });
   });
 
+  it("lets callers cancel export and planning while the engine is still starting", async () => {
+    const runtime = new GeoparquetRuntime({ driverFactory: () => new Promise(() => undefined) });
+    cleanups.push(() => runtime.dispose());
+    const source = await fixtureSource(await served(), { runtime });
+    const controller = new AbortController();
+    const exported = source.exportFeatures("csv", { signal: controller.signal });
+    const planned = source.planLookup(MERGED_MULTIPART_PARCEL, { signal: controller.signal });
+    controller.abort();
+    await Promise.all([
+      expect(exported).rejects.toBeInstanceOf(HonuaAbortError),
+      expect(planned).rejects.toBeInstanceOf(HonuaAbortError),
+    ]);
+  });
+
+  it("rejects planning for an already-cancelled signal without leaving work unobserved", async () => {
+    const source = await pairedSource(await served());
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", record);
+    try {
+      await expect(source.planLookup(MERGED_MULTIPART_PARCEL, { signal: AbortSignal.abort() })).rejects.toBeInstanceOf(
+        HonuaAbortError,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", record);
+    }
+  });
+
   it("keeps caller headers when opening a descriptor", async () => {
     const server = await served();
     const seen: Headers[] = [];

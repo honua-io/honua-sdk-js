@@ -138,14 +138,15 @@ export async function planLookup<T>(
 }
 
 /** Aborts its signal when the caller cancels or, when a live service can answer, when the time budget runs out. */
-function budgetClock(budget: PublicationQueryBudget, callerSignal: AbortSignal | undefined, canFallBack: boolean) {
+function budgetClock<T>(context: LookupContext<T>, callerSignal: AbortSignal | undefined) {
+  const { budget, serverSource } = context;
   const controller = new AbortController();
   const forwardAbort = () => controller.abort(callerSignal?.reason ?? new HonuaAbortError());
   callerSignal?.addEventListener("abort", forwardAbort, { once: true });
   let expired = false;
   const timer = setTimeout(() => {
     expired = true;
-    if (canFallBack) controller.abort(new HonuaAbortError());
+    if (serverSource) controller.abort(new HonuaAbortError());
   }, budget.maxTimeToFirstResultMs);
   return {
     signal: controller.signal,
@@ -164,7 +165,7 @@ type BrowserOutcome<T> =
 async function answerInBrowser<T>(
   context: LookupContext<T>,
   value: string,
-  clock: ReturnType<typeof budgetClock>,
+  clock: ReturnType<typeof budgetClock<T>>,
 ): Promise<BrowserOutcome<T>> {
   const started = performance.now();
   await context.verify(clock.signal);
@@ -244,7 +245,7 @@ export async function lookupIdentity<T>(
   const callerSignal = options.signal;
   if (callerSignal?.aborted) throw new HonuaAbortError();
   const started = performance.now();
-  const clock = budgetClock(context.budget, callerSignal, context.serverSource !== undefined);
+  const clock = budgetClock(context, callerSignal);
   let outcome: BrowserOutcome<T>;
   try {
     outcome = await answerInBrowser(context, value, clock);

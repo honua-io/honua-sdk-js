@@ -1,4 +1,4 @@
-import type { CapabilityAwareSource, Query, Result, Source } from "../contract/types.js";
+import type { CapabilityAwareSource, Query, Source } from "../contract/types.js";
 import { stringLiteral } from "../core/geoparquet-sql.js";
 import { type DuckDbDriverFactory, GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
 import { settleOrAbort } from "./abort.js";
@@ -102,6 +102,36 @@ async function exportPublicFeatures<T>(
     : csvDocument(result, columns);
 }
 
+interface PairedParts<T> {
+  readonly inner: CapabilityAwareSource<T>;
+  readonly guard: PublicFieldGuard;
+  readonly verify: (signal?: AbortSignal) => Promise<void>;
+  readonly identityColumn: string;
+}
+
+/** The Source query methods of the paired source: public fields only, after the artifact check. */
+function guardedQueries<T>({ inner, guard, verify, identityColumn }: PairedParts<T>) {
+  const guarded = async <R>(query: Query<T> | undefined, run: (request: Query<T>) => Promise<R>): Promise<R> => {
+    const request = guard.query(query);
+    await verify(request.signal);
+    return run(request);
+  };
+  return {
+    query: (query?: Query<T>) => guarded(query, async (request) => guard.result(await inner.query(request))),
+    queryAll: (query?: Query<T>) => guarded(query, async (request) => guard.result(await inner.queryAll(request))),
+    queryAggregate: (query: Parameters<Source<T>["queryAggregate"]>[0]) =>
+      guarded(query, (request) => inner.queryAggregate({ ...request, aggregation: query.aggregation })),
+    queryExtent: (query?: Query<T>) => guarded(query, (request) => inner.queryExtent(request)),
+    async *stream(query?: Query<T>) {
+      const request = guard.query(query);
+      await verify(request.signal);
+      for await (const page of inner.stream(request)) yield guard.result(page);
+    },
+    exportFeatures: (format: PublicationExportFormat, query?: Query<T>) =>
+      guarded(query, (request) => exportPublicFeatures(inner, guard, { format, query: request, identityColumn })),
+  };
+}
+
 /** Build the paired source over a publication's GeoParquet artifact. */
 export function publicationSource<T = Record<string, unknown>>(
   publication: Publication,
@@ -113,11 +143,7 @@ export function publicationSource<T = Record<string, unknown>>(
   const inner = geoparquetSource<T>(sourceDescriptor, { runtime });
   const guard = publicFieldGuard(publication, sourceDescriptor.id);
   const verify = geoParquetVerification(runtime, publication);
-  const guarded = async <R>(query: Query<T> | undefined, run: (request: Query<T>) => Promise<R>): Promise<R> => {
-    const request = guard.query(query);
-    await verify(request.signal);
-    return run(request);
-  };
+  const queries = guardedQueries({ inner, guard, verify, identityColumn: publication.identity.geoparquetColumn });
   const context: LookupContext<T> = {
     publication,
     sourceId: sourceDescriptor.id,
@@ -126,38 +152,22 @@ export function publicationSource<T = Record<string, unknown>>(
     budget: options.budget ?? PUBLICATION_LOOKUP_BUDGET,
     serverSource: options.serverSource,
     verify,
-    queryBrowser: (query) => guarded(query, async (request) => guard.result(await inner.query(request))),
+    queryBrowser: queries.query,
   };
   const lookup = (value: string, lookupOptions?: PublicationLookupOptions) =>
     lookupIdentity(context, value, lookupOptions);
-
   return Object.freeze({
     ...inner,
+    ...queries,
     publication,
-    query: (query?: Query<T>) => context.queryBrowser(query ?? {}),
-    queryAll: (query?: Query<T>) => guarded(query, async (request) => guard.result(await inner.queryAll(request))),
-    queryAggregate: (query: Parameters<Source<T>["queryAggregate"]>[0]) =>
-      guarded(query, (request) => inner.queryAggregate({ ...request, aggregation: query.aggregation })) as Promise<
-        Result<T>
-      >,
-    queryExtent: (query?: Query<T>) => guarded(query, (request) => inner.queryExtent(request)),
-    async *stream(query?: Query<T>) {
-      const request = guard.query(query);
-      await verify(request.signal);
-      for await (const page of inner.stream(request)) yield guard.result(page);
-    },
     protocol: () => undefined,
     adapter: () => undefined,
     supports: inner.supports,
     planLookup: (value: string, lookupOptions?: PublicationLookupOptions) =>
-      planLookup(context, value, lookupOptions?.signal),
+      settleOrAbort(planLookup(context, value, lookupOptions?.signal), lookupOptions?.signal),
     lookup,
     select: async (feature: RenderedPublicationFeature, lookupOptions?: PublicationLookupOptions) =>
       lookup(renderedIdentity(publication, feature), lookupOptions),
-    exportFeatures: (format: PublicationExportFormat, query?: Query<T>) =>
-      guarded(undefined, () =>
-        exportPublicFeatures(inner, guard, { format, query, identityColumn: publication.identity.geoparquetColumn }),
-      ),
     verifyGeoParquetArtifact: (lookupOptions?: PublicationLookupOptions) => verify(lookupOptions?.signal),
   }) as unknown as PublicationSource<T>;
 }
