@@ -1,5 +1,5 @@
 /**
- * Compose the runtime MapLibre style document from a `MapPackage`:
+ * Compose the runtime MapLibre style document from a `HonuaMapDocument`:
  *
  *   mapSpec  ─┐
  *   styleRefs ─┤──> applyStyleRefs ──> applyTheme ──> composed style
@@ -51,7 +51,7 @@ export interface StyleComposeOptions {
   resolveTheme?: ThemeResolver;
 }
 
-/** Compose a MapLibre-ready style from the `MapPackage`. */
+/** Compose a MapLibre-ready style from the `HonuaMapDocument`. */
 export async function composeStyle(
   pkg: HonuaMapDocument,
   mapSpecWithSources: HonuaStyleSpecification,

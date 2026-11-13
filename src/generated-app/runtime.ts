@@ -2,7 +2,7 @@
  * Framework-neutral generated-app preview runtime for the operations
  * dashboard proof profile.
  *
- * The runtime composes the existing MapPackage loader, ExplorationContext,
+ * The runtime composes the existing map document loader, ExplorationContext,
  * and interaction bindings into reusable widget models. Hosts own DOM,
  * framework, and MapLibre construction; this module owns manifest binding,
  * linked state, feature filtering, and structured preview errors.

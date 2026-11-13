@@ -1,6 +1,6 @@
 /**
  * `@honua/sdk-js/runtime` — MapLibre GL JS-first runtime for Honua
- * `MapPackage`. Consumes a server-produced `MapPackage` and binds it to
+ * `HonuaMapDocument`. Consumes a server-produced `HonuaMapDocument` and binds it to
  * a caller-provided `MaplibreMap` instance.
  *
  * @example

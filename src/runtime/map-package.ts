@@ -1,5 +1,5 @@
 /**
- * Typed mirror of the server-produced `MapPackage` (honua-server #731). The
+ * Typed mirror of the server-produced map document (honua-server #731). The
  * package shape is `honua_map_package.v1` — the format string is the
  * canonical version gate and the runtime loader refuses other values.
  *
@@ -14,13 +14,13 @@
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
 
-/** Canonical format string for the v1 MapPackage shape. */
+/** Canonical format string of a v1 map document. */
 export const HONUA_MAP_DOCUMENT_FORMAT_V1 = "honua_map_package.v1" as const;
 
-/** Canonical format string for the v1 MapPackage shape. */
+/** Type of the v1 map document format string. */
 export type HonuaMapDocumentFormat = typeof HONUA_MAP_DOCUMENT_FORMAT_V1;
 
-/** Lifecycle states a MapPackage may occupy server-side. */
+/** Lifecycle states a map document may occupy server-side. */
 export type HonuaMapDocumentStatus = "Draft" | "Composing" | "Ready" | "Failed" | "Expired";
 
 /**
@@ -62,7 +62,7 @@ export interface HonuaMapDocumentLocator {
   [extra: string]: unknown;
 }
 
-/** One inlined `SourceBinding` entry on a MapPackage. */
+/** One inlined `SourceBinding` entry on a map document. */
 export interface HonuaMapDocumentSourceBinding {
   sourceId: string;
   protocol: HonuaMapDocumentProtocol;
@@ -252,7 +252,7 @@ export interface HonuaMapDocumentProvenance {
 }
 
 /**
- * v1 MapPackage shape — mirrors the draft server type in
+ * v1 map document shape — mirrors the draft server type in
  * `/home/makani/honua-server/src/Honua.Core/Features/Geoprocessing/Domain/MapPackage.cs`.
  * Unknown fields are preserved through `updateMapDocument` round-trip so
  * minor additive changes do not break runtime consumers.

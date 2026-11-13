@@ -4,7 +4,7 @@
  * Runtime data operations stay on `HonuaClient` and `@honua/sdk-js/runtime`.
  * This subpath owns admin resources such as hosted maps, packages, imports,
  * tokens, workspaces, connections, and sharing, with typed handoff through
- * MapPackage locators and SourceDescriptor-compatible shapes.
+ * map document locators and SourceDescriptor-compatible shapes.
  *
  * It also owns the shared application-command layer (`./commands/index.js`):
  * one typed, idempotent command set that the CLI, MCP, Studio, and direct JS

@@ -1,5 +1,5 @@
 /**
- * Translates `MapPackage.sourceBindings[]` (server shape) into SDK-side
+ * Translates `HonuaMapDocument.sourceBindings[]` (server shape) into SDK-side
  * `SourceDescriptor[]` consumed by `createDataset`, and keeps a parallel
  * record of MapLibre-native source entries that flow straight into the
  * composed style.
@@ -59,7 +59,7 @@ export interface SourceBridgeProjection {
 }
 
 /**
- * Project the bindings on a MapPackage into SDK contract descriptors and
+ * Project the bindings on a map document into SDK contract descriptors and
  * MapLibre-native source entries. Throws `HonuaMapDocumentError` for
  * bindings the runtime cannot route (unknown protocol, missing locator,
  * deferred `workspace_artifact`).

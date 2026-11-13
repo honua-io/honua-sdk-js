@@ -1,6 +1,6 @@
 /**
  * Legend helpers. The runtime surfaces a `LegendEntry[]` derived from
- * `MapPackage.legend[]` (authoritative) with optional swatches pulled
+ * `HonuaMapDocument.legend[]` (authoritative) with optional swatches pulled
  * from the composed style for layers that did not supply an explicit
  * color.
  *

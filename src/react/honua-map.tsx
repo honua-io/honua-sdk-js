@@ -59,7 +59,7 @@ const EMPTY_STYLE = { version: 8 as const, sources: {}, layers: [] };
 
 /** Props for {@link HonuaMap}. */
 export interface HonuaMapProps {
-  /** The `MapPackage` to compose onto the map. */
+  /** The `HonuaMapDocument` to compose onto the map. */
   package: HonuaMapDocument;
   /**
    * Attach to an existing, externally-owned map instead of creating one. When
