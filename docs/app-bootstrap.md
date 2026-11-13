@@ -5,6 +5,8 @@ description: "createHonuaApp(), a framework-neutral bootstrap over the client, h
 ---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Status: experimental.
 
 `createHonuaApp()` is a framework-neutral bootstrap layer over the existing

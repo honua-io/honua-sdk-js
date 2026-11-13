@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The generated-app subpath is the SDK browser projection for the first
 AI-generated operations dashboard proof. It consumes a versioned manifest from
 `AppPackage.manifest_artifact`, hydrates the referenced `MapPackage` through

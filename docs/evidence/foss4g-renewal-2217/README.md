@@ -5,6 +5,8 @@ description: "How to keep the seven-day golden-journey evidence that samples.hon
 ---
 # FOSS4G NA evidence renewal runbook
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 samples.honua.io (`honua-io/honua-samples`) consumes this repository's
 [`samples/dist/honua-site-consumer-handoff.v2.json`](../../../samples/dist/honua-site-consumer-handoff.v2.json)
 at a pinned trunk commit. Its daily `producer evidence horizon` check goes red when the earliest

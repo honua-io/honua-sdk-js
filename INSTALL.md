@@ -1,5 +1,7 @@
 # Installing the Honua JavaScript SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
 subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.

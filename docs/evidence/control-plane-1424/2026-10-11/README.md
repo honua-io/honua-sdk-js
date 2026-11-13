@@ -6,6 +6,8 @@ description: "Retained failed candidate receipts and subsequent source validatio
 
 # Terminal control-plane diagnostics, 2026-10-11
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 These are retained execution results for [SDK issue #1424](https://github.com/honua-io/honua-sdk-js/issues/1424)'s bounded 2026.1 command journey. The overall qualification **failed**. They prove successful and denied individual stages and preserve the server defects that block a complete release claim.
 
 The CLI ran its real executable with a private `HONUA_BEARER_TOKEN`. MCP used a real MCP client/tool roundtrip against `createServer` with the control-plane runtime explicitly composed. Studio used its command adapter; JavaScript used the shared SDK runtime. The local SDK and MCP build came from `70566967348b3a78f6abc107c205538cad67e3b3`; its package metadata still said 0.1.14. These are source-build results, not evidence about published 0.1.14 registry bytes.

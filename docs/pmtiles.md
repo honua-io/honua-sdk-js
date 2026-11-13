@@ -6,6 +6,8 @@ resource: "honua://capability/serve.vector-tiles"
 ---
 # PMTiles
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format
 for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on
 static hosting — S3, R2, GCS, or any HTTP server that honours `Range` requests —

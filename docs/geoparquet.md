@@ -6,6 +6,8 @@ resource: "honua://capability/format.geoarrow"
 ---
 # GeoParquet / DuckDB source
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same
 protocol-neutral `Query`** you use against a FeatureServer or an OGC API
 Features collection — against GeoParquet files with native DuckDB in Node or

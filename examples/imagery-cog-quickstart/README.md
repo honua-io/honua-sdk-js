@@ -1,5 +1,7 @@
 # Honua Imagery and Terrain Journey
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This MapLibre-first sample is the fixture-backed default and configured-live
 implementation of the Imagery and Terrain golden-journey candidate. It uses
 public SDK surfaces for one continuous workflow:

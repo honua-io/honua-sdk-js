@@ -5,6 +5,8 @@ description: "Bounded authenticated spatial-query evaluation with exact source, 
 ---
 # Ask this map live qualification
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This directory retains actual authenticated model calls and independent semantic
 results for the ten-case synthetic incident acceptance corpus. It is bounded
 sample evidence, not a general natural-language accuracy benchmark. Earlier

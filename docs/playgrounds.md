@@ -9,6 +9,8 @@ tags: [playground, starters, samples, generated]
 
 # Zero-install playgrounds
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Every `create-honua-app` starter runs in a browser playground straight from this repository — no clone, no
 install, no account. Each project is self-contained: it depends on the published
 `@honua/sdk-js@0.3.4` package and serves its own committed fixture, so the green path

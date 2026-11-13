@@ -6,6 +6,8 @@ resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Resumable realtime delivery
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral
 delivery gate for snapshot-plus-delta streams. It sits between a transport and
 the existing realtime reducer/store. The gate does not open or reconnect a

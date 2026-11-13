@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # `@honua/sdk-js` reference guide
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This long-form guide collects the runnable demos, server compatibility contract,
 subpath entrypoints, protocol-specific cookbooks, MapLibre runtime, request/auth
 bridge, migration CLI, and other reference material that used to live in the

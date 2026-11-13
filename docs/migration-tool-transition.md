@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # JavaScript migration tool transition
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The JavaScript migration engine and npm package now live in
 [`honua-io/honua-migrate`](https://github.com/honua-io/honua-migrate). Install
 `@honua/honua-migrate` and use the JavaScript-specific executable:

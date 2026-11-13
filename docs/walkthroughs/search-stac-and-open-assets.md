@@ -5,6 +5,8 @@ description: "Use this walkthrough when an application needs to discover a catal
 ---
 # Walkthrough: search STAC and open an asset
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Use this walkthrough when an application needs to discover a catalog, run a bounded Item Search, and hand the selected asset to the SDK surface that can execute it.
 
 The SDK has two deliberately separate STAC surfaces:

@@ -5,6 +5,8 @@ description: "The failures readers hit on first run - CORS, an empty map, a fixt
 ---
 # First Map troubleshooting
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Use this guide for the canonical app in
 [`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). Start with the deterministic lane:
 

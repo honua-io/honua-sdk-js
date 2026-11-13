@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Operator Components
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The operator module exposes framework-neutral controllers and a workspace
 orchestrator under `@honua/sdk-js/operator`. Hosts can render the surfaces in
 React, Web Components, plain DOM, or native shells while reusing the same state

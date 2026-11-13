@@ -5,6 +5,8 @@ description: "SDK 0.1.18 three-engine release smoke, including the retained WebK
 ---
 # First Map release-tag provenance qualification
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The canonical [SDK 0.1.18 First Map Release Smoke run](https://github.com/honua-io/honua-sdk-js/actions/runs/38319843060)
 passed on the immutable `js-sdk-v0.1.18` tag at
 `7768fa900a9d02c2045d15a116cfcb8fab6fdd95`. The release-seal check,

@@ -5,6 +5,8 @@ title: Local setup development qualification for issue 1401
 
 # Local setup development qualification — issue 1401
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The [2026-10-11 receipt](2026-10-11-receipt.json) proves the corrected local installer policy and client contract boundaries on immutable development server `93cad86`. It is **not a release qualification pass**: the supported customer package/image pair has not advanced, and the rendered artifact cannot yet be read through MCP resources.
 
 Both generated profiles use the canonical 2026.1 disabled-licensing policy and permit exactly the bundled database environment reference. A fresh isolated installation remained ready after server restart with the same scoped key; unauthenticated Admin access returned 401. The generated configuration then created a connection through `env:HONUA_LOCAL_DB_PASSWORD` and tested it healthy. An unlisted environment reference remained rejected with 400. No password was embedded in a connection request. Exact prior generated templates can be updated; custom settings still fail closed. Old Community installations whose keys existed only in memory need the documented fresh-directory path rather than automatic credential recovery.
