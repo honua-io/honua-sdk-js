@@ -52,7 +52,7 @@ describe("openPublication", () => {
       pmtilesUrl: `${server.origin}/maui/parcels.pmtiles`,
       sourceLayer: "parcels",
       promoteId: "tmk_txt",
-      minzoom: 10,
+      minzoom: 8,
       maxzoom: 15,
     });
     expect(publication.geoparquetUrl).toBe(`${server.origin}/maui/parcels.parquet`);

@@ -56,9 +56,15 @@ export function parquetRequests(server: RangeServer) {
 }
 
 /** Rewrite the fixture GeoParquet with `select` and a replacement publication stamp, with a descriptor naming its size. */
+export interface ParquetLayout {
+  readonly orderBy?: string;
+  readonly copyOptions?: string;
+}
+
 export async function rewrittenParquet(
   select: string,
   stamp: Record<string, unknown>,
+  layout: ParquetLayout = {},
 ): Promise<{ overrides: FixtureOverrides; cleanup(): void }> {
   const directory = mkdtempSync(path.join(tmpdir(), "honua-publication-"));
   const file = path.join(directory, "parcels.parquet");
@@ -68,8 +74,9 @@ export async function rewrittenParquet(
   const connection = await instance.connect();
   try {
     await connection.run(
-      `COPY (SELECT ${select} FROM read_parquet('${source}')) TO '${file.replaceAll("'", "''")}'
-       (FORMAT parquet, KV_METADATA {geo: '${geo}', 'honua:publication': '${JSON.stringify(stamp).replaceAll("'", "''")}'})`,
+      `COPY (SELECT ${select} FROM read_parquet('${source}') ${layout.orderBy ? `ORDER BY ${layout.orderBy}` : ""})
+       TO '${file.replaceAll("'", "''")}'
+       (FORMAT parquet, ${layout.copyOptions ? `${layout.copyOptions}, ` : ""}KV_METADATA {geo: '${geo}', 'honua:publication': '${JSON.stringify(stamp).replaceAll("'", "''")}'})`,
     );
   } finally {
     connection.closeSync();

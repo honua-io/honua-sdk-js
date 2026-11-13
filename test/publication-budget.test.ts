@@ -6,10 +6,12 @@ import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
 import {
   FIXTURE_DESCRIPTOR,
+  FIXTURE_STAMP,
   MERGED_MULTIPART_PARCEL,
   fixtureSource,
   parquetRequests,
   publicationTestBed,
+  rewrittenParquet,
 } from "./helpers/publication-fixture.js";
 
 const { served: serveWithOptions, pairedSource, track } = publicationTestBed();
@@ -62,9 +64,9 @@ describe("byte budget", () => {
     await expect(lookup).rejects.toThrow(
       /^Looking up 234030888 in the browser would download about 0\.1 MB, more than the 0\.0 MB limit\. Connect a live service/,
     );
-    const fileEnd = `-${FIXTURE_DESCRIPTOR.artifacts.geoparquet.bytes - 1}`;
+    const footerReadStart = FIXTURE_DESCRIPTOR.artifacts.geoparquet.bytes - 64 * 1024;
     const rowGroupReads = parquetRequests(server).filter(
-      (entry) => entry.method === "GET" && !entry.range?.endsWith(fileEnd),
+      (entry) => entry.method === "GET" && Number(/^bytes=(\d+)-/.exec(entry.range ?? "")?.[1]) < footerReadStart,
     );
     expect(rowGroupReads).toEqual([]);
   });
@@ -91,6 +93,29 @@ describe("byte budget", () => {
       plat: "030",
       nhoodcode: null,
     });
+  });
+});
+
+describe("row-group pruning", () => {
+  const scattered = { orderBy: "hash(tmk_txt)", copyOptions: "ROW_GROUP_SIZE_BYTES 8192" };
+  const withIdentityBloomFilter = {
+    ...scattered,
+    copyOptions: `${scattered.copyOptions}, DICTIONARY_SIZE_LIMIT 4096, DICTIONARY_COMPRESSION_RATIO_THRESHOLD 0`,
+  };
+
+  it("reads one row group of an unsorted artifact when its identity carries a bloom filter", async () => {
+    const plans: number[][] = [];
+    for (const layout of [scattered, withIdentityBloomFilter]) {
+      const rewritten = await rewrittenParquet("*", FIXTURE_STAMP, layout);
+      track(rewritten.cleanup);
+      const lookup = await (await pairedSource(await serveWithOptions(rewritten.overrides))).lookup(
+        MERGED_MULTIPART_PARCEL,
+      );
+      expect(lookup.result.features[0]?.attributes).toMatchObject({ tmk_txt: MERGED_MULTIPART_PARCEL });
+      plans.push([...lookup.plan.rowGroups]);
+    }
+    expect(plans[0]!.length).toBeGreaterThan(1);
+    expect(plans[1]).toHaveLength(1);
   });
 });
 

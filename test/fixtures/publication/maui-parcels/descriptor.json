@@ -4,7 +4,7 @@
   "publicationId": "maui-county-parcels-fixture",
   "version": "20261113T062701Z",
   "title": "Maui County parcels (test fixture subset)",
-  "publishedAt": "2026-11-13T06:29:47.260Z",
+  "publishedAt": "2026-11-13T17:31:12.026Z",
   "sourceLayer": {
     "service": "maui-parcels",
     "layer": "parcels",
@@ -13,7 +13,7 @@
   },
   "capture": {
     "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
-    "capturedAt": "2026-11-13T06:27:01.354Z",
+    "capturedAt": "2026-11-13T12:20:54.318Z",
     "sourceRevision": "metadata-sha256:32e6e0066dadf02b7605881d22fd9568e1c91fa078f7323455cdbc2aeb7cf5aa",
     "featureCount": 434,
     "filter": {
@@ -138,21 +138,24 @@
     "pmtiles": {
       "href": "parcels.pmtiles",
       "mediaType": "application/vnd.pmtiles",
-      "bytes": 59931,
-      "sha256": "4060ab67fce483b76c7244ee0a40654b2712a015fe18f4fd7ef43ec2c368ca75",
+      "bytes": 103582,
+      "sha256": "422090948d64765e60d8f76c60782b69079aed159422a85afba46da3873cc7d1",
       "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
       "fields": [
-        "tmk_txt"
+        "tmk_txt",
+        "pittcode",
+        "nhoodcode",
+        "gisacres"
       ],
       "vectorLayer": "parcels",
-      "minzoom": 10,
+      "minzoom": 8,
       "maxzoom": 15
     },
     "geoparquet": {
       "href": "parcels.parquet",
       "mediaType": "application/vnd.apache.parquet",
-      "bytes": 72600,
-      "sha256": "4dfaf1df9d61647f077ed1979d68867190ea260b5e460fc176a8d652cd065ec4",
+      "bytes": 111110,
+      "sha256": "fd0e3e8f2131df5360e5a6734b398070dc78291488b9216138fc26deed1e2f02",
       "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
       "fields": [
         "tmk_txt",
@@ -166,12 +169,12 @@
         "gisacres"
       ],
       "rowGroups": 1,
-      "sortedBy": "tmk_txt"
+      "sortedBy": "hilbert(bbox)"
     }
   },
   "validation": {
     "status": "passed",
-    "validatedAt": "2026-11-13T06:29:47.261Z",
+    "validatedAt": "2026-11-13T17:31:12.066Z",
     "checks": [
       {
         "name": "capture-consistency",
