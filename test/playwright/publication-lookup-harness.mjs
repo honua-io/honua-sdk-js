@@ -20,6 +20,7 @@ const duckdbDist = path.join(repoRoot, "node_modules/@duckdb/duckdb-wasm/dist");
 const extensionPath = `/duckdb/extensions/${PARQUET_EXTENSION_PROVENANCE.engineVersion}/${PARQUET_EXTENSION_PROVENANCE.platform}/${PARQUET_EXTENSION_PROVENANCE.fileName}`;
 
 const PAGE_SCRIPT = `
+import { queryFilter } from "./src/contract/query-filter.ts";
 import { GeoparquetRuntime, createBrowserDuckDbDriver } from "./src/geoparquet/index.ts";
 import { PUBLICATION_LOOKUP_BUDGET, openPublication, publicationSource } from "./src/publication/index.ts";
 
@@ -78,6 +79,15 @@ window.publicationHarness = {
     } catch (error) {
       status.textContent = error.message;
       return { ok: false, name: error.name, code: error.code ?? null, message: error.message, ms: performance.now() - started };
+    }
+  },
+  async filter(field, value) {
+    const started = performance.now();
+    try {
+      const result = await source.query({ filter: queryFilter.eq(field, value), returnGeometry: false, pagination: { limit: 100 } });
+      return { ok: true, ms: performance.now() - started, returnedFeatures: result.features.length };
+    } catch (error) {
+      return { ok: false, message: error.message, ms: performance.now() - started };
     }
   },
   cancel() {

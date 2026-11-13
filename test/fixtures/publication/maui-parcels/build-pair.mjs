@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Builds a paired PMTiles + GeoParquet publication of the County of Maui parcel
-// layer from one capture, plus its publication descriptor v1.
+// layer from one capture, plus its publication descriptor v1 and the STAC item the
+// descriptor links.
 //
 //   node build-pair.mjs capture --source <parcel layer URL> --out <capture dir>
 //   node build-pair.mjs build --capture <capture dir> --out <output dir> [--subset fixture]
@@ -33,6 +34,7 @@ const ADDITIVE_FIELDS = new Set(["gisacres", "taxacres"]);
 const BLANK_MEANS_ABSENT = new Set(["nhoodcode"]);
 const LIVE_LAYER = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 const FIXTURE_BOUNDS = [-156.494, 20.902, -156.484, 20.911];
+const SOURCE_LICENSE_URL = "https://planning.hawaii.gov/gis/download-gis-data-expanded/";
 
 const PUBLIC_FIELDS = [
   { name: "tmk_txt", type: "string", title: "Tax map key", description: "Nine-digit parcel number" },
@@ -280,11 +282,52 @@ async function descriptorFor({ record, parcels, version, subset, pmtilesPath, pa
         { name: "identity-unique", status: "passed" },
       ],
     },
-    links: { stac: `stac/${subset ? `${PUBLICATION_ID}-fixture` : PUBLICATION_ID}.json`, source: LIVE_LAYER },
+    links: { stac: stacItemPath(subset), source: LIVE_LAYER },
     provenance: {
       publisher: "County of Maui",
       license: "public-domain",
       attribution: record.attribution,
+    },
+  };
+}
+
+function stacItemPath(subset) {
+  return `stac/${subset ? `${PUBLICATION_ID}-fixture` : PUBLICATION_ID}.json`;
+}
+
+function stacAsset(artifact, title) {
+  return { href: `../${artifact.href}`, type: artifact.mediaType, title, "file:size": artifact.bytes, "file:checksum": `1220${artifact.sha256}` };
+}
+
+function stacItemFor(descriptor, record) {
+  const [west, south, east, north] = descriptor.bounds;
+  return {
+    type: "Feature",
+    stac_version: "1.1.0",
+    stac_extensions: ["https://stac-extensions.github.io/file/v2.1.0/schema.json"],
+    id: `${descriptor.publicationId}-${descriptor.version}`,
+    bbox: descriptor.bounds,
+    geometry: {
+      type: "Polygon",
+      coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+    },
+    properties: {
+      title: descriptor.title,
+      datetime: record.capturedAt,
+      created: descriptor.publishedAt,
+      license: "other",
+      providers: [{ name: descriptor.provenance.publisher, roles: ["producer", "licensor"], url: record.sourceUrl }],
+      "honua:captureId": record.captureId,
+      "honua:featureCount": descriptor.capture.featureCount,
+    },
+    links: [
+      { rel: "describedby", href: "../descriptor.json", type: "application/json", title: "Publication descriptor v1" },
+      { rel: "via", href: record.sourceUrl, title: record.layerName },
+      { rel: "license", href: SOURCE_LICENSE_URL, title: descriptor.provenance.license },
+    ],
+    assets: {
+      pmtiles: stacAsset(descriptor.artifacts.pmtiles, "Display tiles"),
+      geoparquet: stacAsset(descriptor.artifacts.geoparquet, "Feature records"),
     },
   };
 }
@@ -324,6 +367,9 @@ async function build({ capture: captureDir, out, subset, version }) {
     bounds: unionBounds(parcels),
   });
   fs.writeFileSync(path.join(out, "descriptor.json"), `${JSON.stringify(descriptor, null, 2)}\n`);
+  const stacItemFile = path.join(out, stacItemPath(subset));
+  fs.mkdirSync(path.dirname(stacItemFile), { recursive: true });
+  fs.writeFileSync(stacItemFile, `${JSON.stringify(stacItemFor(descriptor, record), null, 2)}\n`);
   const multipart = parcels.filter((parcel) => parcel.polygons.length > 1).length;
   const nullNeighborhood = parcels.filter((parcel) => parcel.attributes.nhoodcode === null).length;
   process.stdout.write(
