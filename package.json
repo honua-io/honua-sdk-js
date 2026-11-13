@@ -783,7 +783,9 @@
     "cesium": "^1.139.1",
     "esbuild": "^0.28.1",
     "fast-check": "^4.9.0",
+    "fzstd": "^0.1.1",
     "geotiff": "3.0.5",
+    "hyparquet": "^1.33.0",
     "jsdom": "^25.0.1",
     "maplibre-gl": "^6.4.1",
     "marked": "^15.0.12",
@@ -857,6 +859,8 @@
     "@turf/union": "^7.0.0",
     "apache-arrow": "^17.0.0",
     "cesium": "^1.139.0",
+    "fzstd": "^0.1.1",
+    "hyparquet": "^1.33.0",
     "maplibre-gl": "^6.4.1",
     "pmtiles": "^4.0.0",
     "proj4": "^2.11.0",
@@ -941,6 +945,12 @@
       "optional": true
     },
     "cesium": {
+      "optional": true
+    },
+    "fzstd": {
+      "optional": true
+    },
+    "hyparquet": {
       "optional": true
     },
     "maplibre-gl": {

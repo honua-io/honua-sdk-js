@@ -200,6 +200,15 @@ describe("selection through the stable identity", () => {
 });
 
 describe("parcel values survive lookup and export", () => {
+  it("answers an identity lookup with the record the SQL engine returns for the same filter", async () => {
+    const source = await pairedSource(await served());
+    for (const identity of [MERGED_MULTIPART_PARCEL, LEADING_ZERO_PARCEL]) {
+      const looked = await source.lookup(identity);
+      const queried = await source.query({ filter: queryFilter.eq("tmk_txt", identity) });
+      expect(looked.result.features).toEqual(queried.features);
+    }
+  });
+
   it("keeps leading zeros, multipart geometry and null attributes", async () => {
     const source = await pairedSource(await served());
     const merged = await source.lookup(MERGED_MULTIPART_PARCEL);

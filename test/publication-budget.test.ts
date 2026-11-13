@@ -4,6 +4,7 @@ import type { Query, Result, Source } from "../src/contract/types.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
 import {
+  FIXTURE_DESCRIPTOR,
   MERGED_MULTIPART_PARCEL,
   fixtureSource,
   parquetRequests,
@@ -60,7 +61,10 @@ describe("byte budget", () => {
     await expect(lookup).rejects.toThrow(
       /^Looking up 234030888 in the browser would download about 0\.1 MB, more than the 0\.0 MB limit\. Connect a live service/,
     );
-    const rowGroupReads = parquetRequests(server).filter((entry) => entry.method === "GET" && entry.bytes > 20_000);
+    const fileEnd = `-${FIXTURE_DESCRIPTOR.artifacts.geoparquet.bytes - 1}`;
+    const rowGroupReads = parquetRequests(server).filter(
+      (entry) => entry.method === "GET" && !entry.range?.endsWith(fileEnd),
+    );
     expect(rowGroupReads).toEqual([]);
   });
 
@@ -119,18 +123,13 @@ describe("time budget", () => {
     expect(lookup.limit?.message).toMatch(/took longer than 0\.2 s\. Connect a live service/);
   });
 
-  it("falls back on time even when the browser engine never finishes starting", async () => {
-    const live = liveService();
+  it("answers a lookup without starting the SQL engine", async () => {
     const runtime = new GeoparquetRuntime({ driverFactory: () => new Promise(() => undefined) });
     track(() => runtime.dispose());
-    const source = await fixtureSource(await served(), {
-      runtime,
-      budget: { maxBytes: PUBLICATION_LOOKUP_BUDGET.maxBytes, maxTimeToFirstResultMs: 200 },
-      serverSource: live,
-    });
+    const source = await fixtureSource(await served(), { runtime });
     const lookup = await source.lookup(MERGED_MULTIPART_PARCEL);
-    expect(lookup).toMatchObject({ answeredBy: "server", limit: { kind: "time" } });
-    expect(live.requests).toHaveLength(1);
+    expect(lookup).toMatchObject({ answeredBy: "geoparquet", plan: { rowGroups: [0] } });
+    expect(lookup.result.features[0]?.attributes).toMatchObject({ tmk_txt: MERGED_MULTIPART_PARCEL, plat: "030" });
   });
 
   it("asks a failing live service once and reports its failure", async () => {
