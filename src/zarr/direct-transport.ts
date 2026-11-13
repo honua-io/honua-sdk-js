@@ -1,4 +1,5 @@
 import { HonuaAbortError } from "../core/errors.js";
+import { cancelBody } from "../core/http-range.js";
 import type { ZarrDirectLimits, ZarrTransferLedger, ZarrTransferRecord } from "./direct-types.js";
 import { HonuaZarrError } from "./errors.js";
 
@@ -398,10 +399,6 @@ async function readBody(
     offset += chunk.byteLength;
   }
   return bytes;
-}
-
-async function cancelBody(response: Response): Promise<void> {
-  await response.body?.cancel().catch(() => undefined);
 }
 
 function sameObject(responseUrl: string, requestUrl: string): boolean {

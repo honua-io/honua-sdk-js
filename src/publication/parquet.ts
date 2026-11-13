@@ -21,7 +21,7 @@ interface ParquetModules {
 
 let modules: Promise<ParquetModules> | undefined;
 
-/** The small Parquet reader is an optional peer, loaded on the first lookup. */
+/** The small Parquet reader loads on the first read of a publication, never with the entrypoint. */
 function parquetModules(): Promise<ParquetModules> {
   modules ??= Promise.all([import("hyparquet"), import("hyparquet/src/scan.js"), import("fzstd")]).then(
     ([hyparquet, scan, zstd]) => ({
@@ -32,11 +32,7 @@ function parquetModules(): Promise<ParquetModules> {
     }),
     (cause) => {
       modules = undefined;
-      throw new Error(
-        "publication: hyparquet and fzstd are optional peer dependencies and are not installed. " +
-          "Install them with `npm i hyparquet fzstd` to look up publication records.",
-        { cause },
-      );
+      throw cause;
     },
   );
   return modules;
@@ -123,7 +119,7 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
       useBloomFilters: true,
     };
     const prepared = await parquet.prepareParquetRead(options);
-    const footerBytes = metadata.metadata_length + 8;
+    const footerBytes = Math.max(Math.min(FOOTER_READ_BYTES, reader.byteLength), metadata.metadata_length + 8);
     return {
       plan: Object.freeze({
         rowGroups: Object.freeze([
@@ -132,7 +128,12 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
         footerBytes,
         plannedBytes: footerBytes + meter.bytes + rangeBytes(prepared.plan.fetches),
       }),
-      read: async () => resultFrom<T>(publication, columns, await parquet.parquetReadObjects(options)),
+      read: async () =>
+        resultFrom<T>(
+          publication,
+          columns,
+          await parquet.parquetReadObjects({ ...prepared.options, rowFormat: "object", useBloomFilters: false }),
+        ),
     };
   }
 

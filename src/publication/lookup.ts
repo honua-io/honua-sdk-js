@@ -6,7 +6,7 @@ import { HonuaPublicationError } from "./errors.js";
 import type { PublicFieldGuard } from "./guard.js";
 import type { Publication } from "./open.js";
 import type { PublicationParquet } from "./parquet.js";
-import { isRangeNotServed } from "./range-reader.js";
+import { isRangeNotServed, megabytes } from "./range-reader.js";
 
 /** Most a browser identity lookup may cost before it is answered elsewhere. */
 export interface PublicationQueryBudget {
@@ -22,16 +22,19 @@ export const PUBLICATION_LOOKUP_BUDGET: PublicationQueryBudget = Object.freeze({
 
 /** Why a lookup left the browser path, in words an app can show as they are. */
 export interface PublicationQueryLimit {
-  readonly kind: "bytes" | "time";
+  /** `ranges`: the host answered a range request with the whole file, so `observed` is the file size. */
+  readonly kind: "bytes" | "time" | "ranges";
   readonly budget: number;
   readonly observed: number;
   readonly message: string;
 }
 
-/** GeoParquet row groups an identity lookup must read, and what reading them costs. */
+/** GeoParquet row groups an identity lookup must read, and what reading them costs on a cold source. */
 export interface PublicationLookupPlan {
   readonly rowGroups: readonly number[];
+  /** The first read of the file's tail, which holds the footer. */
   readonly footerBytes: number;
+  /** Footer read, bloom-filter reads and row-group reads together. */
   readonly plannedBytes: number;
 }
 
@@ -66,9 +69,14 @@ const EMPTY_PLAN: PublicationLookupPlan = Object.freeze({
 });
 
 function describeLimit(value: string, limit: MeasuredLimit): string {
-  return limit.kind === "bytes"
-    ? `Looking up ${value} in the browser would download about ${(limit.observed / 2 ** 20).toFixed(1)} MB, more than the ${(limit.budget / 2 ** 20).toFixed(1)} MB limit`
-    : `Looking up ${value} in the browser took longer than ${(limit.budget / 1000).toFixed(1)} s`;
+  switch (limit.kind) {
+    case "bytes":
+      return `Looking up ${value} in the browser would download about ${megabytes(limit.observed)} MB, more than the ${megabytes(limit.budget)} MB limit`;
+    case "ranges":
+      return `Looking up ${value} in the browser would download the whole ${megabytes(limit.observed)} MB file, because its host does not serve byte ranges`;
+    case "time":
+      return `Looking up ${value} in the browser took longer than ${(limit.budget / 1000).toFixed(1)} s`;
+  }
 }
 
 function answeredByServerMessage(value: string, limit: MeasuredLimit): string {
@@ -165,7 +173,7 @@ async function answerInBrowser<T>(
     if (!isRangeNotServed(error)) throw error;
     const observed = Number(error.detail?.fileBytes);
     return overBudget(context, value, {
-      fallback: { kind: "bytes", budget: context.budget.maxBytes, observed },
+      fallback: { kind: "ranges", budget: context.budget.maxBytes, observed },
       plan: EMPTY_PLAN,
     });
   }

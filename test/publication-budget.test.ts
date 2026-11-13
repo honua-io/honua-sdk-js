@@ -52,7 +52,7 @@ describe("byte budget", () => {
     const lookup = await source.lookup(MERGED_MULTIPART_PARCEL);
     expect(lookup.answeredBy).toBe("geoparquet");
     expect(lookup.plan.plannedBytes).toBeLessThanOrEqual(PUBLICATION_LOOKUP_BUDGET.maxBytes);
-    expect(server.bytesSent("/maui/parcels.parquet")).toBeLessThanOrEqual(PUBLICATION_LOOKUP_BUDGET.maxBytes);
+    expect(server.bytesSent("/maui/parcels.parquet")).toBeLessThanOrEqual(lookup.plan.plannedBytes);
   });
 
   it("refuses an over-budget lookup with a plain limit message when no live service is configured", async () => {
@@ -184,7 +184,10 @@ describe("hosts without byte ranges", () => {
     const live = liveService();
     const source = await pairedSource(server, { serverSource: live });
     const lookup = await source.lookup(MERGED_MULTIPART_PARCEL);
-    expect(lookup).toMatchObject({ answeredBy: "server", limit: { kind: "bytes" } });
+    expect(lookup).toMatchObject({ answeredBy: "server", limit: { kind: "ranges" } });
+    expect(lookup.limit?.message).toBe(
+      "Looking up 234030888 in the browser would download the whole 0.1 MB file, because its host does not serve byte ranges, so the live service answered instead.",
+    );
     expect(lookup.limit?.observed).toBe(FIXTURE_DESCRIPTOR.artifacts.geoparquet.bytes);
     expect(parquetRequests(server).filter((entry) => entry.method === "GET")).toHaveLength(1);
   });

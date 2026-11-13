@@ -138,7 +138,7 @@ test("a host without byte ranges is refused before the engine reads the file", a
     await page.evaluate((url) => window.publicationHarness.open(url), `${harness.data.origin}/maui/descriptor.json`);
     const found = await page.evaluate((id) => window.publicationHarness.lookup(id), parcel);
     expect(found).toMatchObject({ ok: false, code: "query-budget-exceeded" });
-    expect(found.message).toMatch(/^Looking up 234030888 in the browser would download about 0\.1 MB/);
+    expect(found.message).toMatch(/^Looking up 234030888 in the browser would download the whole 0\.1 MB file, because its host does not serve byte ranges\./);
     const filtered = await page.evaluate(() => window.publicationHarness.filter("parcel", "888"));
     expect(filtered).toMatchObject({ ok: false, code: "query-budget-exceeded" });
     expect(harness.engineRequests()).toEqual([]);

@@ -245,6 +245,7 @@ classification is conservatively non-retryable.
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `core.publication.invalid-descriptor` | `core` | `validation` | no | Publication descriptor is invalid or not validated |
 | `core.publication.artifact-mismatch` | `core` | `protocol` | no | Publication artifact does not match its descriptor |
+| `core.publication.artifact-unavailable` | `core` | `protocol` | no | Publication artifact could not be read from its host |
 | `core.publication.non-public-field` | `core` | `validation` | no | Field is not public in the publication |
 | `core.publication.query-budget-exceeded` | `core` | `capability` | no | Browser query would exceed the publication query budget |
 | `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |

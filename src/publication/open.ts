@@ -118,8 +118,8 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  *
  * Artifacts are read by HTTP range requests, so their host must answer a
  * ranged GET with 206 and allow the `Range` request header across origins.
- * Identity lookups need the optional `hyparquet` and `fzstd` peers; other
- * queries load DuckDB-WASM through `publicationDriverFactory`, whose
+ * Identity lookups read the GeoParquet with a small Parquet reader; other
+ * queries load the optional DuckDB-WASM peer through `publicationDriverFactory`, whose
  * `PUBLICATION_ENGINE_FILESYSTEM` opens files on hosts that answer
  * `HEAD` with 200 (common on CDNs). A host without range support is refused
  * before any engine read, as a query over the byte budget.

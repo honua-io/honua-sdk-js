@@ -1,3 +1,4 @@
+import { cancelBody, parseContentRange } from "../core/http-range.js";
 import { HonuaCogError } from "./errors.js";
 import type {
   CogByteRangeRequest,
@@ -369,16 +370,6 @@ function validateRange(request: CogByteRangeRequest, maxRangeBytes: number): Cog
   return { offset, length };
 }
 
-function parseContentRange(value: string | null): { start: number; end: number; total: number } | undefined {
-  const match = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(value ?? "");
-  if (!match) return undefined;
-  const start = Number(match[1]);
-  const end = Number(match[2]);
-  const total = Number(match[3]);
-  if (![start, end, total].every(Number.isSafeInteger) || start < 0 || end < start || total <= 0) return undefined;
-  return { start, end, total };
-}
-
 async function readExactBody(
   response: Response,
   expectedLength: number,
@@ -464,10 +455,6 @@ function isAbortLike(cause: unknown): boolean {
     (cause instanceof DOMException && cause.name === "AbortError") ||
     (cause instanceof Error && cause.name === "AbortError")
   );
-}
-
-async function cancelBody(response: Response): Promise<void> {
-  await response.body?.cancel().catch(() => undefined);
 }
 
 function canonicalUrl(value: string): string {
