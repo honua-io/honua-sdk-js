@@ -105,7 +105,8 @@ describe("shared task", () => {
     const second = task(two.signal);
     one.abort();
     two.abort();
-    await expect(Promise.allSettled([first, second])).resolves.toHaveLength(2);
+    await expect(first).rejects.toBeInstanceOf(HonuaAbortError);
+    await expect(second).rejects.toBeInstanceOf(HonuaAbortError);
     expect(runs[0]?.aborted).toBe(true);
     const third = task();
     finish("again");

@@ -161,7 +161,7 @@ async function readInBrowser<T>(
   };
 }
 
-/** A host without range support costs the whole file, which the byte budget refuses like any other over-budget read. */
+/** A host without range support would cost the whole file, so the lookup leaves the browser with limit kind `ranges`. */
 async function answerInBrowser<T>(
   context: LookupContext,
   value: string,

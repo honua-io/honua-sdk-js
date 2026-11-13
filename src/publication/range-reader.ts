@@ -2,7 +2,7 @@ import { HonuaAbortError } from "../core/errors.js";
 import { cancelBody, parseContentRange } from "../core/http-range.js";
 import { HonuaPublicationError } from "./errors.js";
 
-/** Small reads (footers, bloom filters, page indexes) are kept for later lookups, up to this total. */
+/** Reads up to 64 KiB (footers and bloom filters among them) are kept for later lookups, first come, up to 1 MiB. */
 const CACHED_READ_BYTES = 64 * 1024;
 const CACHE_LIMIT_BYTES = 1024 * 1024;
 
