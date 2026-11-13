@@ -56,8 +56,10 @@ describe("artifact range reader", () => {
       );
       const headers: Record<string, string> = { "content-range": "bytes 10-19/1000" };
       if (length !== undefined) headers["content-length"] = length;
-      const reader = artifactRangeReader(URL_UNDER_TEST, FILE_BYTES, async () =>
-        new Response(body, { status: 206, headers }),
+      const reader = artifactRangeReader(
+        URL_UNDER_TEST,
+        FILE_BYTES,
+        async () => new Response(body, { status: 206, headers }),
       );
       await expect(reader.view().slice(10, 20)).rejects.toMatchObject({ code: "artifact-mismatch" });
       expect(pulls).toBe(1);

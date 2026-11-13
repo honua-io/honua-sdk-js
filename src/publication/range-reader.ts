@@ -1,5 +1,6 @@
 import { HonuaAbortError } from "../core/errors.js";
 import { cancelBody, parseContentRange } from "../core/http-range.js";
+import { ResponseBodyLimitError, readBoundedResponseBytes } from "../core/response-body.js";
 import { HonuaPublicationError } from "./errors.js";
 
 /** Reads up to 64 KiB (footers and bloom filters among them) are kept for later lookups, first come, up to 1 MiB. */
@@ -81,6 +82,24 @@ async function checkedResponse(
   );
 }
 
+async function readRangeBody(
+  response: Response,
+  { url, byteLength }: Pick<ArtifactRangeSource, "url" | "byteLength">,
+  { start, end, signal }: RangeRequest,
+): Promise<ArrayBuffer> {
+  const expected = end - start;
+  try {
+    const body = await readBoundedResponseBytes(response, expected, signal);
+    if (body.byteLength !== expected) throw sizeMismatchError(url, byteLength, { receivedBytes: body.byteLength });
+    return body.buffer;
+  } catch (error) {
+    if (error instanceof ResponseBodyLimitError) {
+      throw sizeMismatchError(url, byteLength, { receivedBytes: error.receivedBytes });
+    }
+    throw error;
+  }
+}
+
 /**
  * Reads a published artifact by HTTP range requests only. A response that is
  * not a 206 whose `Content-Range` names exactly the requested bytes of a file
@@ -108,9 +127,7 @@ export function artifactRangeReader(url: string, byteLength: number, fetchImpl: 
       await cancelBody(response);
       throw sizeMismatchError(url, byteLength, { contentRange: range ?? null, contentLength: announced });
     }
-    const body = await response.arrayBuffer();
-    if (body.byteLength !== expected) throw sizeMismatchError(url, byteLength, { receivedBytes: body.byteLength });
-    return body;
+    return readRangeBody(response, { url, byteLength }, request);
   }
 
   function remember(key: string, body: ArrayBuffer): void {
