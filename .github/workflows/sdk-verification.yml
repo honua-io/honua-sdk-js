@@ -477,7 +477,7 @@ jobs:
       - name: Validate release artifact manifest
         run: |
           npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs
+          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Like the release
       # artifact gate above it reads config/ and mcp/ rather than dist/, so it
