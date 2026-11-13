@@ -40,12 +40,12 @@ The org's marketing + platform docs hub (`honua-io/honua-site`) is authored in
 **GitBook** (Markdown + `SUMMARY.md` + `.gitbook.yaml`). We considered homing
 the SDK reference there. We chose a **repo-local** site because:
 
-1. **Lock-step with trunk.** The SDK reference (TypeDoc API + `docs/` corpus +
-   `llms.txt`) must never drift from the code it documents. Building from this
-   repo on every trunk merge — and gating the publish on the existing
-   `verify:llms` freshness check (REQ-004) — makes drift structurally
-   impossible. A separately-authored GitBook space would reintroduce the drift
-   the ticket exists to close.
+1. **Built from the same source.** The SDK reference (TypeDoc API + `docs/`
+   corpus + `llms.txt`) is built from a single repository checkout. Daily and
+   dispatched publication gate on `verify:llms` and strict release/sample
+   checks; the hosted site can lag trunk until publication succeeds. A
+   separately authored GitBook space would introduce another source to keep
+   aligned.
 2. **TypeDoc is not a GitBook-native artifact.** The API reference is generated
    HTML; mounting it under `/api/` from the same pipeline that renders the
    guides keeps one build, one deploy, one source of truth.
