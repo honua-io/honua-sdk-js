@@ -300,3 +300,20 @@ need to be redone — those files are simply overwritten on the next trunk
 regeneration. When rebasing an in-flight PR onto trunk, prefer resolving any
 `samples/evidence`, `samples/dist`, or other derived-artifact conflicts by taking
 trunk's side; you no longer need to reseal to land.
+
+## Mechanical review prevention
+
+Run `npm run lint:review` to reject new signatures with more than three parameters,
+blocks deeper than two levels, and floating promises. This typed ESLint gate runs
+alongside Biome. Generated trees and the existing compiler fixture exclusion stay
+outside the gate. ESLint disable comments cannot suppress these rules.
+
+`scripts/eslint-review-baseline.json` records existing findings by rule, path,
+SHA256 of the diagnostic message, enclosing class/function and trimmed source
+line, with occurrence counts. Hashing preserves the complete identity without
+repeating large callback bodies in the baseline.
+Line shifts within the same function preserve an exemption; moving a finding to
+a new function or increasing its count fails. Do not regenerate this file to make
+a normal change pass. For an explicitly reviewed baseline migration, use
+`node scripts/check-review-baseline.mjs --capture` and review the complete diff.
+`npm run test:review-baseline` exercises actual typed ESLint diagnostics.

@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "../**/*.ts",
+    "../**/*.tsx"
+  ],
+  "exclude": [
+    "../**/node_modules/**",
+    "../**/dist/**",
+    "../**/artifacts/**",
+    "../playgrounds/**",
+    "../src/gen/**",
+    "../test/fixtures/**",
+    "../**/coverage/**",
+    "../**/test-results/**"
+  ]
+}

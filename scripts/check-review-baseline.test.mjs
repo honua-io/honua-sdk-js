@@ -1,0 +1,78 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { ESLint } from 'eslint';
+import tseslint from 'typescript-eslint';
+import { identities, budgets, additions, findingIdentity } from './check-review-baseline.mjs';
+
+async function fixture(run) {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'honua-eslint-'));
+  const filename = path.join(directory, 'finding.ts');
+  await writeFile(path.join(directory, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', strict: true }, include: ['*.ts'] }));
+  const lint = new ESLint({ cwd: directory, overrideConfigFile: true, overrideConfig: [{
+    files: ['**/*.ts'], languageOptions: { parser: tseslint.parser,
+      parserOptions: { project: path.join(directory, 'tsconfig.json') } },
+    plugins: { '@typescript-eslint': tseslint.plugin }, linterOptions: { noInlineConfig: true },
+    rules: { 'max-params': ['error', 3], 'max-depth': ['error', 2],
+      '@typescript-eslint/no-floating-promises': 'error' },
+  }] });
+  async function findings(text) {
+    await writeFile(filename, text);
+    return identities(await lint.lintFiles(filename), new Map([[filename, text]]));
+  }
+  try { await run(findings); } finally { await rm(directory, { recursive: true, force: true }); }
+}
+
+const source = `function old(a: number, b: number, c: number, d: number) {
+  if (a) { if (b) { if (c) { console.log(d); } } }
+  Promise.resolve(1);
+}`;
+
+test('actual typed lint reports all three requested rules and ignores disable comments', async () => {
+  await fixture(async findings => {
+    const current = await findings('// eslint-disable\n' + source);
+    assert.deepEqual(new Set([...current.keys()].map(key => JSON.parse(key)[0])),
+      new Set(['max-params', 'max-depth', '@typescript-eslint/no-floating-promises']));
+  });
+});
+
+test('unused inline directives produce warnings without hiding errors', async () => {
+  await fixture(async findings => {
+    const baseline = await findings(source);
+    const current = await findings('// eslint-disable-next-line @typescript-eslint/no-use-before-define\n' + source);
+    assert.deepEqual(current, baseline);
+  });
+});
+
+test('line shifts preserve budgets; replacement functions and count growth fail', async () => {
+  await fixture(async findings => {
+    const baseline = await findings(source);
+    assert.equal(additions(await findings('\n\n' + source), baseline).length, 0);
+    assert.equal(additions(await findings(source.replace('old(', 'fresh(')), baseline).length, 3);
+    const duplicate = source.replace('Promise.resolve(1);', 'Promise.resolve(1);\n  Promise.resolve(1);');
+    assert.equal(additions(await findings(duplicate), baseline).length, 1);
+  });
+});
+
+test('anonymous callbacks at a new call site cannot inherit old debt', async () => {
+  await fixture(async findings => {
+    const old = 'declare const old: (action: () => void) => void;\nold(() => {\n  Promise.resolve(1);\n});';
+    const baseline = await findings(old);
+    const replacement = old.replaceAll('old', 'fresh');
+    assert.equal(additions(await findings('\n' + old), baseline).length, 0);
+    assert.equal(additions(await findings(replacement), baseline).length, 1);
+  });
+});
+
+test('malformed input fails instead of silently accepting parser failures', async () => {
+  await fixture(async findings => assert.rejects(findings('function {'), /Parsing error/));
+});
+
+test('invalid and duplicate baseline rows fail closed', () => {
+  const row = { identity: JSON.parse(findingIdentity(['max-depth', 'a.ts', 'message', 'old', 'line'])), count: 1 };
+  assert.throws(() => budgets([row, row]), /Duplicate/);
+  assert.throws(() => budgets([{ ...row, count: true }]), /Invalid/);
+  assert.throws(() => budgets([{ identity: ['max-depth', 'a.ts', 'invalid'], count: 1 }]), /Invalid/);
+});
