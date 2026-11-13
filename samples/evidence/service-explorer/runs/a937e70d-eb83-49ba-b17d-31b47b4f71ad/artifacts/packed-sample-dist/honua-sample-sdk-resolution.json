@@ -1,0 +1,72 @@
+{
+  "format": "honua.sdk.sample-resolution.v1",
+  "schemaVersion": 1,
+  "mode": "packed",
+  "package": {
+    "name": "@honua/sdk-js",
+    "version": "0.3.6"
+  },
+  "entrypoints": [
+    {
+      "specifier": "@honua/sdk-js/contract",
+      "exportTarget": "./dist/src/contract/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "eb9a6c745c4d3b059847e0fd6fb864919557a2973edf9dfb819f49de12f49708"
+    },
+    {
+      "specifier": "@honua/sdk-js/runtime",
+      "exportTarget": "./dist/src/runtime/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "9712af10bff49ce32f0403ae9d7aea884becff0a6543676ec33a63cea1fa367b"
+    },
+    {
+      "specifier": "@honua/sdk-js/map",
+      "exportTarget": "./dist/src/map/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "fdd920647810dc9a7ee108fd4f793d606373092a32874aae3bc3e4cd8efb975f"
+    },
+    {
+      "specifier": "@honua/sdk-js",
+      "exportTarget": "./dist/src/index.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "8008748993d823bcc238ac3401fbe63efaff0cb6d8a1803f7429f4c36e610661"
+    }
+  ],
+  "bundle": [
+    {
+      "fileName": "assets/index-BBWpf5k0.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1855177,
+      "sha256": "befacd196b2499892d90871afa6a861724d2f6fd72d5e966410b9b83de87eae0"
+    },
+    {
+      "fileName": "assets/dist-xzinIzEQ.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 124915,
+      "sha256": "20a070bec66a6c8d674d0fa5c79ce11686994d330decc7d1695a154c0cb2a74b"
+    },
+    {
+      "fileName": "assets/odata-write-codec-BpDd-7Js.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18685,
+      "sha256": "e05a3a06b3b44b0628bb2500fd4e4a2d0d761dd7ab263ba55f81642960db132f"
+    },
+    {
+      "fileName": "assets/index-YoSow0Bv.css",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 108945,
+      "sha256": "8c3378343e07b0d0fd57c3f29a7d60f427d8a180c4f26df8aca92ca30a519ac5"
+    },
+    {
+      "fileName": "assets/maplibre-gl-worker-Br3j0JGE.js",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 518989,
+      "sha256": "8f1d61da119b6435280520b6e81896d47858d83e2af76b2288015425550d8dc4"
+    }
+  ]
+}
