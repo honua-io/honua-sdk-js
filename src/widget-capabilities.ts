@@ -1,35 +1,7 @@
 /**
- * Pure helpers behind sketch snapping, histogram bins, form expressions,
+ * Pure helpers behind histogram bins, form expressions,
  * multi-feature edits, and elevation samples.
  */
-
-export interface SnapPoint {
-  x: number;
-  y: number;
-}
-
-export function snapVertex(
-  pointer: SnapPoint,
-  vertices: readonly SnapPoint[],
-  enabled: boolean,
-  tolerance = 1,
-): SnapPoint {
-  if (!enabled || vertices.length === 0) return { ...pointer };
-  let nearest = vertices[0];
-  let nearestDistance = distance(pointer, nearest);
-  for (const vertex of vertices.slice(1)) {
-    const candidate = distance(pointer, vertex);
-    if (candidate < nearestDistance) {
-      nearest = vertex;
-      nearestDistance = candidate;
-    }
-  }
-  return nearestDistance <= tolerance ? { x: nearest.x, y: nearest.y } : { ...pointer };
-}
-
-function distance(a: SnapPoint, b: SnapPoint): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
 
 export interface HistogramStats {
   count: number;
