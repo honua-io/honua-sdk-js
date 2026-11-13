@@ -16,6 +16,7 @@ import {
   derivePlaygroundDecisions,
   evaluateSamplePlaygroundEligibility,
   portableRelativePath,
+  playgroundArtifactMatches,
   publishedSdkEntrypoints,
   removeSampleReadmeBlock,
   resolveFixtureOrigin,
@@ -365,6 +366,29 @@ describe("catalog playground links", () => {
 
 describe("published decision artifact", () => {
   const artifact = readJson("samples/dist/sample-playgrounds.v1.json");
+
+  it("allows only validated exclusion diagnostics to await trunk regeneration in relaxed mode", () => {
+    const expected = structuredClone(artifact);
+    expected.excluded[0].detail = "Changed source diagnostic.";
+    const committedBytes = JSON.stringify(artifact);
+    const expectedBytes = JSON.stringify(expected);
+    assert.equal(playgroundArtifactMatches(committedBytes, expectedBytes), false);
+    assert.equal(playgroundArtifactMatches(committedBytes, expectedBytes, "derived-artifact-relaxed"), true);
+    for (const mutate of [
+      (value) => { value.excluded[0].category = "shared-repository-source"; },
+      (value) => { value.excluded[0].sampleId = "changed-sample"; },
+      (value) => { value.excluded.pop(); },
+      (value) => { value.sdk.version = "0.0.0"; },
+      (value) => { value.playgrounds[0].projectPath = "playgrounds/changed"; },
+      (value) => { delete value.excluded[0].detail; },
+    ]) {
+      const changed = structuredClone(expected);
+      mutate(changed);
+      assert.equal(playgroundArtifactMatches(committedBytes, JSON.stringify(changed), "derived-artifact-relaxed"), false);
+    }
+    assert.equal(playgroundArtifactMatches("invalid JSON", expectedBytes, "derived-artifact-relaxed"), false);
+    assert.equal(playgroundArtifactMatches("", expectedBytes, "derived-artifact-relaxed"), false);
+  });
 
   it("publishes one record per decision, and never inside the pinned site projection", () => {
     assert.equal(artifact.format, "honua.sdk.sample-playgrounds.v1");

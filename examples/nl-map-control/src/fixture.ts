@@ -1,6 +1,5 @@
+import { type ExecutableCrsBinding, type LogicalField, createSourceSchemaV2 } from "@honua/sdk-js/source-schema";
 import type { FeatureCollection } from "geojson";
-import type { ExecutableCrsBinding, LogicalField } from "../../../src/contract/schema.js";
-import { createSourceSchemaV2 } from "../../../src/source-schema.js";
 
 export const FIXTURE_VERSION = "ask-map-incidents-v1";
 export const CRS: ExecutableCrsBinding = {

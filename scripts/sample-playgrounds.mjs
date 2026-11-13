@@ -36,6 +36,7 @@
  *
  * Run with:
  *   npm run samples:playgrounds:generate   # write projects + catalog overlay + sample READMEs
+ *   node scripts/sample-playgrounds.mjs write-artifact   # trunk's derived-artifact refresh only
  *   npm run samples:playgrounds:check      # fail on drift
  */
 
@@ -953,6 +954,22 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+export function playgroundArtifactMatches(committedBytes, expectedBytes, mode = "strict") {
+  if (mode !== "derived-artifact-relaxed") return committedBytes === expectedBytes;
+  try {
+    const committed = JSON.parse(committedBytes);
+    const expected = JSON.parse(expectedBytes);
+    validateArtifact(committed);
+    validateArtifact(expected);
+    for (const artifact of [committed, expected]) {
+      for (const exclusion of artifact.excluded) exclusion.detail = "";
+    }
+    return stableJson(committed) === stableJson(expected);
+  } catch {
+    return false;
+  }
+}
+
 function collectPlan() {
   const catalog = readJson(CATALOG_PATH);
   const manifest = loadTemplateManifest(PACKAGE_ROOT);
@@ -1027,8 +1044,8 @@ function reportDrift(problems) {
 
 function main() {
   const mode = process.argv[2] ?? "check";
-  if (mode !== "write" && mode !== "check") {
-    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|check]\n");
+  if (!["write", "write-artifact", "check"].includes(mode)) {
+    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|write-artifact|check]\n");
     process.exit(1);
   }
   const { decisions, files, catalogEntries, sampleReadmes, sdkVersion } = collectPlan();
@@ -1044,6 +1061,12 @@ function main() {
   const artifact = renderPlaygroundArtifact(decisions, catalogEntries, sdkVersion);
   validateArtifact(artifact);
   const artifactBytes = stableJson(artifact);
+
+  if (mode === "write-artifact") {
+    fs.writeFileSync(path.join(ROOT, ARTIFACT_PATH), artifactBytes);
+    process.stdout.write(`samplePlaygroundArtifactWritten=${ARTIFACT_PATH}\n`);
+    return;
+  }
 
   if (mode === "write") {
     fs.rmSync(path.join(ROOT, PLAYGROUND_ROOT), { recursive: true, force: true });
@@ -1103,7 +1126,10 @@ function main() {
   const committedArtifact = fs.existsSync(path.join(ROOT, ARTIFACT_PATH))
     ? fs.readFileSync(path.join(ROOT, ARTIFACT_PATH), "utf8")
     : "";
-  if (committedArtifact !== artifactBytes) problems.push(`${ARTIFACT_PATH} has drifted`);
+  const artifactMode = process.env.HONUA_DERIVED_ARTIFACTS_RELAX === "1" ? "derived-artifact-relaxed" : "strict";
+  if (!playgroundArtifactMatches(committedArtifact, artifactBytes, artifactMode)) {
+    problems.push(`${ARTIFACT_PATH} has drifted`);
+  }
   if (problems.length > 0) reportDrift(problems);
 
   process.stdout.write(
