@@ -522,7 +522,7 @@ jobs:
       - name: Validate release artifact manifest
         run: |
           npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs
+          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs test/scripts/report-companion-gaps.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Regenerates the
       # denominator from config/support-manifest.v1.json,

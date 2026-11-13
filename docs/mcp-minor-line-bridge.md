@@ -82,10 +82,11 @@ the current synchronized pin.
 
 ## Current published pin
 
-The current generated-client pin is published `@honua/mcp-server@0.2.6`.
-`config/mcp-pinned-peer.v1.json`, `src/local-install.ts`, and all three shipped
-zero-to-map client configurations identify that release and its verified
-registry integrity. That published package still declares `^0.1.17 || ^0.2.0`.
+`config/mcp-pinned-peer.v1.json` records the current generated-client pin: the
+published `@honua/mcp-server` version, its verified registry integrity and the
+`@honua/sdk-js` peer range that package declares. `src/local-install.ts` and all
+three shipped zero-to-map client configurations name the same release, and
+`npm run sync:mcp-pin -- --check` fails when any of them drifts.
 `sync:mcp-pin` records the next published package; the pin is not inferred from
 the reviewed bridge above.
 

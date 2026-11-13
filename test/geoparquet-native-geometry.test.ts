@@ -1,3 +1,4 @@
+import { Field, Float64, List, Struct, vectorFromArray } from "apache-arrow";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -279,5 +280,33 @@ describe("decodeGeoParquetNativeGeometryColumn — general fail-closed behavior"
       expect(typed.code).toBe("GEOPARQUET_NATIVE_INVALID_VALUE");
       expect(typed.path).toBe("$[0].x");
     }
+  });
+});
+
+describe("decodeGeoParquetNativeGeometryColumn — Arrow values from DuckDB-WASM", () => {
+  it("decodes multipolygon rows that arrive as Arrow vectors of struct rows", () => {
+    const ring = [
+      { x: -156.49, y: 20.9 },
+      { x: -156.48, y: 20.9 },
+      { x: -156.48, y: 20.91 },
+      { x: -156.49, y: 20.9 },
+    ];
+    const type = new List(
+      new Field(
+        "polygon",
+        new List(
+          new Field(
+            "ring",
+            new List(new Field("xy", new Struct([new Field("x", new Float64()), new Field("y", new Float64())]))),
+          ),
+        ),
+      ),
+    );
+    const column = vectorFromArray([[[ring], [ring]]], type);
+    const [geometry] = decodeGeoParquetNativeGeometryColumn("multipolygon", "xy", [column.get(0)]);
+    expect(geometry).toEqual({
+      type: "MultiPolygon",
+      coordinates: [[ring.map(({ x, y }) => [x, y])], [ring.map(({ x, y }) => [x, y])]],
+    });
   });
 });
