@@ -1,3 +1,4 @@
+import type { SnappingConfig } from "../contract/edit-snapping.js";
 import type { FeatureId, Query } from "../contract/index.js";
 import type { HonuaTypedFeature } from "../core/types.js";
 import type { HonuaHitTestOptions, HonuaHitTestResult, HonuaPointerInput } from "../interactions/index.js";
@@ -469,6 +470,8 @@ export interface HonuaWebComponentController<T = Record<string, unknown>> {
   setMeasureMode(mode: HonuaMeasureMode): Promise<HonuaMeasureChangeDetail>;
   /** Activate a drawing mode through the configured provider. */
   setSketchMode(mode: HonuaSketchMode): Promise<HonuaSketchChangeDetail<T>>;
+  /** Hand the sketch snapping configuration to the configured provider. */
+  setSketchSnapping?(config: SnappingConfig): void;
   destroy?(): void;
 }
 
@@ -852,6 +855,11 @@ export interface HonuaSketchProvider<T = Record<string, unknown>> {
   stop?(): void;
   /** Subscribe to sketch results as the user draws. */
   onResult?(listener: (result: HonuaSketchResult<T>) => void): HonuaControllerSubscription;
+  /**
+   * Apply the sketch control's snapping configuration to the drawing backend,
+   * for example through `createTerraDrawSnapping` on `@honua/sdk-js/runtime`.
+   */
+  setSnapping?(config: SnappingConfig): void;
 }
 
 export interface HonuaSketchChangeDetail<T = Record<string, unknown>> {
