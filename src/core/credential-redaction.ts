@@ -3,8 +3,7 @@
  * pipeline.
  *
  * These were extracted verbatim from `src/web-components/export-redaction.ts`
- * (issue #683) when the runtime's portable map document export (#1426) needed the
- * same scanner. There must be exactly one credential recognizer in this SDK: a
+ * when the runtime's portable map document export needed the same scanner. There must be exactly one credential recognizer in this SDK: a
  * second copy would drift, and the copy that drifts is the one that leaks. The
  * web-components module re-exports every symbol below so its published surface
  * is unchanged, and keeps the app-platform-specific state projection that

@@ -63,7 +63,7 @@ export const HONUA_EXPORT_STATE_SCHEMA = "honua.app-platform.export-state.v1";
 
 /**
  * The credential recognizer itself now lives in `src/core/credential-redaction.ts`
- * so `src/runtime`'s portable map document export (#1426) can share exactly one
+ * so `src/runtime`'s portable map document export can share exactly one
  * scanner across the `@honua/sdk` / `@honua/app-platform` split-package
  * boundary. Every symbol is re-exported here unchanged: this module's published
  * surface, and its two-layer guarantee, are identical to before the move.
