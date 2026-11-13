@@ -71,6 +71,20 @@ test('malformed input fails instead of silently accepting parser failures', asyn
   await fixture(async findings => assert.rejects(findings('function {'), /Parsing error/));
 });
 
+test('sibling callbacks cannot transfer debt even with identical callees or labels', async () => {
+  await fixture(async findings => {
+    for (const secondLabel of ['second', 'first']) {
+      const prefix = 'declare const it: (name: string, action: () => void) => void;\n';
+      const first = "it('first', () => {\n  Promise.resolve(1);\n});\n";
+      const second = `it('${secondLabel}', () => {\n  void Promise.resolve(1);\n});\n`;
+      const baseline = await findings(prefix + first + second);
+      const moved = prefix + first.replace('  Promise', '  void Promise') + second.replace('void Promise', 'Promise');
+      assert.equal(additions(await findings(moved), baseline).length, 1);
+      assert.equal(additions(await findings('\n' + prefix + first + second), baseline).length, 0);
+    }
+  });
+});
+
 test('invalid and duplicate baseline rows fail closed', () => {
   const row = { identity: JSON.parse(findingIdentity(['max-depth', 'a.ts', 'message', 'old', 'line'])), count: 1 };
   assert.throws(() => budgets([row, row]), /Duplicate/);
@@ -90,4 +104,15 @@ test('production config resolves SDK source imports without built declarations',
   } finally { await rm(filename); }
   const config = JSON.parse(await readFile('scripts/tsconfig.review.json', 'utf8'));
   assert.equal(config.compilerOptions.paths['@honua/sdk-js'][0], '../src/index.ts');
+});
+
+test('production config resolves imported MCP promises', async () => {
+  const filename = path.resolve('mcp/src/review-baseline-regression.ts');
+  const text = "import { Client } from '@modelcontextprotocol/sdk/client/index.js';\nnew Client({ name: 'regression', version: '1' }).close();\n";
+  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs' });
+  await writeFile(filename, text, { flag: 'wx' });
+  try {
+    const current = identities(await lint.lintFiles(filename), new Map([[filename, text]]));
+    assert.ok([...current.keys()].some(key => JSON.parse(key)[0] === '@typescript-eslint/no-floating-promises'));
+  } finally { await rm(filename); }
 });

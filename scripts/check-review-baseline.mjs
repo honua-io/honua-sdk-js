@@ -19,11 +19,36 @@ function expressionName(node, source) {
   return node.getText(source);
 }
 
+const callSites = new WeakMap();
+
+function callSite(call, source) {
+  if (!callSites.has(source)) {
+    const sites = new Map();
+    const counts = new Map();
+    const printer = ts.createPrinter({ removeComments: true });
+    function visit(node) {
+      if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+        const signature = JSON.stringify([expressionName(node.expression, source),
+          ...(node.arguments ?? []).map(argument =>
+            ts.isArrowFunction(argument) || ts.isFunctionExpression(argument) ? '<callback>' :
+              printer.printNode(ts.EmitHint.Expression, argument, source))]);
+        const ordinal = counts.get(signature) ?? 0;
+        counts.set(signature, ordinal + 1);
+        sites.set(node, signature + ':occurrence' + ordinal);
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    callSites.set(source, sites);
+  }
+  return callSites.get(source).get(call);
+}
+
 function anonymousContext(node, source) {
   let child = node;
   for (let parent = node.parent; parent; child = parent, parent = parent.parent) {
     if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
-      return expressionName(parent.expression, source) + ':argument' + parent.arguments.indexOf(child);
+      return callSite(parent, source) + ':argument' + (parent.arguments ?? []).indexOf(child);
     }
     if (parent.name) return parent.name.getText(source);
     if (ts.isReturnStatement(parent)) return 'return';

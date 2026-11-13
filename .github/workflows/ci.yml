@@ -65,6 +65,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm ci --prefix mcp
       - run: npm run test:review-baseline
       - run: npm run lint:review
 
