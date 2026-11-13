@@ -581,10 +581,7 @@ export async function verifyPublishedRelease({
   const companionGaps = artifacts
     .filter((artifact) => artifact.status === "unpublished")
     .map(({ id, npmName, version, tag, workflow }) => ({ id, npmName, version, tag, workflow }));
-  const failedArtifacts = artifacts.filter((artifact) => artifact.status === "failed");
-  let outcome = "verified";
-  if (planningErrors.length > 0 || failedArtifacts.length > 0 || artifacts.length === 0) outcome = "failed";
-  else if (companionGaps.length > 0) outcome = "companion-gap";
+  const outcome = receiptOutcome({ planningErrors, artifacts, companionGaps });
   return {
     format: RECEIPT_FORMAT,
     schemaVersion: RECEIPT_SCHEMA_VERSION,
@@ -601,6 +598,12 @@ export async function verifyPublishedRelease({
     failures,
     companionGaps,
   };
+}
+
+function receiptOutcome({ planningErrors, artifacts, companionGaps }) {
+  const failed = artifacts.some((artifact) => artifact.status === "failed");
+  if (planningErrors.length > 0 || failed || artifacts.length === 0) return "failed";
+  return companionGaps.length > 0 ? "companion-gap" : "verified";
 }
 
 /** 0 when the cut verifies, {@link COMPANION_GAP_EXIT_CODE} when only companions are unpublished, 1 otherwise. */
