@@ -66,7 +66,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `c01a830f4`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `78580f7c1`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
