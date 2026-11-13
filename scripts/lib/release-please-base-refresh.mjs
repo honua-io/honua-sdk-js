@@ -105,7 +105,28 @@ async function assertRefreshCommit(repository, newHeadSha, oldHeadSha, trustedPo
   }
 }
 
-/** Refresh an unchanged exact Release Please bot branch onto trusted trunk. */
+async function readCandidate({ repository, trustedPolicySha, headRefName, reportedPullRequestNumber }, request) {
+  const current = await loadExactReleasePleasePullRequest(repository, request, headRefName);
+  if (reportedPullRequestNumber !== undefined && current?.pullRequestNumber !== reportedPullRequestNumber) {
+    throw new Error("Release Please action output does not match the exact current candidate.");
+  }
+  if (!current) return { current };
+  const trustedBranchHead = await branchHead(repository, RELEASE_PLEASE_BASE, request);
+  if (trustedBranchHead !== trustedPolicySha) {
+    throw new Error("The trusted trunk branch moved before Release Please base refresh.");
+  }
+  return { current, currentBranchHead: await branchHead(repository, headRefName, request) };
+}
+
+function isSettled({ current, currentBranchHead }, trustedPolicySha) {
+  return !current || (currentBranchHead === current.headSha && current.baseSha === trustedPolicySha);
+}
+
+/**
+ * Confirm an exact Release Please bot branch sits on trusted trunk. A branch
+ * Release Please rebuilt must settle on trusted trunk; an unreported one that
+ * is behind is refreshed with a two-parent update-branch merge.
+ */
 export async function refreshReleasePleaseBase(input, request = githubRequest, wait = setTimeout) {
   const repository = String(input?.repository ?? "");
   const trustedPolicySha = String(input?.trustedPolicySha ?? "");
@@ -119,16 +140,19 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   }
   const { attempts, delayMs } = pollingOptions(input ?? {});
 
-  const current = await loadExactReleasePleasePullRequest(repository, request, headRefName);
-  if (input?.reportedPullRequestNumber !== undefined && current?.pullRequestNumber !== input.reportedPullRequestNumber) {
-    throw new Error("Release Please action output does not match the exact current candidate.");
+  // GitHub settles a force-pushed pull request's head and base metadata shortly
+  // after the push, so a reported update is read until it settles.
+  const settleAttempts = releasePleaseReportedUpdate ? attempts : 1;
+  const reportedPullRequestNumber = input?.reportedPullRequestNumber;
+  const target = { repository, trustedPolicySha, headRefName, reportedPullRequestNumber };
+  const read = () => readCandidate(target, request);
+  let candidate = await read();
+  for (let attempt = 1; attempt < settleAttempts && !isSettled(candidate, trustedPolicySha); attempt += 1) {
+    await new Promise((resolve) => wait(resolve, delayMs));
+    candidate = await read();
   }
+  const { current, currentBranchHead } = candidate;
   if (!current) return { status: "not-found", repository, trustedPolicySha };
-  const trustedBranchHead = await branchHead(repository, RELEASE_PLEASE_BASE, request);
-  if (trustedBranchHead !== trustedPolicySha) {
-    throw new Error("The trusted trunk branch moved before Release Please base refresh.");
-  }
-  const currentBranchHead = await branchHead(repository, headRefName, request);
   if (currentBranchHead !== current.headSha) {
     throw new Error("The Release Please branch does not match the validated pull-request head.");
   }
