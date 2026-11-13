@@ -24,8 +24,14 @@ describe("artifact range reader", () => {
     expect(meter.bytes).toBe(10);
   });
 
-  it("rejects a 206 for other bytes or another file size as an artifact mismatch", async () => {
-    for (const headers of [rangeOf(0, 9), { ...rangeOf(10, 19), "content-range": "bytes 10-19/2000" }]) {
+  it("rejects a 206 for other bytes, another file size or an unverifiable range as an artifact mismatch", async () => {
+    const lengthOnly = { "content-length": "10" };
+    for (const headers of [
+      rangeOf(0, 9),
+      { ...rangeOf(10, 19), "content-range": "bytes 10-19/2000" },
+      { ...rangeOf(10, 19), "content-range": "bytes 10-19/*" },
+      lengthOnly,
+    ]) {
       const reader = artifactRangeReader(URL_UNDER_TEST, FILE_BYTES, answering(206, headers));
       await expect(reader.view().slice(10, 20)).rejects.toMatchObject({ code: "artifact-mismatch" });
     }

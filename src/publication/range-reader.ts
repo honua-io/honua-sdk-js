@@ -83,8 +83,8 @@ async function checkedResponse(
 
 /**
  * Reads a published artifact by HTTP range requests only. A response that is
- * not a 206 for exactly the requested bytes is refused before its body is
- * read, so a host without range support never costs a full download. A file
+ * not a 206 whose `Content-Range` names exactly the requested bytes of a file
+ * of the descriptor's size is refused before its body is read, so a host without range support never costs a full download. A file
  * small enough to be requested whole may also come back as a 200.
  */
 export function artifactRangeReader(url: string, byteLength: number, fetchImpl: typeof fetch): ArtifactRangeReader {
@@ -99,8 +99,10 @@ export function artifactRangeReader(url: string, byteLength: number, fetchImpl: 
     const announced = Number(response.headers.get("content-length") ?? expected);
     const rangeMatches =
       response.status === 200 ||
-      range === undefined ||
-      (range.start === request.start && range.end === request.end - 1 && range.total === byteLength);
+      (range !== undefined &&
+        range.start === request.start &&
+        range.end === request.end - 1 &&
+        range.total === byteLength);
     if (!rangeMatches || announced !== expected) {
       await cancelBody(response);
       throw sizeMismatchError(url, byteLength, { contentRange: range ?? null, contentLength: announced });

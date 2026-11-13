@@ -117,7 +117,8 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  * fails the schema or its cross-field rules, or that did not pass validation.
  *
  * Artifacts are read by HTTP range requests, so their host must answer a
- * ranged GET with 206 and allow the `Range` request header across origins.
+ * ranged GET with 206, allow the `Range` request header across origins and
+ * expose the `Content-Range` response header.
  * Identity lookups read the GeoParquet with a small Parquet reader; other
  * queries load the optional DuckDB-WASM peer through `publicationDriverFactory`, whose
  * `PUBLICATION_ENGINE_FILESYSTEM` opens files on hosts that answer

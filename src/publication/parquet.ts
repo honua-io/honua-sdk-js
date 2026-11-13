@@ -1,6 +1,7 @@
 import type { Compressors, FileMetaData, ParquetRow } from "hyparquet";
 import type { Result } from "../contract/types.js";
 import {
+  type GeoParquetNativeDimensions,
   type GeoParquetNativeGeometryKind,
   decodeGeoParquetNativeGeometryColumn,
 } from "../geoparquet/native-geometry.js";
@@ -60,16 +61,35 @@ function publicationStamp(metadata: FileMetaData): unknown {
   }
 }
 
-function decodeGeometries(publication: Publication, rows: readonly ParquetRow[]): readonly unknown[] {
+/** Public columns to return and the coordinate dimensions of a native geometry column. */
+interface RecordShape {
+  readonly columns: readonly string[];
+  readonly dimensions: GeoParquetNativeDimensions;
+}
+
+function geometryDimensions(metadata: FileMetaData, column: string): GeoParquetNativeDimensions {
+  const leaves = metadata.row_groups[0]?.columns ?? [];
+  const hasZ = leaves.some(
+    ({ meta_data }) => meta_data?.path_in_schema[0] === column && meta_data.path_in_schema.at(-1) === "z",
+  );
+  return hasZ ? "xyz" : "xy";
+}
+
+function decodeGeometries(
+  publication: Publication,
+  shape: RecordShape,
+  rows: readonly ParquetRow[],
+): readonly unknown[] {
   const { column, encoding } = publication.descriptor.geometry;
   const values = rows.map((row) => row[column] ?? null);
   if (encoding === "wkb") return values;
   const kind = encoding.slice("geoarrow-".length) as GeoParquetNativeGeometryKind;
-  return decodeGeoParquetNativeGeometryColumn(kind, "xy", values);
+  return decodeGeoParquetNativeGeometryColumn(kind, shape.dimensions, values);
 }
 
-function resultFrom<T>(publication: Publication, columns: readonly string[], rows: readonly ParquetRow[]): Result<T> {
-  const geometries = decodeGeometries(publication, rows);
+function resultFrom<T>(publication: Publication, shape: RecordShape, rows: readonly ParquetRow[]): Result<T> {
+  const { columns } = shape;
+  const geometries = decodeGeometries(publication, shape, rows);
   return {
     features: rows.map((row, index) => ({
       attributes: Object.fromEntries(
@@ -131,7 +151,7 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
       read: async () =>
         resultFrom<T>(
           publication,
-          columns,
+          { columns, dimensions: geometryDimensions(metadata, publication.descriptor.geometry.column) },
           await parquet.parquetReadObjects({ ...prepared.options, rowFormat: "object", useBloomFilters: false }),
         ),
     };
