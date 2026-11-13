@@ -1,3 +1,8 @@
+---
+type: reference
+title: "Public catalog"
+description: "Typed listing and detail reads of the server's access-filtered catalog of published services and Layers, with their API and download links."
+---
 # Public catalog
 
 `HonuaClient.listCatalog()` and `HonuaClient.getCatalogItem()` read the server's catalog of published
