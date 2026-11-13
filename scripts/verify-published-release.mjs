@@ -51,6 +51,8 @@ export const RECEIPT_SCHEMA_VERSION = 1;
 export const MANIFEST_PATH = "config/release-artifacts.v1.json";
 export const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 export const PROVENANCE_PREDICATE_TYPE = "https://slsa.dev/provenance/v1";
+/** CLI exit code when every SDK package verifies and only companions are missing from the registry. */
+export const COMPANION_GAP_EXIT_CODE = 3;
 export const PUBLISH_PREDICATE_TYPE = "https://github.com/npm/attestation/tree/main/specs/publish/v0.1";
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
@@ -315,6 +317,15 @@ function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
   return expectedName;
 }
 
+async function fetchPackument(target, { registry, fetchImpl }) {
+  const packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+  expect(
+    isPackument(packument),
+    `the registry response for ${target.npmName} is not a packument with a versions map`,
+  );
+  return packument;
+}
+
 /**
  * Verify one planned target against the registry.
  *
@@ -325,7 +336,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl, selection
   const checks = [];
   let packument;
   try {
-    packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+    packument = await fetchPackument(target, { registry, fetchImpl });
   } catch (error) {
     checks.push({
       id: "registry-packument",
@@ -336,7 +347,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl, selection
     return finishTarget(target, checks, {});
   }
 
-  const release = packument?.versions?.[target.version];
+  const release = packument.versions[target.version];
   checks.push(
     check("registry-version", `${target.npmName}@${target.version} is published`, () => {
       expect(
@@ -490,8 +501,22 @@ async function checkAsync(id, description, evaluate) {
   }
 }
 
+function isPackument(packument) {
+  const versions = packument?.versions;
+  return typeof versions === "object" && versions !== null && !Array.isArray(versions);
+}
+
+/** A companion release that never happened, reported apart from SDK package failures. */
+function isCompanionGap(target, checks) {
+  if (target.sourceBinding !== "own-release-tag") return false;
+  const failures = checks.filter((entry) => entry.status === "fail");
+  return failures.length === 1 && failures[0].id === "registry-version";
+}
+
 function finishTarget(target, checks, extras) {
   const failures = checks.filter((entry) => entry.status === "fail");
+  let status = "verified";
+  if (failures.length > 0) status = isCompanionGap(target, checks) ? "unpublished" : "failed";
   return {
     id: target.id,
     npmName: target.npmName,
@@ -504,7 +529,7 @@ function finishTarget(target, checks, extras) {
     workflow: target.workflow,
     tarball: extras.tarball ?? null,
     integrity: extras.integrity ?? null,
-    status: failures.length === 0 ? "verified" : "failed",
+    status,
     checks,
   };
 }
@@ -539,10 +564,15 @@ export async function verifyPublishedRelease({
         .map((entry) => `${artifact.npmName}@${artifact.version}: ${entry.description} — ${entry.detail}`),
     ),
   ];
+  const companionGaps = artifacts
+    .filter((artifact) => artifact.status === "unpublished")
+    .map(({ id, npmName, version, tag, workflow }) => ({ id, npmName, version, tag, workflow }));
+  const outcome = receiptOutcome({ planningErrors, artifacts, companionGaps });
   return {
     format: RECEIPT_FORMAT,
     schemaVersion: RECEIPT_SCHEMA_VERSION,
-    status: failures.length === 0 && artifacts.length > 0 ? "verified" : "failed",
+    status: outcome === "verified" ? "verified" : "failed",
+    outcome,
     verifiedAt: now().toISOString(),
     registry,
     selection,
@@ -552,7 +582,21 @@ export async function verifyPublishedRelease({
     manifest: MANIFEST_PATH,
     artifacts,
     failures,
+    companionGaps,
   };
+}
+
+function receiptOutcome({ planningErrors, artifacts, companionGaps }) {
+  const failed = artifacts.some((artifact) => artifact.status === "failed");
+  if (planningErrors.length > 0 || failed || artifacts.length === 0) return "failed";
+  return companionGaps.length > 0 ? "companion-gap" : "verified";
+}
+
+/** 0 when the cut verifies, {@link COMPANION_GAP_EXIT_CODE} when only companions are unpublished, 1 otherwise. */
+export function exitCodeFor(receipt) {
+  if (receipt.outcome === "verified") return 0;
+  if (receipt.outcome === "companion-gap") return COMPANION_GAP_EXIT_CODE;
+  return 1;
 }
 
 /** Stable serialization; the receipt is an input to honua-io/honua-sdk-js#39. */
@@ -627,14 +671,18 @@ async function main(argv) {
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
   fs.writeFileSync(receiptPath, receiptJson(receipt));
 
+  const label = { verified: "OK  ", unpublished: "GAP ", failed: "FAIL" };
   for (const artifact of receipt.artifacts) {
-    process.stdout.write(
-      `${artifact.status === "verified" ? "OK  " : "FAIL"} ${artifact.npmName}@${artifact.version}\n`,
-    );
+    process.stdout.write(`${label[artifact.status]} ${artifact.npmName}@${artifact.version}\n`);
   }
   process.stdout.write(`receipt: ${options.receipt}\n`);
 
-  if (receipt.status !== "verified") {
+  for (const gap of receipt.companionGaps) {
+    process.stderr.write(
+      `Companion gap: ${gap.npmName}@${gap.version} is tagged ${gap.tag} but the registry has never received it.\n`,
+    );
+  }
+  if (receipt.outcome === "failed") {
     process.stderr.write(`\nPublished release verification FAILED for ${options.tag}:\n`);
     for (const failure of receipt.failures) {
       process.stderr.write(`- ${failure}\n`);
@@ -642,8 +690,8 @@ async function main(argv) {
     if (receipt.artifacts.length === 0) {
       process.stderr.write("- no artifact was verified at all\n");
     }
-    process.exitCode = 1;
   }
+  process.exitCode = exitCodeFor(receipt);
 }
 
 if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
