@@ -1,14 +1,13 @@
 name: Docs site
 
 # Build and publish the SDK documentation site (guides + TypeDoc API reference +
-# demo gallery). Daily and manual runs stay strict: a trunk push deployed before
-# Release Please created the immutable SDK tag and before derived artifacts were
-# regenerated. Release automation still dispatches this workflow.
+# demo gallery). Scheduled and dispatched publication require fresh derived
+# artifacts and immutable SDK release tags. Release automation dispatches this workflow.
 # Decision record: docs/decisions/sdk-docs-hosting.md.
 
 on:
   schedule:
-    # After the 07:23 UTC derived-artifact regeneration, outside the push-before-tag race.
+    # After the 07:23 UTC derived-artifact regeneration.
     - cron: "47 9 * * *"
   workflow_dispatch:
 
@@ -34,9 +33,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    # Schedule and workflow_dispatch stay strict. The old relax applied only to
-    # the trunk push that landed before derived-artifact regeneration. That
-    # push is no longer a trigger, and these runs must not inherit it.
+    # Scheduled and dispatched publication must pass strict freshness checks.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
