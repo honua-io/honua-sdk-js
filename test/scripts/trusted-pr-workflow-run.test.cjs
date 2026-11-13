@@ -339,6 +339,21 @@ test("rejects malformed or lookalike workflow runs", async () => {
   }
 });
 
+test("classifies cancellation before any jobs exist as unobservable", async () => {
+  const { github } = fixtures({ run: { conclusion: "cancelled" }, jobs: [] });
+  const error = await assertSuperseded(
+    resolve(github, { runConclusion: "cancelled" }),
+    "source-run-cancelled-before-jobs",
+  );
+  assert.deepEqual(error.detail, { runId: 123, runAttempt: 2, runHeadSha: HEAD });
+});
+
+test("still resolves a cancelled run that has a canonical job", async () => {
+  const { github } = fixtures({ run: { conclusion: "cancelled" } });
+  const result = await resolve(github, { runConclusion: "cancelled" });
+  assert.equal(result.job.id, 456);
+});
+
 test("rejects missing, duplicate, or mismatched canonical jobs", async () => {
   const wrong = {
     id: 457,
@@ -358,8 +373,11 @@ test("rejects missing, duplicate, or mismatched canonical jobs", async () => {
       { ...wrong, id: 458, name: "JS SDK" },
     ],
   ]) {
-    const { github } = fixtures({ jobs });
-    await assert.rejects(resolve(github), /exactly one canonical/u);
+    for (const conclusion of ["failure", "success", "cancelled"]) {
+      if (conclusion === "cancelled" && jobs.length === 0) continue;
+      const { github } = fixtures({ run: { conclusion }, jobs });
+      await assertHardFailure(resolve(github, { runConclusion: conclusion }), /exactly one canonical/u);
+    }
   }
 });
 
