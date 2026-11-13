@@ -39,6 +39,14 @@ export default defineConfig(async () => ({
         replacement: path.resolve(repoRoot, "src/contract/index.ts"),
       },
       {
+        find: "@honua/sdk-js/geoparquet",
+        replacement: path.resolve(repoRoot, "src/geoparquet/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/source-schema",
+        replacement: path.resolve(repoRoot, "src/source-schema.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(repoRoot, "src/index.ts"),
       },
