@@ -136,3 +136,32 @@ test('production config resolves imported MCP promises', async () => {
     assert.ok([...current.keys()].some(key => JSON.parse(key)[0] === '@typescript-eslint/no-floating-promises'));
   } finally { await rm(filename); }
 });
+
+
+test('named expressions retain call-site and sibling identities', async () => {
+  await fixture(async findings => {
+    for (const second of ['second', 'first']) {
+      const declarations = 'declare const first: (f: () => void) => void; declare const second: typeof first;\n';
+      const template = declarations + `first(function run() { BODY }); ${second}(function run() { SAFE });`;
+      const old = template.replace('BODY', '\nPromise.resolve(1);\n').replace('SAFE', '\nvoid Promise.resolve(1);\n');
+      const moved = template.replace('BODY', '\nvoid Promise.resolve(1);\n').replace('SAFE', '\nPromise.resolve(1);\n');
+      assert.equal(additions(await findings(moved), await findings(old)).length, 1);
+    }
+  });
+});
+
+test('compliant returns and calls in unrelated functions preserve existing budgets', async () => {
+  await fixture(async findings => {
+    for (const body of [
+      'return () => { BODY };',
+      'return { run() { BODY } };',
+      'use(() => { BODY });',
+      'use(function run() { BODY });',
+    ]) {
+      const declarations = 'declare const use: (f: () => void) => void;\n';
+      const old = declarations + 'function earlier() {}\nfunction later() { ' + body.replace('BODY', '\nPromise.resolve(1);\n') + ' }';
+      const edited = old.replace('function earlier() {}', 'function earlier() { ' + body.replace('BODY', '\nvoid Promise.resolve(1);\n') + ' }');
+      assert.equal(additions(await findings(edited), await findings(old)).length, 0, body);
+    }
+  });
+});

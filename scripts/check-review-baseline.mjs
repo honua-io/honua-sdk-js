@@ -19,6 +19,22 @@ function expressionName(node, source) {
   return node.getText(source);
 }
 
+function enclosingScope(node) {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (ts.isClassLike(parent) || ts.isFunctionLike(parent) || ts.isObjectLiteralExpression(parent) ||
+        ts.isSourceFile(parent)) return parent;
+  }
+}
+
+function nextOrdinal(counts, node, signature) {
+  const container = enclosingScope(node);
+  if (!counts.has(container)) counts.set(container, new Map());
+  const siblings = counts.get(container);
+  const ordinal = siblings.get(signature) ?? 0;
+  siblings.set(signature, ordinal + 1);
+  return ordinal;
+}
+
 const callSites = new WeakMap();
 
 function callSite(call, source) {
@@ -32,8 +48,7 @@ function callSite(call, source) {
           ...(node.arguments ?? []).map(argument =>
             ts.isArrowFunction(argument) || ts.isFunctionExpression(argument) ? '<callback>' :
               printer.printNode(ts.EmitHint.Expression, argument, source))]);
-        const ordinal = counts.get(signature) ?? 0;
-        counts.set(signature, ordinal + 1);
+        const ordinal = nextOrdinal(counts, node, signature);
         sites.set(node, signature + ':occurrence' + ordinal);
       }
       ts.forEachChild(node, visit);
@@ -66,8 +81,7 @@ function anonymousContext(node, source) {
     function visit(candidate) {
       if (ts.isObjectLiteralExpression(candidate) || ts.isFunctionLike(candidate) || ts.isClassLike(candidate)) {
         const context = candidate.kind + ':' + contextName(candidate, source);
-        const ordinal = counts.get(context) ?? 0;
-        counts.set(context, ordinal + 1);
+        const ordinal = nextOrdinal(counts, candidate, context);
         sites.set(candidate, context + ':occurrence' + ordinal);
       }
       ts.forEachChild(candidate, visit);
@@ -83,7 +97,9 @@ export function scopeAt(source, position) {
   function visit(node) {
     if (position < node.getStart(source) || position >= node.end) return;
     if (ts.isClassLike(node) || ts.isFunctionLike(node) || ts.isObjectLiteralExpression(node)) {
-      const name = node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
+      const expression = ts.isFunctionExpression(node) || ts.isClassExpression(node);
+      const name = expression ? undefined :
+        node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
       names.push(name?.getText(source) ?? anonymousContext(node, source));
     }
     ts.forEachChild(node, visit);
