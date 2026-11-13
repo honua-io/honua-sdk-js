@@ -116,14 +116,28 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  * Fetch and validate a publication descriptor v1. Rejects a descriptor that
  * fails the schema or its cross-field rules, or that did not pass validation.
  *
+ * Artifacts are read by HTTP range requests, so their host must answer a
+ * ranged GET with 206, allow the `Range` request header across origins and
+ * expose the `Content-Range` response header.
+ * Identity lookups read the GeoParquet with a small Parquet reader; other
+ * queries load the optional DuckDB-WASM peer through `publicationDriverFactory`, whose
+ * `PUBLICATION_ENGINE_FILESYSTEM` opens files on hosts that answer
+ * `HEAD` with 200 (common on CDNs). A host without range support is refused
+ * before any engine read, as a query over the byte budget.
+ *
  * @example
  * ```ts
- * import { openPublication, publicationSource } from "@honua/sdk-js/publication";
+ * import { openPublication, publicationDriverFactory, publicationSource } from "@honua/sdk-js/publication";
  *
  * const parcels = await openPublication("https://data.example.gov/parcels/2026-11-13/descriptor.json");
  * map.addSource("parcels", { type: "vector", url: `pmtiles://${parcels.display.pmtilesUrl}`, promoteId: parcels.display.promoteId });
  * const source = publicationSource(parcels);
  * const { result, answeredBy, limit } = await source.lookup("234030888");
+ *
+ * // Self-hosted engine files: keep the publication file settings.
+ * const selfHosted = publicationSource(parcels, {
+ *   driverFactory: publicationDriverFactory({ bundle: { mainModule: "/duckdb/duckdb-eh.wasm", mainWorker: "/duckdb/duckdb-browser-eh.worker.js" } }),
+ * });
  * ```
  */
 export async function openPublication(url: string, options: OpenPublicationOptions = {}): Promise<Publication> {

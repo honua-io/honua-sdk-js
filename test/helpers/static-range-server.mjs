@@ -1,6 +1,8 @@
 // Static file server for publication tests: single HTTP range requests, HEAD,
 // CORS preflight, an optional per-response delay, and a log of every request
-// with the bytes it sent.
+// with the bytes it sent. `rangeSupport` imitates other hosts: "get-only"
+// answers HEAD with the whole length and status 200 as many CDNs do, "none"
+// ignores Range entirely.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -39,13 +41,18 @@ function fileContents(cache, file) {
   return cache.get(file);
 }
 
-function sendFile({ request, response, entry }, { file, contents, cacheControl }) {
+function requestedRange(request, size, rangeSupport) {
+  if (rangeSupport === "none" || (rangeSupport === "get-only" && request.method === "HEAD")) return undefined;
+  return parseRange(request.headers.range, size);
+}
+
+function sendFile({ request, response, entry }, { file, contents, cacheControl, rangeSupport }) {
   const { bytes, etag } = contents;
   response.setHeader("Content-Type", MEDIA_TYPES[path.extname(file)] ?? "application/octet-stream");
   response.setHeader("Accept-Ranges", "bytes");
   response.setHeader("ETag", etag);
   response.setHeader("Cache-Control", cacheControl);
-  const range = parseRange(request.headers.range, bytes.length);
+  const range = requestedRange(request, bytes.length, rangeSupport);
   if (range && range.start >= bytes.length) {
     entry.status = 416;
     response.writeHead(416, { "Content-Range": `bytes */${bytes.length}` }).end();
@@ -62,10 +69,16 @@ function sendFile({ request, response, entry }, { file, contents, cacheControl }
 }
 
 /**
- * @param {{ files: Record<string, string>, delayMs?: number, cors?: boolean, cacheControl?: string }} options
+ * @param {{ files: Record<string, string>, delayMs?: number, cors?: boolean, cacheControl?: string, rangeSupport?: "full" | "get-only" | "none" }} options
  *   files maps a URL path (for example "/maui/parcels.parquet") to a file on disk.
  */
-export async function startStaticRangeServer({ files, delayMs = 0, cors = true, cacheControl = "no-cache" }) {
+export async function startStaticRangeServer({
+  files,
+  delayMs = 0,
+  cors = true,
+  cacheControl = "no-cache",
+  rangeSupport = "full",
+}) {
   const requests = [];
   const cache = new Map();
   const server = createServer(async (request, response) => {
@@ -80,7 +93,7 @@ export async function startStaticRangeServer({ files, delayMs = 0, cors = true, 
       return;
     }
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
-    sendFile({ request, response, entry }, { file, contents: fileContents(cache, file), cacheControl });
+    sendFile({ request, response, entry }, { file, contents: fileContents(cache, file), cacheControl, rangeSupport });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();

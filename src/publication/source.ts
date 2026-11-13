@@ -1,7 +1,7 @@
 import type { CapabilityAwareSource, Query, Source } from "../contract/types.js";
-import { stringLiteral } from "../core/geoparquet-sql.js";
-import { type DuckDbDriverFactory, GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
-import { settleOrAbort } from "./abort.js";
+import { type DuckDbDriverFactory, type GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
+import { settleOrAbort, sharedTask } from "./abort.js";
+import { publicationRuntime } from "./engine.js";
 import { HonuaPublicationError } from "./errors.js";
 import { csvDocument, featureCollection } from "./export.js";
 import { type PublicFieldGuard, publicFieldGuard } from "./guard.js";
@@ -15,7 +15,8 @@ import {
   lookupIdentity,
   planLookup,
 } from "./lookup.js";
-import { PUBLICATION_STAMP_KEY, type Publication, assertArtifactStamp } from "./open.js";
+import type { Publication } from "./open.js";
+import { publicationParquet } from "./parquet.js";
 
 /** A feature as a map renderer reports it; only its properties are read, never its geometry. */
 export interface RenderedPublicationFeature {
@@ -26,6 +27,8 @@ export type PublicationExportFormat = "csv" | "geojson";
 
 export interface PublicationSourceOptions {
   readonly id?: string;
+  /** Fetch used for the GeoParquet range reads of identity lookups. */
+  readonly fetch?: typeof fetch;
   readonly runtime?: GeoparquetRuntime;
   readonly driverFactory?: DuckDbDriverFactory;
   readonly budget?: PublicationQueryBudget;
@@ -44,62 +47,12 @@ export interface PublicationSource<T = Record<string, unknown>> extends Capabili
   verifyGeoParquetArtifact(options?: PublicationLookupOptions): Promise<void>;
 }
 
-interface SharedCheck {
-  readonly promise: Promise<void>;
-  readonly controller: AbortController;
-  waiters: number;
-  settled: boolean;
-}
-
-/**
- * Checks the GeoParquet artifact's embedded stamp once per source. Callers
- * share one check; it is cancelled only when every caller waiting on it has
- * cancelled, so one caller's cancellation never fails another's lookup.
- */
-function geoParquetVerification(runtime: GeoparquetRuntime, publication: Publication) {
-  let shared: SharedCheck | undefined;
-  const url = stringLiteral(publication.geoparquetUrl);
-  async function check(signal: AbortSignal): Promise<void> {
-    // Artifact paths are immutable per publication version, so caching their
-    // HEAD and footer metadata cannot serve a stale read.
+/** Engine settings for an immutable artifact: its footer and HTTP metadata never change within a version. */
+function engineSettings(runtime: GeoparquetRuntime) {
+  return sharedTask(async (signal) => {
     await runtime.query("SET parquet_metadata_cache = true", { signal });
     await runtime.query("SET enable_http_metadata_cache = true", { signal });
-    const rows = await runtime.query(
-      `SELECT decode(value) AS value FROM parquet_kv_metadata(${url}) WHERE decode(key) = ${stringLiteral(PUBLICATION_STAMP_KEY)}`,
-      { signal },
-    );
-    const stamp = typeof rows[0]?.value === "string" ? JSON.parse(rows[0].value) : undefined;
-    assertArtifactStamp(publication, "geoparquet", stamp);
-  }
-  function start(): SharedCheck {
-    const controller = new AbortController();
-    const entry: SharedCheck = { controller, waiters: 0, settled: false, promise: Promise.resolve() };
-    const promise = check(controller.signal).then(
-      () => {
-        entry.settled = true;
-      },
-      (error) => {
-        entry.settled = true;
-        if (shared === entry) shared = undefined;
-        throw error;
-      },
-    );
-    return Object.assign(entry, { promise });
-  }
-  return (signal?: AbortSignal): Promise<void> => {
-    shared ??= start();
-    const entry = shared;
-    entry.waiters++;
-    const wait = settleOrAbort(entry.promise, signal);
-    wait.catch(() => {
-      if (!signal?.aborted || entry.settled) return;
-      entry.waiters--;
-      if (entry.waiters > 0) return;
-      if (shared === entry) shared = undefined;
-      entry.controller.abort();
-    });
-    return wait;
-  };
+  });
 }
 
 function renderedIdentity(publication: Publication, feature: RenderedPublicationFeature): string {
@@ -136,15 +89,15 @@ async function exportPublicFeatures<T>(
 interface PairedParts<T> {
   readonly inner: CapabilityAwareSource<T>;
   readonly guard: PublicFieldGuard;
-  readonly verify: (signal?: AbortSignal) => Promise<void>;
+  readonly prepareEngine: (signal?: AbortSignal) => Promise<void>;
   readonly identityColumn: string;
 }
 
 /** The Source query methods of the paired source: public fields only, after the artifact check. */
-function guardedQueries<T>({ inner, guard, verify, identityColumn }: PairedParts<T>) {
+function guardedQueries<T>({ inner, guard, prepareEngine, identityColumn }: PairedParts<T>) {
   const guarded = async <R>(query: Query<T> | undefined, run: (request: Query<T>) => Promise<R>): Promise<R> => {
     const request = guard.query(query);
-    await verify(request.signal);
+    await prepareEngine(request.signal);
     return run(request);
   };
   return {
@@ -155,7 +108,7 @@ function guardedQueries<T>({ inner, guard, verify, identityColumn }: PairedParts
     queryExtent: (query?: Query<T>) => guarded(query, (request) => inner.queryExtent(request)),
     async *stream(query?: Query<T>) {
       const request = guard.query(query);
-      await verify(request.signal);
+      await prepareEngine(request.signal);
       for await (const page of inner.stream(request)) yield guard.result(page);
     },
     exportFeatures: (format: PublicationExportFormat, query?: Query<T>) =>
@@ -169,21 +122,28 @@ export function publicationSource<T = Record<string, unknown>>(
   options: PublicationSourceOptions = {},
 ): PublicationSource<T> {
   const sourceDescriptor = publication.sourceDescriptors(options.id).query;
-  const runtime =
-    options.runtime ?? new GeoparquetRuntime(options.driverFactory ? { driverFactory: options.driverFactory } : {});
+  const runtime = publicationRuntime(options);
   const inner = geoparquetSource<T>(sourceDescriptor, { runtime });
   const guard = publicFieldGuard(publication, sourceDescriptor.id);
-  const verify = geoParquetVerification(runtime, publication);
-  const queries = guardedQueries({ inner, guard, verify, identityColumn: publication.identity.geoparquetColumn });
-  const context: LookupContext<T> = {
+  const parquet = publicationParquet(publication, options.fetch ?? ((input, init) => globalThis.fetch(input, init)));
+  const settings = engineSettings(runtime);
+  const prepareEngine = async (signal?: AbortSignal) => {
+    await parquet.verify(signal);
+    await settings(signal);
+  };
+  const queries = guardedQueries({
+    inner,
+    guard,
+    prepareEngine,
+    identityColumn: publication.identity.geoparquetColumn,
+  });
+  const context: LookupContext = {
     publication,
     sourceId: sourceDescriptor.id,
-    runtime,
+    parquet,
     guard,
     budget: options.budget ?? PUBLICATION_LOOKUP_BUDGET,
     serverSource: options.serverSource,
-    verify,
-    queryBrowser: queries.query,
   };
   const lookup = (value: string, lookupOptions?: PublicationLookupOptions) =>
     lookupIdentity(context, value, lookupOptions);
@@ -199,6 +159,6 @@ export function publicationSource<T = Record<string, unknown>>(
     lookup,
     select: async (feature: RenderedPublicationFeature, lookupOptions?: PublicationLookupOptions) =>
       lookup(renderedIdentity(publication, feature), lookupOptions),
-    verifyGeoParquetArtifact: (lookupOptions?: PublicationLookupOptions) => verify(lookupOptions?.signal),
+    verifyGeoParquetArtifact: (lookupOptions?: PublicationLookupOptions) => parquet.verify(lookupOptions?.signal),
   }) as unknown as PublicationSource<T>;
 }

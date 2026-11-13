@@ -18,6 +18,7 @@ import {
 } from "../src/publication/index.js";
 import { decodeTileLayer } from "./helpers/mvt-decode.js";
 import {
+  FIXTURE_STAMP,
   LEADING_ZERO_PARCEL,
   MERGED_MULTIPART_PARCEL,
   NON_PUBLIC_FIELDS as NON_PUBLIC,
@@ -25,6 +26,7 @@ import {
   nodeDriver,
   openFixture,
   publicationTestBed,
+  rewrittenParquet,
   storedGeometry,
 } from "./helpers/publication-fixture.js";
 
@@ -52,7 +54,7 @@ describe("openPublication", () => {
       pmtilesUrl: `${server.origin}/maui/parcels.pmtiles`,
       sourceLayer: "parcels",
       promoteId: "tmk_txt",
-      minzoom: 10,
+      minzoom: 8,
       maxzoom: 15,
     });
     expect(publication.geoparquetUrl).toBe(`${server.origin}/maui/parcels.parquet`);
@@ -200,6 +202,26 @@ describe("selection through the stable identity", () => {
 });
 
 describe("parcel values survive lookup and export", () => {
+  it("keeps the z coordinate of a three-dimensional native geometry", async () => {
+    const withZ = await rewrittenParquet(
+      "* REPLACE (list_transform(geometry, lambda p: list_transform(p, lambda r: list_transform(r, lambda c: {'x': c.x, 'y': c.y, 'z': 7.0}))) AS geometry)",
+      FIXTURE_STAMP,
+    );
+    track(withZ.cleanup);
+    const lookup = await (await pairedSource(await served(withZ.overrides))).lookup(MERGED_MULTIPART_PARCEL);
+    expect(featureGeometry(lookup.result).coordinates[0]?.[0]?.[0]).toHaveLength(3);
+    expect(featureGeometry(lookup.result).coordinates[0]?.[0]?.[0]?.[2]).toBe(7);
+  });
+
+  it("answers an identity lookup with the record the SQL engine returns for the same filter", async () => {
+    const source = await pairedSource(await served());
+    for (const identity of [MERGED_MULTIPART_PARCEL, LEADING_ZERO_PARCEL]) {
+      const looked = await source.lookup(identity);
+      const queried = await source.query({ filter: queryFilter.eq("tmk_txt", identity) });
+      expect(looked.result.features).toEqual(queried.features);
+    }
+  });
+
   it("keeps leading zeros, multipart geometry and null attributes", async () => {
     const source = await pairedSource(await served());
     const merged = await source.lookup(MERGED_MULTIPART_PARCEL);

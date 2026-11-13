@@ -740,7 +740,9 @@
   "dependencies": {
     "@honua/honua-migrate": "0.3.0-beta.0",
     "@mapbox/jsonlint-lines-primitives": "2.0.3",
-    "@maplibre/maplibre-gl-style-spec": "^24.7.0"
+    "@maplibre/maplibre-gl-style-spec": "^24.7.0",
+    "fzstd": "~0.1.1",
+    "hyparquet": "~1.33.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
