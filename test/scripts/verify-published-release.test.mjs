@@ -5,11 +5,13 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+  COMPANION_GAP_EXIT_CODE,
   DEFAULT_REGISTRY,
   PROVENANCE_PREDICATE_TYPE,
   PUBLISH_PREDICATE_TYPE,
   RECEIPT_FORMAT,
   attestationsUrl,
+  exitCodeFor,
   packumentUrl,
   parseVerifyPublishedReleaseArgs,
   planPublishedReleaseTargets,
@@ -731,4 +733,96 @@ test("the CLI requires both the tag and the sealed commit", () => {
     "refs/heads/trunk",
   ]);
   assert.equal(recovery.publishRef, "refs/heads/trunk");
+});
+
+function dropVersion(registry, npmName, version) {
+  const packument = registry.packuments.get(packumentUrl(DEFAULT_REGISTRY, npmName));
+  delete packument.versions[version];
+  packument["dist-tags"] = { latest: "0.0.1" };
+}
+
+test("a companion tagged but never published is a companion gap, not an SDK failure", async () => {
+  const receipt = await verify((registry) => dropVersion(registry, "@honua/mcp-server", VERSION));
+  assert.equal(receipt.status, "failed");
+  assert.equal(receipt.outcome, "companion-gap");
+  assert.equal(receipt.failures.length, 1);
+  assert.match(receipt.failures[0], /^@honua\/mcp-server@.*is published/u);
+  assert.deepEqual(receipt.companionGaps, [
+    {
+      id: "mcp-server",
+      npmName: "@honua/mcp-server",
+      version: VERSION,
+      tag: `mcp-server-v${VERSION}`,
+      workflow: ".github/workflows/publish-mcp-server.yml",
+    },
+  ]);
+  for (const artifact of receipt.artifacts.filter((entry) => entry.npmName !== "@honua/mcp-server")) {
+    assert.equal(artifact.status, "verified", artifact.npmName);
+  }
+  assert.equal(artifactOf(receipt, "@honua/mcp-server").status, "unpublished");
+});
+
+test("an SDK package missing from the registry is a failure even beside a companion gap", async () => {
+  const receipt = await verify((registry) => {
+    dropVersion(registry, "@honua/mcp-server", VERSION);
+    dropVersion(registry, "@honua/react", VERSION);
+  });
+  assert.equal(receipt.outcome, "failed");
+  assert.equal(receipt.companionGaps.length, 1);
+  assert.deepEqual(
+    receipt.artifacts.filter((artifact) => artifact.status === "failed").map((artifact) => artifact.npmName),
+    ["@honua/react"],
+  );
+  assert.equal(artifactOf(receipt, "@honua/react").status, "failed");
+});
+
+test("a published companion whose provenance does not match is a failure, not a gap", async () => {
+  const receipt = await verify((registry) => {
+    const url = attestationsUrl(DEFAULT_REGISTRY, "@honua/mcp-server", VERSION);
+    const target = {
+      npmName: "@honua/mcp-server",
+      version: VERSION,
+      tag: `mcp-server-v${VERSION}`,
+      commit: "3".repeat(40),
+      workflow: ".github/workflows/publish-mcp-server.yml",
+    };
+    registry.attestations.get(url).attestations[0] = registry.envelope(
+      registry.provenanceStatement(target, registry.tarballFor("@honua/mcp-server", VERSION)),
+    );
+  });
+  assert.equal(receipt.outcome, "failed");
+  assert.deepEqual(receipt.companionGaps, []);
+  assert.equal(failedCheck(receipt, "@honua/mcp-server", "source-revision").status, "fail");
+});
+
+test("a companion whose registry is unreachable fails closed rather than counting as a gap", async () => {
+  const receipt = await verify((registry) => {
+    registry.packuments.delete(packumentUrl(DEFAULT_REGISTRY, "@honua/mcp-server"));
+  });
+  assert.equal(receipt.outcome, "failed");
+  assert.deepEqual(receipt.companionGaps, []);
+});
+
+test("a fully verified cut reports a verified outcome with no gaps", async () => {
+  const receipt = await verify();
+  assert.equal(receipt.outcome, "verified");
+  assert.deepEqual(receipt.companionGaps, []);
+});
+
+test("the CLI exit code separates a companion gap from a failure", () => {
+  assert.equal(exitCodeFor({ outcome: "verified" }), 0);
+  assert.equal(exitCodeFor({ outcome: "companion-gap" }), COMPANION_GAP_EXIT_CODE);
+  assert.equal(exitCodeFor({ outcome: "failed" }), 1);
+  assert.notEqual(COMPANION_GAP_EXIT_CODE, 1);
+});
+
+test("a malformed registry response for a companion is a failure, not a gap", async () => {
+  for (const response of [null, {}, { error: "Not found" }, { name: "@honua/mcp-server", versions: null }]) {
+    const receipt = await verify((registry) => {
+      registry.packuments.set(packumentUrl(DEFAULT_REGISTRY, "@honua/mcp-server"), response);
+    });
+    assert.equal(receipt.outcome, "failed", JSON.stringify(response));
+    assert.deepEqual(receipt.companionGaps, [], JSON.stringify(response));
+    assert.equal(failedCheck(receipt, "@honua/mcp-server", "registry-packument").status, "fail");
+  }
 });

@@ -187,8 +187,10 @@ function fixture(t, dryRun, failClientPair = false, failRuntimeTarball = false, 
 
 for (const availableAfter of [17 * 60, Infinity]) {
   it(`registry verification waits for propagation and fails closed (available after ${availableAfter}s)`, () => {
-    const verify = workflow.jobs["verify-published-release"].steps
-      .find((step) => step.name === "Verify registry versions, integrity, provenance, and source SHA").run;
+    const verifyRegistry = workflow.jobs["verify-published-release"].steps.find(
+      (step) => step.name === "Verify registry versions, integrity, provenance, and source SHA",
+    );
+    const verify = verifyRegistry.run;
     const clock = `
       SECONDS=0
       calls=0
@@ -206,7 +208,7 @@ for (const availableAfter of [17 * 60, Infinity]) {
     let result;
     try {
       result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
-        encoding: "utf8", env: { ...process.env, RELEASE_TAG: "js-sdk-v0.1.14", SEALED_COMMIT: "a".repeat(40), PUBLISH_REF: "refs/tags/js-sdk-v0.1.14" },
+        encoding: "utf8", env: { ...process.env, ...verifyRegistry.env, GITHUB_OUTPUT: "/dev/null", RELEASE_TAG: "js-sdk-v0.1.14", SEALED_COMMIT: "a".repeat(40), PUBLISH_REF: "refs/tags/js-sdk-v0.1.14" },
       });
     } finally {
       fs.rmSync(scriptDir, { recursive: true, force: true });
@@ -283,4 +285,127 @@ it("attests what a partially failed publication already put on the registry", (t
   const partial = runSelect("failure", "@honua/sdk-js\t0.2.11\tsdk-js.tgz\n@honua/sdk\t0.2.11\tsdk.tgz\n");
   assert.equal(partial.status, 0);
   assert.match(partial.output, /published=true\nversion=0\.2\.11\ntarball=.*\/published-npm\/sdk\.tgz\n/u);
+});
+
+const verifySteps = workflow.jobs["verify-published-release"].steps;
+const verifyStep = verifySteps.find((step) => step.id === "verify");
+
+function runVerifyStep(exitCodes) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "publish-js-sdk-verify-"));
+  fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "scripts", "verify-published-release.mjs"),
+    `import fs from "node:fs";
+const codes = ${JSON.stringify(exitCodes)};
+const attempt = fs.existsSync("attempts") ? Number(fs.readFileSync("attempts", "utf8")) : 0;
+fs.writeFileSync("attempts", String(attempt + 1));
+process.exit(codes[Math.min(attempt, codes.length - 1)]);
+`,
+  );
+  const output = path.join(root, "github-output");
+  fs.writeFileSync(output, "");
+  const scriptPath = path.join(root, "verify.sh");
+  fs.writeFileSync(scriptPath, verifyStep.run, { mode: 0o755 });
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...verifyStep.env,
+      REGISTRY_RETRY_MINUTES: "0",
+      COMPANION_GAP_GRACE_MINUTES: "0",
+      RELEASE_TAG: "js-sdk-v0.3.4",
+      SEALED_COMMIT: "1".repeat(40),
+      PUBLISH_REF: "refs/tags/js-sdk-v0.3.4",
+      GITHUB_OUTPUT: output,
+    },
+  });
+  const outputs = fs.readFileSync(output, "utf8");
+  const attempts = Number(fs.readFileSync(path.join(root, "attempts"), "utf8"));
+  fs.rmSync(root, { recursive: true, force: true });
+  return { status: result.status, stdout: result.stdout, outputs, attempts };
+}
+
+it("ends the registry verification green when every package verifies", () => {
+  const run = runVerifyStep([0]);
+  assert.equal(run.status, 0);
+  assert.doesNotMatch(run.outputs, /companion_gap/u);
+});
+
+it("reports a companion gap without failing a verified SDK publish", () => {
+  const run = runVerifyStep([3]);
+  assert.equal(run.status, 0);
+  assert.match(run.outputs, /companion_gap=true/u);
+  assert.match(run.stdout, /::warning title=Companion package gap for js-sdk-v0\.3\.4::/u);
+});
+
+it("fails the registry verification when an SDK package fails", () => {
+  const run = runVerifyStep([1]);
+  assert.notEqual(run.status, 0);
+  assert.doesNotMatch(run.outputs, /companion_gap/u);
+  assert.match(run.stdout, /::error title=Published release verification failed/u);
+});
+
+it("waits out the companion grace period before calling a missing companion a gap", () => {
+  assert.equal(Number(verifyStep.env.COMPANION_GAP_GRACE_MINUTES) > 0, true);
+  assert.equal(Number(verifyStep.env.COMPANION_GAP_GRACE_MINUTES) < Number(verifyStep.env.REGISTRY_RETRY_MINUTES), true);
+});
+
+it("opens or updates the companion gap tracking issues in one serialized job, only when a gap was reported", () => {
+  const verifyJob = workflow.jobs["verify-published-release"];
+  const reportJob = workflow.jobs["report-companion-gaps"];
+  assert.equal(verifyJob.outputs.companion_gap, "${{ steps.verify.outputs.companion_gap }}");
+  assert.equal(verifyJob.permissions.issues, undefined);
+  assert.equal(reportJob.needs, "verify-published-release");
+  assert.equal(reportJob.if, "${{ !cancelled() && needs.verify-published-release.outputs.companion_gap == 'true' }}");
+  assert.deepEqual(reportJob.concurrency, { group: "companion-gap-tracking-issues", "cancel-in-progress": false });
+  assert.deepEqual(reportJob.permissions, { contents: "read", issues: "write" });
+  const download = reportJob.steps.find((step) => step.name === "Download the published-release receipt");
+  assert.equal(download.with.name, verifySteps.find((step) => step.name === "Upload published-release receipt").with.name);
+  const report = reportJob.steps.find((step) => step.name === "Open or update the tracking issues");
+  assert.match(report.run, /scripts\/report-companion-gaps\.mjs --receipt test-results\/published-release-verification\.v1\.json/u);
+});
+
+function runVerifyStepOnClock(exitCodeAt) {
+  const clock = `
+      SECONDS=0
+      node() { local code; code=$(${exitCodeAt}); return "$code"; }
+      sleep() { SECONDS=$((SECONDS + $1)); }
+      trap 'echo "clock=$SECONDS"' EXIT
+    `;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "publish-js-sdk-grace-"));
+  const scriptPath = path.join(root, "verify.sh");
+  const output = path.join(root, "github-output");
+  fs.writeFileSync(output, "");
+  fs.writeFileSync(scriptPath, clock + verifyStep.run, { mode: 0o755 });
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...verifyStep.env,
+      RELEASE_TAG: "js-sdk-v0.3.4",
+      SEALED_COMMIT: "1".repeat(40),
+      PUBLISH_REF: "refs/tags/js-sdk-v0.3.4",
+      GITHUB_OUTPUT: output,
+    },
+  });
+  const outputs = fs.readFileSync(output, "utf8");
+  fs.rmSync(root, { recursive: true, force: true });
+  return { status: result.status, elapsed: Number(/clock=([0-9]+)/u.exec(result.stdout)[1]), outputs };
+}
+
+it("keeps retrying a missing companion through the grace period before reporting a gap", () => {
+  const grace = Number(verifyStep.env.COMPANION_GAP_GRACE_MINUTES) * 60;
+  const run = runVerifyStepOnClock("echo 3");
+  assert.equal(run.status, 0);
+  assert.match(run.outputs, /companion_gap=true/u);
+  assert.ok(run.elapsed >= grace, `accepted the gap after ${run.elapsed}s, before the ${grace}s grace`);
+  assert.ok(run.elapsed < Number(verifyStep.env.REGISTRY_RETRY_MINUTES) * 60);
+});
+
+it("a companion that arrives during the grace period ends verified without a gap", () => {
+  const run = runVerifyStepOnClock("(( SECONDS >= 300 )) && echo 0 || echo 3");
+  assert.equal(run.status, 0);
+  assert.doesNotMatch(run.outputs, /companion_gap/u);
+  assert.ok(run.elapsed >= 300);
 });
