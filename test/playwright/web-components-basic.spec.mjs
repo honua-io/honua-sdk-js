@@ -135,6 +135,68 @@ test("controller-driven layer list responds to focused Space and Enter activatio
   }
 });
 
+test("sketch control is keyboard-operable, exposes pressed state and snaps through the engine", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    await page.evaluate(() => {
+      const snappingConfigs = [];
+      window.__SKETCH_SNAPPING_CONFIGS__ = snappingConfigs;
+      const controller = {
+        getState: () => ({ status: "ready" }),
+        subscribe: () => ({ remove() {} }),
+        canMeasure: () => false,
+        canSketch: () => true,
+        setMeasureMode: (mode) => Promise.resolve({ mode, status: "unsupported" }),
+        setSketchMode: (mode) => Promise.resolve({ mode, status: "ready" }),
+        setSketchSnapping: (config) => snappingConfigs.push(config),
+      };
+      const sketch = document.createElement("honua-sketch-control");
+      sketch.dataset.snappingProbe = "sketch";
+      sketch.setAttribute("label", "Parcel sketch");
+      sketch.snappingOptions = { enabled: true, distance: 6 };
+      sketch.controller = controller;
+      sketch.addEventListener("honua-sketch-change", (event) => {
+        sketch.dataset.lastMode = event.detail.mode;
+      });
+      document.body.append(sketch);
+    });
+
+    const sketch = page.locator("honua-sketch-control[data-snapping-probe='sketch']");
+    const modes = sketch.getByRole("group", { name: "Parcel sketch" });
+    await expect(modes.getByRole("button")).toHaveCount(4);
+    await modes.getByRole("button", { name: "Off" }).focus();
+    for (const name of ["Point", "Line", "Polygon"]) {
+      await page.keyboard.press("Tab");
+      await expect(modes.getByRole("button", { name })).toBeFocused();
+    }
+    await page.keyboard.press("Enter");
+    await expect(sketch).toHaveAttribute("data-last-mode", "polygon");
+    await expect(modes.getByRole("button", { name: "Polygon", pressed: true })).toBeVisible();
+    await expect(modes.getByRole("button", { name: "Point", pressed: false })).toBeVisible();
+
+    await expect
+      .poll(async () => page.evaluate(() => window.__SKETCH_SNAPPING_CONFIGS__.at(-1)))
+      .toMatchObject({ enabled: true, tolerance: 6, kinds: ["vertex", "edge"] });
+    const placed = await sketch.evaluate((element) => [
+      element.addVertex({ x: 0, y: 0 }),
+      element.addVertex({ x: 100, y: 0 }),
+      element.addVertex({ x: 50, y: 4 }),
+      element.addVertex({ x: 50, y: 40 }),
+    ]);
+    expect(placed).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 50, y: 0 },
+      { x: 50, y: 40 },
+    ]);
+  } finally {
+    await server.close();
+  }
+});
+
 test("feature table keeps keyboard selection deterministic across reconnect", async ({ page }) => {
   const server = await startWebComponentsFixtureServer();
   try {
