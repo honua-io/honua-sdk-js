@@ -86,6 +86,7 @@
 * [OGC API Client](ogc-api.md)
 * [Operator Components](operator-components.md)
 * [Plugin manifest and certification contract](plugin-manifest-certification.md)
+* [Public catalog](public-catalog.md)
 * [Publish MVT to PMTiles](pmtiles-lifecycle.md)
 * [PMTiles](pmtiles.md)
 * [Protocol × Capability Matrix](protocol-capability-matrix.md)
