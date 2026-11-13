@@ -127,9 +127,10 @@ function harness(options = {}) {
     }
     if (pathname.endsWith(`/git/commits/${headSha}`)) return { sha: headSha, tree: { sha: oldTree } };
     if (pathname.endsWith("/git/trees")) return { sha: newTree };
-    if (pathname.endsWith("/git/commits")) return { sha: nextSha, tree: { sha: newTree }, parents: [{ sha: headSha }] };
+    if (pathname.endsWith("/git/commits")) return { sha: nextSha, tree: { sha: newTree }, parents: [{ sha: options.commitParent ?? headSha }] };
     if (pathname.endsWith(`/git/refs/heads/${branch}`)) {
-      currentHead = nextSha;
+      if (options.refFailure) throw new Error("Non-fast-forward update rejected");
+      currentHead = options.updatedHead ?? nextSha;
       return { object: { sha: currentHead } };
     }
     if (pathname.endsWith("/pulls/2074")) {
@@ -180,4 +181,21 @@ describe("trusted generated-note publication", () => {
     assert.ok(mutations.some((call) => call.pathname.endsWith("/git/trees")));
     assert.ok(mutations.every((call) => !call.pathname.includes("/git/refs/") && !call.pathname.endsWith("/pulls/2074")));
   });
+  it("rejects a commit with the wrong parent before publishing notes", async () => {
+    const { request, mutations } = harness({ commitParent: baseSha });
+    await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /Invalid normalized candidate commit/);
+    assert.ok(mutations.some((call) => call.pathname.endsWith("/git/commits")));
+    assert.ok(mutations.every((call) => call.method !== "PATCH"));
+  });
+  it("does not update the body after rejected or unconfirmed ref updates", async () => {
+    for (const options of [{ refFailure: true }, { updatedHead: headSha }]) {
+      const { request, mutations } = harness(options);
+      await assert.rejects(normalizeReleasePleaseWorkspaceNotes(input, request), /rejected|not confirmed/);
+      const updates = mutations.filter((call) => call.method === "PATCH");
+      assert.equal(updates.length, 1);
+      assert.ok(updates[0].pathname.endsWith(`/git/refs/heads/${branch}`));
+      assert.deepEqual(JSON.parse(updates[0].body), { sha: nextSha, force: false });
+    }
+  });
+
 });

@@ -1,3 +1,4 @@
+import { updateReleasePleaseCandidate } from "./release-please-candidate-update.mjs";
 import { githubRequest } from "./github-pr-issue-disposition.mjs";
 import { loadExactReleasePleasePullRequest } from "./release-please-base-refresh.mjs";
 import { RELEASE_PLEASE_BASE, RELEASE_PLEASE_HEAD } from "./release-please-disposition-check.mjs";
@@ -104,28 +105,13 @@ export async function normalizeReleasePleaseWorkspaceNotes(input, request = gith
         "Release Please notes branch moved before publication.");
     }
   };
-  await assertCurrent(headSha);
   let nextHead = headSha;
   if (normalized.changelog !== changelog) {
-    const parent = await request(`${api}/git/commits/${headSha}`);
-    requireThat(parent?.sha === headSha && SHA.test(parent.tree?.sha), "Invalid release-note parent tree.");
-    const tree = await request(`${api}/git/trees`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base_tree: parent.tree.sha, tree: [{ path: CHANGELOG, mode: "100644", type: "blob", content: normalized.changelog }] }),
-    });
-    requireThat(SHA.test(tree?.sha), "Invalid generated release-note tree.");
-    const commit = await request(`${api}/git/commits`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "chore: align generated MCP workspace notes with package declarations", tree: tree.sha, parents: [headSha] }),
-    });
-    requireThat(SHA.test(commit?.sha) && commit.tree?.sha === tree.sha && commit.parents?.length === 1 && commit.parents[0].sha === headSha,
-      "Invalid generated release-note commit.");
-    await assertCurrent(headSha);
-    const updated = await request(`${api}/git/refs/heads/${RELEASE_PLEASE_HEAD}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sha: commit.sha, force: false }),
-    });
-    requireThat(updated?.object?.sha === commit.sha, "Generated release-note branch update was not confirmed.");
-    nextHead = commit.sha;
+    nextHead = await updateReleasePleaseCandidate({
+      api, headSha, headRefName: RELEASE_PLEASE_HEAD,
+      changes: [{ path: CHANGELOG, mode: "100644", type: "blob", content: normalized.changelog }],
+      message: "chore: align generated MCP workspace notes with package declarations",
+    }, { request, assertCurrent: () => assertCurrent(headSha) });
   }
   if (normalized.body !== current.body) {
     await assertCurrent(nextHead);
