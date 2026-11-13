@@ -1,0 +1,199 @@
+{
+  "$schema": "https://honua.io/schemas/publication-descriptor.v1.schema.json",
+  "descriptorVersion": "1.0",
+  "publicationId": "maui-county-parcels-fixture",
+  "version": "20261113T062701Z",
+  "title": "Maui County parcels (test fixture subset)",
+  "publishedAt": "2026-11-13T06:29:47.260Z",
+  "sourceLayer": {
+    "service": "maui-parcels",
+    "layer": "parcels",
+    "title": "Maui County Parcels",
+    "href": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1"
+  },
+  "capture": {
+    "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
+    "capturedAt": "2026-11-13T06:27:01.354Z",
+    "sourceRevision": "metadata-sha256:32e6e0066dadf02b7605881d22fd9568e1c91fa078f7323455cdbc2aeb7cf5aa",
+    "featureCount": 434,
+    "filter": {
+      "bbox": [
+        -156.494,
+        20.902,
+        -156.484,
+        20.911
+      ]
+    }
+  },
+  "bounds": [
+    -156.5027406,
+    20.8923617,
+    -156.4825855,
+    20.9184014
+  ],
+  "crs": {
+    "source": "EPSG:3750",
+    "geoparquet": "OGC:CRS84",
+    "pmtiles": "EPSG:3857"
+  },
+  "fields": [
+    {
+      "name": "tmk_txt",
+      "type": "string",
+      "title": "Tax map key",
+      "description": "Nine-digit parcel number",
+      "public": true
+    },
+    {
+      "name": "zone",
+      "type": "string",
+      "title": "Zone",
+      "public": true
+    },
+    {
+      "name": "section",
+      "type": "string",
+      "title": "Section",
+      "public": true
+    },
+    {
+      "name": "plat",
+      "type": "string",
+      "title": "Plat",
+      "description": "Three digits, leading zeros kept",
+      "public": true
+    },
+    {
+      "name": "parcel",
+      "type": "string",
+      "title": "Parcel",
+      "description": "Three digits, leading zeros kept",
+      "public": true
+    },
+    {
+      "name": "nhoodcode",
+      "type": "string",
+      "title": "Assessment neighborhood",
+      "description": "Null where the county records no neighborhood code",
+      "public": true
+    },
+    {
+      "name": "pittcode",
+      "type": "integer",
+      "title": "Property class code",
+      "public": true
+    },
+    {
+      "name": "taxacres",
+      "type": "number",
+      "title": "Tax acres",
+      "public": true
+    },
+    {
+      "name": "gisacres",
+      "type": "number",
+      "title": "GIS acres",
+      "public": true
+    },
+    {
+      "name": "tmk",
+      "type": "integer",
+      "title": "Tax map key as a number",
+      "public": false
+    },
+    {
+      "name": "landvalue",
+      "type": "integer",
+      "title": "Land value",
+      "public": false
+    },
+    {
+      "name": "bldgvalue",
+      "type": "integer",
+      "title": "Building value",
+      "public": false
+    },
+    {
+      "name": "homeowner",
+      "type": "string",
+      "title": "Homeowner exemption",
+      "public": false
+    }
+  ],
+  "identity": {
+    "field": "tmk_txt",
+    "type": "string",
+    "pmtilesProperty": "tmk_txt",
+    "geoparquetColumn": "tmk_txt"
+  },
+  "geometry": {
+    "column": "geometry",
+    "encoding": "geoarrow-multipolygon",
+    "types": [
+      "MultiPolygon"
+    ],
+    "bboxColumn": "bbox"
+  },
+  "artifacts": {
+    "pmtiles": {
+      "href": "parcels.pmtiles",
+      "mediaType": "application/vnd.pmtiles",
+      "bytes": 59931,
+      "sha256": "4060ab67fce483b76c7244ee0a40654b2712a015fe18f4fd7ef43ec2c368ca75",
+      "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
+      "fields": [
+        "tmk_txt"
+      ],
+      "vectorLayer": "parcels",
+      "minzoom": 10,
+      "maxzoom": 15
+    },
+    "geoparquet": {
+      "href": "parcels.parquet",
+      "mediaType": "application/vnd.apache.parquet",
+      "bytes": 72600,
+      "sha256": "4dfaf1df9d61647f077ed1979d68867190ea260b5e460fc176a8d652cd065ec4",
+      "captureId": "sha256:0a52118c8a5af4d15ce8facfc0a0f161ce0704e33f7b66bbfdfc126d6ca64791",
+      "fields": [
+        "tmk_txt",
+        "zone",
+        "section",
+        "plat",
+        "parcel",
+        "nhoodcode",
+        "pittcode",
+        "taxacres",
+        "gisacres"
+      ],
+      "rowGroups": 1,
+      "sortedBy": "tmk_txt"
+    }
+  },
+  "validation": {
+    "status": "passed",
+    "validatedAt": "2026-11-13T06:29:47.261Z",
+    "checks": [
+      {
+        "name": "capture-consistency",
+        "status": "passed"
+      },
+      {
+        "name": "public-fields-only",
+        "status": "passed"
+      },
+      {
+        "name": "identity-unique",
+        "status": "passed"
+      }
+    ]
+  },
+  "links": {
+    "stac": "stac/maui-county-parcels-fixture.json",
+    "source": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1"
+  },
+  "provenance": {
+    "publisher": "County of Maui",
+    "license": "public-domain",
+    "attribution": "County of Maui; Hawaii Statewide GIS Program"
+  }
+}

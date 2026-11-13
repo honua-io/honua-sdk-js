@@ -294,6 +294,10 @@
       "types": "./dist/src/pmtiles/index.d.ts",
       "default": "./dist/src/pmtiles/index.js"
     },
+    "./publication": {
+      "types": "./dist/src/publication/index.d.ts",
+      "default": "./dist/src/publication/index.js"
+    },
     "./raster": {
       "types": "./dist/src/raster/index.d.ts",
       "default": "./dist/src/raster/index.js"
@@ -750,6 +754,7 @@
     "@deck.gl/layers": "^9.3.6",
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@duckdb/node-api": "^2.0.0-r.1",
+    "@mapbox/vector-tile": "^3.0.0",
     "@playwright/test": "^1.58.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -784,6 +789,7 @@
     "maplibre-gl": "^6.4.1",
     "marked": "^15.0.12",
     "openapi-typescript": "7.13.0",
+    "pbf": "^5.1.2",
     "pmtiles": "^4.4.1",
     "proj4": "^2.20.9",
     "react": "19.3.1",
@@ -803,6 +809,7 @@
     "!dist/src/migration/**",
     "dist/browser/*.js",
     "dist/browser/honua-sdk.browser-artifacts.v1.json",
+    "dist/config/publication-descriptor.v1.schema.json",
     "dist/config/raster-source-registry.v1.json",
     "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
