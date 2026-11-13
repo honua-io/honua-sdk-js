@@ -51,6 +51,7 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "core.coverage.wcs-exception": runtimeClassification("core", "protocol", false),
   "core.publication.invalid-descriptor": runtimeClassification("core", "validation", false),
   "core.publication.artifact-mismatch": runtimeClassification("core", "protocol", false),
+  "core.publication.artifact-unavailable": runtimeClassification("core", "protocol", false),
   "core.publication.non-public-field": runtimeClassification("core", "validation", false),
   "core.publication.query-budget-exceeded": runtimeClassification("core", "capability", false),
   "core.zarr.invalid-request": runtimeClassification("core", "validation", false),

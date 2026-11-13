@@ -31,10 +31,10 @@
     {
       "sampleId": "spatial-analytics-workbench",
       "performance": {
-        "command": "npx vitest run test/spatial-analytics-workbench-performance.test.ts",
-        "definition": "test/spatial-analytics-workbench-performance.test.ts",
-        "scenario": "100-bounded-local-explain-execute-cycles-under-1000ms",
-        "artifact": null
+        "command": "npm run bench:lab",
+        "definition": "bench/budgets.json",
+        "scenario": "spatial.analytics.bounded-local",
+        "artifact": "test-results/benchmark-lab.json"
       },
       "bundle": { "entrypoints": ["/contract"] }
     },

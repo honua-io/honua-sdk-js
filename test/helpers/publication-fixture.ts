@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,7 @@ export interface FixtureOverrides {
   readonly parquet?: string;
   readonly descriptor?: string;
   readonly delayMs?: number;
+  readonly rangeSupport?: "full" | "get-only" | "none";
 }
 
 export async function serveFixture(overrides: FixtureOverrides = {}): Promise<RangeServer> {
@@ -35,6 +36,7 @@ export async function serveFixture(overrides: FixtureOverrides = {}): Promise<Ra
       "/maui/parcels.pmtiles": path.join(FIXTURE_DIRECTORY, "parcels.pmtiles"),
     },
     ...(overrides.delayMs ? { delayMs: overrides.delayMs } : {}),
+    ...(overrides.rangeSupport ? { rangeSupport: overrides.rangeSupport } : {}),
   });
 }
 
@@ -53,11 +55,17 @@ export function parquetRequests(server: RangeServer) {
   return server.requests.filter((entry) => entry.path === "/maui/parcels.parquet");
 }
 
-/** Rewrite the fixture GeoParquet with `select` and a replacement publication stamp, into a temp file. */
+/** Rewrite the fixture GeoParquet with `select` and a replacement publication stamp, with a descriptor naming its size. */
+export interface ParquetLayout {
+  readonly orderBy?: string;
+  readonly copyOptions?: string;
+}
+
 export async function rewrittenParquet(
   select: string,
   stamp: Record<string, unknown>,
-): Promise<{ file: string; cleanup(): void }> {
+  layout: ParquetLayout = {},
+): Promise<{ overrides: FixtureOverrides; cleanup(): void }> {
   const directory = mkdtempSync(path.join(tmpdir(), "honua-publication-"));
   const file = path.join(directory, "parcels.parquet");
   const source = path.join(FIXTURE_DIRECTORY, "parcels.parquet").replaceAll("'", "''");
@@ -66,14 +74,24 @@ export async function rewrittenParquet(
   const connection = await instance.connect();
   try {
     await connection.run(
-      `COPY (SELECT ${select} FROM read_parquet('${source}')) TO '${file.replaceAll("'", "''")}'
-       (FORMAT parquet, KV_METADATA {geo: '${geo}', 'honua:publication': '${JSON.stringify(stamp).replaceAll("'", "''")}'})`,
+      `COPY (SELECT ${select} FROM read_parquet('${source}') ${layout.orderBy ? `ORDER BY ${layout.orderBy}` : ""})
+       TO '${file.replaceAll("'", "''")}'
+       (FORMAT parquet, ${layout.copyOptions ? `${layout.copyOptions}, ` : ""}KV_METADATA {geo: '${geo}', 'honua:publication': '${JSON.stringify(stamp).replaceAll("'", "''")}'})`,
     );
   } finally {
     connection.closeSync();
     instance.closeSync();
   }
-  return { file, cleanup: () => rmSync(directory, { recursive: true, force: true }) };
+  const descriptor = path.join(directory, "descriptor.json");
+  const geoparquet = { ...FIXTURE_DESCRIPTOR.artifacts.geoparquet, bytes: statSync(file).size };
+  writeFileSync(
+    descriptor,
+    JSON.stringify({ ...FIXTURE_DESCRIPTOR, artifacts: { ...FIXTURE_DESCRIPTOR.artifacts, geoparquet } }),
+  );
+  return {
+    overrides: { parquet: file, descriptor },
+    cleanup: () => rmSync(directory, { recursive: true, force: true }),
+  };
 }
 
 async function readKeyValue(file: string, key: string): Promise<string> {
