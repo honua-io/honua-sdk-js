@@ -593,7 +593,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 31 executable examples: 4 qualified golden samples, 13 recipes, 11 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 29 executable examples: 4 qualified golden samples, 12 recipes, 10 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -1289,7 +1289,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 31 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 29 executable examples
 
 ## Golden journey readiness
 
@@ -1299,7 +1299,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | --- | --- | --- |
 | `first-map` | qualified | [`maplibre-quickstart`](#maplibre-quickstart) |
 | `service-explorer` | qualified | [`service-explorer`](#service-explorer) |
-| `planning-permitting` | planned | [`planning-permitting-workbench`](#planning-permitting-workbench) |
+| `planning-permitting` | planned | [`edit-workflow-demo`](#edit-workflow-demo) |
 | `incident-operations` | planned | [`realtime-incident-dashboard`](#realtime-incident-dashboard) |
 | `imagery-terrain` | qualified | [`imagery-cog-quickstart`](#imagery-cog-quickstart) |
 | `cloud-native-analysis` | planned | [`spatial-analytics-workbench`](#spatial-analytics-workbench) |
@@ -1322,7 +1322,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
 | <a id="coverages-wcs-basic"></a>[`coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff. |
-| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
+| <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | planning-permitting | supported | rework | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | fixture | not-required | Runs a deterministic Honolulu buffer job and renders the verified polygon result. |
 | <a id="geoservices-source-app"></a>[`geoservices-source-app`](../../examples/geoservices-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
@@ -1335,7 +1335,6 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
 | <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
-| <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
 | <a id="react-quickstart"></a>[`react-quickstart`](../../examples/react-quickstart/README.md) | recipe | - | supported | active | browser-recipe | hybrid | approved | Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey. |
 | <a id="realtime-incident-dashboard"></a>[`realtime-incident-dashboard`](../../examples/realtime-incident-dashboard/README.md) | lab | incident-operations | supported | active | browser-lab | hybrid | approved | Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. |
@@ -1347,7 +1346,6 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="stac-imagery-browser"></a>[`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff. |
 | <a id="storytelling-25d-map"></a>[`storytelling-25d-map`](../../examples/storytelling-25d-map/README.md) | lab | - | supported | merge | browser-lab | hybrid | legacy-unsafe | Combines terrain, extrusion, OGC overlays, and route playback in a guided story. |
 | <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
-| <a id="terrain-rgb-elevation"></a>[`terrain-rgb-elevation`](../../examples/terrain-rgb-elevation/README.md) | recipe | - | supported | merge | browser-recipe | hybrid | legacy-unsafe | Reads Terrain-RGB tiles for point elevation and route profiles. |
 
 The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.
 
@@ -1634,26 +1632,26 @@ Labels: `fixture` · `experimental` · `degraded`
 - honua.io journey: `linked-large-data-analysis`
 - Degradation: The current shell still uses the app-workspace compatibility shim retained through 0.3.x and removed in 0.4.0; #399 owns its supported-import migration.
 
-### 6. Plan, analyze, and edit with recovery
+### 6. Edit with forms, attachments, and recovery
 
-Search a parcel, run bounded geometry analysis, and apply metadata-backed edits and attachments without hiding unsupported mutations.
+Apply metadata-backed edits and attachments, surface conflicts, and roll back failed mutations without hiding unsupported operations.
 
 Labels: `fixture` · `degraded`
 
 - Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
-- Runnable example: [planning-permitting-workbench](../../examples/planning-permitting-workbench)
-- Executable entry: [examples/planning-permitting-workbench/src/journey.ts](../../examples/planning-permitting-workbench/src/journey.ts)
-- Example notes: [examples/planning-permitting-workbench/README.md](../../examples/planning-permitting-workbench/README.md)
-- Compile check: `npm run demo:planning-workbench:typecheck`
-- Sample contract: `lab` · `supported` · `active`
+- Runnable example: [edit-workflow-demo](../../examples/edit-workflow-demo)
+- Executable entry: [examples/edit-workflow-demo/src/model.ts](../../examples/edit-workflow-demo/src/model.ts)
+- Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
+- Compile check: `npm run demo:edit-workflow:typecheck`
+- Sample contract: `recipe` · `supported` · `rework`
 - Data and auth: `fixture` · `none`
-- Provenance: Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.
-- Freshness: Fixture version and generated-at values are committed with the repository; no live freshness claim is made.
-- Catalog degradation: Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.
-- Live sample: [demo-editing.html](https://honua.io/demo-editing.html) · [demo-planning-permitting.html](https://honua.io/demo-planning-permitting.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`); `@honua/sdk-js/geocoding` (`HonuaGeocodingClient`); `@honua/sdk-js/geometry` (`area`, `booleanIntersects`, `intersect`); `@honua/sdk-js/honua` (`createHonua`, `envelope`)
+- Provenance: Committed deterministic edit fixture.
+- Freshness: Deterministic fixture replay time.
+- Catalog degradation: Editing is read-only when the service does not advertise mutation capability.
+- Live sample: [demo-editing.html](https://honua.io/demo-editing.html)
+- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`, `createEditSketchWorkflow`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `query-map-style`
-- Degradation: Metadata or capability discovery failure disables analysis, export, and mutation; deterministic fixture output is never presented as live or regulatory evidence.
+- Degradation: Capability discovery failure disables mutation; deterministic fixture output is never presented as live evidence.
 
 ### 7. Operate through realtime and offline transitions
 
@@ -1764,13 +1762,6 @@ There is one runnable implementation:
 
 ```bash
 npm run demo:quickstart:mock
-```
-
-The historical commands remain compatibility aliases and execute that same app:
-
-```bash
-npm run demo:standalone
-npm run demo:standalone:mock
 ```
 
 For the lower-level caller-owned-map API, see the focused
@@ -1930,7 +1921,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-12 at commit `78b29c31a`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-12 at commit `a6584654a`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11861,7 +11852,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-12 at commit `78b29c31a`._
+_Generated 2026-11-12 at commit `a6584654a`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11974,15 +11965,8 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 > unsupported, the query returns no features, or none of the returned records survive
 > conversion into the rendered point, line, or polygon geometry buckets.
 
-- [`examples/maplibre-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
-- [`examples/react-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode.
-- [`examples/storytelling-25d-map/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
-- [`examples/imagery-cog-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
-- [`examples/spatial-analytics-workbench/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
-- [`examples/edit-workflow-demo/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
-- [`examples/geocoding-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
-- [`examples/terrain-rgb-elevation/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
-- [`docs/examples/cesium-route-playback/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
+The [examples index](../examples/README.md) lists every runnable example once, grouped by capability, with
+whether it runs on fixtures or a live server.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
 contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics.

@@ -327,14 +327,6 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/overture-geoparquet/src/main.ts fetches only distributionUrl(\"overture-places.parquet\"), resolved bundle-relative from import.meta.url; the Overture S3 and STAC URLs in src/source-manifests.ts are displayed provenance strings that are never fetched.",
   },
   {
-    id: "planning-permitting-workbench",
-    runtimeHosting: "same-origin-fixture-service",
-    buildScript: "demo:planning-workbench:build",
-    hostFixtureRoutes: ["/rest/services/Maui/Planning/FeatureServer"],
-    auditedVia:
-      "examples/planning-permitting-workbench/src/main.ts passes baseUrl: window.location.origin into the journey, which addresses `${baseUrl}/rest/services/Maui/Planning/FeatureServer/{0,1}` (src/journey.ts PLANNING_SERVICE_PATH); normalizeFixtureOrigin rejects any non-origin or credential-bearing base, and the catalog declares no config surface at all (configurationStatus not-required, authMode none).",
-  },
-  {
     id: "pmtiles-static",
     runtimeHosting: "self-contained",
     buildScript: "demo:pmtiles-static:build",

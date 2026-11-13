@@ -80,7 +80,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "planning-permitting-workbench"
+      "candidateSampleId": "edit-workflow-demo"
     },
     {
       "id": "incident-operations",
@@ -584,15 +584,12 @@
       "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
       "sourceKind": "root-example",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "replace",
-        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "planning-permitting"
-        }
+        "state": "rework",
+        "reason": "Keep the workflow and add an isolated resettable live dataset.",
+        "targetRelease": "0.4.0"
       },
       "sourcePath": "examples/edit-workflow-demo",
       "docsPath": "examples/edit-workflow-demo/README.md",
@@ -891,7 +888,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-12-13T01:25:49.214Z"
+          "expiresAt": "2026-12-13T10:50:32.808Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -997,7 +994,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-12-13T01:24:33.180Z"
+          "expiresAt": "2026-12-13T10:48:55.150Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1119,7 +1116,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-12-13T01:26:05.668Z"
+          "expiresAt": "2026-12-13T10:50:52.127Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -1604,75 +1601,6 @@
       ]
     },
     {
-      "id": "planning-permitting-workbench",
-      "title": "Planning and Permitting journey",
-      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "journeyId": "planning-permitting",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
-      },
-      "sourcePath": "examples/planning-permitting-workbench",
-      "docsPath": "examples/planning-permitting-workbench/README.md",
-      "capabilities": [
-        "attachments",
-        "editing",
-        "forward-geocode",
-        "geometry",
-        "linked-views",
-        "planning",
-        "provenance",
-        "query"
-      ],
-      "capabilityKeys": [
-        "editing.featureserver-edits",
-        "geocoding.forward"
-      ],
-      "protocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "none"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
-        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
-        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:planning-workbench:mock"
-          ]
-        },
-        "live": {
-          "mode": "public-live",
-          "status": "planned",
-          "commands": [
-            "npm run evidence:planning:live"
-          ]
-        }
-      },
-      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npm run demo:planning-workbench:typecheck",
-        "npm run demo:planning-workbench:build",
-        "npm run test:playwright:planning-workbench"
-      ]
-    },
-    {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
       "summary": "Loads a static PMTiles archive without a Honua server.",
@@ -2108,7 +2036,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-12-13T01:26:54.021Z"
+          "expiresAt": "2026-12-13T10:51:49.279Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
@@ -2689,105 +2617,6 @@
         "npm run demo:temporal-playback:typecheck",
         "npm run demo:temporal-playback:build"
       ]
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "title": "Terrain RGB elevation",
-      "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
-      },
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "docsPath": "examples/terrain-rgb-elevation/README.md",
-      "capabilities": [
-        "elevation",
-        "profile",
-        "terrain"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "serve.elevation"
-      ],
-      "protocols": [
-        "terrain-rgb"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-          "VITE_HONUA_TERRAIN_API_KEY",
-          "VITE_HONUA_TERRAIN_BASE_URL",
-          "VITE_HONUA_TERRAIN_BEARER_TOKEN",
-          "VITE_HONUA_TERRAIN_SERVICE_ID"
-        ],
-        "provenance": "Committed Oahu DEM fixture or configured terrain service.",
-        "attribution": "Elevation-source attribution displayed with results.",
-        "freshness": "Fixture asset version or live response time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
-        "configClassifications": [
-          {
-            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_TERRAIN_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_TERRAIN_BASE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_TERRAIN_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_TERRAIN_SERVICE_ID",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:terrain-elevation:mock"
-          ]
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Profile and map terrain expose independent capability failures.",
-      "validationProfile": "browser-recipe",
-      "validation": [
-        "npm run demo:terrain-elevation:typecheck",
-        "npm run demo:terrain-elevation:build"
-      ]
     }
   ],
   "siteMappings": [
@@ -2849,7 +2678,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "planning-permitting-workbench"
+      "sampleId": "edit-workflow-demo"
     },
     {
       "id": "esri-leaflet",
@@ -2909,8 +2738,16 @@
     {
       "id": "planning-permitting",
       "route": "demo-planning-permitting.html",
-      "ownership": "sdk-projection",
-      "sampleId": "planning-permitting-workbench"
+      "ownership": "site-exception",
+      "exceptionReason": "The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned.",
+      "title": "Planning and permitting",
+      "summary": "Site-owned planning and permitting presentation.",
+      "capabilities": [
+        "editing",
+        "planning"
+      ],
+      "track": "lab",
+      "supportTier": "deprecated"
     },
     {
       "id": "public-safety",

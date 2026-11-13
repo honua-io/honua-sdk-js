@@ -137,3 +137,16 @@ pass by substituting the recorded model. Each response must report the server ad
 the reviewed evaluation configuration before any query is executed. The
 source/harness hashes still need to be joined to the deployed adapter's reviewed
 source before admitting the receipt.
+
+## Public package imports
+
+The application imports the SDK through published `@honua/sdk-js` entry points.
+The MapLibre worker import lives in this example, so copying the application
+source does not require `examples/shared`.
+
+After `npm run prepare:test-sdk` and `npm run build:browser`,
+`npm run verify:packed-sdk` copies the application source into a temporary
+consumer of the installed SDK tarball and checks its TypeScript declarations and
+Vite browser bundle without repository aliases. This verifies the package import
+contract. It does not run the spatial engine: the development example still
+uses the repository's pinned DuckDB asset cache and evidence tooling.

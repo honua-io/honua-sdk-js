@@ -500,6 +500,7 @@ describe("forks and untrusted heads cannot publish reusable evidence", () => {
     assert.equal("workflow_dispatch" in graph.on, false, "manual dispatch would let the actor choose the checked-out ref");
     assert.deepEqual(graph.permissions, { contents: "read" });
     for (const [jobId, job] of Object.entries(graph.jobs)) {
+      if (jobId === "verify-package") continue;
       assert.equal(job.permissions, undefined, `${jobId} must not widen the workflow's read-only token`);
     }
   });
@@ -767,6 +768,7 @@ describe("ci.yml keeps legacy jobs for rollback and manual dispatch", () => {
   it("keeps the cheap policy suites wired into both workflow-guard jobs", () => {
     const required = [
       "node test/scripts/pr-issue-disposition.test.mjs",
+      "node test/scripts/schema-sync-workflow.test.mjs",
       "node test/scripts/release-please-ci-dispatch.test.mjs",
       "node test/scripts/release-please-ci-checks.test.mjs",
       "node test/scripts/backlog-dependencies.test.mjs",

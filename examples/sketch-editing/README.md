@@ -4,22 +4,24 @@ Interactive draw/edit/delete on a MapLibre map through the SDK's
 `EditSketchWorkflowModel`, powered by the optional
 [terra-draw](https://terradraw.io) peer.
 
-This remains the focused sketching recipe. The planning and permitting journey
-owns the end-to-end search, analysis, edit, recovery, and export story; this
-sample stays narrowly responsible for terra-draw modes, snapping, history, and
-submission binding.
+This is the focused sketching recipe: terra-draw modes, snapping, history, and
+submission binding. [Edit workflow demo](../edit-workflow-demo/README.md) covers
+attributes, attachments, conflicts, and recovery.
 
 What it demonstrates:
 
 - **One workflow, one history.** terra-draw modes (point, line, polygon,
   rectangle, circle, freehand, select) finish into the edit-sketch workflow via
-  `createTerraDrawSketch` / `bindTerraDrawSketch` from `@honua/sdk-js/runtime`,
-  so undo/redo and validation are workflow features, not renderer features.
-- **Snapping through terra-draw's own pointer pipeline.**
-  `createTerraDrawSnapping` bridges the SDK `SnapIndex` into terra-draw's
-  `snapping.toCustom` hook on the linestring and polygon modes; the status
-  panel shows the resolved candidate. Modes without a snapping option (point,
-  rectangle, circle, freehand) keep terra-draw-native behavior.
+  `createTerraDrawSketch(map, { model: workflow, snapping: { index: snapIndex, model: workflow, onResolve } })`
+  from `@honua/sdk-js/runtime`, so undo/redo and validation are workflow
+  features, not renderer features. `bindTerraDrawSketch` remains a public API
+  for an app that already holds a terra-draw instance.
+- **Snapping through terra-draw's own pointer pipeline.** This example passes
+  `snapping` into `createTerraDrawSketch`, which applies the SDK `SnapIndex`
+  on the linestring and polygon modes; the status panel shows the candidate
+  from `onResolve`. `createTerraDrawSnapping` remains the public API that
+  builds that hook when an app wires snapping itself. Modes without a snapping
+  option (point, rectangle, circle, freehand) keep terra-draw-native behavior.
 - **Edits land in `applyEdits` unchanged.** Submit drives the standard
   edit-session path against a deterministic in-memory fixture source (mock
   lane); the operation log shows each applied envelope.

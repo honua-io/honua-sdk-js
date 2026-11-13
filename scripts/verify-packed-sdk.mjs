@@ -16,6 +16,7 @@ import {
   typeSmokeSource,
   validateInstalledManifest,
 } from "./lib/packed-sdk-smoke.mjs";
+import { prepareNlMapConsumer } from "./lib/nl-map-packed-consumer.mjs";
 import { npmExecLocalArgs, runNpmSync } from "./lib/npm-cli.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -506,6 +507,20 @@ void module;
     { cwd: consumerRoot },
   );
 
+  const nlMapRoot = prepareNlMapConsumer({ projectRoot, consumerRoot });
+  run(
+    "installed NL map sample declarations",
+    process.execPath,
+    [path.join(projectRoot, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"],
+    { cwd: nlMapRoot },
+  );
+  run(
+    "installed NL map sample browser bundle",
+    process.execPath,
+    [path.join(projectRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--config", "vite.config.mjs"],
+    { cwd: nlMapRoot, timeout: 120_000 },
+  );
+
   const installedHonua = (...args) => npmExecLocalArgs("honua", args);
   const installedHelp = run("installed honua --help", "npm", installedHonua("--help"), {
     cwd: consumerRoot,
@@ -728,7 +743,7 @@ void module;
   );
 
   process.stdout.write(
-    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal admin=all-7-groups+stage2+stage3+stage8+compiled-paths+profile+mutation-guard+secret-guard registryInstall=true\n`,
+    `packedSdk=ok package=${packageJson.name}@${packageJson.version} runtimeImports=${entrypoints.length} typeImports=${entrypoints.length} realtimeConformance=full-10-scenario-matrix:sse+websocket+odata geocoding=runtime pmtilesConnect=bounded-range wfsProtocol=runtime+types+authority rootMigration=runtime+types reviewedRoot=true peerFixtures=${peerFixtureCount} bin=honua doctor=emit+validate+replay-refusal admin=all-7-groups+stage2+stage3+stage8+compiled-paths+profile+mutation-guard+secret-guard registryInstall=true nlMapSample=installed-types+browser-bundle\n`,
   );
 } catch (error) {
   process.stderr.write(

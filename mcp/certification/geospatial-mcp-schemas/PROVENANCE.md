@@ -35,8 +35,9 @@ To re-pin to a newer published revision, edit the **Source commit** SHA (and the
 index date) above, then run `scripts/sync-schemas.sh --write` from the repo root
 to re-copy `spec/schemas/` verbatim from that commit. Do not hand-edit individual
 schema files; the standard is owned upstream. The `schema-sync` CI workflow
-(`.github/workflows/schema-sync.yml`) runs `scripts/sync-schemas.sh` on every PR
-and fails on any byte difference from the pinned commit.
+(`.github/workflows/schema-sync.yml`) runs `scripts/sync-schemas.sh` on every trunk and
+`release/**` push, and on pull requests that change this tree, the script or the
+workflow; it fails on any byte difference from the pinned commit.
 
 ## Index
 

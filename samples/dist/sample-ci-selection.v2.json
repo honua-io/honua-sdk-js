@@ -22,7 +22,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "planning-permitting-workbench"
+      "candidateSampleId": "edit-workflow-demo"
     },
     {
       "id": "incident-operations",
@@ -85,7 +85,6 @@
         "mcp-gis-assistant",
         "nl-map-control",
         "overture-geoparquet",
-        "planning-permitting-workbench",
         "realtime-incident-dashboard",
         "runtime-parity-showcase",
         "shared-renderer-state",
@@ -116,8 +115,7 @@
         "react-quickstart",
         "sketch-editing",
         "stac-imagery-browser",
-        "temporal-playback",
-        "terrain-rgb-elevation"
+        "temporal-playback"
       ]
     },
     {
@@ -393,6 +391,7 @@
       "id": "edit-workflow-demo",
       "sourcePath": "examples/edit-workflow-demo",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "supportTier": "supported",
       "validationProfile": "browser-recipe",
       "gates": {
@@ -599,7 +598,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:25:49.214Z"
+        "expiresAt": "2026-12-13T10:50:32.808Z"
       }
     },
     {
@@ -645,7 +644,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:24:33.180Z"
+        "expiresAt": "2026-12-13T10:48:55.150Z"
       }
     },
     {
@@ -731,7 +730,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:05.668Z"
+        "expiresAt": "2026-12-13T10:50:52.127Z"
       }
     },
     {
@@ -929,50 +928,6 @@
           "execution": "scheduled-only",
           "commands": [
             "npm run evidence:overture:live"
-          ]
-        }
-      },
-      "liveEvidence": {
-        "mode": "public-live",
-        "status": "planned"
-      }
-    },
-    {
-      "id": "planning-permitting-workbench",
-      "sourcePath": "examples/planning-permitting-workbench",
-      "track": "lab",
-      "journeyId": "planning-permitting",
-      "supportTier": "supported",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build",
-            "npm run test:playwright:planning-workbench"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:planning-workbench:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": [
-            "npm run evidence:planning:live"
           ]
         }
       },
@@ -1196,7 +1151,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:54.021Z"
+        "expiresAt": "2026-12-13T10:51:49.279Z"
       }
     },
     {
@@ -1448,46 +1403,6 @@
       "liveEvidence": {
         "mode": "unavailable",
         "status": "not-applicable"
-      }
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "track": "recipe",
-      "supportTier": "supported",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:terrain-elevation:typecheck",
-            "npm run demo:terrain-elevation:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:terrain-elevation:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
       }
     }
   ]

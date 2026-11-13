@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 
@@ -32,6 +34,7 @@ import {
   migrateCatalogV1ToV2,
   parseJsonDocument,
   publishesGoldenVisualWindow,
+  readGeneratedOutputs,
   refreshOverlayLiveExpiry,
   reviewedLiveProducer,
   unrenewableGoldenVisualPaths,
@@ -260,10 +263,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(31);
+    expect(catalog.samples).toHaveLength(29);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(27);
+    ).toHaveLength(25);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -279,27 +282,10 @@ describe("sample publication contract", () => {
       lifecycle: { state: "rework", targetRelease: "0.4.0" },
       data: { configurationStatus: "legacy-unsafe", config: [] },
     });
-    expect(
-      catalog.samples.find((sample: { id: string }) => sample.id === "planning-permitting-workbench"),
-    ).toMatchObject({
-      track: "lab",
-      journeyId: "planning-permitting",
-      lifecycle: { state: "active" },
-      renderers: ["none"],
-      evidence: {
-        live: {
-          mode: "public-live",
-          status: "planned",
-          commands: ["npm run evidence:planning:live"],
-        },
-      },
-    });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
       track: "recipe",
-      lifecycle: {
-        state: "replace",
-        replacement: { kind: "journey", id: "planning-permitting" },
-      },
+      journeyId: "planning-permitting",
+      lifecycle: { state: "rework" },
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
       track: "recipe",
@@ -1134,13 +1120,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(31);
+    expect(projection.samples).toHaveLength(29);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(31);
+    expect(ciSelection.samples).toHaveLength(29);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1230,28 +1216,6 @@ describe("sample publication contract", () => {
       execution: "scheduled-only",
       commands: ["npm run evidence:cog:live"],
     });
-    const planning = ciSelection.samples.find(
-      (sample: { id: string }) => sample.id === "planning-permitting-workbench",
-    );
-    expect(planning).toMatchObject({
-      track: "lab",
-      validationProfile: "browser-lab",
-      commandPlan: {
-        validation: {
-          execution: "automatic",
-          commands: [
-            "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build",
-            "npm run test:playwright:planning-workbench",
-          ],
-        },
-        fixtureEvidence: {
-          execution: "orchestrated",
-          commands: ["npm run demo:planning-workbench:mock"],
-        },
-        liveEvidence: { execution: "scheduled-only", commands: ["npm run evidence:planning:live"] },
-      },
-    });
     expect(
       projection.routes
         .filter((route) => ["imagery-terrain", "maui-3d", "wms-overlay"].includes(String(route.id)))
@@ -1260,8 +1224,8 @@ describe("sample publication contract", () => {
     expect(
       projection.routes
         .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
-        .map((route) => String(route.sampleId)),
-    ).toEqual(["planning-permitting-workbench", "planning-permitting-workbench"]);
+        .map((route) => String(route.sampleId ?? route.ownership)),
+    ).toEqual(["edit-workflow-demo", "site-exception"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);
@@ -1441,6 +1405,26 @@ describe("sample publication contract", () => {
     ).rejects.toThrow("is broken or missing");
   }, 80_000);
 
+  it("reports missing generated files as drift without masking other read errors", async () => {
+    const root = await mkdtemp(join(tmpdir(), "honua-generated-drift-"));
+    try {
+      await writeFile(join(root, "existing.json"), "existing");
+      const expected = new Map([
+        ["existing.json", "existing"],
+        ["new.json", "new"],
+      ]);
+      const actual = await readGeneratedOutputs(expected.keys(), root);
+      const drift = generatedOutputDrift(expected, actual);
+      expect(drift).toEqual(["new.json"]);
+      expect(() => validateGeneratedOutputDrift(drift)).toThrow(/new.json has drifted/u);
+      expect(() => validateGeneratedOutputDrift(drift, { relaxed: true })).not.toThrow();
+      await mkdir(join(root, "directory.json"));
+      await expect(readGeneratedOutputs(["directory.json"], root)).rejects.toMatchObject({ code: "EISDIR" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   // This test calls generatedOutputs() twice (current + bumped-version
   // catalogs), roughly doubling the file's already-doubled four-journey I/O
   // budget; give it its own headroom rather than inflating every other test
@@ -1468,6 +1452,7 @@ describe("sample publication contract", () => {
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/capability-sample-matrix.v2.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
@@ -1493,6 +1478,7 @@ describe("sample publication contract", () => {
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/capability-sample-matrix.v2.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       fixturePath,
@@ -1757,16 +1743,12 @@ describe("sample publication contract", () => {
       "node-backend-quickstart: configuration declaration drift",
     );
 
-    // This proved "browser-public credentials require legacy-unsafe status and
-    // bounded rework" by flipping kepler-analytics to approved. #1674 retired
-    // that sample, and no survivor can reach the same invariant: every sample
-    // left with a browser-public credential also passes a whole import.meta.env
-    // object, which trips an earlier guard as soon as the status is approved.
-    //
-    // The bounded-rework half is still reachable, so it is asserted here rather
-    // than dropped with the rest. The status half remains enforced in
-    // scripts/sample-contract.mjs but is currently unexercised by any shipped
-    // sample; restoring it needs a fixture, not a catalog mutation (#1687).
+    // Bounded rework is still proved here, on a shipped sample whose legacy
+    // configuration declares no names. Approving a browser-public credential
+    // cannot be proved on a shipped sample: the ones that declare one also
+    // pass a whole import.meta.env object, so the earlier whole-environment
+    // guard fires first. The status rule is proved by the named-key fixture
+    // in the next test.
     const unboundedRework = structuredClone(catalog);
     const legacyUnsafeSample = unboundedRework.samples.find(
       (sample: { id: string }) => sample.id === "cesium-route-playback",
@@ -2323,7 +2305,7 @@ runNpmScriptSync("demo:wrong:build", {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(21);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(19);
   });
 
   it("keeps the columnar browser validation exact and bounded", async () => {

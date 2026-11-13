@@ -28,7 +28,6 @@ Source inventory of the sample catalog; 31 catalog entries. Each generated playg
 | oauth-signin | `examples/oauth-signin` | No map renderer; no online basemap requests | — |
 | offline-region-reference | `docs/examples/offline-region-reference` | No map renderer; no online basemap requests | — |
 | overture-geoparquet | `examples/overture-geoparquet` | Purpose-specific SVG AOI point preview; retain explicit AOI bounds and labels, no geographic basemap | — |
-| planning-permitting-workbench | `examples/planning-permitting-workbench` | Purpose-specific schematic parcel locator; retain visible scope labels, no geographic basemap | — |
 | pmtiles-static | `examples/pmtiles-static` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
 | react-quickstart | `examples/react-quickstart` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | Generated from source |
 | realtime-incident-dashboard | `examples/realtime-incident-dashboard` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
@@ -40,11 +39,10 @@ Source inventory of the sample catalog; 31 catalog entries. Each generated playg
 | stac-imagery-browser | `examples/stac-imagery-browser` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | Generated from source |
 | storytelling-25d-map | `examples/storytelling-25d-map` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
 | temporal-playback | `examples/temporal-playback` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
-| terrain-rgb-elevation | `examples/terrain-rgb-elevation` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
 
 Starters: vanilla-ts and react-ts keep local default fixture style; configured VITE_HONUA_ENDPOINT lane receives shared online default/override with attribution.
 
-honua-samples: create-honua-app-react-ts/vanilla-ts consume the published scaffold. browser-featureserver-query renders a table, and geocode-single-line, hello-featureserver-rest, odata-query-rest, ogc-features-python, stac-search-rest and wms-getmap-check are request/response checks. No map basemap required.
+honua-samples: create-honua-app-react-ts/vanilla-ts consume the published scaffold. geocode-single-line, hello-featureserver-rest, odata-query-rest, ogc-features-python, stac-search-rest and wms-getmap-check are request/response checks. No map basemap required.
 
 Installed API design: /runtime explicit basemap style loader/binding, no network in core construction. Namespaced sources/layers inserted beneath operational overlays. Preserve TileJSON attribution and complete vector glyph/sprite resources. Surface style/tile/glyph/sprite failures with self-hosted override action while operational layers stay usable; no provider substitution.
 

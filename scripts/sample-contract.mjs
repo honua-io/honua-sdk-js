@@ -76,6 +76,9 @@ const NEXT_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-proje
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
+const CAPABILITY_SAMPLE_MATRIX_V2_PATH = "samples/dist/capability-sample-matrix.v2.json";
+const CAPABILITY_SAMPLE_MATRIX_V2_SCHEMA_PATH =
+  "schemas/capability-sample-matrix.v2.schema.json";
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
@@ -134,7 +137,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
-  ["examples/planning-permitting-workbench/mock-server.mjs", "demo:planning-workbench:build"],
   ["examples/pmtiles-static/mock-server.mjs", "demo:pmtiles-static:build"],
   ["examples/react-quickstart/mock-server.mjs", "demo:react-quickstart:build"],
   ["examples/realtime-incident-dashboard/mock-server.mjs", "demo:incident:build"],
@@ -144,7 +146,6 @@ const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/spatial-analytics-workbench/mock-server.mjs", "demo:spatial-analytics:build"],
   ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
   ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
-  ["examples/terrain-rgb-elevation/mock-server.mjs", "demo:terrain-elevation:build"],
 ]);
 const CHILD_PROCESS_LAUNCH_APIS = new Set([
   "exec",
@@ -388,18 +389,6 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
       },
     },
   ],
-  [
-    "evidence:planning:live",
-    {
-      definition: "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
-      generatorPath: "scripts/planning-live-evidence.mjs",
-      dependencies: {
-        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "node scripts/clean-dist.mjs",
-        compile: "npm run clean --silent && tsc -p tsconfig.json",
-      },
-    },
-  ],
 ]);
 
 /**
@@ -436,7 +425,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "nl-map-control",
   "oauth-signin",
   "overture",
-  "planning-workbench",
   "pmtiles-static",
   "quickstart",
   "react-quickstart",
@@ -446,15 +434,12 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "spatial-analytics",
   "stac-browser",
   "temporal-playback",
-  "terrain-elevation",
   "unified-ops",
   "web-components",
 ];
 const REVIEWED_VALIDATION_SCRIPTS = new Set([
   ...REVIEWED_BUILD_TYPECHECK_DEMOS.flatMap((name) => [`demo:${name}:build`, `demo:${name}:typecheck`]),
   "demo:ai-spatial-builder:evidence",
-  "demo:kepler:build",
-  "demo:kepler:smoke",
   "demo:node-backend:smoke",
   "demo:node-backend:typecheck",
   "demo:overture:build:offline",
@@ -469,7 +454,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:incident",
   "test:playwright:migration-workbench",
   "test:playwright:overture",
-  "test:playwright:planning-workbench",
   "test:playwright:quickstart",
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
@@ -477,12 +461,10 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:stac-browser",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
-  /^npm --prefix examples\/kepler-analytics run build$/,
   /^npm run build --silent$/,
   /^node examples\/(?:ai-spatial-app-builder|spatial-analytics-workbench)\/evidence-check\.mjs$/,
   /^node examples\/node-backend-quickstart\/dist\/smoke\.js$/,
   /^node examples\/overture-geoparquet\/prepare-duckdb-extension\.mjs$/,
-  /^node scripts\/ensure-kepler-demo-deps\.mjs$/,
   /^playwright test test\/playwright\/[a-z0-9.-]+\.spec\.mjs$/,
   /^playwright test --config playwright\.first-map\.config\.mjs test\/playwright\/quickstart-map\.spec\.mjs$/,
   /^tsc -p examples\/[a-z0-9-]+\/tsconfig(?:\.build)?\.json(?: --noEmit)?$/,
@@ -506,6 +488,54 @@ function normalizeQualificationBootstrapSampleIds(value) {
     ids.add(id);
   }
   return ids;
+}
+
+const SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX = "test/fixtures/sample-contract/";
+
+function syntheticConfigurationFixtureIds(value) {
+  invariant(
+    value === undefined || Array.isArray(value),
+    "syntheticConfigurationFixtures must be an array of sample ids",
+  );
+  const ids = new Set();
+  for (const id of value ?? []) {
+    invariant(
+      typeof id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id),
+      "synthetic configuration fixture sample id is invalid",
+    );
+    invariant(!ids.has(id), `duplicate synthetic configuration fixture: ${id}`);
+    ids.add(id);
+  }
+  return ids;
+}
+
+function validateSyntheticConfigurationFixtures(catalog, value) {
+  const ids = syntheticConfigurationFixtureIds(value);
+  for (const sampleId of ids) {
+    invariant(
+      catalog.samples.some((sample) => sample.id === sampleId),
+      `synthetic configuration fixture is not in the catalog: ${sampleId}`,
+    );
+  }
+  return ids;
+}
+
+function validateSampleSourceKind(sample, syntheticConfigurationFixtures) {
+  // Named fixtures retain every configuration invariant and must stay inside
+  // the test fixture tree; naming a shipped sample therefore fails closed.
+  if (syntheticConfigurationFixtures.has(sample.id)) {
+    invariant(
+      sample.sourcePath.startsWith(SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX),
+      `${sample.id}: synthetic configuration fixture source must live under ${SYNTHETIC_CONFIGURATION_FIXTURE_PREFIX}`,
+    );
+    return;
+  }
+  invariant(
+    sample.sourceKind === "root-example"
+      ? sample.sourcePath.startsWith("examples/")
+      : sample.sourcePath.startsWith("docs/examples/"),
+    `${sample.id}: sourceKind does not match sourcePath`,
+  );
 }
 
 function sortedUnique(values, label) {
@@ -3045,6 +3075,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     `${CAPABILITY_CROSSWALK_PATH} must use honua.sdk.capability-crosswalk.v1 schema version 1`,
   );
   const { keys: canonicalCapabilityKeys, source: capabilityKeyListSource } = await loadCapabilityKeyList();
+  const syntheticConfigurationFixtures = validateSyntheticConfigurationFixtures(catalog, options.syntheticConfigurationFixtures);
   for (const sample of catalog.samples) {
     invariant(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sample.id), `invalid sample id: ${sample.id}`);
     invariant(!sampleIds.has(sample.id), `duplicate sample id: ${sample.id}`);
@@ -3068,12 +3099,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
     assertRelativePath(sample.docsPath, `${sample.id}.docsPath`);
     invariant(await pathExists(sample.sourcePath), `${sample.id}: sourcePath does not exist: ${sample.sourcePath}`);
     invariant(await pathExists(sample.docsPath), `${sample.id}: docsPath does not exist: ${sample.docsPath}`);
-    invariant(
-      sample.sourceKind === "root-example"
-        ? sample.sourcePath.startsWith("examples/")
-        : sample.sourcePath.startsWith("docs/examples/"),
-      `${sample.id}: sourceKind does not match sourcePath`,
-    );
+    validateSampleSourceKind(sample, syntheticConfigurationFixtures);
     sourcePaths.add(sample.sourcePath);
     sortedUnique(sample.capabilities, `${sample.id}.capabilities`);
     const expectedCapabilityKeys = deriveCapabilityKeys(sample.capabilities, capabilityCrosswalk);
@@ -3436,7 +3462,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
 
   const exampleDirectories = await runnableRootExampleDirectories();
   const representedExamples = catalog.samples
-    .filter((sample) => sample.sourceKind === "root-example")
+    .filter((sample) => sample.sourceKind === "root-example" && !syntheticConfigurationFixtures.has(sample.id))
     .map((sample) => sample.sourcePath)
     .sort();
   invariant(
@@ -3445,7 +3471,7 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   );
   const docsExamples = await runnableDocsExampleDirectories();
   const representedDocsExamples = catalog.samples
-    .filter((sample) => sample.sourceKind === "docs-example")
+    .filter((sample) => sample.sourceKind === "docs-example" && !syntheticConfigurationFixtures.has(sample.id))
     .map((sample) => sample.sourcePath)
     .sort();
   invariant(
@@ -3758,9 +3784,10 @@ function normalizedPackageExports(packageJson, supportTruth) {
   return exportSubpaths.map((subpath) => {
     const target = packageJson.exports[subpath];
     invariant(target && typeof target === "object" && !Array.isArray(target), `${subpath}: export target must be an object`);
+    const runtimeCondition = subpath === "./geoparquet/node" ? "node" : "default";
     invariant(
-      Object.keys(target).sort().join(",") === "default,types",
-      `${subpath}: export target must declare exactly default and types`,
+      Object.keys(target).sort().join(",") === `${runtimeCondition},types`,
+      `${subpath}: export target must declare exactly ${runtimeCondition} and types`,
     );
     for (const [condition, value] of Object.entries(target)) {
       invariant(typeof value === "string", `${subpath}: ${condition} export target must be a string`);
@@ -3772,11 +3799,11 @@ function normalizedPackageExports(packageJson, supportTruth) {
       );
     }
     invariant(target.types.endsWith(".d.ts"), `${subpath}: types export target must end in .d.ts`);
-    invariant(target.default.endsWith(".js"), `${subpath}: default export target must end in .js`);
+    invariant(target[runtimeCondition].endsWith(".js"), `${subpath}: ${runtimeCondition} export target must end in .js`);
     return {
       subpath,
       lifecycle: lifecycleBySubpath.get(subpath),
-      targets: { types: target.types, default: target.default },
+      targets: { types: target.types, [runtimeCondition]: target[runtimeCondition] },
     };
   });
 }
@@ -5939,8 +5966,8 @@ export function generateCapabilitySampleMatrix(catalog, packageJson, supportTrut
     exports: packageJson.exports,
   };
   return {
-    format: "honua.site.sdk-capability-sample-matrix.v1",
-    schemaVersion: 1,
+    format: "honua.site.sdk-capability-sample-matrix.v2",
+    schemaVersion: 2,
     sdk: { package: packageJson.name, version: packageJson.version },
     inputs: {
       supportTruth: {
@@ -5997,6 +6024,24 @@ export function generateCapabilitySampleMatrix(catalog, packageJson, supportTrut
     packageEntrypoints,
     gaps,
   };
+}
+
+// Existing site handoffs consume only the v1 default-export inventory. Preserve
+// the complete package input digest; v2 is the authoritative conditional inventory.
+export function projectLegacyCapabilitySampleMatrix(matrix) {
+  if (matrix.schemaVersion === 1) return matrix;
+  invariant(
+    matrix.format === "honua.site.sdk-capability-sample-matrix.v2" && matrix.schemaVersion === 2,
+    "legacy capability projection requires matrix v1 or v2",
+  );
+  const legacy = structuredClone(matrix);
+  legacy.format = "honua.site.sdk-capability-sample-matrix.v1";
+  legacy.schemaVersion = 1;
+  legacy.packageEntrypoints = legacy.packageEntrypoints.filter((entrypoint) => "default" in entrypoint.targets);
+  const subpaths = new Set(legacy.packageEntrypoints.map((entrypoint) => entrypoint.subpath));
+  legacy.dimensions.packageEntrypoints = [...subpaths];
+  legacy.gaps = legacy.gaps.filter((gap) => gap.targetType !== "package-entrypoint" || subpaths.has(gap.targetId));
+  return legacy;
 }
 
 function evidenceEntryFromBinding(binding) {
@@ -6176,7 +6221,10 @@ async function validateEvidenceBindingFiles(binding, now, options = {}) {
 
 export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
   validateSensitiveMetadata(matrix, "capability sample matrix");
-  await validateJsonSchema(matrix, CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH);
+  await validateJsonSchema(
+    matrix,
+    matrix.schemaVersion === 1 ? CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH : CAPABILITY_SAMPLE_MATRIX_V2_SCHEMA_PATH,
+  );
   const sampleById = new Map(matrix.samples.map((sample) => [sample.id, sample]));
   invariant(sampleById.size === matrix.samples.length, "capability matrix sample IDs must be unique");
   invariant(
@@ -6358,7 +6406,8 @@ export async function validateCapabilitySampleMatrix(matrix, inputs = {}) {
       inputs.supportTruth,
       inputs.qualificationEvidence,
     );
-    invariant(JSON.stringify(matrix) === JSON.stringify(expected), "capability matrix does not match its source truth");
+    const projection = matrix.schemaVersion === 1 ? projectLegacyCapabilitySampleMatrix(expected) : expected;
+    invariant(JSON.stringify(matrix) === JSON.stringify(projection), "capability matrix does not match its source truth");
   }
 }
 
@@ -6850,6 +6899,7 @@ function siteConsumerHandoffContract(projection) {
 }
 
 export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  matrix = projectLegacyCapabilitySampleMatrix(matrix);
   const contract = siteConsumerHandoffContract(projection);
   invariant(
     matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
@@ -7973,7 +8023,8 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [LEGACY_SITE_PROJECTION_PATH, stableJson(legacyProjection)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [NEXT_SITE_PROJECTION_PATH, stableJson(nextProjection)],
-    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
+    [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(projectLegacyCapabilitySampleMatrix(capabilityMatrix))],
+    [CAPABILITY_SAMPLE_MATRIX_V2_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
@@ -8063,6 +8114,18 @@ async function validateGoldenVisualFreshnessRenewability(outputs) {
       `ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS as a historically validated archive. A window nobody renews expires ` +
       `on the calendar and wedges the sample publication gate (honua-io/honua-sdk-js#1266)`,
   );
+}
+
+export async function readGeneratedOutputs(relativePaths, root = PROJECT_ROOT) {
+  const outputs = new Map();
+  for (const relativePath of relativePaths) {
+    try {
+      outputs.set(relativePath, await readFile(path.join(root, relativePath), "utf8"));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  return outputs;
 }
 
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {
@@ -8352,10 +8415,7 @@ async function runContract(command, options = {}) {
       await writeFile(path.join(PROJECT_ROOT, relativePath), expected, "utf8");
     }
   } else {
-    const currentOutputs = new Map();
-    for (const relativePath of outputs.keys()) {
-      currentOutputs.set(relativePath, await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
-    }
+    const currentOutputs = await readGeneratedOutputs(outputs.keys());
     const drift = generatedOutputDrift(outputs, currentOutputs);
     validateGeneratedOutputDrift(drift, { relaxed: options.relaxGeneratedOutputs });
   }

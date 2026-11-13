@@ -1226,6 +1226,21 @@ export const acceptsSceneSpatialReference = (
     [path.join(PROJECT_ROOT, "node_modules", "typescript", "bin", "tsc"), "--project", "tsconfig.json"],
     tempRoot,
   );
+  // Bundle a clean browser consumer: Node import smoke does not validate Vite's
+  // complete static web-components dependency graph (terra-draw and PMTiles).
+  const browserEntry = path.join(tempRoot, "browser-entry.mjs");
+  fs.writeFileSync(browserEntry, `import { createHonuaFeatureTable } from "@honua/app-platform/web-components";
+    globalThis.createHonuaFeatureTable = createHonuaFeatureTable;\n`);
+  runCommand(process.execPath, ["--input-type=module", "--eval", `
+    import { build } from ${JSON.stringify(import.meta.resolve("vite"))};
+    await build(${JSON.stringify({
+      root: tempRoot,
+      configFile: false,
+      logLevel: "error",
+      build: { write: false, lib: { entry: browserEntry, formats: ["es"] } },
+    })});
+  `], tempRoot);
+  process.stdout.write("splitPackageBrowserBundle=ok\n");
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
   fs.copyFileSync(

@@ -99,6 +99,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      # Authenticated recovery reads Actions run attempts and jobs. contents:read
+      # does not grant those routes to an installation token.
+      # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+      actions: read
       # Trusted publishing: npm >= 11.5 exchanges the Actions OIDC token for
       # short-lived registry credentials at `npm publish` time (each package's
       # npmjs.com settings name this repo + workflow file as its trusted
@@ -258,7 +262,7 @@ jobs:
             exit 1
           fi
 
-      - name: Publish split packages
+      - name: Verify publication prerequisites
         run: |
           # Tags must satisfy the same source-tree executable policy as PRs;
           # do not rely only on the scheduled external Scorecard scan.
@@ -274,7 +278,14 @@ jobs:
           # A cut whose pair only installs with --legacy-peer-deps stops here
           # rather than reaching the registry (#1529).
           npm run verify:client-pair
-          npm run verify:migration-cohort:prepared
+
+      - name: Verify packed SDK migration cohort
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Publish split packages
+        run: |
           npm run build:split-packages:prepared --silent
           # Pack immediately. Later checks pack the root package and remove
           # these directories before the publish calls below.
@@ -512,6 +523,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Same Actions read as the packed cohort step: registry mode still
+      # resolves the tag and may recover the publisher run.
+      # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+      actions: read
     defaults:
       run:
         shell: bash
@@ -604,6 +619,7 @@ jobs:
       - name: Verify installed published migration dependency cohort
         env:
           PUBLISH_REF: ${{ github.ref }}
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-migration-cohort.mjs --sdk-source registry --sdk-publish-ref "${PUBLISH_REF}"
 
       - name: Upload migration cohort receipt and installed lock

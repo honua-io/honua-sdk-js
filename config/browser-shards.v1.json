@@ -19,8 +19,6 @@
       "specs": [
         "edit-workflow-demo.spec.mjs",
         "oauth-signin.spec.mjs",
-        "planning-permitting-editing.spec.mjs",
-        "planning-permitting-workbench.spec.mjs",
         "realtime-checkpoint-store.spec.mjs",
         "realtime-incident-dashboard.spec.mjs",
         "realtime-odata-delta-redirect.spec.mjs",
@@ -35,6 +33,7 @@
       "specs": [
         "cesium-route-playback.spec.mjs",
         "cesium-scene-adapter-fixtures.spec.mjs",
+        "cog-default-fetch.spec.mjs",
         "coverages-wcs-basic.spec.mjs",
         "imagery-cog-quickstart.spec.mjs",
         "nl-map-control.spec.mjs",
@@ -43,7 +42,6 @@
         "spatial-analytics-workbench.spec.mjs",
         "stac-imagery-browser.spec.mjs",
         "storytelling-25d-map.spec.mjs",
-        "terrain-rgb-elevation.spec.mjs",
         "webmap-visual-variables.spec.mjs",
         "zarr-direct-reader.spec.mjs"
       ]

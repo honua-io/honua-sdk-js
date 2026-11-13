@@ -96,8 +96,8 @@ export interface MatrixEvidenceBinding {
 }
 
 export interface CapabilitySampleMatrix {
-  format: "honua.site.sdk-capability-sample-matrix.v1";
-  schemaVersion: 1;
+  format: "honua.site.sdk-capability-sample-matrix.v1" | "honua.site.sdk-capability-sample-matrix.v2";
+  schemaVersion: 1 | 2;
   sdk: { package: string; version: string };
   inputs: Record<string, Record<string, unknown>>;
   statusVocabulary: { coverage: SampleCoverageState[]; support: string[] };
@@ -391,6 +391,10 @@ export function validateCatalog(
     receiptRoot?: string;
     verifyCheckout?: boolean;
     relaxDerivedArtifacts?: boolean;
+    // Test-only. Names catalog samples whose source lives under
+    // test/fixtures/sample-contract/ so a synthetic configuration can reach
+    // later invariants. Omitting it keeps the shipped example-path rule.
+    syntheticConfigurationFixtures?: string[];
   },
 ): Promise<void>;
 export function effectiveCatalog(
@@ -459,6 +463,8 @@ export function validateQualificationRunInventory(
     }>;
   },
 ): Promise<void>;
+export function projectLegacyCapabilitySampleMatrix(matrix: CapabilitySampleMatrix): CapabilitySampleMatrix;
+
 export function generateCapabilitySampleMatrix(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
@@ -550,6 +556,7 @@ export function generatedOutputs(
     supportTruth?: Record<string, unknown>;
   },
 ): Promise<Map<string, string>>;
+export function readGeneratedOutputs(relativePaths: Iterable<string>, root?: string): Promise<Map<string, string>>;
 export function generatedOutputDrift(
   expectedOutputs: Map<string, string>,
   currentOutputs: Map<string, string>,

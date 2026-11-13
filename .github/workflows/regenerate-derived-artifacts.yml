@@ -576,7 +576,10 @@ jobs:
 
       - name: Regenerate sample dist projections
         if: steps.decision.outputs.skip == 'false'
-        run: npm run samples:generate
+        run: |
+          node scripts/sample-playgrounds.mjs write-artifact
+          node scripts/sample-playgrounds.mjs check
+          npm run samples:generate
 
       # samples:generate rewrites docs/generated/sample-catalog.md, which is an
       # input to llms-full.txt. Refresh both deterministic llms outputs only
@@ -748,13 +751,43 @@ jobs:
           # the push identity is decided here.
           token: ${{ steps.app-token.outputs.token || github.token }}
 
+      # A stale source never publishes or closes anything. It hands off to a
+      # run on current trunk and cancels itself, because release-please.yml
+      # reads `cancelled` as "superseded, follow the next trunk run". A run
+      # already pending in the derived-artifacts group is that next run, and a
+      # new dispatch would evict it (and any receipt it carries), so then only
+      # cancel; if both carry work, stay red. Fail closed if the cancel fails.
       - name: Verify regeneration source is current trunk
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
+          CANCEL_WAIT_SECONDS: "300"
         run: |
           set -euo pipefail
           current_trunk="$(git ls-remote origin refs/heads/trunk | cut -f1)"
           if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then
-            echo "::error::Regeneration source is no longer current trunk; retaining existing pull requests."
+            stale="Regeneration source $GITHUB_SHA is no longer current trunk ($current_trunk); retaining existing pull requests."
+            pending="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow regenerate-derived-artifacts.yml \
+              --branch trunk --limit 20 --json databaseId,status \
+              --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID) | select(.status == \"pending\" or .status == \"queued\" or .status == \"waiting\" or .status == \"requested\")] | length")"
+            if [[ "$pending" != "0" ]]; then
+              if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+                echo "::error::$stale A trunk run is already pending, so release-matrix receipt run $RELEASE_MATRIX_RECEIPT_RUN_ID cannot be handed off without evicting it; re-dispatch it once the queue is clear."
+                exit 1
+              fi
+              echo "::notice::$stale The pending trunk run takes over; cancelling this run."
+            else
+              echo "::notice::$stale Dispatching a run on current trunk and cancelling this run."
+              dispatch=(gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk)
+              if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+                dispatch+=(-f "release_matrix_receipt_run_id=$RELEASE_MATRIX_RECEIPT_RUN_ID")
+              fi
+              "${dispatch[@]}"
+            fi
+            gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+            sleep "$CANCEL_WAIT_SECONDS"
+            echo "::error::$stale The self-cancel of run $GITHUB_RUN_ID did not take effect."
             exit 1
           fi
 
@@ -902,7 +935,10 @@ jobs:
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
-          expected_workflows='["SDK CI","PR issue disposition","Schema sync gate","Security"]'
+          # Schema sync gate is path-filtered on pull requests and a regeneration PR can never
+          # touch the vendored schema tree (see the publish allowlist), so it never attaches here.
+          expected_workflows='["SDK CI","PR issue disposition","Security"]'
+          expected_count="$(jq length <<<"$expected_workflows")"
           for attempt in {1..30}; do
             runs="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
@@ -921,7 +957,7 @@ jobs:
             done < <(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<<"$matching")
             attached="$(jq 'map(.workflowName) | unique | length' <<<"$matching")"
             held="$(jq '[.[] | select(.conclusion == "action_required")] | length' <<<"$matching")"
-            if [[ "$attached" -eq 4 && "$held" -eq 0 ]]; then
+            if [[ "$attached" -eq "$expected_count" && "$held" -eq 0 ]]; then
               break
             fi
             if (( attempt == 30 )); then

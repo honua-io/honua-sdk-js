@@ -71,7 +71,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "planning-permitting-workbench"
+      "candidateSampleId": "edit-workflow-demo"
     },
     {
       "id": "incident-operations",
@@ -225,14 +225,7 @@
     "edit-workflow-demo": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
-      "lifecycle": {
-        "state": "replace",
-        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Not reached in this release; the 0.3.0 scope was the rename and removal."
-      },
-      "replacement": {
-        "kind": "journey",
-        "id": "planning-permitting"
-      }
+      "journeyId": "planning-permitting"
     },
     "geocoding-quickstart": {
       "track": "recipe",
@@ -329,7 +322,7 @@
           "npm run evidence:cog:live"
         ],
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:25:49.214Z"
+        "expiresAt": "2026-12-13T10:50:32.808Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -355,7 +348,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:24:33.180Z"
+        "expiresAt": "2026-12-13T10:48:55.150Z"
       }
     },
     "mcp-gis-assistant": {
@@ -392,7 +385,7 @@
           "npm run evidence:migration-workbench:live"
         ],
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:05.668Z"
+        "expiresAt": "2026-12-13T10:50:52.127Z"
       }
     },
     "nl-map-control": {
@@ -444,48 +437,6 @@
           "npm run evidence:overture:live"
         ]
       }
-    },
-    "planning-permitting-workbench": {
-      "track": "lab",
-      "title": "Planning and Permitting journey",
-      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
-      "journeyId": "planning-permitting",
-      "capabilities": [
-        "attachments",
-        "editing",
-        "forward-geocode",
-        "geometry",
-        "linked-views",
-        "planning",
-        "provenance",
-        "query"
-      ],
-      "renderers": [
-        "none"
-      ],
-      "validationProfile": "browser-lab",
-      "lifecycle": {
-        "state": "active",
-        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
-      },
-      "data": {
-        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
-        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
-        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made."
-      },
-      "live": {
-        "mode": "public-live",
-        "status": "planned",
-        "commands": [
-          "npm run evidence:planning:live"
-        ]
-      },
-      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination.",
-      "validation": [
-        "npm run demo:planning-workbench:typecheck",
-        "npm run demo:planning-workbench:build",
-        "npm run test:playwright:planning-workbench"
-      ]
     },
     "pmtiles-static": {
       "track": "recipe",
@@ -546,7 +497,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:54.021Z"
+        "expiresAt": "2026-12-13T10:51:49.279Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",
@@ -653,28 +604,9 @@
           }
         ]
       }
-    },
-    "terrain-rgb-elevation": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "replacement": {
-        "kind": "journey",
-        "id": "imagery-terrain"
-      },
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      },
-      "lifecycle": {
-        "reason": "Combine point/profile proof with the imagery and 3D flagship. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "merge"
-      }
     }
   },
   "siteMappingOverrides": {
-    "editing": {
-      "sampleId": "planning-permitting-workbench"
-    },
     "maui-3d": {
       "sampleId": "imagery-cog-quickstart"
     }

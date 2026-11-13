@@ -19,6 +19,7 @@ import {
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
+  projectLegacyCapabilitySampleMatrix,
   validateLegacyVisualReceiptArchive,
   validateSiteConsumerFixtureV3,
   validateSiteConsumerFixtureV4,
@@ -125,11 +126,11 @@ describe("honua-site consumer handoff", () => {
         },
         counts: {
           // One card and one canonical route per public sample.
-          cards: 28,
+          cards: 26,
           qualifiedJourneys: 4,
-          canonicalRoutes: 28,
+          canonicalRoutes: 26,
           legacyRoutes: 20,
-          gaps: inputs.matrix.gaps.length,
+          gaps: projectLegacyCapabilitySampleMatrix(inputs.matrix).gaps.length,
         },
       });
       // maplibre-quickstart, imagery-cog-quickstart, migration-workbench,
@@ -410,8 +411,8 @@ describe("honua-site consumer handoff", () => {
       httpStatus: 308,
       presentation: "permanent-redirect",
     });
-    // control-legend, control-search, controls-kit, and hello-webmap stay site-owned.
-    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(4);
+    // control-legend, control-search, controls-kit, hello-webmap, and planning-permitting stay site-owned.
+    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(5);
     expect(
       handoff.legacyRoutes
         .filter((route) => route.resolution !== "canonical-sample")
@@ -419,10 +420,6 @@ describe("honua-site consumer handoff", () => {
     ).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.path === `samples/${route.sampleId}.html`)).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.externalListingEligible === true)).toBe(true);
-    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "edit-workflow-demo")).toMatchObject({
-      lifecycleState: "replace",
-      presentation: "lifecycle-status",
-    });
     expect(handoff.canonicalRoutes.find((route) => route.sampleId === "runtime-parity-showcase")).toMatchObject({
       lifecycleState: "replace",
       presentation: "lifecycle-status",
@@ -430,11 +427,11 @@ describe("honua-site consumer handoff", () => {
 
     const publicNonActiveIds = handoff.cards.filter((card) => card.lifecycle.state !== "active").map((card) => card.id);
     expect(handoff.lifecycleNotices.map((notice) => notice.sampleId)).toEqual(publicNonActiveIds);
-    expect(handoff.lifecycleNotices.find((notice) => notice.sampleId === "edit-workflow-demo")).toMatchObject({
+    expect(handoff.lifecycleNotices.find((notice) => notice.sampleId === "runtime-parity-showcase")).toMatchObject({
       state: "replace",
       replacement: {
         kind: "journey",
-        id: "planning-permitting",
+        id: "service-explorer",
       },
     });
     expect(allObjectKeys(handoff.cards)).not.toEqual(

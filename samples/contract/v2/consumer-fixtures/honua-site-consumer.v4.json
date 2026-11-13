@@ -13,15 +13,15 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v2",
     "schemaVersion": 2,
-    "bytes": 378464,
-    "sha256": "d01f136b75701e8959ce3c7932ea98da532a588a1344772421aca9afa06757d7",
+    "bytes": 366570,
+    "sha256": "97e69fb9c7605c31b09a825ebbaec9d7dd4bc889a82773a35e54df87d99ab12f",
     "schemaBytes": 28315,
     "schemaSha256": "e53b35b45608b02ce8991454e800139d3aa21bae18c70bf651a8ca8a6e54d5ef"
   },
   "assertions": {
-    "cardCount": 28,
+    "cardCount": 26,
     "qualifiedJourneyCount": 4,
-    "canonicalRouteCount": 28,
+    "canonicalRouteCount": 26,
     "legacyRouteCount": 20,
     "gapCount": 471,
     "everyQualifiedTrackHandedOff": true,
@@ -54,7 +54,6 @@
         "node-backend-quickstart",
         "oauth-signin",
         "overture-geoparquet",
-        "planning-permitting-workbench",
         "pmtiles-static",
         "react-quickstart",
         "realtime-incident-dashboard",
@@ -65,8 +64,7 @@
         "spatial-analytics-workbench",
         "stac-imagery-browser",
         "storytelling-25d-map",
-        "temporal-playback",
-        "terrain-rgb-elevation"
+        "temporal-playback"
       ]
     },
     {

@@ -1,16 +1,16 @@
 ---
 type: reference
-title: "GeoParquet / DuckDB-WASM source"
-description: "Run the same protocol-neutral Query against GeoParquet files in the browser with DuckDB-WASM: install, quickstart, SQL compilation, lossless results, aggregation, limits and the Overture recipe."
+title: "GeoParquet / DuckDB source"
+description: "Run the same protocol-neutral Query against GeoParquet files in Node or the browser with DuckDB: install, quickstart, SQL compilation, lossless results, aggregation, limits and the Overture recipe."
 resource: "honua://capability/format.geoarrow"
 ---
-# GeoParquet / DuckDB-WASM source
+# GeoParquet / DuckDB source
 
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same
 protocol-neutral `Query`** you use against a FeatureServer or an OGC API
-Features collection — but against GeoParquet files, in the browser, via
-[DuckDB-WASM](https://duckdb.org/docs/api/wasm/overview) and its `spatial`
-extension. The query compiles to SQL over `read_parquet(...)` and returns the
+Features collection — against GeoParquet files with native DuckDB in Node or
+[DuckDB-WASM](https://duckdb.org/docs/api/wasm/overview) in the browser, using the
+`spatial` extension. The query compiles to SQL over `read_parquet(...)` and returns the
 standard `Result` (GeoJSON features + schema), so results render through the
 same query-tiles runtime path as any other source.
 
@@ -18,7 +18,7 @@ This is the "query Overture GeoParquet in the browser via DuckDB-WASM" reference
 architecture, slotted directly into the `Dataset → Source → Query → Result`
 contract.
 
-## Install
+## Browser install
 
 `@duckdb/duckdb-wasm` is an **optional peer dependency** — it is not bundled and
 not pulled into the `/contract` or `/honua` entrypoints. Install it (and its
@@ -33,7 +33,60 @@ dependency edge from the core SDK. If the peer is missing, constructing a query
 throws a clear "install `@duckdb/duckdb-wasm`" error rather than failing
 opaquely.
 
-## Quickstart
+## Node quickstart
+
+Use Node 22.12 or newer and install the native engine explicitly:
+
+```bash
+npm install @honua/sdk-js @duckdb/node-api
+```
+
+The experimental Node factory has a separate import. It uses the same query
+planner and result decoder as the browser driver, without workers or WASM:
+
+```ts doc-test=compile
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js/contract";
+import { GeoparquetRuntime, geoparquetSource } from "@honua/sdk-js/geoparquet";
+import { createNodeDuckDbDriver } from "@honua/sdk-js/geoparquet/node";
+
+const runtime = new GeoparquetRuntime({ driverFactory: createNodeDuckDbDriver });
+try {
+  const places = geoparquetSource({
+    id: "places",
+    protocol: "geoparquet",
+    locator: { url: "/absolute/path/to/places.parquet" }, // Or a range-readable HTTP URL.
+    capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
+  }, { runtime });
+  const result = await places.query({ outFields: ["id", "name"], pagination: { limit: 10 } });
+  console.log(result.features);
+} finally {
+  await runtime.dispose();
+}
+```
+
+The supported native peer range is `@duckdb/node-api ^2.0.0-r.1`. The factory
+installs and loads DuckDB's `spatial` extension by default; first use needs network
+access and a writable DuckDB extension cache. HTTP reads may also install
+`httpfs`. For offline execution, provision extensions matching the native
+DuckDB version in its cache before running. Set `loadSpatial: false` only for
+attribute-only SQL that does not call spatial functions.
+
+Use absolute file paths or HTTP URLs. Unlike the browser driver,
+`registerFileBuffer()` deliberately rejects: write bytes to a file and pass its
+absolute path. No process-wide working-directory or file-search-path changes
+are made. An `AbortSignal` cancels running and queued queries; abandoning a
+stream with `break` releases its connection. Always dispose the runtime, which
+also closes a stream whose consumer is paused between batches.
+
+The native peer is optional and is not installed for ordinary SDK consumers.
+Only the Node export condition resolves `/geoparquet/node`; browser imports of
+that entrypoint fail during bundling. Browser and split-package entrypoints do
+not import native bindings. Run `npm run verify:node-geoparquet` to check a packed
+SDK in an isolated consumer; add `-- --public` to also query the commit-pinned
+public fixture and emit its SHA-256 and result counts. The regular CI gate uses
+the local fixture so public hosting is not a test dependency.
+
+## Browser quickstart
 
 Wire the resolver into `createDataset`. One `GeoparquetRuntime` — one shared
 DuckDB Web Worker — backs every geoparquet source in the dataset.

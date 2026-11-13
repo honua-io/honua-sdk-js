@@ -19,8 +19,7 @@ explicit states; truncated data is never mounted.
 The thin presentation shell runs that workflow directly. It accepts an anonymous GeoServices FeatureServer layer
 or OGC API Features URL, mounts the accepted plan through MapLibre, and adds only presentation concerns: a linked
 table/filter, accessible popup, plan disclosure, copyable call site, runtime budgets, and deterministic teardown. It
-does not adapt source behavior or add a private fallback. The former `standalone-quickstart` and `endpoint-to-map`
-executables now redirect here rather than maintaining duplicate implementations.
+does not adapt source behavior or add a private fallback.
 
 The result is more than a map. The page makes endpoint provenance, source identity and attribution, observation time,
 authorization mode, capabilities, SDK/plan versions, accepted feature count, query fingerprint, pushdown, fidelity,

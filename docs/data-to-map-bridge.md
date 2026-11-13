@@ -43,10 +43,8 @@ const mounted = await mountSource(map, data.source(), {
 });
 ```
 
-This page is the focused lower-level API recipe. The duplicate `endpoint-to-map` app was retired; its
-[`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md) route is documentation-only and redirects readers
-to the canonical [First Map](../examples/maplibre-quickstart/README.md) executable. Do not rebuild a second sample app
-around this excerpt.
+This page is the focused lower-level API recipe. The runnable application for this workflow is
+[First Map](../examples/maplibre-quickstart/README.md).
 
 ## Strategy selection
 
