@@ -419,7 +419,7 @@
     "identity": [
       "max-depth",
       "examples/_kit/cleanup.ts",
-      "04da913d2d74d1427919ad875e5217dd1eac157d3756f0c8df2a13a94400d0e9"
+      "ea305ad04e0646131866c8cfb6efd5adff6b69c73955749e17e0bd30183f9cd3"
     ],
     "count": 1
   },
@@ -475,7 +475,7 @@
     "identity": [
       "max-depth",
       "examples/geoprocessing-job-runner/src/model.ts",
-      "177ec2d5c17bc876a7b8b2d71b38d72c707e8ace3aed15c5dcc58514d28b4647"
+      "4b6ab20c68fc4710b4a9c9d9c5b1e0410aa20a820b30b93715ce014d36bd273a"
     ],
     "count": 1
   },
@@ -483,15 +483,7 @@
     "identity": [
       "max-depth",
       "examples/geoprocessing-job-runner/src/model.ts",
-      "1c4e618e6854b6221357680b341ae5237118b1cc07d8268319a76aece1abec76"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "examples/imagery-cog-quickstart/src/fixture-cog-decoder.ts",
-      "1cd280f76393b86eb6b1e00ea2992ebe3e9bbdbd36084356925645a973b9185c"
+      "50a532fdb541800b43a39b16fbf5e3cb39e5e756af4999bc562b0a38a9ea1e6e"
     ],
     "count": 1
   },
@@ -507,7 +499,15 @@
     "identity": [
       "max-depth",
       "examples/imagery-cog-quickstart/src/fixture-cog-decoder.ts",
-      "be9538df22aed1c22c54b7af715f03e270c485e706bea618842ca98699dc46d5"
+      "8e8c7f59f7ee3fa0f8ff3354ba37c8bc0626bc6a15d31d513883f0b928b667a1"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "examples/imagery-cog-quickstart/src/fixture-cog-decoder.ts",
+      "cfb8bf2510c0a1b67383dfc275cec4231e9d3ec52b7b0efe75ecf3bf312c43a3"
     ],
     "count": 1
   },
@@ -731,7 +731,7 @@
     "identity": [
       "max-depth",
       "examples/overture-geoparquet/src/main.ts",
-      "0e1e91c5c7fe8bdac7e26023c7939377201f5187af1cb1357364cd06c322e306"
+      "1320f3f363724a91cd194d2ed489ef8520eddf8807484f7bda06c026188f2c10"
     ],
     "count": 1
   },
@@ -740,6 +740,14 @@
       "max-depth",
       "examples/overture-geoparquet/src/main.ts",
       "4f11519230a407ab9428fd35fb57fe3e9715b8cf8af2c8b2b6209a004a788d4d"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "examples/overture-geoparquet/src/main.ts",
+      "5502f008113a50a46272fffbd91f267985412d72427ee9c56df1a1d504cfe427"
     ],
     "count": 1
   },
@@ -763,7 +771,15 @@
     "identity": [
       "max-depth",
       "examples/overture-geoparquet/src/main.ts",
-      "8cea508bcd38657a78d53d98c27c7a9d29aef6e7318382f1b483fbbedb236373"
+      "8c526382a8cc45aabd4865e660f59f248ed4b91d12463da45458ce64f2be5fd8"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "examples/overture-geoparquet/src/main.ts",
+      "cb07a751c8808177ddec007a2f5d12ba7ab08e81e17fdabc59e7a1b69fb51798"
     ],
     "count": 2
   },
@@ -772,22 +788,6 @@
       "max-depth",
       "examples/overture-geoparquet/src/main.ts",
       "ded785213f3f393c4d6c369294923f1e126561638779eb89044073eff1b7227a"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "examples/overture-geoparquet/src/main.ts",
-      "e236b62c218accef2ab45db5c78dd686f5beae42832c818d2820756bb6877d41"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "examples/overture-geoparquet/src/main.ts",
-      "f2482ca1821a575ead2bc150577e65a6918780dd813a07bd324fb6863ab666fb"
     ],
     "count": 1
   },
@@ -1003,7 +1003,7 @@
     "identity": [
       "max-depth",
       "examples/service-explorer/src/truth-model.ts",
-      "3889ead86711e2b8f3723c7f9d8a35b3ef8de2092f389d5c4f4afaa8d8e51fd7"
+      "4ea96b0230ad118c4d484f3fd70e5dafb796b9532e7129a769e46552523e7dda"
     ],
     "count": 1
   },
@@ -1011,7 +1011,7 @@
     "identity": [
       "max-depth",
       "examples/service-explorer/src/truth-model.ts",
-      "c5216c309ff7d40448fc69d217b58aba8aadb48e9e7c09cda3e35198a2e211cc"
+      "724d3dc5b228e98630f72abcc95c792f4b2d57e3353dc250a175a74331efa8d9"
     ],
     "count": 1
   },
@@ -1123,7 +1123,7 @@
     "identity": [
       "max-depth",
       "mcp/src/agent/gateway.ts",
-      "2b01d50c5a2e627cbda5c17b92608506e6e65236d8ac47169aceddc758ad22c1"
+      "2834bb53aca1cdbc2cdc314745eb9516ada277d20e680e5c18b7a40592db1240"
     ],
     "count": 1
   },
@@ -1131,7 +1131,7 @@
     "identity": [
       "max-depth",
       "mcp/src/agent/gateway.ts",
-      "718d815d2a3fdfae1add46e5856f7e332bf7075bb23dcf85fc3aebff4630db01"
+      "37b2abf99bdd1b4ea7c34ce1995eef19ab81938eeae3f97143f764ab47b1bbd4"
     ],
     "count": 2
   },
@@ -1139,7 +1139,7 @@
     "identity": [
       "max-depth",
       "mcp/src/agent/gateway.ts",
-      "812a89a0d0ab0af9df02be773f2f01f3e708497814025029e0fcfb8aee9f3ab6"
+      "53ae20a2f1cdddbacfcac2f040fbe95027e78ca8bd91d6e1176a8fd1297877b5"
     ],
     "count": 1
   },
@@ -1147,7 +1147,7 @@
     "identity": [
       "max-depth",
       "mcp/src/agent/gateway.ts",
-      "93d449322a7844c4417182f0a3cc80e77112aaa3f8a064ae7cef3b5945552ebf"
+      "9023b6c6a5bc03d5c3b954a7728cfe1bf176eb55189050b179cbd0a5b7dd9661"
     ],
     "count": 1
   },
@@ -1155,7 +1155,7 @@
     "identity": [
       "max-depth",
       "mcp/src/agent/gateway.ts",
-      "c5b10fda7c65bd7c51f4a2de1b7ac64c744eec5f953554a35997e82ec7688ee2"
+      "e87629e8b203c350dfcb045a05464f9de39306320a59b9fd9c2cc4a88162d733"
     ],
     "count": 1
   },
@@ -1371,7 +1371,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/anthropic.ts",
-      "2e1008ca84f6efb5d9538559ad659dbf9f56b4727bb40425c2d587d90abefd64"
+      "07634716491c7d675a631a53da1c8198fccd4412a53f834efa212c711003211e"
     ],
     "count": 1
   },
@@ -1379,7 +1379,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/anthropic.ts",
-      "3653b157fb6cef6a5cf4395e6b956aa0f48bbad0fb968a86d42e970726ce186d"
+      "aa6bd20b0af5c0de4089e4c76d1cfb32076c1e681e65b9a6b66eef053d0f8b19"
     ],
     "count": 1
   },
@@ -1387,7 +1387,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/anthropic.ts",
-      "5579ab7ff5ef14be9b992cae00c630901504df548bb08b62544ca687404dce5f"
+      "ad0c805406f91adb177278f5cf49b0c811c82241e728ac6bce1f0d424c4e2261"
     ],
     "count": 1
   },
@@ -1395,7 +1395,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/anthropic.ts",
-      "8449b55c0d94c994073637da78fbf24c623d5ebe651a347e7ff0d3e91f5005f9"
+      "fd416df5b6e7db8e5c3f543495b0825557cbb344ac98b0ed411663c2b275ef2d"
     ],
     "count": 1
   },
@@ -1403,7 +1403,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/bedrock.ts",
-      "3cef2c56caf147e694020aabd85f58867e8027d7630d7f17d3a1ecbf1534a547"
+      "13d0415ed792f8d22ff59401326da4b5ccfecde88ba8900baf4423ba07c94684"
     ],
     "count": 1
   },
@@ -1411,7 +1411,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/bedrock.ts",
-      "4520c1267bd1fe0e5b437eb45343a649406d6320a4d563a6437f12985f393395"
+      "25777a7a48e9aef8c8d6b7ad712f5fd2e19c5dc09688fd7684034db9f28bd773"
     ],
     "count": 1
   },
@@ -1419,7 +1419,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/bedrock.ts",
-      "8a62e078d22a3488854d9383278a37875f114b522a2181f09038de11a12d1f5b"
+      "7c9784981f52d6755c2f3dc09ce08845131ad70ff415a487939f3e684a2a0966"
     ],
     "count": 1
   },
@@ -1427,7 +1427,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/bedrock.ts",
-      "a6cf41dd51d452dc215f8308150e515d6bafc226411f24590a3125545359443d"
+      "faaa33723913c9cbb63c6eb5c39c41abdd058a276d14d2eaa31468ebd0b29054"
     ],
     "count": 1
   },
@@ -1435,7 +1435,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/openai.ts",
-      "1307ac1b876dcd478bfa62cfdd70aef4a8f3532043212ccf05fa20ce75da4b87"
+      "622516033574619a57da1088d4e935d336a00d4c01b914e51d1291d761237884"
     ],
     "count": 1
   },
@@ -1443,7 +1443,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/openai.ts",
-      "14c3bb8fd2d322ec866c2dce133cf4b29cad501a70c54289bb18c67cdd9dbb8e"
+      "843f2692f6435f55b1336832726d729c5d829229dc0d2f2bbff2cdc28177bbd0"
     ],
     "count": 1
   },
@@ -1451,7 +1451,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/openai.ts",
-      "8d6dd7e3a30969c0fbd06e5e0d1e2e8e2b52252350c861bcc6c4e07a01b7c273"
+      "8bd912fa19361743c06b12389b708f707c692056de76d2ba4117751751e70116"
     ],
     "count": 1
   },
@@ -1459,7 +1459,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/openai.ts",
-      "b0d61f4ab3e68cfc7d0a6577152cbf06e7bb38ebb556b36659b3686b2d42a18f"
+      "c2e3ea7c6948af9220a8f4f53171c8688627dbad426e6fab020b847030885949"
     ],
     "count": 1
   },
@@ -1467,7 +1467,7 @@
     "identity": [
       "max-depth",
       "mcp/src/eval/drivers/openai.ts",
-      "ba5b87eb5bbaa40bec1fb35ce66e4c6ee3c11179153f8cbd2b76af8d7354633d"
+      "e4355972e38ac28cd2749819474dd2c53fe41fcc1f67eb7f5017d104cbc7e0d8"
     ],
     "count": 1
   },
@@ -2259,7 +2259,7 @@
     "identity": [
       "max-depth",
       "src/analytics/default-presentation.ts",
-      "8d908fd7a7342ef3b8cc78c1c292bc9c77b5b3b46a5b5b94e01f1fc6b13d990b"
+      "5978a27669d6e68cfb06f80f5551ac88e2f9613f9109b64a5c481d3dddb05378"
     ],
     "count": 1
   },
@@ -2307,7 +2307,7 @@
     "identity": [
       "max-depth",
       "src/cli/admin-secret-output.ts",
-      "c099ab2403af858fc5b2f8f35dbb59446305c457c4161fe094badaf397f11ba3"
+      "2f4841c6c00b3bc10560992784a3ee0238fbf31c6be69954c29f28e221a53885"
     ],
     "count": 1
   },
@@ -2315,7 +2315,7 @@
     "identity": [
       "max-depth",
       "src/cli/admin-secret-output.ts",
-      "dedd7c64261e9e14dd374ff4bd9eecd189915705aa54a193cc76a072f2a8c965"
+      "5e1f1e39cfe42cdfa9bf7e37ebbe6768271929b4c1da5980f8fae303a14d9b90"
     ],
     "count": 1
   },
@@ -2563,7 +2563,15 @@
     "identity": [
       "max-depth",
       "src/client-compat/feature-layer.ts",
-      "3a32573e6a8ac9966afef984537e7ea57ae6753a864553bff9a96fd597d5fad8"
+      "2d1f41d4d9a1b1a893036e5f61c05aaae85e4b73cbc04564a07b918d8e8c566f"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/client-compat/feature-layer.ts",
+      "3b99bd40b933cea53eaf4df37cc36b304d898f3761576a3ab992bcfea2e548f6"
     ],
     "count": 1
   },
@@ -2579,7 +2587,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/feature-layer.ts",
-      "7cde3868aab552bdf61d774dd6a3a9333c0e900052bf5678fdf69e4f1fca3f6a"
+      "44c28bf14dd36608c753a4c682d98b7423a262a9d8e557121c27de74ef731aea"
     ],
     "count": 1
   },
@@ -2603,6 +2611,14 @@
     "identity": [
       "max-depth",
       "src/client-compat/feature-layer.ts",
+      "95e2593cb55a59f482cb763f82574370c4fdfffa2e96a107a6639fd682c57070"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/client-compat/feature-layer.ts",
       "9e2aa53e4be911b53fdb042fe7d556505ae40b4a40e2e6929d05583cc98f4b7c"
     ],
     "count": 1
@@ -2619,31 +2635,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/feature-layer.ts",
-      "cf13e6254616341c6c26f4584edae17e44d1c25d2eb0d9be34b5d05663aff4b6"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/client-compat/feature-layer.ts",
-      "d1635cb2c8be69218263167abfd0021f190b0942f2a72a19c8bc25567fb01439"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/client-compat/feature-layer.ts",
       "d5b7f36035a5f2a056270d34b29b849ae7fd659412a275b28af46ba124b12783"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/client-compat/feature-layer.ts",
-      "dfb2af3ce0e79891d03e7d2136f29d39b9705b52c5dd3391976258844138f40b"
     ],
     "count": 1
   },
@@ -2658,8 +2650,16 @@
   {
     "identity": [
       "max-depth",
+      "src/client-compat/feature-layer.ts",
+      "fe6bcfe0a95ef7f7c037d758023a2be4ccc53fcdc754d1926f89c9ffe22d158b"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
       "src/client-compat/geojson-layer.ts",
-      "6496f0dff9ab320a1243e64a43e192e5a32fa8596046c8532809a1eb71761f39"
+      "0dc3252ef8006fba11adc123d08e33e1294fc1bd26732dbc286a3c8cc9ee11b4"
     ],
     "count": 1
   },
@@ -2667,7 +2667,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/identity-manager.ts",
-      "5583c27c421274719f60f6bead33929fd349f2b49bad2649c1ff65126ca411b5"
+      "75b2aaa5793e6efd4b766b21332a9a8f4eda5497a05db087696c8208c20f4fcb"
     ],
     "count": 1
   },
@@ -2731,6 +2731,14 @@
     "identity": [
       "max-depth",
       "src/client-compat/map-view.ts",
+      "157ea3be242a0cd062125292c4e9a9f5b05cc43b7862a5d3998707e3b7f2785e"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/client-compat/map-view.ts",
       "3d90cc43803b07ea5448925b4f9fb2fd9cede1d87f1c09f4cbcc7d65e4ab86ae"
     ],
     "count": 1
@@ -2747,7 +2755,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/map-view.ts",
-      "53a7a6e9359d3b9bb3b5c5f6ddb0cfca386c5458fd4aecbd9cf59ff18f8df54d"
+      "ad9c2f3f2e3e83b990ac19bf842fee390f4c059fb6c89f30b3f43167751748a0"
     ],
     "count": 1
   },
@@ -2755,23 +2763,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/map-view.ts",
-      "5d19b1531d571f894b5429245567013e7593d71405db85733a786c2a8b52b0b5"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/client-compat/map-view.ts",
-      "83188383338442a2c0f490f4cde3230dbaf298e4c4e1a25ff4669e23be45bd5c"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/client-compat/map-view.ts",
-      "cbea6d36be655ca5de9a5c12f56b538f765becdef6dc6b5dc3e2c2960d013bfa"
+      "b222dc2b70fd07a9d4a134ac32a0fa18ed08ec1f533ca5b51aed105d2b9c8a93"
     ],
     "count": 1
   },
@@ -2786,8 +2778,8 @@
   {
     "identity": [
       "max-depth",
-      "src/client-compat/portal.ts",
-      "70561d176f9ee4a7248c08643cd831a5b67bd02743bb34d8e7428ba97b60214a"
+      "src/client-compat/map-view.ts",
+      "fe8f56400c4e3e5671163b434ede94f9d5de6b7b152c05e7c082e30485385e75"
     ],
     "count": 1
   },
@@ -2795,7 +2787,15 @@
     "identity": [
       "max-depth",
       "src/client-compat/portal.ts",
-      "97eeea16e4c76f7f708b2d04076029d1f07e3858393e795220c54afcd5691d21"
+      "1d473634987c4d0d03da4426fec65b09cdf2e0e5b0d3186d5b430b9c7712bdb0"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/client-compat/portal.ts",
+      "5a2baa2e767e2a90f61a99eedbfdd3e66c7938dd0a8d63c875bd57058abc2ef1"
     ],
     "count": 1
   },
@@ -2827,7 +2827,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/time-slider.ts",
-      "b59c6aee759b3d5105b513bf06ee51cafdd4a11a4a103f18e11999df4a5480fd"
+      "33c03346f2da581aca2c0035a7052cb8456d04e4b742bd31e30c85839f97564b"
     ],
     "count": 1
   },
@@ -2835,7 +2835,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/track.ts",
-      "97eabbbff8b092710461e8d4cf756d73c8cb528c7b6f3b71d369b52e22816650"
+      "3a5600ebfeb10d4515ce9ec90660cfeb2fd883e0d51838ba6ea0b9bbeee2e672"
     ],
     "count": 1
   },
@@ -2843,7 +2843,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/track.ts",
-      "b25f7e35ef941543d0c18648111ff9019f37bed7be6469eb7f1d7e14b285de33"
+      "fed1c3540500409c8ec58f711b1273bfae8444513d5e8a0fa14cb663a0b93206"
     ],
     "count": 1
   },
@@ -2851,7 +2851,7 @@
     "identity": [
       "max-depth",
       "src/client-compat/vector-tile-layer.ts",
-      "c3f95d15cb372a94443a4a1598e6cfd32b6fb6adeb20320019bd567257d299bf"
+      "464e5825ccb77317cdb1dee6f919698e1ed20f3a99608189cd7f259a8443bf79"
     ],
     "count": 1
   },
@@ -2947,7 +2947,7 @@
     "identity": [
       "max-depth",
       "src/cog/maplibre.ts",
-      "37a15ffa2b24b0c0338bf689066fda54f9228f24e9e6946a8eb90b8b01a08d27"
+      "1134370e42cffd17b9828424f71e9056148b9b1a519b0fed0106aceb0adeac40"
     ],
     "count": 1
   },
@@ -2955,7 +2955,7 @@
     "identity": [
       "max-depth",
       "src/cog/maplibre.ts",
-      "7d2ca2d9d68f69ac47388efb1581e4a8002475eecc829c11f32bfc411b626bf4"
+      "684b8cb0d8a5e4b620149e0bb820d1e9ac69c2440276f77135a613c8d40de2fa"
     ],
     "count": 1
   },
@@ -2979,14 +2979,6 @@
     "identity": [
       "max-depth",
       "src/cog/range-transport.ts",
-      "c2c6032b25c48beeaa1219f035c8994379303de0a6f70a624c615d8c1ed75191"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/cog/range-transport.ts",
       "d22cfc8664c1e6c83b1b75cb358f55f8078ea3205667cfeca76138435ed03768"
     ],
     "count": 1
@@ -2994,8 +2986,16 @@
   {
     "identity": [
       "max-depth",
+      "src/cog/range-transport.ts",
+      "dd3246ea2cd79e10850fd0f548b0ccc41c9c6201ada5e9158d426c26ea14b777"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
       "src/cog/session.ts",
-      "e09dadc804c3f462e7fce30f3e6c00d9daa372d3532464daa886c2c15a3a7990"
+      "1c312754892a5e2f96144654189a7f668df2b33bb1646e4f6102871df7daaebe"
     ],
     "count": 1
   },
@@ -3003,7 +3003,7 @@
     "identity": [
       "max-depth",
       "src/columnar-workflow/honua-arrow-wkb.ts",
-      "0706a94574ddcf4de21bc1fb4d66c234bdbd7307ddf4100cac86f4d54527b513"
+      "893f241dcd295c5da16bd48e6c1297b019bf12de3ccf9a196d51b0dc82bf63fc"
     ],
     "count": 1
   },
@@ -3027,7 +3027,15 @@
     "identity": [
       "max-depth",
       "src/columnar-workflow/index.ts",
-      "1cd598e09fc0ce0356507731cf7e4ab58dceb3da0753631374134a6d669b93b7"
+      "2329818a1d6dfe029048e7489bfa82d8d143be4472f75e72e7e09ddb28433f3e"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/columnar-workflow/index.ts",
+      "43a01dcca8364f81c23631f07e1633397c83c046aab5edd5b8e7319dc7b5f838"
     ],
     "count": 1
   },
@@ -3043,14 +3051,6 @@
     "identity": [
       "max-depth",
       "src/columnar-workflow/index.ts",
-      "6a1ea1beb3f18eb5ef6fa1ee64de4071fc6a2d6d94041a78e14eba23f4ff043b"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/columnar-workflow/index.ts",
       "8555bf37c8730864a77553c892bcc2bd59b0782e53f4c79d65aed70f6a1e9525"
     ],
     "count": 1
@@ -3059,7 +3059,7 @@
     "identity": [
       "max-depth",
       "src/columnar-workflow/index.ts",
-      "8fe7ee442c8b245e111aa4c08d6b77fea158f19ea2e5551e19e83652c07ba0f3"
+      "8a17e2f61cc845e4b609ce1838d3b30012cab4954d8055f170beec239c9a9dbf"
     ],
     "count": 1
   },
@@ -3067,7 +3067,7 @@
     "identity": [
       "max-depth",
       "src/columnar-workflow/index.ts",
-      "b56dacb940953658b2c57534aca8fe87179a062c90fa64dd43f7bbd460395c21"
+      "8c6a7454660cf3f8b3d7e23ffc9daf2f05195ff963ef83d0dcc67f3e8fa78e85"
     ],
     "count": 1
   },
@@ -4707,15 +4707,7 @@
     "identity": [
       "max-depth",
       "src/contract/edit-session.ts",
-      "207559c8294435ca279d14808d9a51dcc4cedc4e724828554509fcb932282ced"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/edit-session.ts",
-      "7609edfeb0acbe8711d66213105d474b604c8b1c7678709c9e424e120ef56bd4"
+      "6086de9e605d6c6b5059ced25fe154a0afe712cfc4aca95ad40c5c18b1e0529f"
     ],
     "count": 1
   },
@@ -4731,7 +4723,15 @@
     "identity": [
       "max-depth",
       "src/contract/edit-session.ts",
-      "8d0f25153fdb359b9dbe30df41e6a1a2962585d13c02ab0b12e9f074da07afcb"
+      "cb269571b1ad0664af75b6742308d92068f29215e55a978207ae2f79fe9498f3"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/edit-session.ts",
+      "dff2763ccfc29579d8dede33355ff5a107e5d29001962fe13342240208e8e90b"
     ],
     "count": 1
   },
@@ -4739,7 +4739,31 @@
     "identity": [
       "max-depth",
       "src/contract/edit-snapping.ts",
-      "0d44ec234d5130ffca56c093ca6cc964f4b857271c4806758179ab9946a5d8e9"
+      "05d0672f884ce47ef01e830747aa35b29f001226061030a583001501ffa7cc81"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/edit-snapping.ts",
+      "1f11a67bfd9f937e2bb78b835cd7817b1faaca72c3dcb97a5d2ef0c855df5a08"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/edit-snapping.ts",
+      "2c5cc552202d7e90adb1e838f3e3fd60e06bab0202457245f747d0fce76eb0cb"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/edit-snapping.ts",
+      "3a36b877db377ff3ccb7e138b18c156175a0c5cac95ca708c33555d5bc1792be"
     ],
     "count": 1
   },
@@ -4755,31 +4779,7 @@
     "identity": [
       "max-depth",
       "src/contract/edit-snapping.ts",
-      "4c97d903bbd85a706ed8366b4f9bbcc6f7e84b33b4379e963cb68cf32fdc4f1d"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/edit-snapping.ts",
-      "5585b0fd6f9a4dde2ee7e9e46428a7fa388b3afb8cdcea7c83ed5b646370c6b1"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/edit-snapping.ts",
-      "691ea5ce11c76aa5f185238d5ad3396455a4875d943f91c7b6e5f21d869d1795"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/edit-snapping.ts",
-      "6d6f5cfb746756aa6eb72b93262e01cbe99b8e90f1ddc97f9a5b72f669357718"
+      "7d3098a959a5359df2a55fb8ed5018baadf6869b4f99efc6d3a862b19ecf5c7f"
     ],
     "count": 1
   },
@@ -4795,7 +4795,15 @@
     "identity": [
       "max-depth",
       "src/contract/edit-snapping.ts",
-      "e49bec2ad580d4c532fd044164b1da7fb82af2645119ccf6594d21fec43a7c22"
+      "8daa3a11e778acea66ff542ddfa6047c32545655469366043ea0fc2463ee4ad3"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/edit-snapping.ts",
+      "d20c56d50e72bbea976570822d1ef01be2eaff2b614222cc5624c2d5c2ed9601"
     ],
     "count": 1
   },
@@ -4804,14 +4812,6 @@
       "max-depth",
       "src/contract/edit-snapping.ts",
       "eca97ce3aab99949608bb32a0c636158354ced89b11e85f01c586e50e7f9e94a"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/edit-snapping.ts",
-      "f06950138c133ddc4e38f4ccb967cf5eecb1dcdafbb97b5d24361bdf915c75ad"
     ],
     "count": 1
   },
@@ -5059,7 +5059,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "009f3d17d0ce410ff04fe2c65d075521bbfe99394d5e822e6258dc10a3a9c51a"
+      "01f3ef66d86721806e14fba1ed4e0d9a3805a8b05542f486e978ccc0a1ba54f3"
     ],
     "count": 1
   },
@@ -5091,7 +5091,23 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "350335a35e5c96b8c95f4454895156d5bc6f4346f0f34a48126417c89fc4a3c0"
+      "3225ef5be560c9c326f1e6d4025226d74ce3c867eba8e95d2c958c863576a30e"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/source.ts",
+      "4259f015da670d2d39ef802c4246c634d65074621140e4ac5dc0456c79173319"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/source.ts",
+      "488e43bf722922944b2267b4b3fb31a00d47b3a2aaa74d73d3cfe43115758793"
     ],
     "count": 1
   },
@@ -5115,23 +5131,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "528b215aa136ba8d1f702decdc08c5818b92b8d2e620ea987eaa29d488fb9c70"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/source.ts",
       "5a2806dc64c96a6be3be1ecd1208461d0bdcace9be1423ade2c717671f779aa5"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/source.ts",
-      "5a31394d6dbe31b6ae8440aea930984b33963aa0d8839fcba899ad5b536aa8d4"
     ],
     "count": 1
   },
@@ -5155,6 +5155,14 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
+      "886d4e2e39640003e44172d0d2333f17db4c3247b3943834e56f6a5357f0bdb7"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/contract/source.ts",
       "9008f9512b9b18b9972942e8b0a8f660e552ec55f745c7102e69c53680a37ae1"
     ],
     "count": 1
@@ -5163,7 +5171,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "999b376bcd427a028ac187402511ac50fc7d222d0368c41c63d5ec0e5b492648"
+      "92543155b168fc30bd36cd4c4471447ac06cdf9ec2a73dd4607ea40f3ac8cd7b"
     ],
     "count": 1
   },
@@ -5171,7 +5179,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "9d50d00609a338b873b212ff14d016d3a6aff8ce5a26269473ef098dfc445736"
+      "95408363e35cebd64ea9acaa52e025ce0625255f7a35160ccbc884d7a931b613"
     ],
     "count": 1
   },
@@ -5195,15 +5203,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "c0d3c7f0ef19f8064b335d0983eef9e5afc9695311d69bf8f32bafa0d6a78474"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/contract/source.ts",
-      "d330cdb01aa2e6d8ec3a7fef51c09f2766155282626bb633bb6c66f8c861a7da"
+      "ca68c7620500c32df8a2b7ab4a826cd75b8dbed60a35cff37600c36ca62f7180"
     ],
     "count": 1
   },
@@ -5219,7 +5219,7 @@
     "identity": [
       "max-depth",
       "src/contract/source.ts",
-      "fcab43a5ddd1f8acf827ac0f782d8aca17ef81c27482ff5932778f9a067dd507"
+      "f408466cd1341a61b942e10728221a51559de1140763d24164863d50ff9b0b71"
     ],
     "count": 1
   },
@@ -5283,7 +5283,7 @@
     "identity": [
       "max-depth",
       "src/control-plane/dataset-import/submission-client.ts",
-      "8c266a76ef0d88894a0f2ba84434da0d6922b4722dce1e89b4a917da1ebac28b"
+      "b01a96a2858fa15858a115082be96fcf8fed65ebb7ee87ded42aaba12f6e89c7"
     ],
     "count": 2
   },
@@ -5291,7 +5291,7 @@
     "identity": [
       "max-depth",
       "src/controls/basemap-style-binding.ts",
-      "711fd4e6b6165531bc774aa955150cbc215dffbbcea951a7b280895736ef982d"
+      "066c793e9b06ba142eec3ff9818b0c5c70677f82f7b655b46c1413ab121b727f"
     ],
     "count": 1
   },
@@ -5299,7 +5299,7 @@
     "identity": [
       "max-depth",
       "src/controls/basemap-style-binding.ts",
-      "97ea3f15d3d20d450b31cc7336f80e60012e0ae37ee632209bc7f2d641831f95"
+      "213e4c444ce8e4ddc1c7d82fbed451f24e8f3a3a72681306149e91e872133728"
     ],
     "count": 1
   },
@@ -5307,7 +5307,7 @@
     "identity": [
       "max-depth",
       "src/controls/basemap-style-binding.ts",
-      "c0ad43da2b0603768ef41f30b3ddc9ddd0454da46261a8349a5925e95089746f"
+      "29cdd3237b99f78ba3f455780039ce0ad5d33a6c5dc216a02113f41ca908b14b"
     ],
     "count": 1
   },
@@ -5315,7 +5315,7 @@
     "identity": [
       "max-depth",
       "src/controls/basemap-style-binding.ts",
-      "d401ace14091ab027ffbc161a4fc40bb2cd99094aadb0bff14ed5f84f9666e19"
+      "b844c6fc69ebd25e3bdaa793b489dfbe1adbf7004a0d01f2b8aa4087c95a25b7"
     ],
     "count": 1
   },
@@ -5323,7 +5323,7 @@
     "identity": [
       "max-depth",
       "src/controls/catalog-picker.ts",
-      "37626072e8722ce06cc38fc0519eb643753129e17bafff8b76d31c9a5edeb853"
+      "11ae21a3e70c5f362cafc6bbc120f907ecd95b705604771111b2233fe11bf7b5"
     ],
     "count": 1
   },
@@ -5331,7 +5331,7 @@
     "identity": [
       "max-depth",
       "src/controls/catalog-picker.ts",
-      "6322279d50a4fb1ed5892a15e6b6143f955ddc1b62d2aa91f3a2675089eb1ac9"
+      "8a2a073682ea9f53507bf8af4bf495781a9841fb4814398435cb193331940157"
     ],
     "count": 1
   },
@@ -5339,7 +5339,7 @@
     "identity": [
       "max-depth",
       "src/controls/catalog-picker.ts",
-      "6e3b415eadebb1fc62c46f79eb84b8adb8e6725f084a0b7d2450c4bc6a9240ff"
+      "8deb998a8e6d91a8f18d4d9aaf0069118bba531e81b625bec96f78662be0b87f"
     ],
     "count": 1
   },
@@ -5347,7 +5347,7 @@
     "identity": [
       "max-depth",
       "src/core/auth/oauth2-provider.ts",
-      "83c42766c9db52947c6173483b537574f198cbd783d764e8bf8b47455b84334a"
+      "3c562c4937281142c81768cb755daa38145a070836e6d165a4e2a5b32a95a6bd"
     ],
     "count": 1
   },
@@ -5435,7 +5435,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "06320653bbccd5a613aaa7fb2186f98bc57977c0e5d83ca593aaee986b7ba6b2"
+      "06a6a6392796ecdec5a434022f7097714f6bcb80423711cbc2b34d3e91397e1d"
     ],
     "count": 1
   },
@@ -5443,7 +5443,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "098c52b87b1858424937e176bb2d880074544482fb43d1b7680d752c63fb7e7f"
+      "2455c336de291eb25662f83ffca2edbca0e5ba0f76c74f4df6e127fe52eb2bb5"
     ],
     "count": 1
   },
@@ -5451,7 +5451,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "0aae8f7807455031a52713b15c685e2b6bbc26cd8b5fb709cc680cb526f8cdaa"
+      "280fbfd574a217818337014896fc2b7bbcca861d6af80ac555ae4c2828a7d740"
     ],
     "count": 1
   },
@@ -5459,7 +5459,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "0b1b2a190c6c27a20bf39b9058bdba06fad58a3e9205a342650b9ff7a373e218"
+      "31cabad2fd4fc8f47f1cc0f54780c610afbdb4238c98008c577598b94b83ba66"
     ],
     "count": 1
   },
@@ -5467,7 +5467,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "0b5f0f7d794c024b0461769872cfddd13f0e2ca078ca48b2efefdf34d57d2444"
+      "3cdb5c82465f1360c7fd9ead15a47227afd28c5e5bda6a94bb3c3e2f9368000b"
     ],
     "count": 1
   },
@@ -5475,31 +5475,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "18ad2cfed9c2f0a60d5e45fe3ab35ad397b9748da444f9e3c9e916770d069b3e"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "3cf7f7f987d4cb6024a5bdb8eb21952ef8275631668e7f1cd9b3a0ba551617c7"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "41ba773920f9b30aaca6cf82d5815baccc0bf31d60a82e34040d0e378945fe2b"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "5352346bc9c32a1ceb84cfb3138dd22ee9894952e741e1eb54d8ca1dd539300b"
+      "50e58ff1590db651f75bff2e221bfa35adb5bd6c33ff7b0e0492dd332d54db64"
     ],
     "count": 1
   },
@@ -5515,6 +5491,22 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
+      "5d4e2ba7f74826945543e0d2b6383d14a23fd340e762497af09bc028bfc6be46"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "5e30419c2ef28c008dc6eb3fff907843a4328b9329d8ce138c878123e771966d"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
       "65b831d69e2d5caa9d5280d387fc54c2af07622c03a908cced0cb292294789ff"
     ],
     "count": 2
@@ -5523,7 +5515,23 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "74fbc1305309fd31f4d7f424cc8b056cf6dd9893e4c80050bbed8074429e1991"
+      "6ef4a013433ae87bc6a4c88ef153c2ecc418ee24e84ff9df4a7def4b8169c78b"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "80e8e53666aa5409875a4d86e35db238cd567f3b1712e6bf1e63df4791af6c82"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "8d680f0325318c7b445623f482a2093b7269ec1eb8e611862a71947fe584e159"
     ],
     "count": 2
   },
@@ -5539,7 +5547,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "a277f00dd97715e69d9c4612edb058c3f747f580b29fac31981a22e2b01e0c92"
+      "94047181107dc685cba154f611a9a580fe0c2a906668b65c421b7079a9c7a2ff"
     ],
     "count": 1
   },
@@ -5547,7 +5555,7 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "b498991774509cce150ff4fe0c629fc8267be1ed386538606bc431bdb753a361"
+      "96b79178893284b80bfe59916a0f0e393d23bf549e1c74fa1cc64f9b7b8be175"
     ],
     "count": 1
   },
@@ -5555,41 +5563,33 @@
     "identity": [
       "max-depth",
       "src/core/client.ts",
-      "de098577f38d7362741f96af99712e72913ef55d282655d2ebf27b160526c321"
+      "bf9d4150a42621b505f66cfdb9d7f946ff658165ecba7ba1db51cd6daa2e3f56"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "c9de14ebceaf437cbe7027b01e6db2f778b6c1c0f80aac675dad2d2717fb9d83"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "ce182debc709c4014fe4360089cfe451da2b1e697a6a9d5e796766854d5e5a96"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/client.ts",
+      "e6ac99f72189b9689fc79a9d434dffd7d0273ad1110811b400e583f1b94b9fde"
     ],
     "count": 2
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "f2fc04eee64b3777331373e2dacabb741871ebeaa730ddfd54756771eb669a22"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "f5197f42d76c7a336d759f09833984450e040d579a74bdd38afd7c934ba022a5"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "f84184e50cc01e470d358d490ec8eeaff9d237acef81bde9fcdf9e3636ea19c2"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/client.ts",
-      "faa1df29092ee780ac913d499d3fe6186707c1b72c070b848abb2c956e0086ad"
-    ],
-    "count": 1
   },
   {
     "identity": [
@@ -5771,7 +5771,7 @@
     "identity": [
       "max-depth",
       "src/core/job-run-lifecycle.ts",
-      "ad10a6ac29bab68c4738254e2919b136a532a9bf661edbc83ed2a8ed1397f613"
+      "74a4a4a0f4e609b7ac70dde683c25c1b8e585c31cad5eab354a08eb338573388"
     ],
     "count": 1
   },
@@ -5963,17 +5963,17 @@
     "identity": [
       "max-depth",
       "src/core/odata.ts",
-      "93816ae2f6ceba5befd549f492764c142dbbe70cf2533e4cbc04fbe1e8cad0ab"
+      "8305b8426294e3bb3a349ad19fb4e6a94d9bbfd4ce346c5cf89b7705ae5629b8"
     ],
-    "count": 1
+    "count": 2
   },
   {
     "identity": [
       "max-depth",
       "src/core/odata.ts",
-      "ac0cac52767d7fa279efb9abc386326f4bc5bb9c5e644258a77fd6c7c9281f62"
+      "93816ae2f6ceba5befd549f492764c142dbbe70cf2533e4cbc04fbe1e8cad0ab"
     ],
-    "count": 2
+    "count": 1
   },
   {
     "identity": [
@@ -6067,7 +6067,7 @@
     "identity": [
       "max-depth",
       "src/core/ogc-processes.ts",
-      "2ed9427507366aa27068c5503f68e7ee4429cca6dbf1644e6dd193bc23cad8de"
+      "09ef8ee933c473796ac330313fcf27bc1654e25f7a9628533e1e0aae00af53aa"
     ],
     "count": 1
   },
@@ -6075,7 +6075,7 @@
     "identity": [
       "max-depth",
       "src/core/ogc-processes.ts",
-      "432bcc297b794fd82781d3a03ca2ab017933d4db5090193463b30aa0861596a8"
+      "0dd765fb6327941c32fafd97a64332c5e5e521176d4edc454c8248ec609f7141"
     ],
     "count": 1
   },
@@ -6083,7 +6083,7 @@
     "identity": [
       "max-depth",
       "src/core/ogc-processes.ts",
-      "66092d89fb84ad8cac751a05a51f604670efe0de191ced664110e27e9f0b70c4"
+      "40a14f76ddad24de3ce42a38f58364748c965d97e6188631f4f84570265c2cfa"
     ],
     "count": 1
   },
@@ -6091,7 +6091,7 @@
     "identity": [
       "max-depth",
       "src/core/ogc-processes.ts",
-      "c35c0afd3fa269fcb86a492cfe67f0e1588f7eee5525b9c41366b29b1fdc2f7d"
+      "f8d226344e5f2ba6f92e9e2f8d00c5b9b088ac727498bf0b90d5d9f08fdbcd50"
     ],
     "count": 1
   },
@@ -6267,7 +6267,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "19e6088dff845c5222e1cf77e851c927ce0dd568d79cc4e1ca9e2031509007d0"
+      "21bd6f7a9e78f671f9c17413907fbfd70340d1cf1a811875d4bbab0077201f96"
     ],
     "count": 1
   },
@@ -6283,7 +6283,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "347f9b88e51c74544c0d0a643fb8d5fe9092f3ef32bf3516500fea641000747a"
+      "6fac27a871c38fe6dbe5451ab8559b0ebe07763070ab1837cf5fe3c825a4ba12"
     ],
     "count": 1
   },
@@ -6291,7 +6291,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "5ab6228c4a049dfa40b54ff2a2a40a96bda27f5481182b39acf066afb960e9de"
+      "87fc14df127c5b4fd110eb0c25f76d192be39e7929f7187710fcb17a80618d9b"
     ],
     "count": 1
   },
@@ -6299,7 +6299,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "784c4ab93f1d1cebd80fd3766a49249f96dcf5faeb8bbb03ae119e09e6911914"
+      "ab8355bb263a73dda1bfba26c149ee48c5dfece2d6854130dc1189f90bf9c29b"
     ],
     "count": 1
   },
@@ -6307,7 +6307,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "b9302c405bf940a6286a1daf27e28f74c21f9af50adab0a4830d059810d2c934"
+      "ad805dbf1bb6c25622e323e7987b9fc1fb7ca02bce3f3c6d55d0fbb77e3312c4"
     ],
     "count": 1
   },
@@ -6315,7 +6315,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "d8f6a6809b9cf866a61105d12018dc40db631852cec8d70eadef255626cd55f2"
+      "b38ac24a99c7e0954536f164e8682491ac2e4b4c2fa06594aae847d0fca25c92"
     ],
     "count": 1
   },
@@ -6323,7 +6323,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "e817aa3e3fd5c5fb8b91eddbb23d62b9003b4a8b70242e1f69deeb60272471fa"
+      "dd71b86f4e728269715a47f9850d3666887b74f00d18d4b03a565d2ac7f97305"
     ],
     "count": 1
   },
@@ -6331,7 +6331,7 @@
     "identity": [
       "max-depth",
       "src/core/stac-static.ts",
-      "f5e1a6fb73b5cb72319ba8e38cd0ea265ac6c6645220398d9da88c338b3c87ca"
+      "eb9d4bf883160637c0fa54e5d014c2fa3d16ec309491af9e9a5e76a871915a25"
     ],
     "count": 1
   },
@@ -6355,7 +6355,15 @@
     "identity": [
       "max-depth",
       "src/core/stac.ts",
-      "4f5eb4076b27d06370bd8b456c812f3afa3f601164628a0b88822e593f1d1457"
+      "4e888c3093919134d1a11b60d7e13e51390113bc43b710b14c65c5534385d952"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/stac.ts",
+      "9476fe5f6ce4896b997127667921b9fa11d53012e384d7757254e959525fc5df"
     ],
     "count": 1
   },
@@ -6387,14 +6395,6 @@
     "identity": [
       "max-depth",
       "src/core/stac.ts",
-      "d56b55f2e7894e3f7f7be0154c696886054a9ac6843710361409714d67e2fb2a"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/stac.ts",
       "e7846d2909f2741edab8f87c6c97a144747ecd5ca09e3afa55830f7bfaf228a3"
     ],
     "count": 1
@@ -6419,7 +6419,7 @@
     "identity": [
       "max-depth",
       "src/core/surfaces.ts",
-      "46719d96d77d48ff96ae029ca774f5119d50f096543f130b5ef5088759df66bb"
+      "6d01737b77bd8424bef9c329c6c8e8dd749fea7d4b89a7dca9c5b33f6ae13b88"
     ],
     "count": 1
   },
@@ -6435,7 +6435,7 @@
     "identity": [
       "max-depth",
       "src/core/surfaces.ts",
-      "add854670d5fde8c700a7ab449c7d54e5714195a3501c5091cad1b02fc44190e"
+      "9fa0e9ebb1f16ed1ef9ff9690ef316bdf132ba1e08b64848784677562f027289"
     ],
     "count": 1
   },
@@ -6443,7 +6443,7 @@
     "identity": [
       "max-depth",
       "src/core/surfaces.ts",
-      "cc5d2eb44979d7535d6b10898fc77a5756d86b93dbf92d67c4c6db59aa36818c"
+      "add854670d5fde8c700a7ab449c7d54e5714195a3501c5091cad1b02fc44190e"
     ],
     "count": 1
   },
@@ -6827,7 +6827,7 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "06ad2becef2f6f41fe6fe28a9cc26de49b32d88318b7132792d7ba58ce4b21da"
+      "141bd208c6d473f6466bfb029501bddd03c8a62c53e384b7c2923dfed994fb62"
     ],
     "count": 1
   },
@@ -6835,15 +6835,7 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "08ea511806f9da8b4282e177216299496f557273d1d041ddc8e02b6f1a59e218"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/wfs-filter.ts",
-      "0b47f47a80bab099f21b4814fa3087db94a7692680fd9bba71bc872a1c64ef38"
+      "14989598102d6d4ed9ccc94dccb532e33682de64edb554fca9e9f5e552f706b7"
     ],
     "count": 1
   },
@@ -6859,7 +6851,23 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "376a5277cdeadeaee494ceeab73222bcdf686a0cf2ebcda0d6296c9a03091e4e"
+      "270266b838f5db7e0bd8e3822f5a5377ce7233eb5e0154c2a2c7b5cdac70b052"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/wfs-filter.ts",
+      "3cb453149be0af011580227064fd125eb2f3a45c3dedce83fcbfcf46e0a4ea32"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/core/wfs-filter.ts",
+      "50960d1edecb3ff039ebca643385f6feef34b7f1af8ef7342b20316913a2a973"
     ],
     "count": 1
   },
@@ -6875,7 +6883,7 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "72ca05c4fbf61965cacbbcf0b1defc0b3a559c17cafd79fa2bf02422fceb5a17"
+      "6c0c0ea91d105dd050bbacab0a6875a567792c1988d45ac79b3b5e613ccf95f8"
     ],
     "count": 1
   },
@@ -6883,7 +6891,7 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "804e763e8b92b3c8150cd1760e47cc45f0bfdf93c8bb2b6d4497f36d8a9a5ebe"
+      "72ca05c4fbf61965cacbbcf0b1defc0b3a559c17cafd79fa2bf02422fceb5a17"
     ],
     "count": 1
   },
@@ -6915,14 +6923,6 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "86819070e8ddccf333abe20c745f6ec1b37c4000fe207ca513bd91337d7e74ce"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/core/wfs-filter.ts",
       "8f3f0ecdaa5fee97f03754bbfd175661dd45045fc39d5bb574d62674a8c73016"
     ],
     "count": 1
@@ -6947,7 +6947,7 @@
     "identity": [
       "max-depth",
       "src/core/wfs-filter.ts",
-      "e97210ddcb5801a04de947482db360eb7883d6a8618804bbaa39493fb58af19a"
+      "d740ceb71f3316fa2eb52908528cb365769f9291709ad6251f1d0ad056a29da4"
     ],
     "count": 1
   },
@@ -7083,23 +7083,15 @@
     "identity": [
       "max-depth",
       "src/coverages/client.ts",
+      "0e56a9a2383feac275b821db8bbd506ebd76389e39e4eb8227c1f129f0bdd25f"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/coverages/client.ts",
       "14b195a3df76f5aeab1bb236726d50f1f6bcdbd84d8485247dbb0560bf6f86b2"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/coverages/client.ts",
-      "16dc29d69151155d2af706848bebefb116dceb8f4c2e2239a1f97a2c32034a2a"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/coverages/client.ts",
-      "84c871008ced0b2bd98019c8afa5fedd7bd405ca33231bfbab8338eb16be2dd8"
     ],
     "count": 1
   },
@@ -7116,6 +7108,14 @@
       "max-depth",
       "src/coverages/client.ts",
       "c51a6f53050ef6a83e01717165e01a2cc39c25ec965c6bdfff8b69916fb3da39"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/coverages/client.ts",
+      "dc29369ab059bb89e985d8ab7139f0f90de2624b2be884c1a0da8c472fc52a1a"
     ],
     "count": 1
   },
@@ -7323,7 +7323,7 @@
     "identity": [
       "max-depth",
       "src/generated-app/runtime.ts",
-      "746be1501d997b1077448502543378a659a23b3d94c910ec1a5a2f96a612fef7"
+      "57b2309a8e2d29a71bbdadd7cb61e657ff9e9c5a3b4a2d814f5cc784b14aeb4f"
     ],
     "count": 1
   },
@@ -7355,7 +7355,7 @@
     "identity": [
       "max-depth",
       "src/geocoding/index.ts",
-      "b041f7facf418db0532385366a95d135166f634024be5273d0c187cf7799443b"
+      "7512a6359f5f758ca9fd2da939707e7b15d1ec47d09493bb28c415e01f91407c"
     ],
     "count": 1
   },
@@ -7371,7 +7371,7 @@
     "identity": [
       "max-depth",
       "src/geoparquet/driver.ts",
-      "163d926203d57b31db970239352b65d663c2cf1638050587cb742bf6eb5df808"
+      "23981e836e0e1cc857651bdc0935b952fe40a40bcc4ab5c9434920507ab18f27"
     ],
     "count": 1
   },
@@ -7611,7 +7611,7 @@
     "identity": [
       "max-depth",
       "src/geoparquet/node.ts",
-      "9a0a50f40ab76915f5f2c887775141c31abaebc5687f54cc2b1172a3065119ba"
+      "d249e8723ed7e301b874f801b2cf9b9171da6b3613a2813ae3d895288a836065"
     ],
     "count": 1
   },
@@ -7619,7 +7619,7 @@
     "identity": [
       "max-depth",
       "src/geoparquet/node.ts",
-      "da278c0d1f247f5446895fc46af9d7f8a9ee0d9df659285bd46ebd863717876b"
+      "da4a315662e1fdf41151c629fbd4d745dcaf1357c56b66c7eb7bd46fcd50f6c4"
     ],
     "count": 1
   },
@@ -7891,14 +7891,6 @@
     "identity": [
       "max-depth",
       "src/kernel/lifecycle.ts",
-      "570b9fb4ce1aac6f24147bf01b65db662d1deeda61e1fad5ff620d79f7db419f"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/kernel/lifecycle.ts",
       "8c63cc330b25cf3a3c0853c938f5084c2a0c678dc6ddd97e04abf916487bdcc9"
     ],
     "count": 1
@@ -7907,7 +7899,15 @@
     "identity": [
       "max-depth",
       "src/kernel/lifecycle.ts",
-      "9c2f342e6f638cf7b2956032439bd022cf9d05ed694d6c166a5d88be90a19458"
+      "c16c38d60c6dd3e681983661c4f818a25b6b7d16abc31b038d8151fe4199a7d2"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/kernel/lifecycle.ts",
+      "ec28209f2aef0e0d7b1f11d6a8b9fe72c4809a7d8c5685ea612b9e2b2c0ef963"
     ],
     "count": 1
   },
@@ -8211,7 +8211,7 @@
     "identity": [
       "max-depth",
       "src/map/source-to-maplibre.ts",
-      "a8d525dc3c6e4a304b3cbb71a6ba2b126ed375a4925be92e85538312de8cd085"
+      "3eaaf63b2853a9ffe73379010607d66d34f66f89ff9c36aa72edc17100c5773e"
     ],
     "count": 1
   },
@@ -9947,7 +9947,7 @@
     "identity": [
       "max-depth",
       "src/operator/controllers/execution.ts",
-      "9c8db5c299fbc3468ac19d0cb7fae05a2c348dec18f79dba9eee45b17e476870"
+      "8f480d5365cb88d14c988a72f5a87b45eb76e623e15c2737598b8082d48ebe27"
     ],
     "count": 1
   },
@@ -9963,7 +9963,7 @@
     "identity": [
       "max-depth",
       "src/operator/workspace/workspace.ts",
-      "a0a7d895e46b9d35f998a0b4c74dc511105d8b977119fe4d3a0fb1329a21213f"
+      "4daadb833f9cbcaaef8a1108c400a7f976a6ef86bb69c697a88eb682e90eab0b"
     ],
     "count": 1
   },
@@ -10203,7 +10203,7 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "054c0f5d692969e9fc544a9181e0ad361583d4e91ab9ba7f57ddc817930ca855"
+      "16541de6b932cd3c7f51ee7dfb9523df91055d69328534ff2ac92f80d8b7bd02"
     ],
     "count": 1
   },
@@ -10211,7 +10211,23 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "631798b63d0f2c77214146c55b8c18a6214094422a3f92258b09401060a43624"
+      "21553e064b8c98e46210181677350fb25daf855f2f49beaae992fdf18b37da17"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "2513ebe998263db6239cdca9a2c6246316e61b45d4a1421fa384c961a3a6f4fa"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "25ac61f8aed7a47791946b5cc4a6dfb169cc59fe3cf2cc0ec90afe2ed3ec9d06"
     ],
     "count": 2
   },
@@ -10219,7 +10235,23 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "80406f08c35c7093e16c1735b43e6031dc98b88612f824b5e0a7bcd6396d3e60"
+      "3ffddd6fe1a2ffcf400c0cefb1b67d75002d307e4b683e32f9f03748d58ded59"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "640cd86e4dfee3327cafb435c53141f47a1be3b9905dd587e3507a533729b57c"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "744ecc38a8075bb0e2b5a3d99d803929c34014902aa1ec5055e8f418e4a82d1c"
     ],
     "count": 2
   },
@@ -10227,7 +10259,23 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "8420297e56afff718f372c41500689a04bef33a7c8eb8272f4bab609c82c59d0"
+      "a249a8d5e05e3e4eb3dc5399026e8594319f6285855a5f4a9c730e2de10903dd"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "bd21a49d41b216b0813673a9c4e7bb97f912e8f2253a2afa4ae3e21e81d25792"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/plugin/registry.ts",
+      "c029f9c253bf54a7029144a68c799cf9ed413c310568fca9f3d757d6c542542d"
     ],
     "count": 2
   },
@@ -10235,7 +10283,7 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "85fe73e51c8cc22f853664c5a42fc11b4a4db00b24c958833b2720b2a55fede7"
+      "dd9efc13d9a540025e5f4151164d2d210b19135d690e464c971610e7a244c186"
     ],
     "count": 1
   },
@@ -10243,7 +10291,7 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "9572e822b8dae2bc1feeddfc961a268c67c010a7f09eb195fa1e04e8dc4e7585"
+      "e773b607c6e38d87e0a8bc4cb623f044fc748e363de817fed4d3b0ba763c9918"
     ],
     "count": 1
   },
@@ -10251,55 +10299,7 @@
     "identity": [
       "max-depth",
       "src/plugin/registry.ts",
-      "9a171b9df6db71ddbdad32974ad7e653e0c47c3b544774e7395a5e2e674542da"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "9e181780463e7d3a1f3bed6dd97e6ae17b20b98c8fb6256385ce193256998dec"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "9f0e15228dd3c013b60ead55cd20998a752a504ae53cb1340b861db79ba50873"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "bc97040cb1d90f916096c6ebf45a1835103b4ac615f451742842b33de034935e"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "ee17150c225eb1ff9fd2fa32ba3a49803c4c8201b505e96bf94823f608548f32"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "efdab2b9c291226e8b11f8be3acf69a901526de06b8dd34007be8bdbf13cff91"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/plugin/registry.ts",
-      "f292f22cb78e2caf6ef3bae3f5342b361389668b45295ace4ac2f4b1512c4709"
+      "fa0fbe3ebdba8793a0ef9c90f779f03de530b86bba3e5a788b4b9d52489770fc"
     ],
     "count": 1
   },
@@ -10331,7 +10331,15 @@
     "identity": [
       "max-depth",
       "src/pmtiles/lifecycle.ts",
-      "42f355a2b1c550339d8b5bc8f2c2b0a65959e27202a59d7fb965d045477b22e0"
+      "4281b256faff6782ea494e1bc4b9a438f67e633ce7cbd0dca723b84976460445"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/pmtiles/lifecycle.ts",
+      "50bf8fd9d6486439869fb27e4cd4eaae98d60f16ac728d8decc4db13ee6e0f1a"
     ],
     "count": 1
   },
@@ -10355,15 +10363,7 @@
     "identity": [
       "max-depth",
       "src/pmtiles/lifecycle.ts",
-      "cf1a346039ff3f1acb10014b76eb676cd7d66c0de1b5f3d1ef3ac8e2e1533f0f"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/pmtiles/lifecycle.ts",
-      "f34b12f18b522e1d37f61c338e193c950713e0a900ab4d5eba607e803ea8e20e"
+      "d9c6a4a50eb1383a761e6d3938aaea6b0e43f5849252ddd6966b482600583e1d"
     ],
     "count": 2
   },
@@ -10379,7 +10379,7 @@
     "identity": [
       "max-depth",
       "src/publication/descriptor.ts",
-      "5b70cb761b5c65fd18e7cb70ada103511dd161fdbc99956c2e0e185e8420e360"
+      "40cb773af21f38b8ab67ac114acb57eb11364c688e7ac7d31a09a4b8bc81f1cc"
     ],
     "count": 1
   },
@@ -10811,7 +10811,7 @@
     "identity": [
       "max-depth",
       "src/query-planner/wfs-protocol-module.ts",
-      "895b68b4579e78c57ff862e81f16618723fdc09797933e85198a882cb5116222"
+      "e51d9793dd78a04d31aec8797b1c1934c5bc8ae361817fc75d01a9b617fdb7cd"
     ],
     "count": 1
   },
@@ -10819,7 +10819,7 @@
     "identity": [
       "max-depth",
       "src/raster/index.ts",
-      "862fb5fbeb72ee89a9b0a49fc7bb980dc265cf422be1ac0f1caeaa0c11e53673"
+      "12c963c17c16e66386cd63b9209468a011d263910950beb0617b61e8ad3ed3c4"
     ],
     "count": 1
   },
@@ -10835,7 +10835,7 @@
     "identity": [
       "max-depth",
       "src/realtime/odata-delta.ts",
-      "07cb05f480865dc347ce5dc974bdedeff6cd3269aac322b1222524d91133efb4"
+      "1fca8b365c13d46a9952f394ddd70f4469a93105f1fc151a0ef02572cbfda607"
     ],
     "count": 1
   },
@@ -10843,7 +10843,7 @@
     "identity": [
       "max-depth",
       "src/realtime/odata-delta.ts",
-      "95a85d4eee9f04ddf7c52713d6f9645de62f14713d757ad8844906094a05beaa"
+      "8ccb7f3a6ee32b38373bf8d404751b877eb69451062994e57a74112eeb4726c8"
     ],
     "count": 1
   },
@@ -10851,7 +10851,7 @@
     "identity": [
       "max-depth",
       "src/realtime/odata-delta.ts",
-      "a34674938319d29dc2776fda5258a1fd5eb79099bdc5c5d2b1301830d865b47d"
+      "b8a60fd8b178a75a6aedea3a2c49f30ea64b26cd97cc7968f15da4048199d335"
     ],
     "count": 1
   },
@@ -10859,7 +10859,7 @@
     "identity": [
       "max-depth",
       "src/realtime/reconciliation.ts",
-      "1492207be00f507edcd2315d800942ef9de5d401a9c12f18cc90a765f8592d04"
+      "5836ac8e342098d188e65f0a060316919054d3c1bf001b791b1e22c80a9fa791"
     ],
     "count": 1
   },
@@ -10867,7 +10867,7 @@
     "identity": [
       "max-depth",
       "src/realtime/reconciliation.ts",
-      "2f78ca7dcc4202188176f35a7600de267e071e1a53fc80adafa13385aac9c9e2"
+      "5d16a5d607dc53b748b84e61e8578c61508a04d74f092ccf66d226e5f6956bbb"
     ],
     "count": 1
   },
@@ -10875,7 +10875,7 @@
     "identity": [
       "max-depth",
       "src/realtime/reconciliation.ts",
-      "7f88cce4371907d0a7cecbd2ffd55157d4745746536bc23e9d3770b34638283b"
+      "86f21a635887049b119cc1e52caebefa64d8558f9b53afcbf5def74cda965867"
     ],
     "count": 1
   },
@@ -10883,7 +10883,7 @@
     "identity": [
       "max-depth",
       "src/realtime/reconciliation.ts",
-      "c22a9c6a9d55fef87fba3db896faa138469b1580f0ae44d49b30fbc53a53a465"
+      "cb537c512aa792daa19486b782c66972e638a0ff7c2c98da557776d2901b98e6"
     ],
     "count": 1
   },
@@ -11083,23 +11083,15 @@
     "identity": [
       "max-depth",
       "src/runtime/maplibre-renderer.ts",
-      "41aa03109a160169c826b3dabcd29cc3182db0cb5a82f9d41e7ab2d9b3957758"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/runtime/maplibre-renderer.ts",
-      "47998ca70f84d04b57fd840e7a2c05ca6d27f5b01c56c76fb8e5afa1e97576e5"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/runtime/maplibre-renderer.ts",
       "96e0c3ca27fd08728ece4121245cf553996f1ad211bd9c5277406d6b1353ce4d"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/runtime/maplibre-renderer.ts",
+      "b775897cef5d705d6b16de2c79fae5ff0ab90a587e3c0cef490c2df8e2a63446"
     ],
     "count": 1
   },
@@ -11114,8 +11106,8 @@
   {
     "identity": [
       "max-depth",
-      "src/runtime/online-basemap.ts",
-      "15a6a8906bb9f98c21457c06a1e43a2c3cf462b385aebadc8e22476f0812c20b"
+      "src/runtime/maplibre-renderer.ts",
+      "cfc7681723c19b66dcfa2e838b01ba332ed10f98699e4bcc42297d57c27d4e77"
     ],
     "count": 1
   },
@@ -11131,7 +11123,15 @@
     "identity": [
       "max-depth",
       "src/runtime/online-basemap.ts",
-      "7e244dc0fb7602065adf875f530b59d6860db945b92ce2f03c977fc2925a2f59"
+      "6c7b76886893889d40fa5eb33947c4ba082cec30847b3b50520be12783acecb6"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/runtime/online-basemap.ts",
+      "6f64992b2829790de4a33306024adc487db565194d0bd83c5feb11d2520036ff"
     ],
     "count": 1
   },
@@ -11147,7 +11147,7 @@
     "identity": [
       "max-depth",
       "src/runtime/online-basemap.ts",
-      "98af3ad670ed97115ffb5b62d0f030db125fa787807c6a12c4760f53bdbd89a1"
+      "c2a5914a5112246db94545899a4812c4872d567005a93a5c69d330aa4011736f"
     ],
     "count": 1
   },
@@ -11155,7 +11155,7 @@
     "identity": [
       "max-depth",
       "src/runtime/online-basemap.ts",
-      "d9e3fead0a50dcc245674e29f41a55a5ddf87f040e304b220fb4d3677380c42d"
+      "ec8348ae70c217c512dca7a71c41d12822f4743214ed4f8cd3d9ee6b67d0889f"
     ],
     "count": 1
   },
@@ -11163,7 +11163,7 @@
     "identity": [
       "max-depth",
       "src/runtime/online-basemap.ts",
-      "e7926ad1dfc69767a31a74a2b581c109c35848d98651f53ebf89e8b2c959c6e7"
+      "fd5b2f4ec02cfe3a4d9687aee67654031061255f0680afe3e1f8a57a8165ad70"
     ],
     "count": 1
   },
@@ -11171,7 +11171,7 @@
     "identity": [
       "max-depth",
       "src/runtime/online-basemap.ts",
-      "eaab70c83db8bb10c971a1af628146f34e90b3952d700c14e81eddc2b27ac8f0"
+      "ff7be458f52f952dc80071de0320642edfdfe2a1af61c15e2da0c8524bfbbc79"
     ],
     "count": 1
   },
@@ -11203,14 +11203,6 @@
     "identity": [
       "max-depth",
       "src/runtime/query-tiles.ts",
-      "49a465dc30d99673ea9887c51a66e07e97b3da6d7e0d4298d751133b39868489"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/runtime/query-tiles.ts",
       "766b2b0bffc5bb21bf458aba6dac603fec44aba38051a9c00306cac01cc991fc"
     ],
     "count": 1
@@ -11218,8 +11210,8 @@
   {
     "identity": [
       "max-depth",
-      "src/runtime/runtime.ts",
-      "07e3a87299fa277e8598c907aa3cf38d74c8dfca4b78e4b0f53b0374cf7b9c7d"
+      "src/runtime/query-tiles.ts",
+      "9ff82c2b9144f072dccc2a67060a2521db6a3b2e346b78fc4e883e2f43717ffc"
     ],
     "count": 1
   },
@@ -11227,7 +11219,15 @@
     "identity": [
       "max-depth",
       "src/runtime/runtime.ts",
-      "3e54811a6a282896e9e0e5cb856113ef307e2d7f069243bc69dc4071b433f5b0"
+      "4202fff32db5cb1849e2dfd5d582b8cafd9be82e237eff9955296615c26f71a2"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/runtime/runtime.ts",
+      "8a7dd02282b4de15ae227104c28776c6c170a6a499de2936681fe2adce8805f9"
     ],
     "count": 2
   },
@@ -11475,7 +11475,7 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/cesium-scene-owner.ts",
-      "09d3331f14deff18388ee186b26515aa352068e506b7d4befa6365cc53aea372"
+      "e0ee017e95da6ea29cc2c65f652afd9234f1d1a82f03c18d5d4f965299055e44"
     ],
     "count": 1
   },
@@ -11483,7 +11483,7 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/cesium-state-sync.ts",
-      "54ab726fd111bbd70990d03a32bdd6c92ac77283297d5c703843f8797ef53bdf"
+      "71bce1b7404d6119c47ea68d255410a1cceb8afddb1f06663827576db38f95a7"
     ],
     "count": 1
   },
@@ -11563,14 +11563,6 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/source-to-cesium.ts",
-      "0ad2acedab20e582f7879b363083f948957cd71863367c5e2420edb555bc2063"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/scene-workspace/source-to-cesium.ts",
       "1d56ec291df908420ed824ae248b3237aca30b66ce64f695c8e6c23c102667cf"
     ],
     "count": 1
@@ -11595,6 +11587,14 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/source-to-cesium.ts",
+      "4c60d35d036b3e7a9a300624f058302457d3634fa9b96365e5b66eebe6fb29b2"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/scene-workspace/source-to-cesium.ts",
       "6f9ffff4aec89bc546b3858cd7c7373b5887ac59d182fb9943285a1b9b9bb37a"
     ],
     "count": 1
@@ -11603,7 +11603,7 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/source-to-cesium.ts",
-      "84347b35afacac45f754287be3bd373beb6ceb7d471aec19cb254d8b60a123be"
+      "8376fedba7a752d205c9ff6a1f2e8d563dbe201b6562912c61a5b0a77c0db8e6"
     ],
     "count": 1
   },
@@ -11611,7 +11611,7 @@
     "identity": [
       "max-depth",
       "src/scene-workspace/source-to-cesium.ts",
-      "96b568a51ecfa22894c6fc9e96593bdaf70a2b562816826d1198a48f924d4dfe"
+      "84347b35afacac45f754287be3bd373beb6ceb7d471aec19cb254d8b60a123be"
     ],
     "count": 1
   },
@@ -11747,7 +11747,7 @@
     "identity": [
       "max-depth",
       "src/stac/index.ts",
-      "68bb89b062d1d2931d7e36f2e8d3b1ec50b31792ab506ee94c340b27f4570052"
+      "2536ba52b9d6804bb7f0298ac87ef68c296b92ae8d4ca091b7b42a6e0cbc1fa1"
     ],
     "count": 1
   },
@@ -11755,15 +11755,7 @@
     "identity": [
       "max-depth",
       "src/stac/index.ts",
-      "d96fff2e720b2093758ad404fe981aa1121ceda2c22467f6540aa407e99f42c7"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/studio-agent/mcp-client.ts",
-      "4eeba1d7f57e71c1be1de18cf70b53fde848824e12140035f6d0d3d68e230213"
+      "b703650f236ad0656eebc97de3b3e3d2a2e54e464cfae3444fb5983c97a0c4dd"
     ],
     "count": 1
   },
@@ -11778,8 +11770,8 @@
   {
     "identity": [
       "max-depth",
-      "src/studio-agent/mcp-notifications.ts",
-      "1f0a746e7bec0bb31f763d596ddca4d1b4e7475beb2c2c56614bb461666d5ee7"
+      "src/studio-agent/mcp-client.ts",
+      "a1e11b19d082a0fa1433d3c579507240dad66720d826e7171d130d4e4f7bef85"
     ],
     "count": 1
   },
@@ -11787,7 +11779,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/mcp-notifications.ts",
-      "329bd0c5af8d367c9a955b38c772004bc4ef5fbc36f74efe1f0937d3be98992f"
+      "25700e958fe92fa63ef3346382e7cd41fa41e888ff6fb35986e96c9b8bf02ded"
     ],
     "count": 1
   },
@@ -11795,7 +11787,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/mcp-notifications.ts",
-      "7795db2daec57b797726fb6f71e984310b557c6a399f3fcf535e99625a4a47ab"
+      "30e7f7498d67f09f560de74337ebd4b64909fdb89665504dd8057a1082be4104"
     ],
     "count": 2
   },
@@ -11803,7 +11795,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/mcp-notifications.ts",
-      "a888b84c5657fd7721dce7733ea7b608b18db78630112458ec92f15e26b682f4"
+      "71e613dfb704ee94d51c1818e29117169c6c2a3353e73d81b004ef16258aa981"
     ],
     "count": 1
   },
@@ -11811,7 +11803,15 @@
     "identity": [
       "max-depth",
       "src/studio-agent/mcp-notifications.ts",
-      "c3a5220016f8b9ae9e2c51ab1d9eb7bed2d22070f6a7f09b563c6bd9eadba728"
+      "7583fd529f1ae176f64aaa9b2cff51cf4188ced78a106e5d974a6263ee5d2335"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/studio-agent/mcp-notifications.ts",
+      "b406b1675027bb6e4357219fc2f8dd81d1abd3c571666cbdfd742424a49c51c6"
     ],
     "count": 1
   },
@@ -11819,7 +11819,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "29df9fb48b4286c01c93d060c314da578f44779a86016d11493aad93547d6081"
+      "3a5f410325c8113a0905a0614dd6aa9fe62e2df517564b41ca8cbd42ff0cec72"
     ],
     "count": 1
   },
@@ -11827,7 +11827,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "2a0ee5a470a3c7130291c1c04dacdf09b97e28af62fa296aa3fdb9d37cf49e25"
+      "3e1b7c033d874037357bceeacf949cc77da46451710ee21be527ab3a620563a7"
     ],
     "count": 1
   },
@@ -11835,7 +11835,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "43d48a629ab7ef6eba42a56193321145c1b2d72b267b97349adf51941fc09b2a"
+      "887269d829e6e196edda06c9da95c0f86b66c66065e4890a5719bf908863de20"
     ],
     "count": 1
   },
@@ -11843,7 +11843,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "613516d12e46ec49c22160686a498d9d2a69c188049e02be88fe045b238098b0"
+      "9683df8c8c9e509af519b772440a44a9f3ec162b3a77db1b8f77e1246e0ed9a9"
     ],
     "count": 1
   },
@@ -11851,7 +11851,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "702bd66a267a08e95537d7557643a6bf1dce2c50e00888ad01ecaa9c94aca81e"
+      "b7424efc857781ed60a2130cec8bd248e8d0e2d8d1836bf770867042e4e0684a"
     ],
     "count": 1
   },
@@ -11859,7 +11859,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "7994a3e1f39e25afdd06e21c1c967640c3f07fbfafce6f955a75a58e24fb4db1"
+      "bc54d687270ae734c0cecb02ff2aae56ed768a20522e9360fa70e67d358a4dbd"
     ],
     "count": 1
   },
@@ -11867,7 +11867,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "80c4cd198b46b2c9c5d30aa1d2303aac2c990958d395592e2279f063a09b5a6b"
+      "cd339f5b27be2106e0e15e3d6bd938b96ca75f40e8f78c64765c2df6dbecf136"
     ],
     "count": 1
   },
@@ -11875,7 +11875,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "b377ac670ceaf1ccb4f16df4c1c49d1e75f7c329a4b1b54dc99eb9d21f5ea088"
+      "e51d85a5a62f3d484e309968fbecec4c6089e4d48b56868fd69a333cc01455fc"
     ],
     "count": 1
   },
@@ -11883,7 +11883,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/session.ts",
-      "bba049ca934c9ae88fe389ca33c185ea520bd37c6603a005cffe857b4ebe3612"
+      "ecd213bc939e846e74e3259e8f6b900eb570bb7402ee3672ba73a068d6aef772"
     ],
     "count": 1
   },
@@ -11891,7 +11891,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/sse-parser.ts",
-      "155c3f15f530cea7040596b453c8c2d0b84d719fc57b79020bf8ccdcf3004448"
+      "a1a219e74a553968cce5f6f3bd02744277424cd88dfb68cc1ff1960a7c33230e"
     ],
     "count": 1
   },
@@ -11899,7 +11899,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/sse-parser.ts",
-      "8dafe0f351d8b1c16d5cf416d987da74e4031bffb7d4d96fa0b5f37314aea7e5"
+      "c23791b93dfa761915bd46b5040c35e340ee018ecd5e0b4b3324b03db703b406"
     ],
     "count": 1
   },
@@ -11907,7 +11907,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/sse-transport.ts",
-      "008976953e886808ead69d91ad74f01be85571747cc3ec6e143d7b20d7bf5039"
+      "1cc4692425a897dc1f032faa8bc10e83e74400495fdc97adb4ac8f7f2aef2674"
     ],
     "count": 1
   },
@@ -11915,7 +11915,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/sse-transport.ts",
-      "4c219c9ca42991f0059c109c12f55b87b1aca145ebb5e924d9a36b7d235facf7"
+      "709412de75d691cd5b5a0b40abc944cc99cd7199436093717bd6159f63b0c8ed"
     ],
     "count": 1
   },
@@ -11923,7 +11923,7 @@
     "identity": [
       "max-depth",
       "src/studio-agent/sse-transport.ts",
-      "7b40e6c313edab8b728fb57702a92dabd5d822f617a692651c22a001ffc87034"
+      "e1bd1c20abe1c88c469e3b0f8d34a811d1fbdd2a2ebbc3ac7560aa52745b3efc"
     ],
     "count": 1
   },
@@ -11931,7 +11931,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "30d3ee0bdd6467cb6b6c19c28ac9ddfe89d5fe94c16d7b86839a83ad3ae94f16"
+      "2d0edcc595f5dd8610ff8d7a3e32a2e52793a68f0d2d02a932e8aff6df28c65d"
     ],
     "count": 1
   },
@@ -11939,7 +11939,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "4573490eb71f8b6f7b6d87368d28ea3340bc111035ff1aaa59789eaf17c8c4bf"
+      "3811642e6cbfe57a8a233bcfe5f0ad278e31fd172e6332a32b17642b0c378eb0"
     ],
     "count": 1
   },
@@ -11947,7 +11947,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "49e6720a20045dac1059c736543489639a9156284a8031ba2de97051117df3a5"
+      "416f881225729461b08813556cb13b006d505987199a22883e4291e5a4368a79"
     ],
     "count": 1
   },
@@ -11955,7 +11955,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "a4f64b252ff972dc751717512951b25e4295afd27e2b975a94ef5894e9372e9e"
+      "7195bf83842c30cd343b01b8703b598818bd48f3509544533fc363384c7f6c56"
     ],
     "count": 1
   },
@@ -11963,7 +11963,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "eea1e9827db4dd4faed9856b49f9701da371ba3d8ac6ee6c75f72599efb53016"
+      "79b988e639e4e8741b74a7d2502f912752ff2e3d8f1680f24e6e2f2e3e53c410"
     ],
     "count": 1
   },
@@ -11971,7 +11971,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "fc8c9e04b8ee8929b7654afd7cf1eeed492b044d992870fa92b7471dc4dbe907"
+      "972f6b5b57b7150ba1270e94cb7c4f85d24f30f649ab9c7fab082be1723ced3c"
     ],
     "count": 1
   },
@@ -11979,7 +11979,7 @@
     "identity": [
       "max-depth",
       "src/studio/lifecycle-client.ts",
-      "fd928d3c2c8726ae46ad6970135057fc80f655891224b2afcc1bb1f4d18baa50"
+      "a60481de938ddbdd4ea4b4cfca2fda3d8cd2b1485f47b2a41ee4ebe7c6c43a4e"
     ],
     "count": 1
   },
@@ -12091,7 +12091,7 @@
     "identity": [
       "max-depth",
       "src/web-components/controller.ts",
-      "69c3705c2148384d434e2ffd4fcaa4869c76eb895193ed9c6e479f75843565dc"
+      "67667618db1dd3b52f432713ff9ac5247d972b86e265b431e18249b36adaafbc"
     ],
     "count": 1
   },
@@ -12099,7 +12099,7 @@
     "identity": [
       "max-depth",
       "src/web-components/controller.ts",
-      "82aac5326433611b8234560995f053e84abb6b542696aaf8e075dad02b25beb0"
+      "dfe946338cf80346fcc4aabaf275b1f82ff4648d3e9904695be244200bf6da9f"
     ],
     "count": 1
   },
@@ -12115,7 +12115,7 @@
     "identity": [
       "max-depth",
       "src/web-components/elements.ts",
-      "8ec6852320ac21fa5ea88c6d224368d0b3a6606f5b5e07dc303f406d32ebc5b7"
+      "1246196966cc89303a3e665a2be2735181a15463defb11a10b83c566f97bba2e"
     ],
     "count": 1
   },
@@ -12123,7 +12123,7 @@
     "identity": [
       "max-depth",
       "src/web-components/elements.ts",
-      "b3e23289a19d6a8bac5b10a07383b681c2c3cd974ac7aac62776cd38274636f9"
+      "a38619ce2d856a2c463141d209170cc1664832c9e05000bac8e91a7906e4b4e0"
     ],
     "count": 1
   },
@@ -12131,7 +12131,7 @@
     "identity": [
       "max-depth",
       "src/web-components/elements.ts",
-      "d78853d8491fcff68d36dcaa0f2c48aa95c0348acc0768f70db59f64d5615aa8"
+      "f2e19ea47ed2c2b14b0b3000e0c902c9f961e685becb54b38f36af2fbef8d30a"
     ],
     "count": 1
   },
@@ -12331,7 +12331,7 @@
     "identity": [
       "max-depth",
       "src/web-components/maplibre-renderer.ts",
-      "0053883d2da3e2c2f7e8044898ee6d6f711dfd4a1389da4a4203b7fbe4e0ee57"
+      "11733cac1f38cb73258cd5e15c5f859ac8330f0ab9161233f62412feebf5ca80"
     ],
     "count": 1
   },
@@ -12339,7 +12339,7 @@
     "identity": [
       "max-depth",
       "src/web-components/maplibre-renderer.ts",
-      "c401a01d38a70dde3c26b6a9c5399a1ad2ded356e5501f831adf6a318a91b322"
+      "e6731d400417535e273bfb4e0aa126d073818672751f6ac9a4e8bbfefed00c8e"
     ],
     "count": 1
   },
@@ -12363,7 +12363,7 @@
     "identity": [
       "max-depth",
       "src/web-components/measurement.ts",
-      "dd2cdf9c8573fcb9d884ddad20dbf325bd1c2a3f0d52cbc08e31660660f00507"
+      "7a971a4c297ca492a0dd47d1bef55fd32afb8b7a0080c48d19905092db92a9c7"
     ],
     "count": 1
   },
@@ -12459,14 +12459,6 @@
     "identity": [
       "max-depth",
       "src/zarr/direct-session.ts",
-      "057f2e0122077aebc667256205ee84bf43963c3594da3eca2d120403af189dd9"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-depth",
-      "src/zarr/direct-session.ts",
       "19ae62faf3bafa1c7725c822ac4ad6e55f2682b021d302166f62b52e12f24c42"
     ],
     "count": 1
@@ -12491,7 +12483,15 @@
     "identity": [
       "max-depth",
       "src/zarr/direct-session.ts",
-      "73cafb3d5eaf5a57fefdaee56e53cc7cb6145efde45a2de37f0e465c72c49112"
+      "47c49fecf5b2f3595418205a6079ec1382d256ad837f5697c84cead3174105f9"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-depth",
+      "src/zarr/direct-session.ts",
+      "4868279b1b086a395b5342bc923fce0f9ab5b205b242f7841b02a04bc07f1cdd"
     ],
     "count": 1
   },
@@ -12507,7 +12507,7 @@
     "identity": [
       "max-depth",
       "src/zarr/direct-session.ts",
-      "a6aa17867ae4866421668c0903d7536a01fa2995a2ebea6d40899761d266eb1c"
+      "d20b4358d7541fcfd4a4b08ea4575f63988fe8e58472aaa4e16abf75c9b8fa9e"
     ],
     "count": 1
   },
@@ -12515,7 +12515,7 @@
     "identity": [
       "max-depth",
       "src/zarr/direct-session.ts",
-      "d20b4358d7541fcfd4a4b08ea4575f63988fe8e58472aaa4e16abf75c9b8fa9e"
+      "dbd0aa45d85724c2aeb5228d2f8cdc9cf1099e4a77bfedfe4f99e2ed4480e2f9"
     ],
     "count": 1
   },
@@ -12715,7 +12715,7 @@
     "identity": [
       "max-depth",
       "test/feature-state.test.ts",
-      "04aca67a2ba48b0a3029f65e9a3e38f319d149247409ceb780175fa769e83c48"
+      "2dc3d12615c5f2ae114804649535f3cd80f94c28e31dca7417d6d06d9b5d4f31"
     ],
     "count": 1
   },
@@ -12771,7 +12771,7 @@
     "identity": [
       "max-depth",
       "test/integration/surfaces/realtime.integration.ts",
-      "9076c4572980f880188d8ea8e1641a2aeeb82a925e714539d4126015ba3c76b8"
+      "230b57feed8f0b7bec5d7dd6a4c64efa6f005082ad99c32890b3b9fc0464a79f"
     ],
     "count": 1
   },
@@ -12779,7 +12779,7 @@
     "identity": [
       "max-depth",
       "test/integration/surfaces/realtime.integration.ts",
-      "fa6f27a9f3c35615f9d0d25b510ad9f89e9f9d26d66f3ee060c6d60f8e129cad"
+      "cee91bf57bca498848df8a577125fcae404efc459a9ae275fd7d67c6bf1ec999"
     ],
     "count": 1
   },
@@ -13051,7 +13051,7 @@
     "identity": [
       "max-params",
       "bench/resilience-bench.ts",
-      "619586bfc474a484fc835ef088e99468b07f2eea7e6ed5aa9242a547956e4bf3"
+      "e7bc9e1de0f406e92399bf74ce1349b6c53b96224cbe6ed255369af40f493a69"
     ],
     "count": 1
   },
@@ -13075,7 +13075,7 @@
     "identity": [
       "max-params",
       "examples/_kit/cleanup.ts",
-      "b9591346a1db6206f13e35b665bbcd45b73e2aa96067e016b4c4bdd749b4510f"
+      "6f8a55db475f1e4a9fd8d00e94176ef2051bc206c619a168a0f67b8bc4cf1241"
     ],
     "count": 1
   },
@@ -13403,7 +13403,7 @@
     "identity": [
       "max-params",
       "mcp/src/agent/gateway.ts",
-      "d8de4305983bb2da6e9c6f948f9d4a2fec48005d9d6a126837b0e43abc281a25"
+      "f634c42a00dbe4a95b170b5d3f18c4e5767956169c024c0f9ec35e1ca8e7c152"
     ],
     "count": 1
   },
@@ -13723,7 +13723,7 @@
     "identity": [
       "max-params",
       "src/agent-safety/types.ts",
-      "3ffde296a52ee0d744a3adcc6e726af3af13b669dd643ec604e8992137c047e9"
+      "2e419f791ddc91811cc9d2ab57e95431ce5286f749bec171d626e6d0d646dcdc"
     ],
     "count": 1
   },
@@ -13779,7 +13779,7 @@
     "identity": [
       "max-params",
       "src/analytics/types.ts",
-      "69061fa9965c819cc3085008f28eb82d3a17679a721d7b8f95c6763759ea0b2b"
+      "9298dfcf331f84f3b288e0e647efa9d02ead8c423de466c10009078fe82275ed"
     ],
     "count": 1
   },
@@ -13867,7 +13867,7 @@
     "identity": [
       "max-params",
       "src/client-compat/locator.ts",
-      "02f730d8f31c16c748b880c2ae579a63caf6d3aaa84f79c2640e981dd9cf8d3d"
+      "36096a134b7f3d8be8566bd1d83173cb00bcfac6e4067bc6db57353f70ce5148"
     ],
     "count": 1
   },
@@ -13899,7 +13899,7 @@
     "identity": [
       "max-params",
       "src/client-compat/map-view.ts",
-      "24c87b957c3f3c0c193fc3585366c49e349082a448bd7e382bfc3d76820b85c8"
+      "08ec9bd2590f691c7189d0301452557c721e3ab973fef0ef67fbee4987e178d6"
     ],
     "count": 1
   },
@@ -13939,7 +13939,7 @@
     "identity": [
       "max-params",
       "src/cloud-native-discovery/index.ts",
-      "149214db8dcd4a3a49cdf91a3d677ec3cc384085d545b323d083110466e07f9b"
+      "5dc009bb7f045a9b9711b84d9fac76e98c58aa08f71cead56b2d54fab79b1ff0"
     ],
     "count": 1
   },
@@ -13963,7 +13963,7 @@
     "identity": [
       "max-params",
       "src/cog/maplibre.ts",
-      "2bf0553c3be6766adfb0705e3926b3b653bd0ca021d46d64e33a584a04387557"
+      "09c1609f2400bc9a75ccc89ee4531e64c82765a423e8d60c07adf11457ee38de"
     ],
     "count": 1
   },
@@ -14051,7 +14051,7 @@
     "identity": [
       "max-params",
       "src/collaboration/fixture.ts",
-      "1f14472841a2157a79be7bf67bf448ea357b0ced20396597770635473b85c615"
+      "051d4189ab162b13f9ec8241106592e6f661f2fa798f41071f0ee74474fa3d9a"
     ],
     "count": 1
   },
@@ -14059,7 +14059,7 @@
     "identity": [
       "max-params",
       "src/collaboration/fixture.ts",
-      "20d6f95fe0035870efcd881409f0d7df04a4333f09f2f4fd7ec9f472720fd7c1"
+      "49018621ee34e89e9613562311bf6a2a81f92a08683dd4b0adeb4fdd0238cf59"
     ],
     "count": 1
   },
@@ -14083,7 +14083,7 @@
     "identity": [
       "max-params",
       "src/columnar-workflow/honua-arrow-wkb.ts",
-      "6d087aa60a605a2a9c741354c57a02aabc763ea79757660623b68da4d7756e47"
+      "b561429be53f6b294b06b648b8b81975f0d2f4cc590ec2a4b128bf9125506c2f"
     ],
     "count": 1
   },
@@ -14115,7 +14115,7 @@
     "identity": [
       "max-params",
       "src/columnar-workflow/index.ts",
-      "923a1d967129cda7228228197c1e3ce9d68d5e4a0e491027224eb4b58565e447"
+      "72d7f84872b8ccb62e9a7745cc7c7ea701148fff3f05a82364d42da05e29df98"
     ],
     "count": 1
   },
@@ -14251,6 +14251,14 @@
     "identity": [
       "max-params",
       "src/columnar/geoarrow-patch.ts",
+      "1016c5c61907d96fea8b71b68c801a9c2239bf77f7e11fa06b54acca8f1cd40e"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/columnar/geoarrow-patch.ts",
       "3afc45518f24232c5bf38add0126a8d7d31a1ea72eca5cf4e99cd5c2be43737c"
     ],
     "count": 1
@@ -14276,14 +14284,6 @@
       "max-params",
       "src/columnar/geoarrow-patch.ts",
       "75eed6f1dc26bfd34454e491272cae134bddedddcdf0efa33c0433148557fb35"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/columnar/geoarrow-patch.ts",
-      "7b887d1ada3ba748e8a85253f9e48e5adabda565e2ccd3a0bf8ae9fbe18b1fd2"
     ],
     "count": 1
   },
@@ -14347,7 +14347,7 @@
     "identity": [
       "max-params",
       "src/columnar/geoarrow-types.ts",
-      "be5d5e7ee902561b6cf421963c0fda1d8451758f075c40f5a07a327700f5654d"
+      "6a07a116a2ff9014b2bf70405e015000fafb7846ca7cdd00013ec02e71ddb98a"
     ],
     "count": 1
   },
@@ -14499,7 +14499,7 @@
     "identity": [
       "max-params",
       "src/columnar/telemetry.ts",
-      "a05a50ea9027b01ab22e71090141ccf37025f90aadaeb53b532ddbabc085687b"
+      "b2e0738e81640807fe74318e735184e275c7d78f4cf12e722297e6180d3a30b6"
     ],
     "count": 1
   },
@@ -14787,7 +14787,7 @@
     "identity": [
       "max-params",
       "src/connect-pmtiles.ts",
-      "21b849a14c0685d4854c593323ea5692bc29aadeeadde587d013ed240db5819a"
+      "518c84207421cf09470f50fb11afadc5973e068aa2be6e383fcd21ed1b0c4602"
     ],
     "count": 1
   },
@@ -14795,7 +14795,7 @@
     "identity": [
       "max-params",
       "src/connect-pmtiles.ts",
-      "ca9a63d7918a6a41dfeeeff3576946115fefac4fe9970f9ac1b9341af809fc6f"
+      "9723797eb0d9c1fead677b7163a143d1ab7e2ee84c76eff2dd299080c0ad77a2"
     ],
     "count": 1
   },
@@ -14803,7 +14803,7 @@
     "identity": [
       "max-params",
       "src/connect-pmtiles.ts",
-      "cb54a54a8e667ef354144758da54be20985846ccf02d4e0d106f726c34bfb208"
+      "eaea64e6f0c78b63162996961b71394a0c0e8811c3d75ae2b0f9ea9a0ce78e75"
     ],
     "count": 1
   },
@@ -15251,7 +15251,7 @@
     "identity": [
       "max-params",
       "src/contract/edit-snapping.ts",
-      "37f11546ac286e9e28b25b3ecf3976fd773dfe9b647b6f1613a333576c8551ea"
+      "23a27b209ad07314563db9db447ed2ba1192b0f11deee98a80321c9214186821"
     ],
     "count": 1
   },
@@ -15259,7 +15259,7 @@
     "identity": [
       "max-params",
       "src/contract/edit-snapping.ts",
-      "5730ce3048c3dffa24e55fffe646f70213ffdbc39e4aa6448b0b567f34f70ce2"
+      "80643e0681e286297deeb676a9fb327be68e5546a2b03c420cfaab95c52886ef"
     ],
     "count": 1
   },
@@ -15267,7 +15267,7 @@
     "identity": [
       "max-params",
       "src/contract/jobs.ts",
-      "7d07243ae1dbfb53291fa084d67e1eeea7b71f292255197eff103cb42c5ff89d"
+      "0170e2a361dc02b563985f451a990a4ee2c21ab7bbab645a6941ee7401d22570"
     ],
     "count": 1
   },
@@ -15595,7 +15595,7 @@
     "identity": [
       "max-params",
       "src/control-plane/client.ts",
-      "5840175a57ed68bc6993ec50da1e2c17f38bc5bc06ef9ee464402a0d2ee972b3"
+      "92478410071729f4ddc98d4b1ae1550857d610cfcc4467ff726b6cb18e524787"
     ],
     "count": 1
   },
@@ -15603,7 +15603,7 @@
     "identity": [
       "max-params",
       "src/control-plane/commands/errors.ts",
-      "166cc51f6a2309ff0759dcd4c0cb5c94f4b99deaa8bbee8fd66f6a638cbd3bc3"
+      "3530fbd2fa9e5fc92094d0635b574441c9b74b027669250793622d582b796f62"
     ],
     "count": 1
   },
@@ -15643,7 +15643,7 @@
     "identity": [
       "max-params",
       "src/control-plane/dataset-import/transport.ts",
-      "2b61a6d651683a74bdbdcb9146820638ef151489ecb82cc594acbb726ca7794c"
+      "7788c2233dd65093ede07f9b807ae931408693b4e1a3113a08280ab3551a4f59"
     ],
     "count": 1
   },
@@ -15651,7 +15651,7 @@
     "identity": [
       "max-params",
       "src/control-plane/dataset-import/upload-client.ts",
-      "69936c95b1025b140de37dce93d87207bce8d93c139faf8d0099ed63231c3aab"
+      "2ca30c927b1e7a95db23cadcb2c38dd43d5e74abd490602ab027d06aa43da5a2"
     ],
     "count": 1
   },
@@ -15659,7 +15659,7 @@
     "identity": [
       "max-params",
       "src/control-plane/dataset-import/upload-client.ts",
-      "adb05675148eeb43b3b5698949c25c1260d9f656ea7aa8cac10b26b4a88f378b"
+      "c2f89c62330e1fff5436bfe8f17ecbb353a39a26cde9d7bf30a6f6c2480fb3eb"
     ],
     "count": 1
   },
@@ -15715,7 +15715,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "09391717ad8a3a6a02f3523b180707ffd1fed6df1346b94903420cea892d1384"
+      "1e35eb5e014807e4c42ba9e555ffca78fabe84783e02bbdca421b37e727a1bb6"
     ],
     "count": 1
   },
@@ -15723,7 +15723,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "0bb951309c26e11ea415d349bab1fc9c1040ba41ee989fdab76bb0eef5a82ad2"
+      "37ade76fdf2c541beb7df1396e235a65ae51d42976fe3cabdbc0064789a60dcb"
     ],
     "count": 1
   },
@@ -15731,7 +15731,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "0fd8f1157a2e95fc8c0b597120ec79c4653eaa8c56455ae88701f2bc15a1bea3"
+      "56eff2b94427fa13fbd6e68f95df1cbba4a8055d4baa009885e7d386b321493c"
     ],
     "count": 1
   },
@@ -15739,7 +15739,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "129ffc3ab4f82c4cbf12fac00423118876232b50b0f85cc3e36e75d62d134cf2"
+      "5ab51e94ebb697564b85b85e3246e06e25c7752b92e90af1edb46f446503b8fa"
     ],
     "count": 1
   },
@@ -15747,7 +15747,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "2b2b6500fd5c8ca447ec576a28ce0eb806758bb1de2a1b84782777993fabbf30"
+      "6cac4c1ae104f4f91d2bc80a62f6ef953da54cf3c71ec34d9f60f41a1600d64a"
     ],
     "count": 1
   },
@@ -15755,7 +15755,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "418959a4df2fce2e9a31d8a1146cfbf3be1325ff852bc98082ead5771ae1331f"
+      "70b84f3fe6010746e36557b8d520f954ba67bc6970ee2ebc8efab84791138192"
     ],
     "count": 1
   },
@@ -15763,7 +15763,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "47267547b572076acf492e339e87443832659d1961d73129dda14170aae84116"
+      "851adc3026af5554dcfe06ca0c8fe888dd98d645fd881ef6e723fec0d7339378"
     ],
     "count": 1
   },
@@ -15771,7 +15771,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "5a57cb8f567c94366810ee8b9f02c482eeaf8c0352ee24937813ae3980307dec"
+      "8a0629195b5610004f98580266a613ad217a2be035e03dd36036c87a1f12b70b"
     ],
     "count": 1
   },
@@ -15779,7 +15779,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "6bde9f1b055f357ea7c1ac836b8d2ed633cbeb43c32540d71a23d44a93ed4871"
+      "a8825c9d7a377ac1cb5be7c75453c4bcf2fc1c2ccc3703ec382a56f5d52b1d81"
     ],
     "count": 1
   },
@@ -15787,7 +15787,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "6f0e49b83780612cfbf0b6ee5f125b6eb91dbe083a2f5d1ef227e621acdfc1a3"
+      "b5b5678b9087b1d4e523cbf9934d4e82046350b609f025403c3a2473301b2c30"
     ],
     "count": 1
   },
@@ -15795,7 +15795,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "6fc160a8afb732896c6e4b63b754ed747bf81cae5e8339af6e49cb7217f72e2d"
+      "b844f4d9fe62f786def7feb350d9ff1c639884c3407ae5bbb79f750dcb382ba3"
     ],
     "count": 1
   },
@@ -15803,47 +15803,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "73dbc88fd2f45501236af50d397d33299dbca4c4e33ced79ffea47701ce4295b"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/core/client.ts",
-      "7a6bd6f3a11f0bd85187cd9752e1cfd369c9343244a0a365078987f0ffbf82ba"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/core/client.ts",
-      "9387115ec3214aafbf4575c82674059c188e6d57a98a0185ea147bcedb50e1c7"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/core/client.ts",
-      "9f5313ffd1a72cca86679872647fc9855a4e220055ed482bcc71a33690620417"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/core/client.ts",
-      "a0a5a136426870a10adc0bddf5591127e4a5c2d8d631a51512f284568a865a86"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/core/client.ts",
-      "b475ec5b29be895dcc08ac77eb1fbecd0be142b4ba516135061e9bfe2d726b11"
+      "c679b86a42bf7d67bf9705411590aa078b5da7f88c4d07cacebed9ef5ba9cbd3"
     ],
     "count": 1
   },
@@ -15859,7 +15819,7 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "d9848a0dac13b6397171a70ccdd0fd1c8ad31d8795c97012801c0979d0506351"
+      "e1bf34899e9135f85bfa7ee4ef005a579e9803c5eb7c3e6bcdf9e604673f76e1"
     ],
     "count": 1
   },
@@ -15867,7 +15827,47 @@
     "identity": [
       "max-params",
       "src/core/client.ts",
-      "faa1f64b940ac0bb24a07ad8c15e41879d7db0d1d7e590c8b10966953e52f268"
+      "e5ba9f7a8b6b6463a5c9b72178ef680ce92a60352e3a7b418cf5b2a86299f089"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/core/client.ts",
+      "e94d1c5adfdbdef5a8c7595587fe2f89c2220ecb3b118cd58d5acb6c7a0e52ac"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/core/client.ts",
+      "ea55a4eddcd7f465bd806f76f27efc44e7287cc9a88c0a6131cf42ed277414aa"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/core/client.ts",
+      "eb1dd3c2a709ed802057ff4fe6a5a41d786e9e14240a55012bc7042524de0081"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/core/client.ts",
+      "ecec10b4ed3e81a59ed55b6ca67d906aec6acdea598b27c6f51a40aafa85afd0"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/core/client.ts",
+      "fd69d64c5f2c1037b390e729f06cd688c2ad3a6674f20aa16c2cc40ce66b7904"
     ],
     "count": 1
   },
@@ -15891,7 +15891,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "3b860a1eff302fb32ab09da6fca97f321bdf3723fc5f760565cd1e61da262426"
+      "0b0c01c9cdc997013e0c27b4115217dae649ce3eb02a3a8bf11313f65e3eb9c7"
     ],
     "count": 1
   },
@@ -15899,7 +15899,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "97463bc95ca8be68d7d31cae60321d4c96d9c59b6e5e903e37cacc9a078bff0c"
+      "4ec163b9e88a427c0e6ab9f4372b0d75ee9abe19a76cef43453dcb59f747a166"
     ],
     "count": 1
   },
@@ -15907,7 +15907,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "9f83591cac7f1b2dea2551420deabc9f2721bddc3a8dc472c6022529be1cf6a4"
+      "63d07d107f93dc92aa317bb0362af79dd9ee155b7216da22d947451c1a2bd365"
     ],
     "count": 1
   },
@@ -15915,7 +15915,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "a6f0d867127f3a8a9131fa1b66f634e7f305c9031324f8758439416e89130ca6"
+      "6da79aebb2e27eec3c42f64886e19753f285e89730e60e237b1e2851c2f25972"
     ],
     "count": 1
   },
@@ -15923,7 +15923,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "d28cfd6d0fcc1420b0e2cee6bf3e8f9c1823ceef4c2a58ed353b303cca88e93f"
+      "f21675b8f273dd2572ed3cda1de24a514e126b8af39ecdbbd59230920019e702"
     ],
     "count": 1
   },
@@ -15931,7 +15931,7 @@
     "identity": [
       "max-params",
       "src/core/errors.ts",
-      "d86f270c7af1936424f0ab6bc78e932503873218329e02bce3b3806f3bc78645"
+      "fc5ee0d6416718757e621fc0ca7158d22f2c651eab784be253cd0421818b533e"
     ],
     "count": 1
   },
@@ -15971,7 +15971,7 @@
     "identity": [
       "max-params",
       "src/core/job-run-errors.ts",
-      "71694700f9804759d843b29401013b77ad9c9d5ea7a8f6a73db455ea10719f56"
+      "e6e86b6052a293bb774e59873a9f278174a7aca48a3e2b9c95c715242e609c34"
     ],
     "count": 1
   },
@@ -16043,7 +16043,7 @@
     "identity": [
       "max-params",
       "src/core/odata.ts",
-      "1bd6ca89cd03deef2d9017f34e4a621b276594dd139f666cf3bc0b0f910c18c3"
+      "f5ea7b19ba29eaa5bd71c84c5308b858572f1154eef4d020d2aa9b3d29ffd00d"
     ],
     "count": 1
   },
@@ -16163,7 +16163,7 @@
     "identity": [
       "max-params",
       "src/core/surfaces.ts",
-      "c1e54d7a37ef83160b20ee8cc28e4a665c989561886adb5258abee9015cd0456"
+      "68a12e9d431382c239ab19fd7bb2dc2080c5d3e764ef3b357e68af83328a7777"
     ],
     "count": 1
   },
@@ -16219,7 +16219,7 @@
     "identity": [
       "max-params",
       "src/coverages/client.ts",
-      "489d66cfd3f46f34603f1364109d5ae3ef95ce7bba0295ccd94baf504b319379"
+      "2319e1a3333331e4d7990dfd536190a45ca442ea8d4070234592ba6da46442af"
     ],
     "count": 1
   },
@@ -16227,7 +16227,7 @@
     "identity": [
       "max-params",
       "src/coverages/client.ts",
-      "d41620f33f915205066e0ceb9895e29cfb6304de5e0a95bfbbefa1e9505f21f9"
+      "3b4622164738309767ef340fa66457f798a3dc207864ec2d63ce009fb72bbd23"
     ],
     "count": 1
   },
@@ -16235,7 +16235,7 @@
     "identity": [
       "max-params",
       "src/coverages/errors.ts",
-      "49fdf3286c58e6479dd7f6647c9a213d07ad89c90102ba230cb5202f1908c9fb"
+      "65d912249a93eacca71ce886566f58f99d057a47a532a059267e29bdd63310d2"
     ],
     "count": 1
   },
@@ -16243,7 +16243,7 @@
     "identity": [
       "max-params",
       "src/coverages/errors.ts",
-      "7f2d10220f573e581e5c63dca19477812f7a160e08ad3c12b9819f3b3c657ce0"
+      "8ba649668725df809ac272672f8fb7743eff28af310d916e59ef1628946258f5"
     ],
     "count": 1
   },
@@ -16251,7 +16251,7 @@
     "identity": [
       "max-params",
       "src/coverages/errors.ts",
-      "8065c81ba76395f14a575f403591f4b99ab20f055858bc7b1db20e61e3f7785a"
+      "df31a3c0532279a263eb094a70b28376e61d099344826a06286a74a66f8f1f17"
     ],
     "count": 1
   },
@@ -16267,7 +16267,7 @@
     "identity": [
       "max-params",
       "src/deckgl/types.ts",
-      "8b43c72c33ba0c62e81695473a945ea5a0c85564550e5a3ed0f97a9c62c9c257"
+      "73601283c57e63322da37e72b4a12819f5d023f1454486903a99608537ce7c4b"
     ],
     "count": 1
   },
@@ -16331,6 +16331,14 @@
     "identity": [
       "max-params",
       "src/generated-app/runtime.ts",
+      "12303c10c6a8db8b1008206c46ab6c6de739b330eec82c4880008b2418c720a3"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/generated-app/runtime.ts",
       "155dd895490bb7432f931b79907181be3df8f2b547cdc778f247afbeada37101"
     ],
     "count": 1
@@ -16348,14 +16356,6 @@
       "max-params",
       "src/generated-app/runtime.ts",
       "4aa560577a5a8c0864d293b929da0aeab94911d22892e486fe181c6fe66daaf9"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/generated-app/runtime.ts",
-      "65bb826bea8c56a31b1a51108636efbd804abaf79f17f131ba1402eec8f32b4c"
     ],
     "count": 1
   },
@@ -16667,7 +16667,7 @@
     "identity": [
       "max-params",
       "src/geoparquet/native-geometry.ts",
-      "930749105c48616801083348f120102fe6290b39f318326bd0408d484f3c8723"
+      "54a6a92039e3cfaab92587888f200b8f0f24d466716c389ae99782e95fbe3367"
     ],
     "count": 1
   },
@@ -16795,7 +16795,7 @@
     "identity": [
       "max-params",
       "src/kepler/types.ts",
-      "b3f66e1549d8067e80d5b61d677c08e475b46ae3cbb2965675d631e0f7c7f9de"
+      "82c17e281d81a5de4393e95c8d3ffb95fdf73342f9818581d58ebd4fff570798"
     ],
     "count": 1
   },
@@ -16859,6 +16859,14 @@
     "identity": [
       "max-params",
       "src/map/automatic-source-strategy.ts",
+      "057dcd6e9ada32e1d50f3cc05a95ddacbec3e7bc3a3def0597bf8a9565ffaa6a"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/map/automatic-source-strategy.ts",
       "067939fd6c2fb5daf2ce0784d601d240e71aac73a6eabfadf0625935278e7f65"
     ],
     "count": 1
@@ -16890,16 +16898,8 @@
   {
     "identity": [
       "max-params",
-      "src/map/automatic-source-strategy.ts",
-      "8ce83f1315c3e45c8d270abc7af7f7e109b91a4eec2c99262563b98f7a32a2b2"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
       "src/map/data-to-map-bridge.ts",
-      "099e1b2aa81f0df3a385d142fc3aed007f596b84d41a1e5cf03f4b0494d27cef"
+      "07cc6c3bc1482216fa9cc78598a295afd42c7fe04f1cfd5dd9924f29c5cfa416"
     ],
     "count": 1
   },
@@ -16955,7 +16955,7 @@
     "identity": [
       "max-params",
       "src/map/raster-source-strategy.ts",
-      "ab1692d623c02c39a9820c02e8d048d0d60d527e429fd20d046058f7371719ed"
+      "24c7dd7b3f1cfc140ecddbecd91058324fa4d9a86d9a2b3e92d8e83a2b49c49d"
     ],
     "count": 1
   },
@@ -16963,7 +16963,7 @@
     "identity": [
       "max-params",
       "src/map/raster-source-strategy.ts",
-      "be8999031c94f1751e919db4044479f0d3cba9502b6657fb6cb3d2663ac40e8b"
+      "ab1692d623c02c39a9820c02e8d048d0d60d527e429fd20d046058f7371719ed"
     ],
     "count": 1
   },
@@ -16987,7 +16987,7 @@
     "identity": [
       "max-params",
       "src/map/source-to-maplibre.ts",
-      "65dc0a11f9b24796a6747b14b61591e7dfab0f65c60c04fa4d9318cf61599936"
+      "10bbb1648b45483224d4650b351d6aa6905bcaf65a856629d3bca227dd1cfdba"
     ],
     "count": 1
   },
@@ -16995,7 +16995,7 @@
     "identity": [
       "max-params",
       "src/map/source-to-maplibre.ts",
-      "a08ff5e8ccc4242f0501efdda9f915504656d9f78596e33b34d08341ffce368e"
+      "65dc0a11f9b24796a6747b14b61591e7dfab0f65c60c04fa4d9318cf61599936"
     ],
     "count": 1
   },
@@ -17227,14 +17227,6 @@
     "identity": [
       "max-params",
       "src/offline/edit-queue.ts",
-      "27a08fc75ead93d6f8bb3264d0fcaffbc2780a64dc150752b16ed4720ae92244"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/offline/edit-queue.ts",
       "459988c986774e82e398a2ca101d26bb67eff08d99fdde4928cb535953be1ea3"
     ],
     "count": 1
@@ -17252,6 +17244,14 @@
       "max-params",
       "src/offline/edit-queue.ts",
       "565374a5c6e865074e0375e174d0699c968bebd548cd185ea0f27f8585e26283"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/offline/edit-queue.ts",
+      "7d64310c1ec8c45d66060631e58a8de773cadaf470574588db1fd323f68ac1ff"
     ],
     "count": 1
   },
@@ -17307,7 +17307,7 @@
     "identity": [
       "max-params",
       "src/offline/edit-queue.ts",
-      "fa2b33aad1db1002e31e0eeea805ffa01316bef8b8d098ef27bb94496d9e114d"
+      "f1b03695a2cc1b7692a90f515e776a44495a83f65cc425dbe8937e5a81d8dda7"
     ],
     "count": 1
   },
@@ -17331,7 +17331,7 @@
     "identity": [
       "max-params",
       "src/offline/region.ts",
-      "b3faf2aa586727c9bd07107c79a8ce040142e2fc705c5b3c8b259ae2faf13d41"
+      "9f5f53767e49a643e5f647a44313c8b2829415b6c02d5b3554d48356b2d9c665"
     ],
     "count": 1
   },
@@ -17339,7 +17339,7 @@
     "identity": [
       "max-params",
       "src/offline/region.ts",
-      "d2fcce15ab655ea2b9ec88e7c7cabb31f3aa03652e0a40914a351d56890a3fcf"
+      "b3faf2aa586727c9bd07107c79a8ce040142e2fc705c5b3c8b259ae2faf13d41"
     ],
     "count": 1
   },
@@ -17379,7 +17379,7 @@
     "identity": [
       "max-params",
       "src/operate/client.ts",
-      "08676ec9ebbc3d8406382de082fee3c45a87c4c4f9c04e5edb63952b1157ac87"
+      "87c8b7b0dd96190534ef044b026abddf7bc673765e2166fed152f8b5b514bb69"
     ],
     "count": 1
   },
@@ -17387,7 +17387,7 @@
     "identity": [
       "max-params",
       "src/operate/client.ts",
-      "134309d338b05f831dafba6f94b123da5e9961fe2253c5a4f37947c7f2d9e025"
+      "cfe9d15d6b59edd9b569532acbccf814cfd876312bc398844d7f1a65e140b2f6"
     ],
     "count": 1
   },
@@ -17499,7 +17499,7 @@
     "identity": [
       "max-params",
       "src/plugin/registry.ts",
-      "53d1e9bd4cdc1823d77f84247dd08b71a5b34fe9fbeeb79f4638012ac21692f2"
+      "45525c5515d739f761c590df5debc5e85c158b2a13031d1569e0a9e2f4396767"
     ],
     "count": 1
   },
@@ -17523,7 +17523,15 @@
     "identity": [
       "max-params",
       "src/pmtiles/lifecycle.ts",
-      "13e4d220276dc934296dbb9acda206ea980aaa548d5eb62a18a7cb4630d98953"
+      "336de537daa1e026c73d790af0e023f016653dd24866066b911caca94da4036e"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/pmtiles/lifecycle.ts",
+      "445679ef858ac2cdb97cd18aaf6391bfd4167bacbab2743c53484e65474dcfa0"
     ],
     "count": 1
   },
@@ -17548,14 +17556,6 @@
       "max-params",
       "src/pmtiles/lifecycle.ts",
       "90fe4d060ee2bcfe533a22199331a466670be90f924e656e93d09b74334a6954"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/pmtiles/lifecycle.ts",
-      "a0c605c049e20bd5dcc6071977533c7a6535be90d32604959b8f9a6a4d36b9a3"
     ],
     "count": 1
   },
@@ -17819,7 +17819,7 @@
     "identity": [
       "max-params",
       "src/query-planner/types.ts",
-      "bf4ad4762a5831f6b1cf458ff7044c4760d46eebfa603cdb54cf6ac6c4e3a98f"
+      "df0f8ea1ad1706dbb0383ad2e801ef49fba47f96df94f561346318aa8d5bccae"
     ],
     "count": 1
   },
@@ -17923,7 +17923,7 @@
     "identity": [
       "max-params",
       "src/realtime/reconciliation.ts",
-      "5aa761003af4366642b5db50d820edb3ac369416178732964601b0d17f16de6a"
+      "6fb9eba79a194dc99f8cc06d80960b815980e4c1c4d919fd363c93648946c0bf"
     ],
     "count": 1
   },
@@ -17955,7 +17955,7 @@
     "identity": [
       "max-params",
       "src/replica-sync/geoservices.ts",
-      "6262e1bbe0fdc3905080c4406d472eb8cd4df5b24eda4d9d5e449e5e0d9f4501"
+      "3b8685999dfc65ad711b61be02c679b8c6803e5315819c1b920670b6713b16ec"
     ],
     "count": 1
   },
@@ -17963,7 +17963,7 @@
     "identity": [
       "max-params",
       "src/replica-sync/geoservices.ts",
-      "ade943a25f032025f87eeefb15d38f4367780d1e1209900d32225b78c86f0372"
+      "b2443cc75d696855ef2d334bf5a8e551e96c712afb1e8e2c0725a1c8b86661ed"
     ],
     "count": 1
   },
@@ -17971,7 +17971,7 @@
     "identity": [
       "max-params",
       "src/replica-sync/geoservices.ts",
-      "c45ab728bb441d0d3332e1b80f4cdd0d112b16735c33c68becec69062c47b570"
+      "e256ec533f258795264289c73158b2a111ab5bb16679b026c3934fb4ac9ce586"
     ],
     "count": 1
   },
@@ -17979,7 +17979,7 @@
     "identity": [
       "max-params",
       "src/replica-sync/geoservices.ts",
-      "d72be684a372461ab1afbc9baf3a99dead5b8def4eae3b65597e9e4cbf7a5956"
+      "e346e435fb5712cfa883bae6c94002f1bf1c10bdb0061f8d9efe1e3388e16aa1"
     ],
     "count": 1
   },
@@ -18075,7 +18075,7 @@
     "identity": [
       "max-params",
       "src/runtime/style-interactions.ts",
-      "12acff36d9cb829560723189935d8b2a16f8b54c953a112fbb0e368aa3a8716c"
+      "3420dc7732340ceb4ef8653c35d3f495d1bf17e948bc24d8200cabff24cbb531"
     ],
     "count": 1
   },
@@ -18083,7 +18083,7 @@
     "identity": [
       "max-params",
       "src/runtime/style-interactions.ts",
-      "3420dc7732340ceb4ef8653c35d3f495d1bf17e948bc24d8200cabff24cbb531"
+      "470b6082ca1ce77baf7d03e5c8824678ade19adf27b824cdb8a61ed0f9168dee"
     ],
     "count": 1
   },
@@ -18179,7 +18179,7 @@
     "identity": [
       "max-params",
       "src/scene-workspace/cesium-mount.ts",
-      "3dea83a7f12811d9bb7180b6c7bb799541627f352c55d42dcfb7bc5edb0a0bca"
+      "823e74e5dae65161916fd06046596f3a8b4db7cbd5f8dc14baeccfaf097f3a9d"
     ],
     "count": 1
   },
@@ -18195,7 +18195,7 @@
     "identity": [
       "max-params",
       "src/scene-workspace/cesium-scene-owner.ts",
-      "a1158dde70f29e5d4086d8ffd0081329bf05cc419f6f47b506605b2b241009d8"
+      "b1fe0a4e4100c860bfb3d4521ae843522517c650211b82794137c8aef49d5dfe"
     ],
     "count": 1
   },
@@ -18299,7 +18299,7 @@
     "identity": [
       "max-params",
       "src/scene-workspace/source-to-cesium.ts",
-      "acb092d67eaa51a688a55daf85cf8cdb501cc0cfa4548fa3d3b84caf0cc82bfd"
+      "783d724434f36b20b22c5e13aa955f1f1a6d79c80484f2e4852610a3814c475e"
     ],
     "count": 1
   },
@@ -18307,7 +18307,7 @@
     "identity": [
       "max-params",
       "src/scene-workspace/source-to-cesium.ts",
-      "afbc4bf5f51925d01edff12007715d3224b783d287f0237621e1d76994d00ee5"
+      "acb092d67eaa51a688a55daf85cf8cdb501cc0cfa4548fa3d3b84caf0cc82bfd"
     ],
     "count": 1
   },
@@ -18339,7 +18339,7 @@
     "identity": [
       "max-params",
       "src/scene-workspace/state-sync-port-kit.ts",
-      "216808fe9235fc2d1c41b9b8a3919e5925e14f193f64376d4921c205da6a4573"
+      "4f3c7d93e56bbf44765f1ee5815239b5cb8bad7816f5a65145c3bd9cb0970a3a"
     ],
     "count": 1
   },
@@ -18427,7 +18427,7 @@
     "identity": [
       "max-params",
       "src/studio-agent/mcp-errors.ts",
-      "784619da265a78894d468887bf7e113635013effafc2c64ebb66b7043a837bdf"
+      "ebc4be7a38a803b7a656a6852bf13504897198cd81dde41feaf3bcc42fb4f6e6"
     ],
     "count": 1
   },
@@ -18435,7 +18435,7 @@
     "identity": [
       "max-params",
       "src/studio-agent/session.ts",
-      "af72d9ae1a8c3c44fd781e7f850aea4a56cc55a5add69639cbda05bb2f7cf26f"
+      "1a174ea58dd72eab84694d5ee8499404ea802f9e926c9935ccd2f5470c22e561"
     ],
     "count": 1
   },
@@ -18459,7 +18459,7 @@
     "identity": [
       "max-params",
       "src/studio-agent/tool-catalog.ts",
-      "9c2f1aba3ae317636d0ed4161ef8020189b0a047a3b111856244e7c1408f757c"
+      "92f352a9c2999a431da05240b3e39f27bd0bee8585fb825a2fb1e625f98132d6"
     ],
     "count": 1
   },
@@ -18467,7 +18467,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-client.ts",
-      "3b9c37fbf83cc4296b14e58aae053cafd31382c7d167f594ec02f00d060c8332"
+      "275bf4255a61b22bbe4f5996dc2012986415f107b4ab00671d06232efc62aa6d"
     ],
     "count": 1
   },
@@ -18475,7 +18475,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-client.ts",
-      "42f1c456d094f4fbd3b0bf6fec2ce1e6ed770039603813612e09cbe9a3135256"
+      "2cd873996ea7a6f692a7038d2b6399c329d544b71bd27808c70dbc8c6616a798"
     ],
     "count": 1
   },
@@ -18491,7 +18491,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-client.ts",
-      "561dfaa162bd6196098d2697e2298b8714787a748f7dcc005dd243944db17484"
+      "5d2086ba2900c2554302a842bb1f5bf405cdeb7c074de9ca598ab86a3f27616f"
     ],
     "count": 1
   },
@@ -18499,7 +18499,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-client.ts",
-      "f42d81ee961f1a48b08275aa96972ef1142c38979c7a93e200a0f13a8acaaa9d"
+      "af7bc6a146242c2a552c0a747d9ad8c864866f696d56a7797767f2362ed999f8"
     ],
     "count": 1
   },
@@ -18507,7 +18507,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-client.ts",
-      "f894af6f6c5b40e9ace8d030e92dadd9eb62e2f9ac69d6064c3224314b530785"
+      "fd3ea6b0dae9a15967e54a29c2af917b30ab618df815d4c1911d03085df0a958"
     ],
     "count": 1
   },
@@ -18515,7 +18515,7 @@
     "identity": [
       "max-params",
       "src/studio/lifecycle-errors.ts",
-      "6f774d240fb6f416f51064e17f1fd03defb630f2810571c3f89ead733e1d711c"
+      "16908eb8d50cd35f3b59b59d764dbb2838099f9709193381a411fd0b74b3b46e"
     ],
     "count": 1
   },
@@ -18563,7 +18563,7 @@
     "identity": [
       "max-params",
       "src/web-components/elements.ts",
-      "732279a2a3a3573af26792e14614e36e810396f91453ec3c3a0c9745f7c5f8f1"
+      "9d7ae9627c632d8b55208188367f1aab1db45409305daf3cc1d88129720157fa"
     ],
     "count": 1
   },
@@ -18571,7 +18571,7 @@
     "identity": [
       "max-params",
       "src/web-components/elements.ts",
-      "7ea6579aa41131a0b2e6d99c8cbb781a14f460b837f1bcf1cd751e197ac3ce82"
+      "bfaa1b53891647f3b0a1a2be1997e07319393c55fec5c1d474753633c10f4f25"
     ],
     "count": 1
   },
@@ -18635,7 +18635,7 @@
     "identity": [
       "max-params",
       "src/web-components/feature-editor-workflow.ts",
-      "3e74e0c67962f08a778beb2924404038747a02ee8ef3cab08769ca56a8ef7c5f"
+      "b14d12cfd1e55fc88b31120d3797d8e71f18100fa0ff2c4bed224b2624827e66"
     ],
     "count": 1
   },
@@ -18643,7 +18643,7 @@
     "identity": [
       "max-params",
       "src/web-components/feature-editor-workflow.ts",
-      "b14d12cfd1e55fc88b31120d3797d8e71f18100fa0ff2c4bed224b2624827e66"
+      "db65e86bf8308972d71a3d18610c5b5e3c587e4ce1e20feee944f0a90ab31971"
     ],
     "count": 1
   },
@@ -18659,7 +18659,7 @@
     "identity": [
       "max-params",
       "src/web-components/feature-inspection.ts",
-      "6a6ef0d41c98a67bd4fb2138b194207684149b5621d9c8ededfcb95f2567780e"
+      "f2a5ff4099aefb5f483798a389052d6c78191da405dbd75949cf6c3cd7d70f45"
     ],
     "count": 1
   },
@@ -18667,7 +18667,7 @@
     "identity": [
       "max-params",
       "src/web-components/feature-inspection.ts",
-      "f2a5ff4099aefb5f483798a389052d6c78191da405dbd75949cf6c3cd7d70f45"
+      "fea8b51986eacd7e54ebc747a8114c7806216c04c762d15aa5fd59136c1a43f3"
     ],
     "count": 1
   },
@@ -18747,6 +18747,14 @@
     "identity": [
       "max-params",
       "src/zarr/client.ts",
+      "08556d8f9657f5f756bc00ad538b7fa5f82fff7c9c7524e415ab8c9bc4f4aea4"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/zarr/client.ts",
       "5fcc80f5e8708e2a87cfc419709152ed99885135e893675e3fa31ec21a8d1305"
     ],
     "count": 1
@@ -18755,15 +18763,7 @@
     "identity": [
       "max-params",
       "src/zarr/client.ts",
-      "c099282737b9e52e88efde29b70b8e0caa94ffaf40b30101c5d96a25d7313181"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/zarr/client.ts",
-      "d75e067ba342d935d24c9cd302b925bf8cc20a14fc0cee6b0d4ee6bd87ff9553"
+      "cb1fd42e403c8e00d7381f35c7d09546a8b6a502b9928a7aa2206332de23906d"
     ],
     "count": 1
   },
@@ -18795,7 +18795,7 @@
     "identity": [
       "max-params",
       "src/zarr/direct-session.ts",
-      "2d041387b16c5232ceef801528e1c0989705ec030d0058ce4b41e1486224b093"
+      "212829d7a2329ff4b82409e765be0cdf900bb400b971b542bdbef47f3e7dfec8"
     ],
     "count": 1
   },
@@ -18803,7 +18803,7 @@
     "identity": [
       "max-params",
       "src/zarr/direct-session.ts",
-      "50747bef0bce454454110e1f01a9db9468179556c3fba294a73d010ab61a82cd"
+      "2d041387b16c5232ceef801528e1c0989705ec030d0058ce4b41e1486224b093"
     ],
     "count": 1
   },
@@ -18867,14 +18867,6 @@
     "identity": [
       "max-params",
       "src/zarr/direct-transport.ts",
-      "7ee648c41e0d6709db7e790e20b3599d4e546c410d954f35f49d7b575bbc2a8b"
-    ],
-    "count": 1
-  },
-  {
-    "identity": [
-      "max-params",
-      "src/zarr/direct-transport.ts",
       "9e13a2d438b981b7d8286da3c717aa8250191842b3a2ed41cf8f6755e0ca5659"
     ],
     "count": 1
@@ -18883,7 +18875,7 @@
     "identity": [
       "max-params",
       "src/zarr/direct-transport.ts",
-      "b7078499a128a6f926f860c99c47924a0a8b141390c23aea9f83e5fea9938c22"
+      "ac04c4700dd95034753db8af5b6fe78c72e6a0eb8713e41fac3cc6bf91fd6455"
     ],
     "count": 1
   },
@@ -18898,8 +18890,8 @@
   {
     "identity": [
       "max-params",
-      "src/zarr/errors.ts",
-      "a06f9ee6622719c0b8a311e5013a8f023ed45a0419d487a250c4e5faf85f3818"
+      "src/zarr/direct-transport.ts",
+      "f60c49952331177494adc16f9413443df7d5eed69e1bb0a02d49621a4866ada4"
     ],
     "count": 1
   },
@@ -18907,7 +18899,15 @@
     "identity": [
       "max-params",
       "src/zarr/errors.ts",
-      "d4190eda147a96cfc4293b0b54a20806df5c14ccd3bfe3d8c3a73ea8f2a3ad72"
+      "1c8e5f3fe4fb46c3e916c5e8d87ee64104a4a2dd07e1728ab07c967937023784"
+    ],
+    "count": 1
+  },
+  {
+    "identity": [
+      "max-params",
+      "src/zarr/errors.ts",
+      "fb0c805279e34fa83342ed28763fa927b9591b2e7fc2956ef236ec6880b63caa"
     ],
     "count": 1
   },
@@ -18915,7 +18915,7 @@
     "identity": [
       "max-params",
       "test/analytics-uplot-scatter.test.ts",
-      "e41ad017c1aa8e68e9cab69f7468c50db24580a37472345e3ae38ad1fc63d432"
+      "d64b05238474136b3346fafe42d8eed15d1831e0ac1b544fab845963d65e1d11"
     ],
     "count": 1
   },
@@ -19067,7 +19067,7 @@
     "identity": [
       "max-params",
       "test/offline-region.test.ts",
-      "f4919945d25851ad7919f7923ae8d53c21389098953370db37772383dea89a33"
+      "ee8240e688c8bac42bae572a02a09eea16ed470234e51ff9282a3a0dfa6082b1"
     ],
     "count": 1
   },
@@ -19107,7 +19107,7 @@
     "identity": [
       "max-params",
       "test/runtime-terra-draw-sketch.test.ts",
-      "46207c490cdd77b85243a5a267fa22746879652b178380b669aca290289a72d4"
+      "d673bbcefe1dfb854dd7909d38e0441c1b759b19317b27ccd881b87bc3562ad1"
     ],
     "count": 1
   },
