@@ -8,9 +8,25 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 The SDK's public names follow the Honua vocabulary (honua-server
 `docs/concepts/domain/README.md`): `MapPackage` -> `MapDocument`, `ApiToken` -> `ApiKey`,
-`HostedMap` -> `SavedMap`, and `AppPackage` -> `AppVersion`. The product is unreleased, so the old names were
-removed outright ([#2348](https://github.com/honua-io/honua-sdk-js/issues/2348)). There are no
-deprecated aliases, re-exports or shims. Update imports to the new names.
+`HostedMap` -> `SavedMap`, and `AppPackage` -> `AppVersion`. The old names were removed outright
+([#2348](https://github.com/honua-io/honua-sdk-js/issues/2348)). There are no deprecated aliases,
+re-exports or shims. Update imports to the new names.
+
+## Breaking change
+
+`@honua/sdk-js` 0.3.4 and earlier export the old names; the first release after 0.3.5 (0.4.0) removes
+them. Affected entry points:
+
+- `@honua/sdk-js/runtime`: the `MapPackage` / `MAP_PACKAGE` names (92 in the 0.3.4 stable API report),
+  for example `HonuaMapPackage`, `fetchMapPackage`, `exportMapPackage`, `HonuaMapPackageError`.
+- `@honua/sdk-js/control-plane`: `HonuaApiToken*`, `HonuaHostedMap*`, `HonuaMapPackagesClient`,
+  `HonuaPublishMapPackage*`, `mapPackagePublishCommand`.
+- `@honua/sdk-js/app`, `/studio`, `/generated-app`, `/web-components` and `/operator`: the same
+  map-document types they re-export, plus `HonuaGeneratedAppPackage`, `AppPackage`,
+  `projectMapPackageToGeneratedAppManifest`, `layersFromMapPackage`, `legendFromMapPackage` and
+  `fromMapPackageValidation`.
+
+The table below maps every old name to its replacement.
 
 Unchanged: server-owned wire fields (`mapPackageId`, `mapPackage` in JSON bodies and the export
 envelope, `links.mapPackage`), routes, capability keys, error codes (`runtime.map-package.*`), format
