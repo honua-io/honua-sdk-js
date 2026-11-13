@@ -55,6 +55,32 @@ interface RangeRequest {
   readonly signal: AbortSignal | undefined;
 }
 
+interface ArtifactRangeSource {
+  readonly url: string;
+  readonly byteLength: number;
+  readonly fetchImpl: typeof fetch;
+}
+
+async function checkedResponse(
+  { url, byteLength, fetchImpl }: ArtifactRangeSource,
+  { start, end, signal }: RangeRequest,
+): Promise<Response> {
+  const response = await fetchImpl(url, {
+    headers: { range: `bytes=${start}-${end - 1}` },
+    ...(signal ? { signal } : {}),
+  });
+  const wholeFile = start === 0 && end === byteLength;
+  if (response.status === 206 || (response.status === 200 && wholeFile)) return response;
+  await cancelBody(response);
+  if (response.status === 200) throw rangeNotServedError(url, byteLength);
+  if (response.status === 416) throw sizeMismatchError(url, byteLength, { status: 416, requested: [start, end] });
+  throw new HonuaPublicationError(
+    "artifact-unavailable",
+    `${url} could not be read: the host answered HTTP ${response.status}.`,
+    { detail: { url, status: response.status } },
+  );
+}
+
 /**
  * Reads a published artifact by HTTP range requests only. A response that is
  * not a 206 for exactly the requested bytes is refused before its body is
@@ -65,26 +91,9 @@ export function artifactRangeReader(url: string, byteLength: number, fetchImpl: 
   const cache = new Map<string, ArrayBuffer>();
   let cachedBytes = 0;
 
-  async function checkedResponse({ start, end, signal }: RangeRequest): Promise<Response> {
-    const response = await fetchImpl(url, {
-      headers: { range: `bytes=${start}-${end - 1}` },
-      ...(signal ? { signal } : {}),
-    });
-    const wholeFile = start === 0 && end === byteLength;
-    if (response.status === 206 || (response.status === 200 && wholeFile)) return response;
-    await cancelBody(response);
-    if (response.status === 200) throw rangeNotServedError(url, byteLength);
-    if (response.status === 416) throw sizeMismatchError(url, byteLength, { status: 416, requested: [start, end] });
-    throw new HonuaPublicationError(
-      "artifact-unavailable",
-      `${url} could not be read: the host answered HTTP ${response.status}.`,
-      { detail: { url, status: response.status } },
-    );
-  }
-
   async function read(request: RangeRequest): Promise<ArrayBuffer> {
     if (request.signal?.aborted) throw new HonuaAbortError();
-    const response = await checkedResponse(request);
+    const response = await checkedResponse({ url, byteLength, fetchImpl }, request);
     const expected = request.end - request.start;
     const range = parseContentRange(response.headers.get("content-range"));
     const announced = Number(response.headers.get("content-length") ?? expected);
