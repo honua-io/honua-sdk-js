@@ -13,13 +13,32 @@ export function findingIdentity(parts) {
   return JSON.stringify([parts[0], parts[1], fingerprint]);
 }
 
+function expressionName(node, source) {
+  if (ts.isCallExpression(node)) return expressionName(node.expression, source) + '()';
+  if (ts.isPropertyAccessExpression(node)) return expressionName(node.expression, source) + '.' + node.name.text;
+  return node.getText(source);
+}
+
+function anonymousContext(node, source) {
+  let child = node;
+  for (let parent = node.parent; parent; child = parent, parent = parent.parent) {
+    if (ts.isCallExpression(parent) || ts.isNewExpression(parent)) {
+      return expressionName(parent.expression, source) + ':argument' + parent.arguments.indexOf(child);
+    }
+    if (parent.name) return parent.name.getText(source);
+    if (ts.isReturnStatement(parent)) return 'return';
+    if (ts.isBinaryExpression(parent)) return parent.left.getText(source);
+  }
+  return '<anonymous>';
+}
+
 export function scopeAt(source, position) {
   const names = [];
   function visit(node) {
     if (position < node.getStart(source) || position >= node.end) return;
     if (ts.isClassLike(node) || ts.isFunctionLike(node)) {
       const name = node.name ?? (ts.isVariableDeclaration(node.parent) ? node.parent.name : undefined);
-      names.push(name?.getText(source) ?? node.parent.getText(source));
+      names.push(name?.getText(source) ?? anonymousContext(node, source));
     }
     ts.forEachChild(node, visit);
   }

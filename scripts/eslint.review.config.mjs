@@ -2,7 +2,7 @@ import tseslint from 'typescript-eslint';
 import { fileURLToPath } from 'node:url';
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/artifacts/**', 'playgrounds/**', 'src/gen/**', 'test/fixtures/**', '**/coverage/**', '**/test-results/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/artifacts/**', 'playgrounds/**', 'src/gen/**', 'src/contract/generated/**', 'src/control-plane/generated/**', 'src/studio/generated/**', 'src/runtime/generated/**', 'test/fixtures/**', '**/coverage/**', '**/test-results/**'] },
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {

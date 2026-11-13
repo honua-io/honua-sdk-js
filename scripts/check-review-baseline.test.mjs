@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ESLint } from 'eslint';
@@ -62,6 +62,7 @@ test('anonymous callbacks at a new call site cannot inherit old debt', async () 
     const baseline = await findings(old);
     const replacement = old.replaceAll('old', 'fresh');
     assert.equal(additions(await findings('\n' + old), baseline).length, 0);
+    assert.equal(additions(await findings(old.replace('  Promise', '\n  Promise')), baseline).length, 0);
     assert.equal(additions(await findings(replacement), baseline).length, 1);
   });
 });
@@ -75,4 +76,18 @@ test('invalid and duplicate baseline rows fail closed', () => {
   assert.throws(() => budgets([row, row]), /Duplicate/);
   assert.throws(() => budgets([{ ...row, count: true }]), /Invalid/);
   assert.throws(() => budgets([{ identity: ['max-depth', 'a.ts', 'invalid'], count: 1 }]), /Invalid/);
+});
+
+test('production config resolves SDK source imports without built declarations', async () => {
+  const filename = path.resolve('examples/review-baseline-regression.ts');
+  const text = "import { HonuaClient } from '@honua/sdk-js';\nnew HonuaClient({ baseUrl: 'https://example.invalid' }).queryFeatures({ serviceId: 'a', layerId: 0 });\n";
+  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs' });
+  await writeFile(filename, text, { flag: 'wx' });
+  try {
+    const results = await lint.lintFiles(filename);
+    const current = identities(results, new Map([[filename, text]]));
+    assert.ok([...current.keys()].some(key => JSON.parse(key)[0] === '@typescript-eslint/no-floating-promises'));
+  } finally { await rm(filename); }
+  const config = JSON.parse(await readFile('scripts/tsconfig.review.json', 'utf8'));
+  assert.equal(config.compilerOptions.paths['@honua/sdk-js'][0], '../src/index.ts');
 });
