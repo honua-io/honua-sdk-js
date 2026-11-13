@@ -37,6 +37,36 @@ describe("artifact range reader", () => {
     }
   });
 
+  it("cancels an oversized range stream before reading the remaining body", async () => {
+    for (const length of [undefined, "10"]) {
+      let pulls = 0;
+      let cancelled = false;
+      const body = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            pulls++;
+            if (pulls > 1) throw new Error("The reader consumed the remaining oversized body");
+            controller.enqueue(new Uint8Array(11));
+          },
+          cancel() {
+            cancelled = true;
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const headers: Record<string, string> = { "content-range": "bytes 10-19/1000" };
+      if (length !== undefined) headers["content-length"] = length;
+      const reader = artifactRangeReader(
+        URL_UNDER_TEST,
+        FILE_BYTES,
+        async () => new Response(body, { status: 206, headers }),
+      );
+      await expect(reader.view().slice(10, 20)).rejects.toMatchObject({ code: "artifact-mismatch" });
+      expect(pulls).toBe(1);
+      expect(cancelled).toBe(true);
+    }
+  });
+
   it("refuses a 200 for part of the file as a host without byte ranges", async () => {
     const reader = artifactRangeReader(URL_UNDER_TEST, FILE_BYTES, answering(200, {}, new Uint8Array(FILE_BYTES)));
     await expect(reader.view().slice(10, 20)).rejects.toMatchObject({
