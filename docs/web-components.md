@@ -8,7 +8,7 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/sdk-js/web-components` registers framework-neutral custom elements for
+`@honua/app-platform/web-components` registers framework-neutral custom elements for
 plain TypeScript applications:
 
 - `honua-map`
@@ -37,7 +37,7 @@ elements when `customElements` is available and also exports
 import {
   createHonuaWebComponentController,
   defineHonuaWebComponents,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 defineHonuaWebComponents();
 
@@ -54,9 +54,7 @@ document.querySelector("honua-map")!.controller = controller;
 ## Supported application shell
 
 The canonical `@honua/app-platform/web-components` package exposes one
-supported, versioned application context for the whole component suite. The
-deprecated `@honua/sdk-js/web-components` forwarding entrypoint exposes the
-same contract during the transition through 0.3.x. That entrypoint is removed in 0.4.0.
+supported, versioned application context for the whole component suite.
 
 ```ts doc-test=skip reason="requires browser markup and a Source supplied by the application"
 import { createHonuaApplicationContext, mountHonuaApplication } from "@honua/app-platform/web-components";
@@ -133,7 +131,7 @@ If an application already created a `HonuaMapRuntime`, adapt it through
 the existing controller bridge and bind that controller to the element:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { createHonuaWebComponentControllerFromRuntime } from "@honua/sdk-js/web-components";
+import { createHonuaWebComponentControllerFromRuntime } from "@honua/app-platform/web-components";
 
 document.querySelector("honua-map")!.controller = createHonuaWebComponentControllerFromRuntime(runtime);
 ```
@@ -349,7 +347,7 @@ drives is the controller, not the map:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createTemporalPlayback } from "@honua/sdk-js/map";
-import "@honua/sdk-js/web-components";
+import "@honua/app-platform/web-components";
 
 const playback = createTemporalPlayback({
   handle: mountedSource, // or `layer: { map, layerIds }`
@@ -398,7 +396,7 @@ state.
 import {
   createHonuaExportAdapter,
   runHonuaExport,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 const adapter = createHonuaExportAdapter({
   id: "operations-console",
@@ -462,7 +460,7 @@ element only renders its snapshot and forwards input.
 import {
   createHonuaFeatureTable,
   linkFeatureTableToExploration,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 import { explainQuery } from "@honua/sdk-js/query-planner";
 
 const source = dataset.source<Incident>("incidents")!;
@@ -687,7 +685,7 @@ Wire it to a `Source` through `createFeatureEditorWorkflow`:
 import {
   createFeatureEditorWorkflow,
   defineHonuaWebComponents,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 defineHonuaWebComponents();
 
@@ -730,7 +728,7 @@ if (!review.ready) console.warn(review.blockers, review.validation.errors);
 order, and override their labels without altering the workflow's source metadata:
 
 ```ts doc-test=compile
-import type { HonuaFeatureEditorElement } from "@honua/sdk-js/web-components";
+import type { HonuaFeatureEditorElement } from "@honua/app-platform/web-components";
 
 const editor = document.querySelector<HonuaFeatureEditorElement>("honua-feature-editor")!;
 editor.fieldPresentation = [
@@ -813,7 +811,7 @@ MapLibre map, wires SDK snapping, reports terra-draw's real tool support so
 `rectangle` / `circle` become enabled, and re-binds itself to each new draft.
 
 ```ts doc-test=skip reason="partial excerpt requires terra-draw peers and a MapLibre map"
-import { createTerraDrawEditorSketch } from "@honua/sdk-js/web-components";
+import { createTerraDrawEditorSketch } from "@honua/app-platform/web-components";
 
 const sketch = await createTerraDrawEditorSketch(map, { workflow, snapping: { index } });
 sketch.setTool("polygon"); // arms terra-draw and the workflow together

@@ -1,5 +1,5 @@
 /**
- * Shared types for the native Honua control kit (`@honua/sdk-js/controls`).
+ * Shared types for the native Honua control kit (`@honua/app-platform/controls`).
  *
  * Controls in this entry operate directly on a MapLibre `Map` instance via a
  * duck-typed interface — they never import `maplibre-gl` and never touch the

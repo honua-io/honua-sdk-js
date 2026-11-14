@@ -1,7 +1,7 @@
 import * as maplibregl from "maplibre-gl";
 
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaController } from "@honua/sdk-js/app-controller";
+import { createHonuaController } from "@honua/app-platform/app-controller";
 import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example.com" });

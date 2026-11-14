@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { HonuaClient } from "@honua/sdk-js";
-import type { IJobRun, JobProgress, JobSnapshot, JobSnapshotListener, JobStatus } from "@honua/sdk-js/contract";
 import {
   type AnalysisIntent,
   type AnalysisPlan,
@@ -16,11 +14,13 @@ import {
   type OperatorClientApi,
   OperatorWorkspace,
   type WorkspaceEvent,
-} from "@honua/sdk-js/operator";
+} from "@honua/app-platform/operator";
 // Subpath import — also acts as a regression for the Vitest alias
-// resolving `@honua/sdk-js/operator/i18n` to a file that exists
+// resolving `@honua/app-platform/operator/i18n` to a file that exists
 // rather than `src/operator/index.ts/i18n`.
-import { DEFAULT_MESSAGES, resolveMessage } from "@honua/sdk-js/operator/i18n";
+import { DEFAULT_MESSAGES, resolveMessage } from "@honua/app-platform/operator/i18n";
+import { HonuaClient } from "@honua/sdk-js";
+import type { IJobRun, JobProgress, JobSnapshot, JobSnapshotListener, JobStatus } from "@honua/sdk-js/contract";
 import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, type MaplibreMap } from "@honua/sdk-js/runtime";
 
 interface MockCall {

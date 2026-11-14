@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/generated-app` — browser-safe manifest projection and
+ * `@honua/app-platform/generated-app` — browser-safe manifest projection and
  * runtime for the generated operations-dashboard proof slice.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract

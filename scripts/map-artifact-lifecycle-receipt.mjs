@@ -51,7 +51,7 @@ const consumer = resolve(args.consumer);
 const consumerRequire = createRequire(join(consumer, "package.json"));
 const installed = async (specifier) => import(pathToFileURL(consumerRequire.resolve(specifier)).href);
 const { McpClient } = await installed("@honua/sdk-js/studio-agent");
-const { createHonuaStudioLifecycleClient } = await installed("@honua/sdk-js/studio");
+const { createHonuaStudioLifecycleClient } = await installed("@honua/app-platform/studio");
 const { HonuaClient } = await installed("@honua/sdk-js");
 const { validateMapDocument, exportMapDocument, importMapDocument, applyStyleRefs } = await installed("@honua/sdk-js/runtime");
 // playwright-core is CommonJS; its ESM namespace carries the API on `default`.

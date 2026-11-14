@@ -22,7 +22,7 @@
  * `<honua-legend>` and `<honua-layer-list>` are also each contested by the
  * `controls` kit's own framework-free implementation. This kit's classes are
  * both tags' canonical/default registrant: importing `./web-components` —
- * alone, or alongside `@honua/sdk-js/controls` in either order — always
+ * alone, or alongside `@honua/app-platform/controls` in either order — always
  * registers these tags with the classes exported here (issue #679; see
  * `./catalog.js` for the full ownership record and `./registry.js` for the
  * catalog-id-addressable registration APIs re-exported below).
@@ -38,7 +38,7 @@ import { defineHonuaWebComponents } from "./elements.js";
 // (issue #679 PR review): `./elements.js` must stay side-effect-free on
 // import so `../controls/registry.js` can dynamically `import()` it to
 // register one tag without also claiming every tag the kit owns. This is
-// every existing `@honua/sdk-js/web-components` consumer's actual entry
+// every existing `@honua/app-platform/web-components` consumer's actual entry
 // point, so the observable behavior — importing this module registers the kit's
 // tags when a `customElements` registry is present — is unchanged.
 defineHonuaWebComponents();

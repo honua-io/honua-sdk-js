@@ -347,15 +347,6 @@ test("the Cesium scene surface is beta with an explicit, exhaustive export list"
   assert.equal(claim.status, "beta");
   assert.ok(claim.evidence.length > 0, "a beta claim must link evidence");
 
-  // The forwarder's deprecation window is untouched by the promotion.
-  const forwarder = manifest.packageLifecycle.entrypoints.find(
-    (entrypoint) => entrypoint.subpath === "./scene-workspace",
-  );
-  assert.equal(forwarder.status, "deprecated");
-  assert.equal(forwarder.replacement, "@honua/app-platform/scene-workspace");
-  assert.equal(forwarder.replacementStatus, "beta");
-  assert.equal(forwarder.removeIn, "0.4.0");
-
   // Nothing is promoted by proximity: the barrel is partitioned exactly.
   const barrelExports = readBarrelExports(tier.barrel);
   const classified = [...tier.exports, ...tier.heldBack.flatMap((group) => group.exports)];
@@ -410,14 +401,23 @@ test("a surface tier fails closed on an unclassified, double-classified, or mist
     validateSupportManifest(claimDisagrees).join("\n"),
     /is supported but its claim scene-workspace-cesium is beta/,
   );
+});
 
-  const forwarderDrift = clone(manifest);
-  for (const entrypoint of forwarderDrift.packageLifecycle.entrypoints) {
-    if (entrypoint.subpath === "./scene-workspace") entrypoint.replacementStatus = undefined;
-  }
+test("app-platform subpaths stay out of the SDK exports and each names a source barrel", () => {
+  assert.ok(manifest.packageLifecycle.appPlatformSubpaths.includes("./scene-workspace"));
+
+  const reexported = clone(manifest);
+  reexported.packageLifecycle.entrypoints.push({ subpath: "./scene-workspace", status: "experimental" });
   assert.match(
-    validateSupportManifest(forwarderDrift).join("\n"),
-    /must record replacementStatus beta/,
+    validateSupportManifest(reexported).join("\n"),
+    /\.\/scene-workspace is an @honua\/app-platform subpath and must not be an @honua\/sdk-js entrypoint/,
+  );
+
+  const missingBarrel = clone(manifest);
+  missingBarrel.packageLifecycle.appPlatformSubpaths.push("./not-a-surface");
+  assert.match(
+    validateSupportManifest(missingBarrel).join("\n"),
+    /app-platform subpath \.\/not-a-surface has no barrel at src\/not-a-surface\/index\.ts/,
   );
 });
 
@@ -425,7 +425,6 @@ test("the generated matrix publishes the surface tier split and its evidence", (
   const section = renderSurfaceTierSection(manifest);
   assert.match(section, /## Surface tiers/);
   assert.match(section, /\| `@honua\/app-platform\/scene-workspace` \| `beta` \|/);
-  assert.match(section, /`@honua\/sdk-js\/scene-workspace`/);
   assert.match(section, /\[fixture: cesium-scene-adapter-fixtures\]/);
   assert.match(section, /Held back at `experimental`/);
   assert.match(section, /`mountSourceToCesium`/);

@@ -12,7 +12,7 @@
  * Like the other controls, this element imports nothing from `maplibre-gl` or
  * the SDK core — it drives any MapLibre `Map` through the duck-typed
  * {@link HonuaSwipeMap} interface (it only needs `getContainer()`), so the
- * `@honua/sdk-js/controls` entry stays bundle-independent. Node imports are
+ * `@honua/app-platform/controls` entry stays bundle-independent. Node imports are
  * safe; the element no-ops without a DOM.
  *
  * ## Wiring

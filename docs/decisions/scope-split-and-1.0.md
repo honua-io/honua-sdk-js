@@ -72,7 +72,7 @@ imports of app-platform directories):
   coupling is bidirectional. These re-exports are already annotated
   `@experimental`. **Resolution (execution PR):** delete the Studio re-exports
   from the stable `/runtime` entrypoint; consumers reach them via
-  `@honua/sdk-js/studio` (moving to `@honua/app-platform/studio`). This is the
+  `@honua/app-platform/studio` (moving to `@honua/app-platform/studio`). This is the
   single stable-tier edit the extraction requires and the reason the eviction
   must not be done blindly by moving directories.
 - No other stable directory imports any app-platform directory.
@@ -117,7 +117,7 @@ package's entrypoints by nearly half.
 ### Post-execution inventory
 
 Later adoption work added `/auth` and `/geoparquet` while the split was being
-executed. The resulting package has 40 exports: 20 semver-protected stable
+executed. The package then had 40 exports: 20 semver-protected stable
 entrypoints, 2 subpath-only experimental entrypoints (`/agent-tools` and
 `/geoparquet`), and 18 deprecated app-platform compatibility shims. The stable
 count remains at the accepted ceiling because `/agent-tools` is explicitly
@@ -125,15 +125,11 @@ experimental, while `/auth`, `/browser`, and `/cli` are included in the stable
 API report. `config/public-surface.json` supersedes the historical table below
 as the exact current inventory.
 
-The app-platform shims first shipped in `0.1.0-beta.0` and remain deprecated
-through the `0.3.x` line. Their npm removal deadline is `0.4.0`. CI rejects a
-release whose package version has reached `removeIn` while a shim remains.
-`verify:public-surface` is unchanged.
-
-Honua Studio, the honua-site demos and docs, and this repository's examples
-still import the eighteen forwarders. `0.3.0` ships the esri-compat removal.
-The forwarders stay until those consumers import `@honua/app-platform`.
-[Issue 2317](https://github.com/honua-io/honua-sdk-js/issues/2317) tracks that removal.
+The app-platform shims first shipped in `0.1.0-beta.0` and stayed deprecated
+through the `0.3.x` line. `0.4.0` removed all eighteen
+([issue 2317](https://github.com/honua-io/honua-sdk-js/issues/2317)); this repository's
+examples, tests and the MCP server import `@honua/app-platform`. CI still rejects a
+release whose package version has reached a deprecated entrypoint's `removeIn`.
 
 The reviewed October 2026 release decision retains compatibility for the Node 22
 minimum-version change, which independently requires the managed `0.2.0` minor

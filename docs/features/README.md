@@ -15,8 +15,8 @@ The JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examp
 - Protocol-neutral Dataset/Source/Query/Result contract with built-in adapters for GeoServices, OGC API Features/Tiles/Maps/Records/Processes, STAC, WMS, WMTS, WFS, and OData.
 - OGC client wrappers for Features, Tiles, Maps, Records, Processes, STAC, WMS, WMTS, WFS, and OData.
 - MapLibre runtime helpers for `HonuaMapDocument`, source/layer style validation, WMS/WMTS source specs, web-map conversion, and warning contracts.
-- Generated-app manifest projection and operations-dashboard preview runtime under `@honua/sdk-js/generated-app`.
-- Studio package-family contract projections (query, analysis, map, dashboard, report, form, app, workflow, GP, ETL), a unified `{ valid, diagnostics, pkg? }` validation/preview envelope, capability manifest, and publish/share/embed contracts under `@honua/sdk-js/studio` (MCP/QGIS-safe).
+- Generated-app manifest projection and operations-dashboard preview runtime under `@honua/app-platform/generated-app`.
+- Studio package-family contract projections (query, analysis, map, dashboard, report, form, app, workflow, GP, ETL), a unified `{ valid, diagnostics, pkg? }` validation/preview envelope, capability manifest, and publish/share/embed contracts under `@honua/app-platform/studio` (MCP/QGIS-safe).
 - Client compatibility layer for migration-critical layers, views, widgets, controls, routing helpers, search, popup, time slider, measurement, editor/sketch, graphics, groups, web maps, and basic scene-view compatibility.
 - Migration tooling for ArcGIS usage scanning, safe codemods, parity matrices, fixture metrics, content export/import/reconcile, URL rewriting, service reconciliation, migration demo reports, and a fixture-only Esri sample corpus with license/terms guardrails.
 - Example apps for the MapLibre quickstart, 2.5D storytelling, imagery and terrain, editing, geocoding, and an exploratory Cesium route-playback spike.

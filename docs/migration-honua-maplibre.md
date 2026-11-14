@@ -59,13 +59,12 @@ registerHonuaWidgetKit({
 });
 ```
 
-`@honua/app-platform/web-components` is the widget package. Importing it, or
-the deprecated `@honua/sdk-js/web-components` forwarder, evaluates
+`@honua/app-platform/web-components` is the widget package. Importing it evaluates
 `defineHonuaWebComponents()` and defines every tag. Use that import when the
 app wants the whole kit. Use `registerComponent` when it wants one tag.
 
 The `honua-compat` codemod in `@honua/honua-migrate` inserts one
-`registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))` call
+`registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"))` call
 when the file constructs a hosted compat widget (Legend, LayerList, TimeSlider,
 Search, Measurement, Editor, FeatureForm, FeatureTable, Bookmarks,
 BasemapGallery, BasemapToggle, Locate, Sketch, Print, Popup, Zoom, Home,

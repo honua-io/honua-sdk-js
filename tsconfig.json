@@ -12,7 +12,10 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "noUnusedLocals": true,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "paths": {
+      "@honua/app-platform/*": ["./src/*/index.ts"]
+    }
   },
   "include": ["src", "test", "bench"],
   "exclude": ["test/fixtures"]

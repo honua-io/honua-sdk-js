@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/app` — framework-neutral app bootstrap helpers.
+ * `@honua/app-platform/app` — framework-neutral app bootstrap helpers.
  *
  * The app helper composes existing SDK primitives without taking a static
  * dependency on a renderer. Pass a `map`, `mapFactory`, or prebuilt `runtime`

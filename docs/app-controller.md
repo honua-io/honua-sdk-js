@@ -13,7 +13,7 @@ flows. It composes existing `HonuaMapRuntime`, generated-app runtime, and
 `ExplorationContext` primitives instead of owning a separate state engine.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { createHonuaController } from "@honua/sdk-js/app-controller";
+import { createHonuaController } from "@honua/app-platform/app-controller";
 import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const runtime = await loadMapDocument(mapPackage, map, {

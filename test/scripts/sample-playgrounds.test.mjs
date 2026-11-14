@@ -17,6 +17,7 @@ import {
   evaluateSamplePlaygroundEligibility,
   portableRelativePath,
   playgroundArtifactMatches,
+  publishedAppPlatformEntrypoints,
   publishedSdkEntrypoints,
   removeSampleReadmeBlock,
   resolveFixtureOrigin,
@@ -39,6 +40,7 @@ function context(overrides = {}) {
     analyze: analyzeSampleSource,
     resolveFixtureOrigin,
     sdkEntrypoints: publishedSdkEntrypoints(rootManifest),
+    appPlatformEntrypoints: publishedAppPlatformEntrypoints(readJson("config/public-surface.json")),
     sdkVersion: templateManifest.sdk.version,
     ...overrides,
   };
@@ -114,6 +116,18 @@ describe("playground eligibility", () => {
     const decision = evaluateSamplePlaygroundEligibility(sample, context({ sdkEntrypoints: new Set() }));
     assert.equal(decision.qualified, false);
     assert.equal(decision.category, "unpublished-entrypoint");
+  });
+
+  it("pins @honua/app-platform to the SDK version and refuses a subpath it does not publish", () => {
+    const sample = catalog.samples.find((entry) => entry.id === "temporal-playback");
+    const qualified = evaluateSamplePlaygroundEligibility(sample, context());
+    assert.equal(qualified.qualified, true);
+    assert.equal(qualified.dependencies["@honua/app-platform"], templateManifest.sdk.version);
+
+    const refused = evaluateSamplePlaygroundEligibility(sample, context({ appPlatformEntrypoints: new Set() }));
+    assert.equal(refused.qualified, false);
+    assert.equal(refused.category, "unpublished-entrypoint");
+    assert.match(refused.detail, /@honua\/app-platform\/web-components is not a published @honua\/app-platform entrypoint/);
   });
 
   it("keeps the columnar importer source-mode only until the public SDK pin advances", () => {

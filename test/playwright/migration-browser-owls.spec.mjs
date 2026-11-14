@@ -274,7 +274,7 @@ function startServer(root, mainSource, vendors) {
   const html = indexHtml({
     ...vendors.imports,
     "maplibre-gl": "/maplibre/maplibre-gl.mjs",
-    "@honua/sdk-js/web-components": "/_deprecated/web-components.js",
+    "@honua/app-platform/web-components": "/web-components/index.js",
   });
 
   const server = http.createServer((request, response) => {

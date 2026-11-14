@@ -1,9 +1,9 @@
 ---
 type: guide
-title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
+title: "Honua App Bootstrap (`@honua/app-platform/app`)"
 description: "createHonuaApp(), a framework-neutral bootstrap over the client, hosted package fetcher, runtime, controllers and optional package watcher."
 ---
-# Honua App Bootstrap (`@honua/sdk-js/app`)
+# Honua App Bootstrap (`@honua/app-platform/app`)
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
@@ -13,7 +13,7 @@ Status: experimental.
 client, hosted package fetcher, runtime, app controller, web-component
 controller, and optional package watcher. It is exported from a separate
 subpath so low-level consumers can keep importing `@honua/sdk-js/runtime` or
-`@honua/sdk-js/app-controller` directly.
+`@honua/app-platform/app-controller` directly.
 
 The helper does not statically import MapLibre GL JS. To render a map, pass a
 prebuilt `map`, a `mapFactory`, or a prebuilt `runtime`. Applications that do
@@ -25,7 +25,7 @@ controller handles.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaApp } from "@honua/sdk-js/app";
+import { createHonuaApp } from "@honua/app-platform/app";
 
 const app = await createHonuaApp({
   client: new HonuaClient({ baseUrl: "https://honua.example.com" }),

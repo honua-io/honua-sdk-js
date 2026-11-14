@@ -7,7 +7,7 @@ import {
   selectHonuaAppWorkspaceMapModel,
   selectHonuaAppWorkspaceMetadataCacheModel,
   selectHonuaAppWorkspaceTableModel,
-} from "@honua/sdk-js/app-workspace";
+} from "@honua/app-platform/app-workspace";
 import {
   assertValidSpatialAggregationRequest,
   isSpatialAggregationComplete,

@@ -287,7 +287,6 @@
         "surface": "@honua/app-platform/scene-workspace",
         "status": "beta",
         "barrel": "src/scene-workspace/index.ts",
-        "sdkForwarder": "./scene-workspace",
         "claim": "scene-workspace-cesium",
         "commitment": "The renderer-neutral workspace state, the scene primitive contract, and the Cesium primitive adapter keep their shape through `@honua/app-platform` 0.1.x: exports are not renamed or removed, primitive discriminants and diagnostic codes are additive only, and Cesium stays a lazily imported optional peer. Breaking one of those requires a minor bump and a called-out change, not a silent edit.",
         "mayStillChange": [
@@ -546,6 +545,26 @@
         ]
       }
     ],
+    "appPlatformSubpaths": [
+      "./app",
+      "./app-controller",
+      "./app-workspace",
+      "./scene-workspace",
+      "./collaboration",
+      "./control-plane",
+      "./replica-sync",
+      "./share",
+      "./operate",
+      "./generated-app",
+      "./studio",
+      "./operator",
+      "./operator/controllers",
+      "./operator/workspace",
+      "./operator/theming",
+      "./operator/i18n",
+      "./controls",
+      "./web-components"
+    ],
     "entrypoints": [
       { "subpath": ".", "status": "supported" },
       { "subpath": "./browser", "status": "supported", "apiEquivalent": "." },
@@ -596,25 +615,7 @@
       { "subpath": "./routing", "status": "experimental" },
       { "subpath": "./interactions/declarative", "status": "experimental" },
       { "subpath": "./studio-agent", "status": "experimental" },
-      { "subpath": "./local-install", "status": "experimental" },
-      { "subpath": "./app", "status": "deprecated", "replacement": "@honua/app-platform/app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./app-controller", "status": "deprecated", "replacement": "@honua/app-platform/app-controller", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./app-workspace", "status": "deprecated", "replacement": "@honua/app-platform/app-workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./scene-workspace", "status": "deprecated", "replacement": "@honua/app-platform/scene-workspace", "replacementStatus": "beta", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./collaboration", "status": "deprecated", "replacement": "@honua/app-platform/collaboration", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./control-plane", "status": "deprecated", "replacement": "@honua/app-platform/control-plane", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./replica-sync", "status": "deprecated", "replacement": "@honua/app-platform/replica-sync", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./share", "status": "deprecated", "replacement": "@honua/app-platform/share", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operate", "status": "deprecated", "replacement": "@honua/app-platform/operate", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./generated-app", "status": "deprecated", "replacement": "@honua/app-platform/generated-app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./studio", "status": "deprecated", "replacement": "@honua/app-platform/studio", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operator", "status": "deprecated", "replacement": "@honua/app-platform/operator", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operator/controllers", "status": "deprecated", "replacement": "@honua/app-platform/operator/controllers", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operator/workspace", "status": "deprecated", "replacement": "@honua/app-platform/operator/workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operator/theming", "status": "deprecated", "replacement": "@honua/app-platform/operator/theming", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./operator/i18n", "status": "deprecated", "replacement": "@honua/app-platform/operator/i18n", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./controls", "status": "deprecated", "replacement": "@honua/app-platform/controls", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" },
-      { "subpath": "./web-components", "status": "deprecated", "replacement": "@honua/app-platform/web-components", "introducedIn": "0.1.0-beta.0", "removeIn": "0.4.0" }
+      { "subpath": "./local-install", "status": "experimental" }
     ]
   },
   "protocols": [
@@ -676,7 +677,7 @@
     { "id": "map-package-facade", "label": "Authored map-document runtime", "operations": ["render"], "environment": "honua-facade", "executionMode": "facade", "status": "facade-required", "backendNeeded": "Honua Server", "serverAttach": { "disposition": "inherent", "rationale": "A map document is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no map document." }, "api": "@honua/sdk-js/runtime", "notes": "Loads server-authored styles, layer order, and metadata.", "evidence": ["map-package-fixtures"] },
     {"id": "alerts-draft-evaluation-preview", "label": "Alert draft evaluation (Preview)", "operations": ["alert-draft-validation"], "environment": "honua-facade", "executionMode": "facade", "status": "experimental", "backendNeeded": "Single-tenant Honua Server Pro with experimental alerts.geofence explicitly enabled", "serverAttach": {"disposition": "inherent", "rationale": "Draft validation uses Honua Server's administrative alerts contract and its Pro entitlement; it is unavailable on a generic open endpoint."}, "api": "createHonuaOperate({ client }).alertRules.test()", "notes": "Preview/experimental only. The dedicated single-tenant Pro integration fixture executes the same immutable selected candidate with alerts.geofence disabled and enabled. Disabled must return typed unsupported HTTP 404; enabled validates an unpersisted rule and zone. This claim covers draft validation only, not alert evaluation workers, delivery, multi-tenant use, Community availability, or GA support.", "evidence": ["alerts-evaluation-integration"]},
     { "id": "realtime-facade", "label": "Realtime subscriptions", "operations": ["realtime"], "environment": "honua-facade", "executionMode": "transport", "status": "facade-required", "backendNeeded": "Honua Server", "serverAttach": { "disposition": "roadmap", "issue": "https://github.com/honua-io/honua-sdk-js/issues/393", "rationale": "Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract." }, "api": "@honua/sdk-js/realtime", "notes": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately.", "evidence": ["realtime-cross-transport-fixtures", "realtime-integration", "realtime-live-conformance"] },
-    { "id": "collaboration-deprecated", "label": "Collaboration and saved maps compatibility shim", "operations": ["collaboration"], "environment": "honua-facade", "executionMode": "facade", "status": "deprecated", "backendNeeded": "Honua Server and @honua/app-platform", "serverAttach": { "disposition": "inherent", "rationale": "Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The SDK entrypoint is a deprecated shim and the surface itself moves to @honua/app-platform." }, "api": "@honua/sdk-js/collaboration", "notes": "The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration.", "evidence": [] },
+    { "id": "collaboration-deprecated", "label": "Collaboration and saved maps (moved to @honua/app-platform)", "operations": ["collaboration"], "environment": "honua-facade", "executionMode": "facade", "status": "deprecated", "backendNeeded": "Honua Server and @honua/app-platform", "serverAttach": { "disposition": "inherent", "rationale": "Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The surface lives in @honua/app-platform; @honua/sdk-js no longer exports it." }, "api": "@honua/app-platform/collaboration", "notes": "Removed from @honua/sdk-js in 0.4.0; import @honua/app-platform/collaboration.", "evidence": [] },
     { "id": "agent-tools-facade", "label": "MCP tools and agent operations", "operations": ["agent-tools"], "environment": "standalone", "executionMode": "native", "status": "beta", "backendNeeded": "Any GeoServices, OGC API Features, WFS, STAC, or OData endpoint the SDK's protocol clients support", "api": "mcp/, @honua/sdk-js/agent-tools", "notes": "Tool definitions are local and the tool contract is the SDK's protocol-neutral one: honua-mcp addresses sources as <protocol>:<address>, filters with the typed semantic filter, and returns GeoJSON geometry against any supported open endpoint — no Honua server. A Honua deployment's richer /mcp operator catalog remains the upgrade path via honua-mcp-proxy.", "evidence": ["agent-tools-fixtures"] }
   ]
 }

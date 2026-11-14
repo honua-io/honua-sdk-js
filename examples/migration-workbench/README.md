@@ -39,7 +39,7 @@ point:
 ```ts doc-test=skip reason="wiring snippet requires an application host"
 import { registerHonuaWidgetKit } from "@honua/sdk-js/client-compat";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 ```
 
 Skip it and those two widgets come up blank while every report gate stays green.

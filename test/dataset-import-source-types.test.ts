@@ -4,7 +4,7 @@ import type {
   DatasetImportServerJobArtifactSource,
   DatasetImportServerJobSource,
   DatasetImportSource,
-} from "@honua/sdk-js/control-plane";
+} from "@honua/app-platform/control-plane";
 import { expectTypeOf, it } from "vitest";
 
 type BareJobSource = { kind: "server-job-artifact"; fileName: string; totalBytes: number };

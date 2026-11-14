@@ -24,7 +24,7 @@ import {
   validatePackageProvenance,
   getPackageProvenance,
   chartWidgetToVegaLiteSpec,
-} from "@honua/sdk-js/studio";
+} from "@honua/app-platform/studio";
 ```
 
 ## Provenance carried consistently
@@ -110,7 +110,7 @@ one.
 ## Versioning
 
 Every new export is tagged `@experimental` and is subpath-only under
-`@honua/sdk-js/studio`, outside the SDK semver contract until the matching
+`@honua/app-platform/studio`, outside the SDK semver contract until the matching
 server contracts land. The provenance format follows the established
 `HONUA_X_PACKAGE_FORMAT_V1 = "honua_x_package.v1"` pattern
 (`HONUA_PACKAGE_PROVENANCE_FORMAT_V1 = "honua_package_provenance.v1"`).

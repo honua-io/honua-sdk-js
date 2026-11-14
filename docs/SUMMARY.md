@@ -17,7 +17,7 @@
 
 ## Guides
 
-* [Honua App Bootstrap (`@honua/sdk-js/app`)](app-bootstrap.md)
+* [Honua App Bootstrap (`@honua/app-platform/app`)](app-bootstrap.md)
 * [Catalog dataset picker](controls-catalog-picker.md)
 * [Filtered-row data export](controls-data-export.md)
 * [Scaffold a new app](create-honua-app.md)
@@ -71,7 +71,7 @@
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)
 * [Filter Registry](filter-registry.md)
-* [Generated App Runtime (`@honua/sdk-js/generated-app`)](generated-app-runtime.md)
+* [Generated App Runtime (`@honua/app-platform/generated-app`)](generated-app-runtime.md)
 * [Provider-pluggable geocoding and routing](geocoding-routing-providers.md)
 * [`@honua/geometry` — client-side geometry operations](geometry.md)
 * [GeoParquet / DuckDB source](geoparquet.md)
@@ -108,7 +108,7 @@
 * [Advanced: split-package build target](split-packages.md)
 * [Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix](standalone-capability-matrix.md)
 * [Studio AI proxy event casing](studio-ai-wire.md)
-* [Studio Package Contracts (`@honua/sdk-js/studio`)](studio-package-contracts.md)
+* [Studio Package Contracts (`@honua/app-platform/studio`)](studio-package-contracts.md)
 * [Studio package parity: MCP, QGIS, and Console](studio-package-parity.md)
 * [terra-draw sketch binding (`@honua/sdk-js/runtime`)](terra-draw-sketch.md)
 * [Unified agent host configuration](unified-agent-host-configuration.md)

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
  * (issue #683, REQ-005; the gate row lives in `src/controls/qualification.ts`).
  *
  * Intentionally NO jsdom: this suite runs in the default Node environment to
- * prove `@honua/sdk-js/controls` and `@honua/sdk-js/web-components` are
+ * prove `@honua/app-platform/controls` and `@honua/app-platform/web-components` are
  * import-safe during a server render, in a worker, or in a build-time tool that
  * introspects the catalog. The pattern deliberately mirrors
  * `test/react/ssr-import.test.ts`, which is the repo's established shape for

@@ -17,6 +17,11 @@ export function packageSubpath(specifier) {
   return `.${specifier.slice("@honua/sdk-js".length)}`;
 }
 
+/** `./operator/i18n` -> `operator/i18n`: the subpath without its package-relative `./` prefix. */
+export function subpathName(subpath) {
+  return subpath.slice("./".length);
+}
+
 export function entrypointsInTier(surface, tier) {
   return surface.entrypoints.filter((entrypoint) => entrypoint.tier === tier);
 }

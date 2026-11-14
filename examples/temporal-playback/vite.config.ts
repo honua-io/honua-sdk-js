@@ -16,7 +16,7 @@ export default defineConfig({
         replacement: path.resolve(repoRoot, "src/map/index.ts"),
       },
       {
-        find: "@honua/sdk-js/web-components",
+        find: "@honua/app-platform/web-components",
         replacement: path.resolve(repoRoot, "src/web-components/index.ts"),
       },
       {

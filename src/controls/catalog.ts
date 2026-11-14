@@ -1,7 +1,6 @@
 /**
  * Canonical component catalog for the Honua custom-element kit
- * (`@honua/sdk-js/controls` + `@honua/sdk-js/web-components`; both moving to
- * `@honua/app-platform` per `docs/decisions/scope-split-and-1.0.md`).
+ * (`@honua/app-platform/controls` + `@honua/app-platform/web-components`).
  *
  * Tracked by issue #679 (parent epic #678 "app-platform component production
  * readiness"): before either kit's custom elements can be considered one
@@ -57,8 +56,8 @@ export interface HonuaComponentCatalogEntry {
   /**
    * Whether this entry is `tag`'s default/canonical registrant — the one
    * `registerAllComponents()` (see `./registry.js`) and each kit's blanket
-   * auto-registration (importing `@honua/sdk-js/controls` or
-   * `@honua/sdk-js/web-components`) claim the tag with when no explicit
+   * auto-registration (importing `@honua/app-platform/controls` or
+   * `@honua/app-platform/web-components`) claim the tag with when no explicit
    * choice is made. Exactly one entry is canonical per distinct `tag`.
    */
   readonly canonical: boolean;
@@ -89,7 +88,7 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     events: ["honua-catalog-select"],
     collidesWithIds: [],
   },
-  // ── controls kit (@honua/sdk-js/controls) ──────────────────────────────
+  // ── controls kit (@honua/app-platform/controls) ──────────────────────────────
   {
     id: "controls.filter-builder",
     tag: "honua-filter-builder",
@@ -157,7 +156,7 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     collidesWithIds: ["web-components.layer-list"],
   },
 
-  // ── web-components kit (@honua/sdk-js/web-components) ──────────────────
+  // ── web-components kit (@honua/app-platform/web-components) ──────────────────
   {
     id: "web-components.map",
     tag: "honua-map",
@@ -515,29 +514,15 @@ export function getCanonicalComponentCatalogEntry(tag: string): HonuaComponentCa
 
 /** A deprecated import/registration path and its canonical replacement. */
 export interface HonuaDeprecatedComponentDiagnostic {
-  /** The deprecated specifier: an `@honua/sdk-js` subpath or a catalog id. */
+  /** The deprecated catalog id. */
   readonly specifier: string;
   /** The canonical replacement a consumer should migrate to. */
   readonly canonicalReplacement: string;
-  /** SDK version the specifier is removed in, when it is a subpath-level deprecation. */
-  readonly removedIn?: string;
   /** Human-readable migration guidance. */
   readonly note: string;
 }
 
 const DEPRECATED_COMPONENT_ALIASES: readonly HonuaDeprecatedComponentDiagnostic[] = [
-  {
-    specifier: "@honua/sdk-js/controls",
-    canonicalReplacement: "@honua/app-platform/controls",
-    removedIn: "0.4.0",
-    note: "Moved to @honua/app-platform/controls per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/controls re-export is retained through the 0.3.x line and removed in 0.4.0.",
-  },
-  {
-    specifier: "@honua/sdk-js/web-components",
-    canonicalReplacement: "@honua/app-platform/web-components",
-    removedIn: "0.4.0",
-    note: "Moved to @honua/app-platform/web-components per docs/decisions/scope-split-and-1.0.md. The @honua/sdk-js/web-components re-export is retained through the 0.3.x line and removed in 0.4.0.",
-  },
   {
     specifier: "controls.legend",
     canonicalReplacement: "web-components.legend",
@@ -551,8 +536,7 @@ const DEPRECATED_COMPONENT_ALIASES: readonly HonuaDeprecatedComponentDiagnostic[
 ];
 
 /**
- * Looks up migration guidance for a deprecated `@honua/sdk-js` component
- * subpath (e.g. `"@honua/sdk-js/controls"`) or a contested-tag catalog id
+ * Looks up migration guidance for a contested-tag catalog id
  * (e.g. `"controls.legend"`). Returns `undefined` for specifiers the catalog
  * has no recorded alias for.
  */

@@ -161,20 +161,10 @@ async function loadFixtureRuntime() {
   return { ...result, map };
 }
 
-describe("@honua/sdk-js/generated-app", () => {
+describe("@honua/app-platform/generated-app", () => {
   it("exports a versioned manifest/profile and projects canonical package inputs", () => {
-    const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
-      exports?: Record<string, { types?: string; default?: string }>;
-    };
     const appPackage = readFixture<HonuaGeneratedAppVersion>("operations-dashboard-app-package.v1.json");
     const mapPackage = readFixture<HonuaMapDocument>("operations-dashboard-map-package.v1.json");
-
-    // Moved to `@honua/app-platform/generated-app` in the 1.0 scope split; the
-    // old subpath resolves through a one-minor `@deprecated` re-export shim.
-    expect(packageJson.exports?.["./generated-app"]).toEqual({
-      types: "./dist/src/_deprecated/generated-app.d.ts",
-      default: "./dist/src/_deprecated/generated-app.js",
-    });
 
     const manifest = projectAppVersionToGeneratedAppManifest(appPackage, { mapPackage });
     expect(manifest.format).toBe(HONUA_GENERATED_APP_MANIFEST_FORMAT_V1);
