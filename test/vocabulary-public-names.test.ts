@@ -72,6 +72,13 @@ function entrypointSources(): Map<string, string> {
     const source = [`${base}.ts`, `${base}.tsx`].find((candidate) => existsSync(candidate));
     if (source) sources.set(subpath, source);
   }
+  const surface = JSON.parse(readFileSync(path.join(ROOT, "config/public-surface.json"), "utf8")) as {
+    appPlatformSubpaths: string[];
+  };
+  for (const subpath of surface.appPlatformSubpaths) {
+    const name = subpath.slice("./".length);
+    sources.set(`@honua/app-platform/${name}`, path.join(ROOT, "src", name, "index.ts"));
+  }
   return sources;
 }
 
