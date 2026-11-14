@@ -562,16 +562,7 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const client =
-    options.client ??
-    new HonuaClient({
-      ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
-      ...options.clientOptions,
-      baseUrl: target.clientBaseUrl,
-    });
-  if (target.protocol === "grpc" && !client.isGrpcWeb) {
-    throw new HonuaDiscoveryError("invalid-endpoint", "Native discovery requires transport: grpc-web.");
-  }
+  const client = discoveryClient(options, target);
   if (!snapshot) {
     snapshot =
       target.protocol === "grpc"
@@ -982,6 +973,20 @@ async function discoverGeoServices(
     evidence: Object.freeze([]),
     sources: discovered.sources,
   });
+}
+
+function discoveryClient(options: ConnectOptions, target: ConnectTarget): HonuaClient {
+  const client =
+    options.client ??
+    new HonuaClient({
+      ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
+      ...options.clientOptions,
+      baseUrl: target.clientBaseUrl,
+    });
+  if (target.protocol === "grpc" && !client.isGrpcWeb) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Native discovery requires transport: grpc-web.");
+  }
+  return client;
 }
 
 async function discoverGrpc(

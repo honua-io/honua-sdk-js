@@ -6,7 +6,7 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES } from "./contract/types
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
 import { mapWithConcurrency } from "./core/map-with-concurrency.js";
-import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
+import type { LayerDescriptor, LayerSummary } from "./gen/geospatial/v1/metadata_types_pb.js";
 
 const SCOPE = Object.freeze([...PROTOCOL_DEFAULT_CAPABILITIES.grpc]);
 const MAX_DISCOVERY_LAYERS = 10_000;
@@ -55,20 +55,7 @@ async function discoverIds(client: HonuaClient, serviceId: string, signal?: Abor
     if (page.service?.serviceId !== serviceId) {
       throw new HonuaDiscoveryError("protocol-mismatch", "DescribeService returned a mismatched service.");
     }
-    for (const layer of page.layers) {
-      if (
-        !Number.isInteger(layer.layerId) ||
-        layer.layerId < 0 ||
-        layer.layerId > 2147483647 ||
-        ids.has(layer.layerId)
-      ) {
-        throw new HonuaDiscoveryError(
-          "protocol-mismatch",
-          "DescribeService returned an invalid or duplicate layer id.",
-        );
-      }
-      ids.add(layer.layerId);
-    }
+    addLayerIds(ids, page.layers);
     pageToken = page.nextPageToken;
     if (pageToken && (tokens.has(pageToken) || page.layers.length === 0 || ids.size >= MAX_DISCOVERY_LAYERS)) {
       throw new HonuaDiscoveryError("protocol-mismatch", "DescribeService pagination did not make bounded progress.");
@@ -78,6 +65,23 @@ async function discoverIds(client: HonuaClient, serviceId: string, signal?: Abor
     tokens.add(pageToken);
   } while (pageToken);
   return [...ids];
+}
+
+function addLayerIds(ids: Set<number>, layers: LayerSummary[]): void {
+  for (const layer of layers) {
+    if (
+      !Number.isInteger(layer.layerId) ||
+      layer.layerId < 0 ||
+      layer.layerId > 2147483647 ||
+      ids.has(layer.layerId)
+    ) {
+      throw new HonuaDiscoveryError(
+        "protocol-mismatch",
+        "DescribeService returned an invalid or duplicate layer id.",
+      );
+    }
+    ids.add(layer.layerId);
+  }
 }
 
 function projectLayer(
