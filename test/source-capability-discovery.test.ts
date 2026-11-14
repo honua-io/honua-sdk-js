@@ -1,6 +1,6 @@
-import { create } from "@bufbuild/protobuf";
 import { readFileSync } from "node:fs";
 
+import { create } from "@bufbuild/protobuf";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GeoParquetSourceProfile, GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
