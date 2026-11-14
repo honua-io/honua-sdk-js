@@ -67,6 +67,9 @@ it("preserves IDs through the canonical Source edit facade", async () => {
   const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
     expect(wire.updates.map((feature) => feature.id)).toEqual([7n, 9223372036854775807n]);
+    expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([["parcel_id"], ["parcel_id"]]);
+    expect(wire.updates[0].attributes.parcel_id.value).toEqual({ case: "int64Value", value: 7n });
+    expect(wire.updates[1].attributes.parcel_id.value).toEqual({ case: "stringValue", value: "9223372036854775807" });
     expect(wire.deletes).toEqual([9223372036854775807n]);
     return response(
       create(ApplyEditsResponseSchema, {
@@ -91,7 +94,10 @@ it("preserves IDs through the canonical Source edit facade", async () => {
     ],
   }).source("source")!;
   const result = await source.applyEdits({
-    updates: [{ attributes: { parcel_id: 7 } }, { id: "9223372036854775807", attributes: {} }],
+    updates: [
+      { id: 7, attributes: {} },
+      { id: "9223372036854775807", attributes: {} },
+    ],
     deletes: ["9223372036854775807"],
   });
   expect(result.updated[0].id).toBe("9223372036854775807");

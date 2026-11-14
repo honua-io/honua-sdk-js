@@ -433,7 +433,7 @@ export function geoServicesFeatureSource<T>(
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
       const response = await layer.applyEdits({
-        ...toApplyEditsRequest(envelope),
+        ...toApplyEditsRequest(envelope, descriptor.schema?.primaryKey),
         objectIdField: descriptor.schema?.primaryKey,
       });
       return canonicalEditResult(response);
@@ -4972,7 +4972,10 @@ function readField(attributes: unknown, field: string): unknown {
 
 // ── Edit / related / attachment translators ───────────────────
 
-function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
+function toApplyEditsRequest<T>(
+  envelope: EditEnvelope<T>,
+  objectIdField?: string,
+): {
   adds?: HonuaFeature[];
   updates?: HonuaFeature[];
   deletes?: number[] | string;
@@ -4987,26 +4990,13 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
     signal?: AbortSignal;
   } = {};
   if (envelope.adds && envelope.adds.length > 0) {
-    out.adds = envelope.adds.map(canonicalToHonuaFeature);
+    out.adds = envelope.adds.map((feature) => canonicalToHonuaFeature(feature, objectIdField));
   }
   if (envelope.updates && envelope.updates.length > 0) {
-    out.updates = envelope.updates.map(canonicalToHonuaFeature);
+    out.updates = envelope.updates.map((feature) => canonicalToHonuaFeature(feature, objectIdField));
   }
   if (envelope.deletes && envelope.deletes.length > 0) {
-    const numericIds: number[] = [];
-    let allNumeric = true;
-    for (const id of envelope.deletes) {
-      if (typeof id === "number" && !Number.isSafeInteger(id)) {
-        throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
-      }
-      const parsed = Number(id);
-      if (Number.isSafeInteger(parsed)) {
-        numericIds.push(parsed);
-      } else {
-        allNumeric = false;
-      }
-    }
-    out.deletes = allNumeric ? numericIds : envelope.deletes.map(String).join(",");
+    out.deletes = canonicalDeleteIds(envelope.deletes);
   }
   if (envelope.rollbackOnFailure !== undefined) {
     out.rollbackOnFailure = envelope.rollbackOnFailure;
@@ -5017,19 +5007,34 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
   return out;
 }
 
-function canonicalToHonuaFeature<T>(feature: {
-  id?: FeatureId;
-  attributes: T;
-  geometry?: Record<string, unknown> | null;
-}): HonuaFeature {
+function canonicalDeleteIds(ids: readonly FeatureId[]): number[] | string {
+  const numericIds: number[] = [];
+  let allNumeric = true;
+  for (const id of ids) {
+    if (typeof id === "number" && !Number.isSafeInteger(id)) {
+      throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
+    }
+    const parsed = Number(id);
+    if (Number.isSafeInteger(parsed)) {
+      numericIds.push(parsed);
+    } else {
+      allNumeric = false;
+    }
+  }
+  return allNumeric ? numericIds : ids.map(String).join(",");
+}
+
+function canonicalToHonuaFeature<T>(
+  feature: {
+    id?: FeatureId;
+    attributes: T;
+    geometry?: Record<string, unknown> | null;
+  },
+  objectIdField = "OBJECTID",
+): HonuaFeature {
   const attributes = { ...(feature.attributes as Record<string, unknown>) };
-  // GeoServices addresses updates by `OBJECTID` inside attributes; populate it
-  // from the canonical `id` when the caller supplied one but did not embed it
-  // in attributes themselves. Skip when an OBJECTID is already present so a
-  // mismatch surfaces as a server-side validation error rather than being
-  // silently overwritten.
-  if (feature.id !== undefined && feature.id !== null && attributes.OBJECTID === undefined) {
-    attributes.OBJECTID = feature.id;
+  if (feature.id !== undefined && feature.id !== null && attributes[objectIdField] === undefined) {
+    attributes[objectIdField] = feature.id;
   }
   const out: HonuaFeature = { attributes };
   if (feature.geometry !== undefined) {
