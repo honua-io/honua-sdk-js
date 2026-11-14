@@ -51,7 +51,6 @@ function assertHydration(state, serverElement) {
   assert.equal(serverElement.applicationContext, state.context, "hydrated component must join the shared context");
 }
 
-
 async function qualifyUpdates(state, tree, serverElement) {
   state.context.update({ status: "offline", locale: { locale: "de", direction: "ltr" } });
   assert.equal(state.statusEvents, 1, "status changes must not duplicate after effect replay");
@@ -63,14 +62,12 @@ async function qualifyUpdates(state, tree, serverElement) {
   assert.equal(state.lifecycle.effects, 2, "rerender must not mount another context");
 
   await React.act(async () => { state.root.unmount(); });
-  state.root = undefined;
   assert.equal(state.lifecycle.mounted, state.lifecycle.disposed, "unmount must dispose every completed context mount");
   assert.equal(state.lifecycle.cleanups, state.lifecycle.effects, "unmount must clean up every effect");
   assert.equal(serverElement.applicationContext, undefined, "unmount must detach the component context");
   state.context.update({ status: "ready" });
   assert.equal(state.statusEvents, 1, "an unmounted shell must not receive further context events");
 }
-
 
 export async function qualifyPackedReactShell({ context, mountHonuaApplication }) {
   const previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
