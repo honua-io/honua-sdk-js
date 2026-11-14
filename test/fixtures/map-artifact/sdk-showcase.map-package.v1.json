@@ -1,12 +1,12 @@
 {
-  "mapPackageId": "runtime-parity-showcase",
+  "mapPackageId": "sdk-showcase",
   "format": "honua_map_package.v1",
   "status": "Ready",
   "createdAt": "2026-05-01T12:00:00.000Z",
   "updatedAt": "2026-05-01T12:00:00.000Z",
-  "themeId": "runtime-parity-theme",
+  "themeId": "sdk-showcase-theme",
   "theme": {
-    "themeId": "runtime-parity-theme",
+    "themeId": "sdk-showcase-theme",
     "tokens": {
       "incidentStroke": "#ffffff",
       "zoneOutline": "#31505f"
@@ -17,14 +17,14 @@
       "sourceId": "basemap-grid",
       "protocol": "raster_tile",
       "locator": {
-        "url": "/__runtime-parity-showcase__/tiles/{z}/{x}/{y}.png"
+        "url": "/__sdk-showcase__/tiles/{z}/{x}/{y}.png"
       },
       "attribution": "Fixture raster tile lane"
     }
   ],
   "styleRefs": [
     {
-      "styleId": "runtime-parity-status-ramp",
+      "styleId": "sdk-showcase-status-ramp",
       "label": "Runtime status ramp",
       "body": {
         "incident-points": {
@@ -82,7 +82,7 @@
       "basemap-grid": {
         "type": "raster",
         "tiles": [
-          "/__runtime-parity-showcase__/tiles/{z}/{x}/{y}.png"
+          "/__sdk-showcase__/tiles/{z}/{x}/{y}.png"
         ],
         "tileSize": 256
       },
@@ -115,7 +115,7 @@
       },
       "ops-incidents": {
         "type": "geojson",
-        "data": "/__runtime-parity-showcase__/incidents.geojson",
+        "data": "/__sdk-showcase__/incidents.geojson",
         "promoteId": "id"
       }
     },

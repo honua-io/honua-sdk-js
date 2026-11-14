@@ -46,7 +46,6 @@ For public data, run [PMTiles](pmtiles-static/README.md),
 | [overture-geoparquet](./overture-geoparquet/README.md) | Bounded GeoParquet queries over Overture data with worker, range, memory and pruning evidence. | Fixture or live |
 | [spatial-analytics-workbench](./spatial-analytics-workbench/README.md) | Indexed spatial aggregation with linked map, table and chart, and the Kepler workspace handoff. | Fixture or live |
 | [geocoding-quickstart](./geocoding-quickstart/README.md) | Forward geocoding to a synchronized map pin with score and provenance. | Fixture |
-| [geoprocessing-job-runner](./geoprocessing-job-runner/README.md) | Submits a server-side geoprocessing job and renders its verified result. | Fixture |
 
 ## Maps and rendering
 
@@ -54,8 +53,6 @@ For public data, run [PMTiles](pmtiles-static/README.md),
 | --- | --- | --- |
 | [pmtiles-static](./pmtiles-static/README.md) | A static PMTiles archive with no Honua server. | Fixture |
 | [temporal-playback](./temporal-playback/README.md) | Time playback with a class-breaks renderer and the legend it derives. | Fixture |
-| [runtime-parity-showcase](./runtime-parity-showcase/README.md) | Map packages, the application controller, web components and widget sources in one app. | Fixture |
-| [storytelling-25d-map](./storytelling-25d-map/README.md) | A 2.5D scene: terrain, extrusions, OGC overlays and route playback. | Fixture or live |
 
 ## Imagery and coverages
 
@@ -69,7 +66,6 @@ For public data, run [PMTiles](pmtiles-static/README.md),
 
 | Example | What it shows | Data |
 | --- | --- | --- |
-| [edit-workflow-demo](./edit-workflow-demo/README.md) | Metadata-backed forms, optimistic edits, attachments, conflicts and recovery. | Fixture |
 | [sketch-editing](./sketch-editing/README.md) | terra-draw sketching with snapping, undo and edit submission. | Fixture |
 
 ## Realtime
@@ -84,12 +80,11 @@ For public data, run [PMTiles](pmtiles-static/README.md),
 | --- | --- | --- |
 | [ai-spatial-app-builder](./ai-spatial-app-builder/README.md) | Typed agent proposals with policy validation, single-use approval and execution receipts. | Fixture or live |
 | [nl-map-control](./nl-map-control/README.md) | Natural-language map control: reviewed queries executed on the map and in a table. | Fixture |
-| [mcp-gis-assistant](./mcp-gis-assistant/README.md) | MCP tool discovery and SDK-backed spatial operations. | Fixture |
 
 ## Reference walkthroughs
 
 Smaller references live under [docs/examples](../docs/examples): automatic source-to-map strategy selection,
-offline regions, PMTiles publishing, shared MapLibre and Cesium state, and a Cesium route playback spike.
+offline regions, PMTiles publishing, and shared MapLibre and Cesium state.
 
 `_kit/` holds the shared sample runner configuration and design tokens; `shared/` holds MapLibre helpers the
 examples import.

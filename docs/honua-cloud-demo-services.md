@@ -53,33 +53,11 @@ exposes those names to client code.
 | --- | --- | --- | --- | --- |
 | `quickstart-feature-readonly` | `examples/maplibre-quickstart` | Anonymous GeoServices or OGC Features endpoint, bounded through `VITE_HONUA_QUICKSTART_ENDPOINT`, `VITE_HONUA_QUICKSTART_PROTOCOL`, `VITE_HONUA_QUICKSTART_WHERE`, and `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT`. | Same-origin, externally network-blocked fixture via `npm run demo:quickstart:mock`. | Fixture: `npm run test:playwright:quickstart`; scheduled public evidence: `npm run evidence:first-map:live`. |
 | `service-explorer-feature-readonly` | `examples/service-explorer` | FeatureServer `natural-earth`, layer `0`, source discovery and linked query through `VITE_HONUA_SERVICE_EXPLORER_BASE_URL`, `VITE_HONUA_SERVICE_EXPLORER_MODE`, `VITE_HONUA_SERVICE_EXPLORER_SERVICE_ID`, and `VITE_HONUA_SERVICE_EXPLORER_LAYER_ID`. | `auto` mode falls back to fixtures without credentials; fixture server: `npm run demo:service-explorer:mock`. | Fixture: `npm run test:playwright:service-explorer`; cloud scaffold: `npm run test:cloud-demo:staging`. |
-| `storytelling-25d-readonly` | `examples/storytelling-25d-map` | OGC collection ids `story-25d-assets`, `story-25d-route`, and `story-25d-stops` through `VITE_HONUA_25D_BASE_URL`, `VITE_HONUA_25D_ASSETS_COLLECTION`, `VITE_HONUA_25D_ROUTE_COLLECTION`, and `VITE_HONUA_25D_STOPS_COLLECTION`. | Same-origin collection fixtures via `npm run demo:25d:mock`. | Fixture: `npm run test:playwright:25d`; cloud scaffold: `npm run test:cloud-demo:staging`. |
 | `incident-realtime-stream` | `examples/realtime-incident-dashboard` | Live-first Honua server SSE stream selected by an anonymous capabilities probe. Public configuration includes base, capabilities, stream, source, layer, and transport env names. The stream is the authority for incident feature state. | Visibly labeled read-only replay in `auto`; isolated editable fixture via `npm run demo:incident:mock`. | Fixture: `npm run test:playwright:incident`; scheduled live evidence: `npm run bench:live`. |
-| `edit-workflow-writable-guarded` | `examples/edit-workflow-demo` | Guarded FeatureServer `field-inspections-demo-writable`, layer `0`, plus read-only comparison service `field-inspections-demo-readonly`. The reserved live-lane env vars are `VITE_HONUA_EDIT_WORKFLOW_BASE_URL`, `VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID`, `VITE_HONUA_EDIT_WORKFLOW_LAYER_ID`, and `VITE_HONUA_EDIT_WORKFLOW_READONLY_SERVICE_ID`. | Local edit-session fixture via `npm run test:playwright:edit-workflow`. | Fixture: `npm run test:playwright:edit-workflow`; cloud scaffold: `npm run test:cloud-demo:staging`. |
 
 The service and collection ids above are the JS sample seed contract. A cloud
 tenant that has not provisioned those resources should fail the scheduled cloud
 smoke rather than silently substituting unrelated data.
-
-## Writable Safeguards
-
-Writable demo traffic must fail closed. Scheduled smoke may enable writes only
-when all safeguards are present:
-
-| Env var | Requirement |
-| --- | --- |
-| `HONUA_CLOUD_DEMO_ALLOW_WRITES` | Must be exactly `true` before any writable smoke step runs. |
-| `HONUA_CLOUD_DEMO_WRITE_TOKEN` | Write credential for the guarded service. This must be separate from browser read credentials where the platform supports that split. |
-| `HONUA_CLOUD_DEMO_RESET_TOKEN` | Reset credential for the seeded writable data. It must not be exposed to browser samples. |
-| `HONUA_CLOUD_DEMO_RESET_URL` | Reset endpoint for restoring the service to `seeded-clean` state. |
-
-Reset calls, edit submissions, and attachment mutations are uncached user
-actions. Scheduled writable smoke must reset before and after a run. If reset is
-missing or fails, the smoke should stop before issuing edits.
-
-The current edit workflow browser app remains fixture-first. The env names in
-this contract reserve the live writable lane so platform seeding, reset
-automation, and future app wiring use one shared vocabulary.
 
 ## Realtime Authority
 
@@ -123,7 +101,7 @@ These operations remain uncached unless a separate materialization workflow
 owns the result:
 
 - realtime incident feature snapshots, cursors, watermarks, and deltas
-- edit submissions, attachment mutations, and writable reset calls
+- edit submissions and attachment mutations
 - ad hoc spatial requests driven by viewport, drawn geometry, or user filters
 
 Materialized analytics exports, including the kepler GeoJSON bundle, must be
@@ -149,13 +127,10 @@ npm run test:cloud-demo:staging
 
 Without `HONUA_CLOUD_DEMO_BASE_URL`, the cloud smoke skips. With
 `HONUA_CLOUD_DEMO_BASE_URL` set, it validates the base URL, credentials shape,
-manifest profiles, and `GET /api/v1/admin/capabilities`. If
-`HONUA_CLOUD_DEMO_ALLOW_WRITES=true`, it also requires the write token, reset
-token, and reset URL before any future writable smoke can run.
+manifest profiles, and `GET /api/v1/admin/capabilities`.
 
 ## Remaining Platform Work
 
 This JS-repo slice defines and tests the configuration contract. It does not
-provision Honua Cloud services, implement server-side reset endpoints, or wire
-the edit workflow browser app to perform live writes. Those remain the
-implementation gaps for issue #128 and the parent seeded-demo epic.
+provision Honua Cloud services. That remains the implementation gap for issue
+#128 and the parent seeded-demo epic.

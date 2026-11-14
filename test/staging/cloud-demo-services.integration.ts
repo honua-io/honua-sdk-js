@@ -12,13 +12,6 @@ interface CloudDemoManifest {
     readonly smoke: {
       readonly requiresEnv: readonly string[];
     };
-    readonly writeSafeguards?: {
-      readonly allowWritesEnv: string;
-      readonly requiredAllowWritesValue: string;
-      readonly writeTokenEnv: string;
-      readonly resetTokenEnv: string;
-      readonly resetUrlEnv: string;
-    };
   }[];
 }
 
@@ -52,24 +45,6 @@ function writeSummary(summary: Record<string, unknown>): void {
 }
 
 describe("cloud demo services staging smoke", () => {
-  it("validates writable smoke guards before any live edit path can run", () => {
-    const writable = manifest.profiles.find((profile) => profile.mode === "writable-guarded");
-    expect(writable?.writeSafeguards).toBeDefined();
-
-    const safeguards = writable?.writeSafeguards;
-    if (!safeguards) return;
-
-    const writesEnabled = readEnv(safeguards.allowWritesEnv) === safeguards.requiredAllowWritesValue;
-    if (!writesEnabled) {
-      expect(readEnv(safeguards.allowWritesEnv) ?? "false").not.toBe(safeguards.requiredAllowWritesValue);
-      return;
-    }
-
-    expect(readEnv(safeguards.writeTokenEnv), `${safeguards.writeTokenEnv} is required`).toBeDefined();
-    expect(readEnv(safeguards.resetTokenEnv), `${safeguards.resetTokenEnv} is required`).toBeDefined();
-    expect(readEnv(safeguards.resetUrlEnv), `${safeguards.resetUrlEnv} is required`).toBeDefined();
-  });
-
   cloudIt("reaches Honua Cloud compatibility before scheduled sample smoke", async () => {
     const configuredBaseUrl = baseUrl;
     expect(configuredBaseUrl).toBeDefined();

@@ -109,36 +109,36 @@ Labels: `fixture` · `experimental` · `degraded`
 - Executable entry: [examples/spatial-analytics-workbench/src/main.ts](../../examples/spatial-analytics-workbench/src/main.ts)
 - Example notes: [examples/spatial-analytics-workbench/README.md](../../examples/spatial-analytics-workbench/README.md)
 - Compile check: `npm run demo:spatial-analytics:typecheck`
-- Sample contract: `lab` · `experimental` · `rework`
+- Sample contract: `lab` · `experimental` · `active`
 - Data and auth: `hybrid` · `anonymous`
 - Provenance: Committed analysis fixtures or a configured public GeoServices source.
 - Freshness: Fixture replay uses a fixed observation; configured live execution records its observation time.
 - Catalog degradation: Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on.
-- Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
+- Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [demo-geoprocessing.html](https://honua.io/demo-geoprocessing.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
 - Supported API imports: `@honua/sdk-js/contract` (`resolveSpatialAggregationWidgetSummary`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `linked-large-data-analysis`
 - Degradation: The current shell still uses the app-workspace compatibility shim retained through 0.3.x and removed in 0.4.0; #399 owns its supported-import migration.
 
-### 6. Edit with forms, attachments, and recovery
+### 6. Edit with sketching, snapping, and undo
 
-Apply metadata-backed edits and attachments, surface conflicts, and roll back failed mutations without hiding unsupported operations.
+Draw, snap, undo, and submit edits through the SDK sketch workflow without hiding unsupported operations.
 
-Labels: `fixture` · `degraded`
+Labels: `fixture` · `experimental` · `degraded`
 
-- Guide: [docs/shared-client-contract.md](../shared-client-contract.md)
-- Runnable example: [edit-workflow-demo](../../examples/edit-workflow-demo)
-- Executable entry: [examples/edit-workflow-demo/src/model.ts](../../examples/edit-workflow-demo/src/model.ts)
-- Example notes: [examples/edit-workflow-demo/README.md](../../examples/edit-workflow-demo/README.md)
-- Compile check: `npm run demo:edit-workflow:typecheck`
-- Sample contract: `recipe` · `supported` · `rework`
+- Guide: [docs/terra-draw-sketch.md](../terra-draw-sketch.md)
+- Runnable example: [sketch-editing](../../examples/sketch-editing)
+- Executable entry: [examples/sketch-editing/src/main.ts](../../examples/sketch-editing/src/main.ts)
+- Example notes: [examples/sketch-editing/README.md](../../examples/sketch-editing/README.md)
+- Compile check: `npm run demo:sketch-editing:typecheck`
+- Sample contract: `recipe` · `experimental` · `active`
 - Data and auth: `fixture` · `none`
-- Provenance: Committed deterministic edit fixture.
+- Provenance: Committed deterministic harbor-parcel fixture.
 - Freshness: Deterministic fixture replay time.
-- Catalog degradation: Editing is read-only when the service does not advertise mutation capability.
+- Catalog degradation: Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer.
 - Live sample: [demo-editing.html](https://honua.io/demo-editing.html)
-- Supported API imports: `@honua/sdk-js/contract` (`createEditSession`, `createEditSketchWorkflow`); `@honua/sdk-js/exploration` (`createExplorationContext`)
+- Supported API imports: `@honua/sdk-js/contract` (`createEditSketchWorkflow`, `createSnapIndex`); `@honua/sdk-js/runtime` (`createTerraDrawSketch`)
 - honua.io journey: `query-map-style`
-- Degradation: Capability discovery failure disables mutation; deterministic fixture output is never presented as live evidence.
+- Degradation: The sketch workflow edits a committed fixture parcel source; deterministic fixture output is never presented as live evidence.
 
 ### 7. Operate through realtime and offline transitions
 
@@ -161,25 +161,26 @@ Labels: `fixture` · `demo-live` · `degraded`
 - honua.io journey: `realtime-operations`
 - Degradation: The production offline persistence path is not complete; reconnect and stale-state behavior remains explicit while fixture replay stays deterministic.
 
-### 8. Add terrain and 3D context
+### 8. Add imagery and terrain context
 
-Progress from stable 2D map primitives to an explicitly experimental 2.5D/3D experience.
+Progress from stable 2D map primitives to STAC imagery, bounded COG windows, and terrain elevation profiles.
 
 Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 
-- Guide: [docs/scene-workspace.md](../scene-workspace.md)
-- Runnable example: [storytelling-25d-map](../../examples/storytelling-25d-map)
-- Executable entry: [examples/storytelling-25d-map/src/map.ts](../../examples/storytelling-25d-map/src/map.ts)
-- Example notes: [examples/storytelling-25d-map/README.md](../../examples/storytelling-25d-map/README.md)
-- Compile check: `npm run demo:25d:typecheck`
-- Sample contract: `lab` · `supported` · `merge`
-- Data and auth: `hybrid` · `api-key`
-- Provenance: Committed Oahu story fixtures or configured Honua services.
-- Freshness: Fixture capture or live layer observation time.
-- Catalog degradation: Terrain and live overlays fail independently with structured status.
-- Supported API imports: `@honua/sdk-js/map` (`HonuaMap`); `@honua/sdk-js/runtime` (`HonuaMapRuntime`)
+- Guide: [docs/cog.md](../cog.md)
+- Runnable example: [imagery-cog-quickstart](../../examples/imagery-cog-quickstart)
+- Executable entry: [examples/imagery-cog-quickstart/src/main.ts](../../examples/imagery-cog-quickstart/src/main.ts)
+- Example notes: [examples/imagery-cog-quickstart/README.md](../../examples/imagery-cog-quickstart/README.md)
+- Compile check: `npm run demo:imagery-cog:typecheck`
+- Sample contract: `golden` · `supported` · `active`
+- Data and auth: `hybrid` · `host-mediated`
+- Provenance: Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.
+- Freshness: Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.
+- Catalog degradation: Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.
+- Live sample: [demo-imagery-terrain.html](https://honua.io/demo-imagery-terrain.html) · [demo-maui-3d.html](https://honua.io/demo-maui-3d.html) · [sample-raster-overlay.html](https://honua.io/sample-raster-overlay.html)
+- Supported API imports: `@honua/sdk-js/cog` (`mountStacCogAssetToMapLibre`, `openStacCogAsset`); `@honua/sdk-js/honua` (`HonuaImageService`)
 - honua.io journey: `imagery-terrain-3d`
-- Degradation: The runnable 2.5D shell still reaches the scene-workspace compatibility surface; stable map/runtime imports are the taught foundation until #399 migrates it.
+- Degradation: The default build replays pinned COG and terrain fixtures; live imagery needs a host-mediated endpoint.
 
 ### 9. Migrate an ArcGIS application
 
@@ -204,23 +205,23 @@ Labels: `fixture` · `public-live` · `degraded`
 
 ### 10. Automate safely with agent tools
 
-Expose bounded map actions with capability explanations while keeping writes behind host approval.
+Dry-run, approve, and verify bounded agent map actions with signed receipts, keeping writes behind host approval.
 
-Labels: `fixture` · `experimental` · `degraded`
+Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 
-- Guide: [docs/ai-map-kit.md](../ai-map-kit.md)
-- Runnable example: [mcp-gis-assistant](../../examples/mcp-gis-assistant)
-- Executable entry: [examples/mcp-gis-assistant/src/assistant.ts](../../examples/mcp-gis-assistant/src/assistant.ts)
-- Example notes: [examples/mcp-gis-assistant/README.md](../../examples/mcp-gis-assistant/README.md)
-- Compile check: `npm run demo:mcp-gis-assistant:typecheck`
-- Sample contract: `lab` · `experimental` · `rework`
-- Data and auth: `fixture` · `none`
-- Provenance: Committed MCP response fixture.
-- Freshness: Deterministic fixture replay time.
-- Catalog degradation: Write tools are unavailable without host policy and explicit approval.
-- Supported API imports: `@honua/sdk-js/agent-tools` (`HONUA_AGENT_TOOL_DEFINITIONS`, `createHonuaAgentToolExecutor`)
+- Guide: [docs/agent-safety.md](../agent-safety.md)
+- Runnable example: [ai-spatial-app-builder](../../examples/ai-spatial-app-builder)
+- Executable entry: [examples/ai-spatial-app-builder/src/safe-agent.ts](../../examples/ai-spatial-app-builder/src/safe-agent.ts)
+- Example notes: [examples/ai-spatial-app-builder/README.md](../../examples/ai-spatial-app-builder/README.md)
+- Compile check: `npm run demo:ai-spatial-builder:typecheck`
+- Sample contract: `lab` · `experimental` · `active`
+- Data and auth: `hybrid` · `host-mediated`
+- Provenance: Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.
+- Freshness: Fixture snapshot 2026-07-10; optional live lane records its observation time.
+- Catalog degradation: Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy.
+- Supported API imports: `@honua/sdk-js/agent-safety` (`dryRunAgentPlan`, `issueAgentApproval`); `@honua/sdk-js/agent-tools` (`HONUA_AGENT_TOOL_NAMES`)
 - honua.io journey: `safe-agent-automation`
-- Degradation: The current assistant shell still uses the app-workspace compatibility surface, and write execution stays disabled without explicit host approval.
+- Degradation: The builder dry-runs agent plans over fixtures by default, and write execution stays disabled without explicit host approval.
 
 ## Publication boundary
 

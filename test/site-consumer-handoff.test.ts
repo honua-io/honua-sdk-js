@@ -91,6 +91,22 @@ function canonicalInputs(): Promise<CanonicalInputs> {
   return canonicalInputsPromise;
 }
 
+type LifecycleReplacement = { kind: "journey" | "sample" | "external"; id: string };
+
+function handoffWithReplacedGeocoding(inputs: CanonicalInputs, replacement: LifecycleReplacement) {
+  const [major, minor] = String(inputs.packageJson.version).split(".");
+  const projection = structuredClone(inputs.projection);
+  const replaced = projection.samples.find((sample) => sample.id === "geocoding-quickstart");
+  if (!replaced) throw new Error("geocoding-quickstart is missing from the projection");
+  replaced.lifecycle = {
+    state: "replace",
+    reason: "Synthetic replacement fixture.",
+    targetRelease: `${major}.${Number(minor) + 1}.0`,
+    replacement,
+  };
+  return generateSiteConsumerHandoff(projection, inputs.matrix, inputs.visualEvidence);
+}
+
 function allObjectKeys(value: unknown): string[] {
   if (value === null || typeof value !== "object") return [];
   if (Array.isArray(value)) return value.flatMap(allObjectKeys);
@@ -126,9 +142,9 @@ describe("honua-site consumer handoff", () => {
         },
         counts: {
           // One card and one canonical route per public sample.
-          cards: 26,
+          cards: 20,
           qualifiedJourneys: 4,
-          canonicalRoutes: 26,
+          canonicalRoutes: 20,
           legacyRoutes: 20,
           gaps: projectLegacyCapabilitySampleMatrix(inputs.matrix).gaps.length,
         },
@@ -420,23 +436,27 @@ describe("honua-site consumer handoff", () => {
     ).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.path === `samples/${route.sampleId}.html`)).toBe(true);
     expect(handoff.canonicalRoutes.every((route) => route.externalListingEligible === true)).toBe(true);
-    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "runtime-parity-showcase")).toMatchObject({
-      lifecycleState: "replace",
-      presentation: "lifecycle-status",
-    });
 
     const publicNonActiveIds = handoff.cards.filter((card) => card.lifecycle.state !== "active").map((card) => card.id);
     expect(handoff.lifecycleNotices.map((notice) => notice.sampleId)).toEqual(publicNonActiveIds);
-    expect(handoff.lifecycleNotices.find((notice) => notice.sampleId === "runtime-parity-showcase")).toMatchObject({
-      state: "replace",
-      replacement: {
-        kind: "journey",
-        id: "service-explorer",
-      },
-    });
     expect(allObjectKeys(handoff.cards)).not.toEqual(
       expect.arrayContaining(["commands", "sourceCode", "javascript", "html"]),
     );
+  });
+
+  it("routes a journey-replaced sample to a lifecycle status page with its replacement notice", async () => {
+    const handoff = handoffWithReplacedGeocoding(await canonicalInputs(), { kind: "journey", id: "service-explorer" });
+    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "geocoding-quickstart")).toMatchObject({
+      lifecycleState: "replace",
+      presentation: "lifecycle-status",
+    });
+    expect(handoff.lifecycleNotices).toHaveLength(1);
+    expect(handoff.lifecycleNotices[0]).toMatchObject({
+      sampleId: "geocoding-quickstart",
+      state: "replace",
+      replacement: { kind: "journey", id: "service-explorer" },
+    });
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
   });
 
   it("keeps the incident journey realtime while its absent qualification remains explicit", async () => {
@@ -586,18 +606,13 @@ describe("honua-site consumer handoff", () => {
       } as never),
     ).rejects.toThrow("capability matrix visible-gap coverage drift");
 
-    const externalQuery = structuredClone(inputs.handoff);
-    const externalNotice = externalQuery.lifecycleNotices[0];
     const externalTarget = inputs.projection.externalReplacements[0];
-    if (!externalNotice || !externalTarget) {
-      throw new Error("canonical lifecycle notice or external replacement target is missing");
+    if (!externalTarget) throw new Error("canonical external replacement target is missing");
+    const externalQuery = handoffWithReplacedGeocoding(inputs, { kind: "external", id: externalTarget.id });
+    const externalNotice = externalQuery.lifecycleNotices[0];
+    if (externalNotice?.replacement?.kind !== "external") {
+      throw new Error("external lifecycle notice is missing");
     }
-    externalNotice.replacement = {
-      kind: "external",
-      id: externalTarget.id,
-      title: externalTarget.title,
-      url: externalTarget.url,
-    };
     externalNotice.replacement.url += "?view=docs";
     await expect(validateSiteConsumerHandoff(externalQuery, { verifyCheckout: false })).rejects.toThrow(
       "must be credential-free canonical HTTPS",

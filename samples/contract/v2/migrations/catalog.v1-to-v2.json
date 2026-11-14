@@ -46,11 +46,6 @@
         "name": "GITHUB_SHA",
         "provider": "github-actions",
         "reason": "GitHub Actions supplies the commit identity used only for evidence provenance."
-      },
-      {
-        "name": "MODE",
-        "provider": "vite",
-        "reason": "Vite supplies its built-in execution mode metadata."
       }
     ]
   },
@@ -71,7 +66,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "edit-workflow-demo"
+      "candidateSampleId": "sketch-editing"
     },
     {
       "id": "incident-operations",
@@ -222,11 +217,6 @@
       "track": "fixture",
       "validationProfile": "internal-fixture"
     },
-    "edit-workflow-demo": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "journeyId": "planning-permitting"
-    },
     "geocoding-quickstart": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
@@ -261,24 +251,6 @@
         "npx vitest run test/geocoding-quickstart.test.ts",
         "npm run test:playwright:geocoding"
       ]
-    },
-    "geoprocessing-job-runner": {
-      "track": "recipe",
-      "validationProfile": "browser-recipe",
-      "replacement": {
-        "kind": "journey",
-        "id": "cloud-native-analysis"
-      },
-      "configuration": {
-        "status": "not-required"
-      },
-      "live": {
-        "mode": "authenticated"
-      },
-      "lifecycle": {
-        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "merge"
-      }
     },
     "imagery-cog-quickstart": {
       "track": "golden",
@@ -349,14 +321,6 @@
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
         "expiresAt": "2026-12-15T02:37:17.198Z"
-      }
-    },
-    "mcp-gis-assistant": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "lifecycle": {
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "rework"
       }
     },
     "migration-workbench": {
@@ -473,18 +437,6 @@
         "expiresAt": "2027-02-09T22:38:54.551Z"
       }
     },
-    "runtime-parity-showcase": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "replacement": {
-        "kind": "journey",
-        "id": "service-explorer"
-      },
-      "lifecycle": {
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "replace"
-      }
-    },
     "service-explorer": {
       "track": "golden",
       "journeyId": "service-explorer",
@@ -513,7 +465,7 @@
       "validationProfile": "browser-recipe",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+        "reason": "Candidate for the planning and permitting journey: terra-draw drawing, snapping, undo, and edit submission."
       },
       "playground": {
         "projectPath": "playgrounds/sketch-editing",
@@ -529,7 +481,8 @@
             "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
           }
         ]
-      }
+      },
+      "journeyId": "planning-permitting"
     },
     "spatial-analytics-workbench": {
       "track": "lab",
@@ -541,10 +494,6 @@
         "status": "skipped",
         "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
         "expiresAt": "2026-12-31T14:03:45.765Z"
-      },
-      "lifecycle": {
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "rework"
       }
     },
     "stac-imagery-browser": {
@@ -570,22 +519,6 @@
         ]
       }
     },
-    "storytelling-25d-map": {
-      "track": "lab",
-      "validationProfile": "browser-lab",
-      "replacement": {
-        "kind": "journey",
-        "id": "imagery-terrain"
-      },
-      "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads a Honua API-key variable."
-      },
-      "lifecycle": {
-        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "state": "merge"
-      }
-    },
     "temporal-playback": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
@@ -606,11 +539,7 @@
       }
     }
   },
-  "siteMappingOverrides": {
-    "maui-3d": {
-      "sampleId": "imagery-cog-quickstart"
-    }
-  },
+  "siteMappingOverrides": {},
   "addedSamples": [
     {
       "id": "automatic-source-workflow",
@@ -738,63 +667,6 @@
           }
         ]
       }
-    },
-    {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
-      "sourceKind": "docs-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "sourcePath": "docs/examples/cesium-route-playback",
-      "docsPath": "docs/examples/cesium-route-playback/README.md",
-      "capabilities": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked.",
-        "config": [],
-        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
-        "attribution": "Route and terrain providers remain visible in diagnostics.",
-        "freshness": "Fixture version or live query observation time."
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-            "npx vitest run test/cesium-route-playback.test.ts"
-          ]
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-        "npx vitest run test/cesium-route-playback.test.ts"
-      ]
     },
     {
       "id": "offline-region-reference",

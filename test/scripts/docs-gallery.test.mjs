@@ -99,6 +99,26 @@ function sampleById(value, id) {
   return value.samples.find((sample) => sample.id === id);
 }
 
+function replacedLifecycle(replacement) {
+  const [major, minor] = JSON.parse(fs.readFileSync("package.json", "utf8")).version.split(".");
+  return {
+    state: "replace",
+    reason: "Synthetic replacement fixture.",
+    targetRelease: `${major}.${Number(minor) + 1}.0`,
+    replacement,
+  };
+}
+
+function externalReplacementLifecycle(value) {
+  return replacedLifecycle({ kind: "external", id: value.externalReplacements[0].id });
+}
+
+function journeyReplacedProjection() {
+  const replaced = structuredClone(projection);
+  sampleById(replaced, "geocoding-quickstart").lifecycle = replacedLifecycle({ kind: "journey", id: "service-explorer" });
+  return replaced;
+}
+
 function galleryCards(gallery) {
   return gallery.groups.flatMap((group) => group.cards);
 }
@@ -192,9 +212,11 @@ test("deep-freezes and brands every rendered model claim", async () => {
   const cards = galleryCards(gallery);
   const endpointCard = cards.find((card) => card.sample.id === "maplibre-quickstart");
   const incidentCard = cards.find((card) => card.sample.id === "realtime-incident-dashboard");
-  const replacementCard = cards.find((card) => card.sample.id === "runtime-parity-showcase");
+  const replacedGallery = await verifiedGallery(journeyReplacedProjection());
+  const replacementCard = galleryCards(replacedGallery).find((card) => card.sample.id === "geocoding-quickstart");
 
   assertDeepFrozen(gallery);
+  assertDeepFrozen(replacedGallery);
   const mutations = [
     () => {
       gallery.integrity.projectionSha256 = "0".repeat(64);
@@ -427,7 +449,6 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const byId = new Map(cards.map((card) => [card.sample.id, card]));
 
   const qualifiedGoldenJourneys = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
-  const qualifiedGoldenJourneyIds = new Set(qualifiedGoldenJourneys.map((journey) => journey.id));
 
   assert.equal(gallery.cardCount, canonicalPublicCardCount);
   assertCanonicalLifecycleTruth(gallery);
@@ -435,23 +456,15 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   // projection regeneration cannot silently reclassify gallery cards.
   assert.deepEqual(counts, {
     golden: qualifiedGoldenJourneys.length,
-    recipe: 12,
-    lab: gallery.cardCount - 12 - qualifiedGoldenJourneys.length,
+    recipe: 10,
+    lab: gallery.cardCount - 10 - qualifiedGoldenJourneys.length,
   });
   assert.ok(!byId.has("geoservices-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
-  assert.deepEqual(byId.get("runtime-parity-showcase").replacement, {
-    kind: "journey",
-    id: "service-explorer",
-    title: "Universal Service Explorer",
-    status: qualifiedGoldenJourneyIds.has("service-explorer") ? "qualified" : "planned",
-    candidateSampleId: "service-explorer",
-    publicSampleId: "service-explorer",
-  });
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
   assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
   assert.equal(byId.get("sketch-editing").sample.track, "recipe");
-  const planningCard = byId.get("edit-workflow-demo");
+  const planningCard = byId.get("sketch-editing");
   assert.equal(planningCard.sample.track, "recipe");
   assert.equal(planningCard.journey.id, "planning-permitting");
   assert.equal(planningCard.journey.status, "planned");
@@ -680,8 +693,22 @@ test("requires an ownership-bound source resolver and rejects unsafe or foreign 
   );
   assert.match(
     html,
-    /href="guides\/examples\/cesium-route-playback\/README\.html">Read the walkthrough/,
+    /href="guides\/examples\/shared-renderer-state\/README\.html">Read the walkthrough/,
   );
+});
+
+test("projects a journey replacement with the journey's candidate truth", async () => {
+  const replaced = journeyReplacedProjection();
+  const card = galleryCards(await verifiedGallery(replaced)).find((entry) => entry.sample.id === "geocoding-quickstart");
+  const serviceExplorer = replaced.goldenJourneys.find((journey) => journey.id === "service-explorer");
+  assert.deepEqual(card.replacement, {
+    kind: "journey",
+    id: "service-explorer",
+    title: "Universal Service Explorer",
+    status: serviceExplorer.status,
+    candidateSampleId: "service-explorer",
+    publicSampleId: "service-explorer",
+  });
 });
 
 test("rejects unsafe public source paths before minting a model or invoking a resolver", async () => {
@@ -712,10 +739,10 @@ test("rejects unsafe public source paths before minting a model or invoking a re
 test("escapes projected content and links only credential-free HTTPS replacements", async () => {
   for (const url of ["javascript:alert(1)", "http://example.test/replacement"]) {
     const unsafe = structuredClone(projection);
-    const sample = sampleById(unsafe, "runtime-parity-showcase");
+    const sample = sampleById(unsafe, "geocoding-quickstart");
     sample.title = '<img src=x onerror="alert(1)">';
     sample.data.provenance = '</dd><script>alert("x")</script>';
-    sample.lifecycle.replacement = { kind: "external", id: unsafe.externalReplacements[0].id };
+    sample.lifecycle = externalReplacementLifecycle(unsafe);
     unsafe.externalReplacements[0].url = url;
     const html = renderGallery(await verifiedGallery(unsafe));
 
@@ -726,8 +753,7 @@ test("escapes projected content and links only credential-free HTTPS replacement
   }
 
   const linked = structuredClone(projection);
-  const linkedSample = sampleById(linked, "runtime-parity-showcase");
-  linkedSample.lifecycle.replacement = { kind: "external", id: linked.externalReplacements[0].id };
+  sampleById(linked, "geocoding-quickstart").lifecycle = externalReplacementLifecycle(linked);
   const safeHtml = renderGallery(await verifiedGallery(linked));
   assert.match(
     safeHtml,

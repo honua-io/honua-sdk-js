@@ -369,6 +369,13 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/sketch-editing/src/main.ts mounts an inline MapLibre style over FIXTURE_PARCELS from the bundled ./fixture-source.js module; the sample issues no fetch.",
   },
   {
+    id: "spatial-analytics-workbench",
+    runtimeHosting: "self-contained",
+    buildScript: "demo:spatial-analytics:build",
+    auditedVia:
+      "examples/spatial-analytics-workbench/src/linked-analysis.ts linkedAnalysisConfigFromLocation defaults to fixture mode unless ?mode=live is requested, and the controller is built from the model.ts session dataset (bundled ./fixtures.js); the live GeoServices or OGC Features lane needs an explicit configured base URL.",
+  },
+  {
     id: "stac-imagery-browser",
     runtimeHosting: "self-contained",
     buildScript: "demo:stac-browser:build",

@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 69332,
-      "sha256": "17d247e3390fbcd7f13e644222bcf6937702f28d386de8baf34c826deb112a2f",
+      "bytes": 57731,
+      "sha256": "7d137cd0f40e697d59abf0e9e86d7f929e61f3c7a808bee64e57ce399861b14b",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -28,8 +28,8 @@
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 497780,
-      "sha256": "f6c24560c6b26c57415d385d16b7c595faae7023c1804a18d81db0ce9b71c9c5",
+      "bytes": 488455,
+      "sha256": "8e9f3b7c20a41959b3159dc3530894c08e2f391ea2b4b6876a48931a926afc22",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45317,
-      "sha256": "bd547d48ed33b49dd7a97e4dce12fce439d145ebb0d8f6c488589a2fb82c290e",
+      "sha256": "145a5526e1169e0bf0d48b0d4d3f8dc5343c1e1bc223a42c4188a8da3138ba3a",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -161,13 +161,10 @@
       "agent-tools",
       "aggregation",
       "analysis",
-      "async-jobs",
       "atomic-authorization",
-      "attachments",
       "authentication",
       "bounded-local",
       "camera",
-      "cancel",
       "cancellation",
       "capability-discovery",
       "codemod",
@@ -184,20 +181,17 @@
       "filtering",
       "forward-geocode",
       "geoparquet",
-      "geoprocessing",
       "idempotency",
       "imagery",
       "large-data",
       "linked-views",
       "map",
-      "mcp",
       "migration",
       "multidimensional-raster",
       "node",
       "oauth",
       "offline",
       "optimistic-concurrency",
-      "optimistic-updates",
       "pmtiles",
       "profile",
       "progressive-rendering",
@@ -213,8 +207,6 @@
       "receipts",
       "reconciliation",
       "renderer-adapters",
-      "route-playback",
-      "runtime",
       "safe-editing",
       "selection",
       "server",
@@ -223,21 +215,16 @@
       "snapping",
       "sse",
       "stac",
-      "storytelling",
       "temporal",
       "terrain",
-      "three-dimensional",
       "typed-agent-tools",
       "vector-tiles"
     ],
     "capabilities": [
-      "agent-tools-facade",
       "compatibility-gate-facade",
       "odata-standalone",
       "ogc-coverages-standalone",
       "ogc-features-standalone",
-      "ogc-processes-discovery-standalone",
-      "ogc-processes-execution-standalone",
       "pmtiles-discovery-client-only",
       "pmtiles-managed-lifecycle-honua-facade",
       "realtime-facade",
@@ -275,13 +262,11 @@
       "geoparquet",
       "geoservices",
       "honua",
-      "mcp",
       "oauth",
       "odata",
       "ogc",
       "ogc-coverages",
       "ogc-features",
-      "ogc-processes",
       "pmtiles",
       "s3",
       "sse",
@@ -294,7 +279,6 @@
     ],
     "renderers": [
       "cesium",
-      "kepler",
       "maplibre",
       "none",
       "svg"
@@ -315,10 +299,7 @@
       "supported"
     ],
     "lifecycleStates": [
-      "active",
-      "merge",
-      "replace",
-      "rework"
+      "active"
     ],
     "qualificationStates": [
       "experimental",
@@ -328,11 +309,11 @@
     ]
   },
   "counts": {
-    "cards": 26,
+    "cards": 20,
     "qualifiedJourneys": 4,
-    "canonicalRoutes": 26,
+    "canonicalRoutes": 20,
     "legacyRoutes": 20,
-    "lifecycleNotices": 7,
+    "lifecycleNotices": 0,
     "gaps": 472,
     "qualifiedMatrixCells": {
       "goldenJourneys": 4,
@@ -418,75 +399,6 @@
       "evidenceBindingId": null,
       "visualEvidence": null,
       "searchText": "ai-spatial-app-builder safe agent workbench proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states. lab agent-approval agent-planning atomic-authorization query-planning receipts typed-agent-tools compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua none hybrid host-mediated experimental active experimental missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy."
-    },
-    {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
-      "canonicalPath": "samples/cesium-route-playback.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "docs/examples/cesium-route-playback",
-        "docsPath": "docs/examples/cesium-route-playback/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "capabilities": [],
-      "protocols": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
-        "attribution": "Route and terrain providers remain visible in diagnostics.",
-        "freshness": "Fixture version or live query observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked."
-      },
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support.",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "cesium-route-playback cesium route playback lab explores bounded route playback and elevation context through an optional cesium consumer integration. lab route-playback terrain three-dimensional geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices cesium hybrid api-key experimental rework experimental terrain, source z, and 3d contract gaps are reported rather than promoted as production support."
     },
     {
       "id": "columnar-query-quickstart",
@@ -624,82 +536,6 @@
       "searchText": "coverages-wcs-basic bounded coverage quickstart renders named-band ogc api coverages and wcs subsets through one maplibre image handoff. recipe coverage multidimensional-raster ogc-coverages-standalone wcs-standalone ogc-coverages wcs ogc-coverages wcs maplibre fixture none experimental active experimental aborted superseded requests, invalid ogc properties, and invalid wcs range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and ows exception responses fail with typed errors."
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
-      "canonicalPath": "samples/edit-workflow-demo.html",
-      "track": "recipe",
-      "journey": {
-        "id": "planning-permitting",
-        "title": "Planning and Permitting",
-        "status": "planned"
-      },
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/edit-workflow-demo",
-        "docsPath": "examples/edit-workflow-demo/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed deterministic edit fixture.",
-        "attribution": "Honua synthetic operations data.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
-        "targetRelease": "0.4.0"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability.",
-      "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "edit-workflow-demo conflict-aware editing workflow demonstrates optimistic edits, attachments, conflicts, and safe recovery. recipe planning-permitting planning and permitting planned attachments editing optimistic-updates compatibility-gate-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service grpc geoservices honua maplibre fixture none supported rework planned editing is read-only when the service does not advertise mutation capability."
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
@@ -764,77 +600,6 @@
       "evidenceBindingId": null,
       "visualEvidence": null,
       "searchText": "geocoding-quickstart geocoding quickstart turns a reviewed address result into a synchronized maplibre pin with score, locator, and provenance in view. recipe forward-geocode map geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices maplibre fixture none supported active partial a missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder."
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
-      "canonicalPath": "samples/geoprocessing-job-runner.html",
-      "track": "recipe",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/geoprocessing-job-runner",
-        "docsPath": "examples/geoprocessing-job-runner/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "capabilities": [
-        "ogc-processes-discovery-standalone",
-        "ogc-processes-execution-standalone"
-      ],
-      "protocols": [
-        "ogc-processes"
-      ],
-      "catalogProtocols": [
-        "ogc-processes"
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
-        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
-        "freshness": "Immutable fixture contract; no public-live result claim.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "cloud-native-analysis"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "geoprocessing-job-runner geoprocessing job runner runs a deterministic honolulu buffer job and renders the verified polygon result. recipe async-jobs cancel geoprocessing ogc-processes-discovery-standalone ogc-processes-execution-standalone ogc-processes ogc-processes svg fixture none supported merge partial cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result."
     },
     {
       "id": "imagery-cog-quickstart",
@@ -1476,74 +1241,6 @@
         }
       },
       "searchText": "maplibre-quickstart first map: a maui county layer in maplibre starts with a maui county feature layer on an interactive map (the governed 2025 census tract fixture, or the anonymous live maui parcels layer when built against a live endpoint), then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it. golden first-map first map qualified direct-connect discovery explain-plan linked-views map provenance query ogc-features-standalone geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service ogc-features geoservices ogc-features maplibre hybrid anonymous supported active qualified capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
-      "canonicalPath": "samples/mcp-gis-assistant.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/mcp-gis-assistant",
-        "docsPath": "examples/mcp-gis-assistant/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "capabilities": [
-        "agent-tools-facade",
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "mcp"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed MCP response fixture.",
-        "attribution": "Tool results preserve source attribution.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Write tools are unavailable without host policy and explicit approval.",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "mcp-gis-assistant mcp gis assistant demonstrates assistant tool discovery and safe sdk-backed spatial operations. lab agent-tools mcp query agent-tools-facade compatibility-gate-facade grpc honua mcp maplibre fixture none experimental rework experimental write tools are unavailable without host policy and explicit approval."
     },
     {
       "id": "migration-workbench",
@@ -2329,78 +2026,6 @@
       "searchText": "realtime-incident-dashboard realtime incident operations runs live-first incident command with observable reconciliation and a guarded, resettable edit lab. lab incident-operations realtime incident operations planned idempotency optimistic-concurrency realtime reconciliation safe-editing sse realtime-facade geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices sse maplibre hybrid anonymous supported active planned unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
-      "canonicalPath": "samples/runtime-parity-showcase.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/runtime-parity-showcase",
-        "docsPath": "examples/runtime-parity-showcase/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade"
-      ],
-      "protocols": [
-        "grpc"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed renderer comparison fixtures.",
-        "attribution": "Honua synthetic fixtures.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
-      },
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "replace",
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "service-explorer"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences.",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "runtime-parity-showcase runtime parity showcase compares supported rendering paths and makes fidelity differences explicit. lab fidelity renderer-adapters runtime compatibility-gate-facade grpc honua cesium kepler maplibre fixture none experimental replace experimental unsupported renderer operations are reported as fidelity differences."
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
@@ -2810,7 +2435,11 @@
       "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
       "canonicalPath": "samples/sketch-editing.html",
       "track": "recipe",
-      "journey": null,
+      "journey": {
+        "id": "planning-permitting",
+        "title": "Planning and Permitting",
+        "status": "planned"
+      },
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/sketch-editing",
@@ -2850,7 +2479,7 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+        "reason": "Candidate for the planning and permitting journey: terra-draw drawing, snapping, undo, and edit submission."
       },
       "evidence": {
         "fixture": {
@@ -2865,11 +2494,11 @@
       "expectedDegradation": "Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer.",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
+        "catalogStatus": "planned"
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "sketch-editing interactive sketch editing with terra-draw terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyedits submission. recipe editing sketch snapping geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices maplibre fixture none experimental active experimental sketch tools report unsupported capabilities when terra-draw is not installed; the sdk works without the optional peer."
+      "searchText": "sketch-editing interactive sketch editing with terra-draw terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyedits submission. recipe planning-permitting planning and permitting planned editing sketch snapping geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service geoservices maplibre fixture none experimental active experimental sketch tools report unsupported capabilities when terra-draw is not installed; the sdk works without the optional peer."
     },
     {
       "id": "spatial-analytics-workbench",
@@ -2930,9 +2559,8 @@
       },
       "supportTier": "experimental",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
+        "state": "active",
+        "reason": "Joins the cloud-native analysis journey; plans show estimates until accepted and label fixture replay apart from executed live runs."
       },
       "evidence": {
         "fixture": {
@@ -2954,7 +2582,7 @@
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "spatial-analytics-workbench spatial analytics workbench explains and accepts one plan linking aoi, map, table, chart, provenance, and reusable output. lab cloud-native-analysis cloud-native spatial analysis planned aggregation analysis bounded-local explain-plan linked-views provenance geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service ogc-coverages ogc-features ogc-maps ogc-processes ogc-records ogc-tiles geoservices ogc none hybrid anonymous experimental rework experimental remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and ogc/duckdb planner execution is a structured #389 follow-on."
+      "searchText": "spatial-analytics-workbench spatial analytics workbench explains and accepts one plan linking aoi, map, table, chart, provenance, and reusable output. lab cloud-native-analysis cloud-native spatial analysis planned aggregation analysis bounded-local explain-plan linked-views provenance geoservices-feature-service geoservices-geometry-service geoservices-gp-service geoservices-image-service geoservices-map-service ogc-coverages ogc-features ogc-maps ogc-processes ogc-records ogc-tiles geoservices ogc none hybrid anonymous experimental active experimental remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and ogc/duckdb planner execution is a structured #389 follow-on."
     },
     {
       "id": "stac-imagery-browser",
@@ -3028,80 +2656,6 @@
       "evidenceBindingId": null,
       "visualEvidence": null,
       "searchText": "stac-imagery-browser stac imagery browser searches maui imagery by bounds and time, renders a selected preview, and inspects a signed pmtiles v3 handoff. recipe cancellation cog geoparquet imagery pmtiles raster stac pmtiles-discovery-client-only pmtiles-managed-lifecycle-honua-facade stac-standalone pmtiles stac pmtiles stac maplibre fixture none experimental active experimental unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancelled or failed pmtiles inspection never becomes a tile-rendering claim."
-    },
-    {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
-      "canonicalPath": "samples/storytelling-25d-map.html",
-      "track": "lab",
-      "journey": null,
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/storytelling-25d-map",
-        "docsPath": "examples/storytelling-25d-map/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "tasks": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "capabilities": [
-        "compatibility-gate-facade",
-        "ogc-features-standalone"
-      ],
-      "protocols": [
-        "grpc",
-        "ogc-features"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed Oahu story fixtures or configured Honua services.",
-        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
-        "freshness": "Fixture capture or live layer observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a Honua API-key variable."
-      },
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Terrain and live overlays fail independently with structured status.",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      },
-      "evidenceBindingId": null,
-      "visualEvidence": null,
-      "searchText": "storytelling-25d-map 2.5d storytelling map combines terrain, extrusion, ogc overlays, and route playback in a guided story. lab storytelling terrain three-dimensional compatibility-gate-facade ogc-features-standalone grpc ogc-features honua ogc-features maplibre hybrid api-key supported merge partial terrain and live overlays fail independently with structured status."
     },
     {
       "id": "temporal-playback",
@@ -4066,14 +3620,6 @@
       "externalListingEligible": true
     },
     {
-      "sampleId": "cesium-route-playback",
-      "path": "samples/cesium-route-playback.html",
-      "track": "lab",
-      "lifecycleState": "rework",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
       "sampleId": "columnar-query-quickstart",
       "path": "samples/columnar-query-quickstart.html",
       "track": "recipe",
@@ -4090,26 +3636,10 @@
       "externalListingEligible": true
     },
     {
-      "sampleId": "edit-workflow-demo",
-      "path": "samples/edit-workflow-demo.html",
-      "track": "recipe",
-      "lifecycleState": "rework",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
       "sampleId": "geocoding-quickstart",
       "path": "samples/geocoding-quickstart.html",
       "track": "recipe",
       "lifecycleState": "active",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "geoprocessing-job-runner",
-      "path": "samples/geoprocessing-job-runner.html",
-      "track": "recipe",
-      "lifecycleState": "merge",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -4126,14 +3656,6 @@
       "path": "samples/maplibre-quickstart.html",
       "track": "golden",
       "lifecycleState": "active",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "mcp-gis-assistant",
-      "path": "samples/mcp-gis-assistant.html",
-      "track": "lab",
-      "lifecycleState": "rework",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -4202,14 +3724,6 @@
       "externalListingEligible": true
     },
     {
-      "sampleId": "runtime-parity-showcase",
-      "path": "samples/runtime-parity-showcase.html",
-      "track": "lab",
-      "lifecycleState": "replace",
-      "presentation": "lifecycle-status",
-      "externalListingEligible": true
-    },
-    {
       "sampleId": "service-explorer",
       "path": "samples/service-explorer.html",
       "track": "golden",
@@ -4237,7 +3751,7 @@
       "sampleId": "spatial-analytics-workbench",
       "path": "samples/spatial-analytics-workbench.html",
       "track": "lab",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -4246,14 +3760,6 @@
       "path": "samples/stac-imagery-browser.html",
       "track": "recipe",
       "lifecycleState": "active",
-      "presentation": "sample-detail",
-      "externalListingEligible": true
-    },
-    {
-      "sampleId": "storytelling-25d-map",
-      "path": "samples/storytelling-25d-map.html",
-      "track": "lab",
-      "lifecycleState": "merge",
       "presentation": "sample-detail",
       "externalListingEligible": true
     },
@@ -4290,13 +3796,13 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "canonical-sample",
-      "sampleId": "edit-workflow-demo",
-      "canonicalPath": "samples/edit-workflow-demo.html",
+      "sampleId": "sketch-editing",
+      "canonicalPath": "samples/sketch-editing.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Conflict-aware editing workflow",
+      "title": "Interactive sketch editing with terra-draw",
       "track": "recipe",
-      "supportTier": "supported",
+      "supportTier": "experimental",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
     {
@@ -4322,13 +3828,13 @@
       ],
       "ownership": "sdk-projection",
       "resolution": "canonical-sample",
-      "sampleId": "geoprocessing-job-runner",
-      "canonicalPath": "samples/geoprocessing-job-runner.html",
+      "sampleId": "spatial-analytics-workbench",
+      "canonicalPath": "samples/spatial-analytics-workbench.html",
       "httpStatus": 308,
       "presentation": "permanent-redirect",
-      "title": "Geoprocessing job runner",
-      "track": "recipe",
-      "supportTier": "supported",
+      "title": "Spatial analytics workbench",
+      "track": "lab",
+      "supportTier": "experimental",
       "reason": "Redirect to the stable canonical SDK sample route."
     },
     {
@@ -4589,85 +4095,7 @@
       "reason": "Redirect to the stable canonical SDK sample route."
     }
   ],
-  "lifecycleNotices": [
-    {
-      "sampleId": "cesium-route-playback",
-      "canonicalPath": "samples/cesium-route-playback.html",
-      "state": "rework",
-      "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": null
-    },
-    {
-      "sampleId": "edit-workflow-demo",
-      "canonicalPath": "samples/edit-workflow-demo.html",
-      "state": "rework",
-      "reason": "Keep the workflow and add an isolated resettable live dataset.",
-      "targetRelease": "0.4.0",
-      "replacement": null
-    },
-    {
-      "sampleId": "geoprocessing-job-runner",
-      "canonicalPath": "samples/geoprocessing-job-runner.html",
-      "state": "merge",
-      "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "cloud-native-analysis",
-        "title": "Cloud-Native Spatial Analysis",
-        "status": "planned",
-        "candidateSampleId": "spatial-analytics-workbench",
-        "canonicalPath": "samples/spatial-analytics-workbench.html"
-      }
-    },
-    {
-      "sampleId": "mcp-gis-assistant",
-      "canonicalPath": "samples/mcp-gis-assistant.html",
-      "state": "rework",
-      "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": null
-    },
-    {
-      "sampleId": "runtime-parity-showcase",
-      "canonicalPath": "samples/runtime-parity-showcase.html",
-      "state": "replace",
-      "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "service-explorer",
-        "title": "Universal Service Explorer",
-        "status": "qualified",
-        "candidateSampleId": "service-explorer",
-        "canonicalPath": "samples/service-explorer.html"
-      }
-    },
-    {
-      "sampleId": "spatial-analytics-workbench",
-      "canonicalPath": "samples/spatial-analytics-workbench.html",
-      "state": "rework",
-      "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": null
-    },
-    {
-      "sampleId": "storytelling-25d-map",
-      "canonicalPath": "samples/storytelling-25d-map.html",
-      "state": "merge",
-      "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-      "targetRelease": "0.4.0",
-      "replacement": {
-        "kind": "journey",
-        "id": "imagery-terrain",
-        "title": "Imagery and Terrain",
-        "status": "qualified",
-        "candidateSampleId": "imagery-cog-quickstart",
-        "canonicalPath": "samples/imagery-cog-quickstart.html"
-      }
-    }
-  ],
+  "lifecycleNotices": [],
   "gaps": [
     {
       "targetType": "golden-journey",
@@ -4704,16 +4132,16 @@
     {
       "targetType": "golden-journey",
       "targetId": "planning-permitting",
-      "supportStatus": "supported",
-      "coverageState": "planned",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
       "candidateSampleIds": [
-        "edit-workflow-demo"
+        "sketch-editing"
       ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
       "candidateRoutes": [
         {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
+          "sampleId": "sketch-editing",
+          "canonicalPath": "samples/sketch-editing.html"
         }
       ]
     },
@@ -4741,15 +4169,10 @@
       "supportStatus": "supported",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell.",
       "candidateRoutes": [
-        {
-          "sampleId": "mcp-gis-assistant",
-          "canonicalPath": "samples/mcp-gis-assistant.html"
-        },
         {
           "sampleId": "nl-map-control",
           "canonicalPath": "samples/nl-map-control.html"
@@ -5027,11 +4450,7 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "storytelling-25d-map",
-        "edit-workflow-demo",
         "ai-spatial-app-builder",
-        "mcp-gis-assistant",
-        "runtime-parity-showcase",
         "shared-renderer-state",
         "offline-region-reference"
       ],
@@ -5046,24 +4465,8 @@
           "canonicalPath": "samples/react-quickstart.html"
         },
         {
-          "sampleId": "storytelling-25d-map",
-          "canonicalPath": "samples/storytelling-25d-map.html"
-        },
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        },
-        {
           "sampleId": "ai-spatial-app-builder",
           "canonicalPath": "samples/ai-spatial-app-builder.html"
-        },
-        {
-          "sampleId": "mcp-gis-assistant",
-          "canonicalPath": "samples/mcp-gis-assistant.html"
-        },
-        {
-          "sampleId": "runtime-parity-showcase",
-          "canonicalPath": "samples/runtime-parity-showcase.html"
         },
         {
           "sampleId": "shared-renderer-state",
@@ -5325,17 +4728,10 @@
       "targetType": "package-entrypoint",
       "targetId": "./runtime",
       "supportStatus": "supported",
-      "coverageState": "experimental",
-      "candidateSampleIds": [
-        "runtime-parity-showcase"
-      ],
-      "reason": "Only experimental catalog samples map to this supported SDK cell.",
-      "candidateRoutes": [
-        {
-          "sampleId": "runtime-parity-showcase",
-          "canonicalPath": "samples/runtime-parity-showcase.html"
-        }
-      ]
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
     },
     {
       "targetType": "package-entrypoint",
@@ -5629,16 +5025,9 @@
       "targetId": "geoservices-feature-service:attachments:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -5806,16 +5195,9 @@
       "targetId": "geoservices-geometry-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -5983,16 +5365,9 @@
       "targetId": "geoservices-gp-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6160,16 +5535,9 @@
       "targetId": "geoservices-image-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6337,16 +5705,9 @@
       "targetId": "geoservices-map-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6514,16 +5875,9 @@
       "targetId": "grpc:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated.",
-      "candidateRoutes": [
-        {
-          "sampleId": "edit-workflow-demo",
-          "canonicalPath": "samples/edit-workflow-demo.html"
-        }
-      ]
+      "candidateRoutes": []
     },
     {
       "targetType": "protocol-operation",
@@ -6577,8 +5931,7 @@
       "coverageState": "partial",
       "candidateSampleIds": [
         "node-backend-quickstart",
-        "react-quickstart",
-        "mcp-gis-assistant"
+        "react-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts.",
       "candidateRoutes": [
@@ -6589,10 +5942,6 @@
         {
           "sampleId": "react-quickstart",
           "canonicalPath": "samples/react-quickstart.html"
-        },
-        {
-          "sampleId": "mcp-gis-assistant",
-          "canonicalPath": "samples/mcp-gis-assistant.html"
         }
       ]
     },
@@ -8968,15 +8317,10 @@
       "supportStatus": "beta",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
       "candidateRoutes": [
-        {
-          "sampleId": "mcp-gis-assistant",
-          "canonicalPath": "samples/mcp-gis-assistant.html"
-        },
         {
           "sampleId": "nl-map-control",
           "canonicalPath": "samples/nl-map-control.html"

@@ -7,8 +7,7 @@ Interactive draw/edit/delete on a MapLibre map through the SDK's
 [terra-draw](https://terradraw.io) peer.
 
 This is the focused sketching recipe: terra-draw modes, snapping, history, and
-submission binding. [Edit workflow demo](../edit-workflow-demo/README.md) covers
-attributes, attachments, conflicts, and recovery.
+submission binding. It is the candidate sample for the planning and permitting journey.
 
 What it demonstrates:
 

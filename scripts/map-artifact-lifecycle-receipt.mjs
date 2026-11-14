@@ -236,7 +236,7 @@ const author = mcpFor("author");
 await check("server-accepts-sdk-canonical-artifact", "AC2", async (evidence) => {
   // The SDK's own canonical showcase artifact, valid against
   // schemas/honua-map-package.v1.json, must be admissible as a map draft body.
-  const showcase = JSON.parse(readFileSync(join(repoRoot, "examples/runtime-parity-showcase/fixtures/map-package.json"), "utf8"));
+  const showcase = JSON.parse(readFileSync(join(repoRoot, "test/fixtures/map-artifact/sdk-showcase.map-package.v1.json"), "utf8"));
   assert.equal(validateMapDocument(showcase).valid, true);
   const created = await tool(author, "honua_studio_create_draft", { packageKey: `${runKey}-showcase`, family: "map", schemaVersion: "1.0", body: showcase });
   assert.equal(created.isError, false, created.text);

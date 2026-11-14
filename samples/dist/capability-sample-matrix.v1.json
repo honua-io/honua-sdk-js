@@ -10,7 +10,7 @@
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "545418f6a862dece0779d57e4af1e9cbb4f4a07fe8ccf8fa0289d7938b29c486"
+      "sha256": "5b5a29ae75d7f5eb0090e671fdbc03c4082daeb9057bc644434603434b317108"
     },
     "packageExports": {
       "path": "package.json",
@@ -21,7 +21,7 @@
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "f9541c3e82252f6e4adf195b4ab05a32a3acbe23faf6b56385db3e66fb2bf28c"
+      "sha256": "8dff45237a10e20aed23b19b306dd72851b390b136332bb343dbe1cb572b449f"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
@@ -56,13 +56,10 @@
       "aggregation",
       "analysis",
       "arcgis",
-      "async-jobs",
       "atomic-authorization",
-      "attachments",
       "authentication",
       "bounded-local",
       "camera",
-      "cancel",
       "cancellation",
       "capability-discovery",
       "codemod",
@@ -79,21 +76,18 @@
       "filtering",
       "forward-geocode",
       "geoparquet",
-      "geoprocessing",
       "idempotency",
       "imagery",
       "interaction-state",
       "large-data",
       "linked-views",
       "map",
-      "mcp",
       "migration",
       "multidimensional-raster",
       "node",
       "oauth",
       "offline",
       "optimistic-concurrency",
-      "optimistic-updates",
       "pmtiles",
       "profile",
       "progressive-rendering",
@@ -109,8 +103,6 @@
       "receipts",
       "reconciliation",
       "renderer-adapters",
-      "route-playback",
-      "runtime",
       "safe-editing",
       "selection",
       "server",
@@ -119,11 +111,9 @@
       "snapping",
       "sse",
       "stac",
-      "storytelling",
       "strategy-selection",
       "temporal",
       "terrain",
-      "three-dimensional",
       "typed-agent-tools",
       "vector-tiles"
     ],
@@ -132,13 +122,11 @@
       "geoparquet",
       "geoservices",
       "honua",
-      "mcp",
       "oauth",
       "odata",
       "ogc",
       "ogc-coverages",
       "ogc-features",
-      "ogc-processes",
       "pmtiles",
       "s3",
       "sse",
@@ -177,7 +165,6 @@
     "renderers": [
       "arcgis",
       "cesium",
-      "kepler",
       "maplibre",
       "none",
       "svg"
@@ -199,10 +186,7 @@
       "supported"
     ],
     "lifecycleStates": [
-      "active",
-      "merge",
-      "replace",
-      "rework"
+      "active"
     ],
     "packageEntrypoints": [
       ".",
@@ -320,18 +304,18 @@
     {
       "id": "planning-permitting",
       "title": "Planning and Permitting",
-      "candidateSampleId": "edit-workflow-demo",
+      "candidateSampleId": "sketch-editing",
       "catalogStatus": "planned",
-      "supportStatus": "supported",
+      "supportStatus": "experimental",
       "coverage": {
-        "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [
-          "edit-workflow-demo"
+          "sketch-editing"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "selectedSampleId": "sketch-editing"
       }
     },
     {
@@ -566,53 +550,6 @@
       }
     },
     {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "sourcePath": "docs/examples/cesium-route-playback",
-      "track": "lab",
-      "tasks": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "experimental",
-      "lifecycleState": "rework",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "columnar-query-quickstart",
       "title": "Map a bounded Arrow result",
       "sourcePath": "examples/columnar-query-quickstart",
@@ -716,68 +653,6 @@
       }
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "sourcePath": "examples/edit-workflow-demo",
-      "track": "recipe",
-      "journeyId": "planning-permitting",
-      "tasks": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        },
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "rework",
-      "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
-      }
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "sourcePath": "examples/geocoding-quickstart",
@@ -818,51 +693,6 @@
       "authMode": "none",
       "supportTier": "supported",
       "lifecycleState": "active",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "sourcePath": "examples/geoprocessing-job-runner",
-      "track": "recipe",
-      "tasks": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "catalogProtocols": [
-        "ogc-processes"
-      ],
-      "protocolIds": [
-        "ogc-processes"
-      ],
-      "supportClaimIds": [
-        "ogc-processes-discovery-standalone",
-        "ogc-processes-execution-standalone"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "ogc-processes",
-          "protocolIds": [
-            "ogc-processes"
-          ],
-          "supportClaimIds": [
-            "ogc-processes-discovery-standalone",
-            "ogc-processes-execution-standalone"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
       "qualification": {
         "state": "partial",
         "catalogStatus": "not-a-golden-journey"
@@ -1111,59 +941,6 @@
           ],
           "sha256": "3ef3704d158e7c67a0ceb944a6270b9cc2ade28b2877a3ff96caa2eaba9c8a15"
         }
-      }
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "sourcePath": "examples/mcp-gis-assistant",
-      "track": "lab",
-      "tasks": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "mcp"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "agent-tools-facade",
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        },
-        {
-          "catalogProtocol": "mcp",
-          "protocolIds": [],
-          "supportClaimIds": [
-            "agent-tools-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "experimental",
-      "lifecycleState": "rework",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
       }
     },
     {
@@ -1598,51 +1375,6 @@
       }
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "sourcePath": "examples/runtime-parity-showcase",
-      "track": "lab",
-      "tasks": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "experimental",
-      "lifecycleState": "replace",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "sourcePath": "examples/service-explorer",
@@ -1854,6 +1586,7 @@
       "title": "Interactive sketch editing with terra-draw",
       "sourcePath": "examples/sketch-editing",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "tasks": [
         "editing",
         "sketch",
@@ -1893,7 +1626,7 @@
       "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
+        "catalogStatus": "planned"
       }
     },
     {
@@ -1961,7 +1694,7 @@
       "dataMode": "hybrid",
       "authMode": "anonymous",
       "supportTier": "experimental",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
         "catalogStatus": "planned"
@@ -2026,62 +1759,6 @@
       "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "sourcePath": "examples/storytelling-25d-map",
-      "track": "lab",
-      "tasks": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "protocolIds": [
-        "grpc",
-        "ogc-features"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade",
-        "ogc-features-standalone"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        },
-        {
-          "catalogProtocol": "ogc-features",
-          "protocolIds": [
-            "ogc-features"
-          ],
-          "supportClaimIds": [
-            "ogc-features-standalone"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
-      "qualification": {
-        "state": "partial",
         "catalogStatus": "not-a-golden-journey"
       }
     },
@@ -2962,13 +2639,10 @@
       ],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3280,12 +2954,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3564,12 +3235,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3850,12 +3518,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4154,12 +3819,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4482,12 +4144,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "edit-workflow-demo"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4588,8 +4247,7 @@
         "reason": "Executable sample coverage exists without complete current qualification receipts.",
         "candidateSampleIds": [
           "node-backend-quickstart",
-          "react-quickstart",
-          "mcp-gis-assistant"
+          "react-quickstart"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -9062,13 +8720,6 @@
       ],
       "candidateEvidence": [
         {
-          "sampleId": "mcp-gis-assistant",
-          "matchedOperations": [
-            "agent-tools"
-          ],
-          "binding": "exact"
-        },
-        {
           "sampleId": "nl-map-control",
           "matchedOperations": [
             "agent-tools"
@@ -9080,12 +8731,11 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [
-          "mcp-gis-assistant",
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "mcp-gis-assistant"
+        "selectedSampleId": "nl-map-control"
       }
     },
     {
@@ -9497,7 +9147,7 @@
     },
     {
       "id": "map-package-facade",
-      "label": "Authored MapPackage runtime",
+      "label": "Authored map-document runtime",
       "operations": [
         "render"
       ],
@@ -10225,12 +9875,11 @@
         "state": "experimental",
         "reason": "Only experimental catalog samples map to this supported SDK cell.",
         "candidateSampleIds": [
-          "mcp-gis-assistant",
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "mcp-gis-assistant"
+        "selectedSampleId": "nl-map-control"
       }
     },
     {
@@ -10656,11 +10305,7 @@
         "candidateSampleIds": [
           "node-backend-quickstart",
           "react-quickstart",
-          "storytelling-25d-map",
-          "edit-workflow-demo",
           "ai-spatial-app-builder",
-          "mcp-gis-assistant",
-          "runtime-parity-showcase",
           "shared-renderer-state",
           "offline-region-reference"
         ],
@@ -11092,14 +10737,11 @@
         "default": "./dist/src/runtime/index.js"
       },
       "coverage": {
-        "state": "experimental",
-        "reason": "Only experimental catalog samples map to this supported SDK cell.",
-        "candidateSampleIds": [
-          "runtime-parity-showcase"
-        ],
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "runtime-parity-showcase"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -11322,12 +10964,12 @@
     {
       "targetType": "golden-journey",
       "targetId": "planning-permitting",
-      "supportStatus": "supported",
-      "coverageState": "planned",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
       "candidateSampleIds": [
-        "edit-workflow-demo"
+        "sketch-editing"
       ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     },
     {
       "targetType": "package-entrypoint",
@@ -11351,7 +10993,6 @@
       "supportStatus": "supported",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell."
@@ -11579,11 +11220,7 @@
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "storytelling-25d-map",
-        "edit-workflow-demo",
         "ai-spatial-app-builder",
-        "mcp-gis-assistant",
-        "runtime-parity-showcase",
         "shared-renderer-state",
         "offline-region-reference"
       ],
@@ -11784,11 +11421,9 @@
       "targetType": "package-entrypoint",
       "targetId": "./runtime",
       "supportStatus": "supported",
-      "coverageState": "experimental",
-      "candidateSampleIds": [
-        "runtime-parity-showcase"
-      ],
-      "reason": "Only experimental catalog samples map to this supported SDK cell."
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "package-entrypoint",
@@ -12039,10 +11674,8 @@
       "targetId": "geoservices-feature-service:attachments:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
@@ -12181,9 +11814,7 @@
       "targetId": "geoservices-geometry-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12323,9 +11954,7 @@
       "targetId": "geoservices-gp-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12465,9 +12094,7 @@
       "targetId": "geoservices-image-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12607,9 +12234,7 @@
       "targetId": "geoservices-map-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12749,9 +12374,7 @@
       "targetId": "grpc:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12801,8 +12424,7 @@
       "coverageState": "partial",
       "candidateSampleIds": [
         "node-backend-quickstart",
-        "react-quickstart",
-        "mcp-gis-assistant"
+        "react-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -14894,7 +14516,6 @@
       "supportStatus": "beta",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."

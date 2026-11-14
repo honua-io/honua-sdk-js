@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-type CloudDemoMode = "readonly" | "realtime" | "writable-guarded";
+type CloudDemoMode = "readonly" | "realtime";
 
 interface CloudDemoManifest {
   readonly format: string;
@@ -47,23 +47,12 @@ interface CloudDemoProfile {
     readonly metadata: string;
     readonly featureState: string;
   };
-  readonly writeSafeguards?: {
-    readonly allowWritesEnv: string;
-    readonly requiredAllowWritesValue: string;
-    readonly writeTokenEnv: string;
-    readonly resetTokenEnv: string;
-    readonly resetUrlEnv: string;
-    readonly resetCadence: string;
-    readonly requiredResetState: string;
-  };
 }
 
 const requiredProfileIds = [
   "quickstart-feature-readonly",
   "service-explorer-feature-readonly",
-  "storytelling-25d-readonly",
   "incident-realtime-stream",
-  "edit-workflow-writable-guarded",
 ] as const;
 
 function readText(relativePath: string): string {
@@ -135,7 +124,7 @@ describe("cloud demo services manifest", () => {
 
     for (const profile of manifest.profiles) {
       expect(fs.existsSync(path.join(process.cwd(), profile.sampleDir)), `${profile.id} sample dir exists`).toBe(true);
-      expect(["readonly", "realtime", "writable-guarded"]).toContain(profile.mode);
+      expect(["readonly", "realtime"]).toContain(profile.mode);
       expect(cloudHasSeededTarget(profile), `${profile.id} needs a service or stream target`).toBe(true);
       expect(profile.fixtureFallback.state, `${profile.id} needs fixture-degraded state`).toBe("fixture-degraded");
       expect(profile.fixtureFallback.command, `${profile.id} needs a fixture command`).toMatch(/^npm run /);
@@ -152,29 +141,15 @@ describe("cloud demo services manifest", () => {
     }
   });
 
-  it("keeps writable reset safeguards and realtime authority explicit", () => {
+  it("keeps realtime authority explicit", () => {
     const manifest = readManifest();
     const realtime = manifest.profiles.find((profile) => profile.id === "incident-realtime-stream");
-    const writable = manifest.profiles.find((profile) => profile.id === "edit-workflow-writable-guarded");
 
     expect(realtime).toBeDefined();
     expect(realtime?.mode).toBe("realtime");
     expect((realtime?.cloud.stream as { authority?: string } | undefined)?.authority).toBe("realtime-stream");
     expect((realtime?.cloud.stream as { urlEnv?: string } | undefined)?.urlEnv).toBe("VITE_HONUA_INCIDENT_STREAM_URL");
     expect(realtime?.cacheNotes.featureState).toBe("uncached-realtime");
-
-    expect(writable).toBeDefined();
-    expect(writable?.mode).toBe("writable-guarded");
-    expect(writable?.writeSafeguards).toMatchObject({
-      allowWritesEnv: "HONUA_CLOUD_DEMO_ALLOW_WRITES",
-      requiredAllowWritesValue: "true",
-      writeTokenEnv: "HONUA_CLOUD_DEMO_WRITE_TOKEN",
-      resetTokenEnv: "HONUA_CLOUD_DEMO_RESET_TOKEN",
-      resetUrlEnv: "HONUA_CLOUD_DEMO_RESET_URL",
-      resetCadence: "before-and-after-smoke",
-      requiredResetState: "seeded-clean",
-    });
-    expect(writable?.cacheNotes.featureState).toBe("uncached-edits");
   });
 
   it("documents metadata caching separately from realtime, edits, and ad hoc spatial requests", () => {
@@ -208,7 +183,6 @@ describe("cloud demo services manifest", () => {
 
     expect(docs).toContain("fixture-degraded");
     expect(docs).toContain("VITE_HONUA_INCIDENT_STREAM_URL");
-    expect(docs).toContain("HONUA_CLOUD_DEMO_ALLOW_WRITES");
     expect(docs).toContain("Metadata is cacheable by default");
     expect(docs).toContain("Feature-result caches are never authoritative incident state");
     expect(docs).toContain("ad hoc spatial requests");

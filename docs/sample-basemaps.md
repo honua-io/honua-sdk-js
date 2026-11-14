@@ -8,22 +8,18 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-Source inventory of the sample catalog; 31 catalog entries. Each generated playground inherits its source sample policy.
+Source inventory of the sample catalog; 23 catalog entries. Each generated playground inherits its source sample policy.
 
 | Sample | Source | Policy | Playground |
 |---|---|---|---|
 | ai-spatial-app-builder | `examples/ai-spatial-app-builder` | No map renderer; no online basemap requests | Generated from source |
 | automatic-source-workflow | `docs/examples/automatic-source-workflow` | Offline fixture demonstration; retain local style, document live override where supported | — |
-| cesium-route-playback | `docs/examples/cesium-route-playback` | Scene / renderer-state demonstration; preserve declared scene fixture/provider credits | — |
 | columnar-query-quickstart | `examples/columnar-query-quickstart` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
 | coverages-wcs-basic | `examples/coverages-wcs-basic` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | Generated from source |
-| edit-workflow-demo | `examples/edit-workflow-demo` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | geocoding-quickstart | `examples/geocoding-quickstart` | Offline fixture demonstration; retain local style, document live override where supported | — |
-| geoprocessing-job-runner | `examples/geoprocessing-job-runner` | Purpose-specific SVG buffer/result schematic; retain bounded projection and labels, no geographic basemap | — |
 | geoservices-source-app | `examples/geoservices-source-app` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | imagery-cog-quickstart | `examples/imagery-cog-quickstart` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
 | maplibre-quickstart | `examples/maplibre-quickstart` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
-| mcp-gis-assistant | `examples/mcp-gis-assistant` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | migration-workbench | `examples/migration-workbench` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | nl-map-control | `examples/nl-map-control` | Offline fixture demonstration; retain local style, document live override where supported | — |
 | node-backend-quickstart | `examples/node-backend-quickstart` | No map renderer; no online basemap requests | — |
@@ -33,13 +29,11 @@ Source inventory of the sample catalog; 31 catalog entries. Each generated playg
 | pmtiles-static | `examples/pmtiles-static` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | — |
 | react-quickstart | `examples/react-quickstart` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | Generated from source |
 | realtime-incident-dashboard | `examples/realtime-incident-dashboard` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
-| runtime-parity-showcase | `examples/runtime-parity-showcase` | Scene / renderer-state demonstration; preserve declared scene fixture/provider credits | — |
 | service-explorer | `examples/service-explorer` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
 | shared-renderer-state | `docs/examples/shared-renderer-state` | Scene / renderer-state demonstration; preserve declared scene fixture/provider credits | — |
 | sketch-editing | `examples/sketch-editing` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
 | spatial-analytics-workbench | `examples/spatial-analytics-workbench` | Purpose-specific schematic cell/aggregation maps; retain visible scope labels, no geographic basemap | — |
 | stac-imagery-browser | `examples/stac-imagery-browser` | Purpose-specific imagery/coverage/terrain/archive; keep audited fixture style and attribution | Generated from source |
-| storytelling-25d-map | `examples/storytelling-25d-map` | Live: shared OpenFreeMap Positron / Dark, Liberty for street detail; fixture: local reviewed style | — |
 | temporal-playback | `examples/temporal-playback` | Offline fixture demonstration; retain local style, document live override where supported | Generated from source |
 
 Starters: vanilla-ts and react-ts keep local default fixture style; configured VITE_HONUA_ENDPOINT lane receives shared online default/override with attribution.
@@ -94,7 +88,7 @@ helper until the coordinated SDK and scaffold artifacts are available.
 ## Map export inventory
 
 The live map views covered here (First Map, React quickstart, service explorer,
-realtime incident dashboard, storytelling) and both starters have no user-facing
+realtime incident dashboard) and both starters have no user-facing
 map image export. Their browser evidence captures the page with expanded credits,
 including at mobile width, rather than exporting only the WebGL canvas. The
 imagery COG sample's `image-server-export` access path retrieves a server-authored
@@ -109,7 +103,6 @@ visible credits or an attached exact credit record before they can qualify.
 | View | Custom/self-hosted style environment variable |
 |---|---|
 | First Map | `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` |
-| Storytelling 2.5D | `VITE_HONUA_25D_BASEMAP_STYLE` |
 | React quickstart | `VITE_HONUA_BASEMAP_STYLE` |
 | Realtime incident dashboard | `VITE_HONUA_BASEMAP_STYLE` |
 | Service explorer | `VITE_HONUA_BASEMAP_STYLE` |

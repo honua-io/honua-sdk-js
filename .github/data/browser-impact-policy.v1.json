@@ -38,8 +38,7 @@
         "overture-geoparquet.spec.mjs",
         "pmtiles-static.spec.mjs",
         "quickstart-map.spec.mjs",
-        "shared-renderer-state.spec.mjs",
-        "storytelling-25d-map.spec.mjs"
+        "shared-renderer-state.spec.mjs"
       ],
       "changePatterns": [
         "examples/columnar-query-quickstart/**",
@@ -48,8 +47,6 @@
         "examples/maplibre-quickstart/**",
         "examples/overture-geoparquet/**",
         "examples/pmtiles-static/**",
-        "examples/storytelling-25d-map/**",
-        "docs/examples/cesium-route-playback/**",
         "docs/examples/shared-renderer-state/**"
       ]
     },

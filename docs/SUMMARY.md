@@ -12,7 +12,6 @@
 
 ## Examples
 
-* [Cesium Route Playback Spike](examples/cesium-route-playback/README.md)
 * [Publish a Honua layer as PMTiles](examples/pmtiles-managed-lifecycle/README.md)
 * [Shared MapLibre and Cesium application state](examples/shared-renderer-state/README.md)
 
@@ -100,7 +99,6 @@
 * [Realtime Feature State](realtime-subscriptions.md)
 * [Renderer objects and temporal playback](renderers.md)
 * [Disconnected replica sync](replica-sync.md)
-* [Runtime Parity Showcase](runtime-parity-showcase.md)
 * [Sample basemap policy and inventory](sample-basemaps.md)
 * [Saved-Map Collaboration](saved-map-collaboration.md)
 * [Scene Workspace Interop](scene-workspace.md)

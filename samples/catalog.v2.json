@@ -55,11 +55,6 @@
         "name": "GITHUB_SHA",
         "provider": "github-actions",
         "reason": "GitHub Actions supplies the commit identity used only for evidence provenance."
-      },
-      {
-        "name": "MODE",
-        "provider": "vite",
-        "reason": "Vite supplies its built-in execution mode metadata."
       }
     ]
   },
@@ -80,7 +75,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "edit-workflow-demo"
+      "candidateSampleId": "sketch-editing"
     },
     {
       "id": "incident-operations",
@@ -361,69 +356,6 @@
       "capabilityKeys": []
     },
     {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
-      "sourceKind": "docs-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "sourcePath": "docs/examples/cesium-route-playback",
-      "docsPath": "docs/examples/cesium-route-playback/README.md",
-      "capabilities": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked.",
-        "config": [],
-        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
-        "attribution": "Route and terrain providers remain visible in diagnostics.",
-        "freshness": "Fixture version or live query observation time.",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-            "npx vitest run test/cesium-route-playback.test.ts"
-          ]
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-        "npx vitest run test/cesium-route-playback.test.ts"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
-      ]
-    },
-    {
       "id": "columnar-query-quickstart",
       "title": "Map a bounded Arrow result",
       "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
@@ -579,67 +511,6 @@
       ]
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "journeyId": "planning-permitting",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
-        "targetRelease": "0.4.0"
-      },
-      "sourcePath": "examples/edit-workflow-demo",
-      "docsPath": "examples/edit-workflow-demo/README.md",
-      "capabilities": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "capabilityKeys": [
-        "editing.featureserver-edits"
-      ],
-      "protocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed deterministic edit fixture.",
-        "attribution": "Honua synthetic operations data.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:edit-workflow:mock"
-          ]
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability.",
-      "validationProfile": "browser-recipe",
-      "validation": [
-        "npm run demo:edit-workflow:typecheck",
-        "npm run demo:edit-workflow:build"
-      ]
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
@@ -696,70 +567,6 @@
         "npm run demo:geocoding:build",
         "npx vitest run test/geocoding-quickstart.test.ts",
         "npm run test:playwright:geocoding"
-      ]
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "cloud-native-analysis"
-        }
-      },
-      "sourcePath": "examples/geoprocessing-job-runner",
-      "docsPath": "examples/geoprocessing-job-runner/README.md",
-      "capabilities": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "capabilityKeys": [
-        "process.geoprocessing"
-      ],
-      "protocols": [
-        "ogc-processes"
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
-        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
-        "freshness": "Immutable fixture contract; no public-live result claim.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:gp-runner:mock"
-          ]
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
-      "validationProfile": "browser-recipe",
-      "validation": [
-        "npm run demo:gp-runner:typecheck",
-        "npx vitest run test/geoprocessing-job-runner.test.ts",
-        "npm run demo:gp-runner:build"
       ]
     },
     {
@@ -1003,66 +810,6 @@
         "npm run demo:quickstart:typecheck",
         "npm run demo:quickstart:build",
         "npm run test:playwright:quickstart"
-      ]
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "sourcePath": "examples/mcp-gis-assistant",
-      "docsPath": "examples/mcp-gis-assistant/README.md",
-      "capabilities": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "capabilityKeys": [
-        "ai.mcp-discovery"
-      ],
-      "protocols": [
-        "honua",
-        "mcp"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed MCP response fixture.",
-        "attribution": "Tool results preserve source attribution.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:mcp-gis-assistant:build"
-          ]
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Write tools are unavailable without host policy and explicit approval.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npm run demo:mcp-gis-assistant:typecheck",
-        "npm run demo:mcp-gis-assistant:build"
       ]
     },
     {
@@ -1878,69 +1625,6 @@
       ]
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "replace",
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "service-explorer"
-        }
-      },
-      "sourcePath": "examples/runtime-parity-showcase",
-      "docsPath": "examples/runtime-parity-showcase/README.md",
-      "capabilities": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "honua"
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed renderer comparison fixtures.",
-        "attribution": "Honua synthetic fixtures.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:runtime-parity:mock"
-          ]
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npm run demo:runtime-parity:typecheck",
-        "npm run demo:runtime-parity:build"
-      ]
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
@@ -2115,10 +1799,11 @@
       "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
       "sourceKind": "root-example",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+        "reason": "Candidate for the planning and permitting journey: terra-draw drawing, snapping, undo, and edit submission."
       },
       "sourcePath": "examples/sketch-editing",
       "docsPath": "examples/sketch-editing/README.md",
@@ -2192,9 +1877,8 @@
       "journeyId": "cloud-native-analysis",
       "supportTier": "experimental",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
+        "state": "active",
+        "reason": "Joins the cloud-native analysis journey; plans show estimates until accepted and label fixture replay apart from executed live runs."
       },
       "sourcePath": "examples/spatial-analytics-workbench",
       "docsPath": "examples/spatial-analytics-workbench/README.md",
@@ -2441,111 +2125,6 @@
       ]
     },
     {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
-      },
-      "sourcePath": "examples/storytelling-25d-map",
-      "docsPath": "examples/storytelling-25d-map/README.md",
-      "capabilities": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "serve.3d-tiles-scene"
-      ],
-      "protocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_25D_API_KEY",
-          "VITE_HONUA_25D_ASSETS_COLLECTION",
-          "VITE_HONUA_25D_BASEMAP_STYLE",
-          "VITE_HONUA_25D_BASE_URL",
-          "VITE_HONUA_25D_ROUTE_COLLECTION",
-          "VITE_HONUA_25D_STOPS_COLLECTION"
-        ],
-        "provenance": "Committed Oahu story fixtures or configured Honua services.",
-        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
-        "freshness": "Fixture capture or live layer observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a Honua API-key variable.",
-        "configClassifications": [
-          {
-            "name": "VITE_HONUA_25D_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_25D_ASSETS_COLLECTION",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_25D_BASEMAP_STYLE",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_25D_BASE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_25D_ROUTE_COLLECTION",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_25D_STOPS_COLLECTION",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed",
-          "commands": [
-            "npm run demo:25d:mock"
-          ]
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Terrain and live overlays fail independently with structured status.",
-      "validationProfile": "browser-lab",
-      "validation": [
-        "npm run demo:25d:typecheck",
-        "npm run demo:25d:build"
-      ]
-    },
-    {
       "id": "temporal-playback",
       "title": "Temporal playback",
       "summary": "Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems().",
@@ -2678,7 +2257,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "edit-workflow-demo"
+      "sampleId": "sketch-editing"
     },
     {
       "id": "esri-leaflet",
@@ -2702,7 +2281,7 @@
       "id": "gp-runner",
       "route": "demo-geoprocessing.html",
       "ownership": "sdk-projection",
-      "sampleId": "geoprocessing-job-runner"
+      "sampleId": "spatial-analytics-workbench"
     },
     {
       "id": "hello-webmap",
