@@ -759,22 +759,14 @@ function toSafeNumberOrString(value: bigint): number | string {
   return value.toString();
 }
 
-/**
- * Builds an Esri-JSON coordinate array from a proto coordinate. Z and M are
- * appended only when present, matching `f=json` / PBF output:
- *   - `[x, y]`        (2D)
- *   - `[x, y, z]`     (Z only)
- *   - `[x, y, m]`     (M only — Esri's M-without-Z convention)
- *   - `[x, y, z, m]`  (Z and M)
- *
- * A `NaN` placeholder is never emitted: `JSON.stringify` would serialize it to
- * `null`, which is invalid Esri-JSON/GeoJSON and diverges from the other
- * transports.
- */
-function coordToArray(x: number, y: number, z: number | undefined, m: number | undefined): number[] {
-  const coords: number[] = [x, y];
-  if (z !== undefined) coords.push(z);
-  if (m !== undefined) coords.push(m);
+/** Keep absent ordinates in their geometry-wide positions for lossless edit roundtrips. */
+function coordToArray(
+  coordinate: { x: number; y: number; z?: number; m?: number },
+  dimensions: Record<string, boolean>,
+): (number | null)[] {
+  const coords: (number | null)[] = [coordinate.x, coordinate.y];
+  if (dimensions.hasZ) coords.push(coordinate.z ?? null);
+  if (dimensions.hasM) coords.push(coordinate.m ?? null);
   return coords;
 }
 
@@ -795,36 +787,42 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
     }
     case "multiPoint": {
       const mp = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(mp.points);
       return {
-        points: mp.points.map((p) => coordToArray(p.x, p.y, p.z, p.m)),
-        ...coordinateDimensionFlags(mp.points),
+        points: mp.points.map((p) => coordToArray(p, dimensions)),
+        ...dimensions,
       };
     }
     case "polyline": {
       const pl = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(pl.paths.flatMap((path) => path.coords));
       return {
-        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
-        ...coordinateDimensionFlags(pl.paths.flatMap((path) => path.coords)),
+        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c, dimensions))),
+        ...dimensions,
       };
     }
     case "polygon": {
       const pg = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(pg.rings.flatMap((ring) => ring.coords));
       return {
-        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
-        ...coordinateDimensionFlags(pg.rings.flatMap((ring) => ring.coords)),
+        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c, dimensions))),
+        ...dimensions,
       };
     }
     case "multiPolygon": {
       const mpg = geometry.shape.value;
-      const rings: number[][][] = [];
+      const dimensions = coordinateDimensionFlags(
+        mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords)),
+      );
+      const rings: (number | null)[][][] = [];
       for (const poly of mpg.polygons) {
         for (const ring of poly.rings) {
-          rings.push(ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m)));
+          rings.push(ring.coords.map((c) => coordToArray(c, dimensions)));
         }
       }
       return {
         rings,
-        ...coordinateDimensionFlags(mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords))),
+        ...dimensions,
       };
     }
     default:
