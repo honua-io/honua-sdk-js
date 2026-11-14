@@ -152,8 +152,8 @@ export interface StudioValidationSummary {
  * {@link StudioPackageFamilyCapability} returns for `family` from
  * `GET /package-families`. `body` is deliberately generic: for `map`/`app` it
  * is validated against the existing `honua_map_package.v1` /
- * `honua_app_package.v1` models (pass `HonuaMapPackage` /
- * `HonuaGeneratedAppPackage` as `TBody` for full typing); every other family
+ * `honua_app_package.v1` models (pass `HonuaMapDocument` /
+ * `HonuaGeneratedAppVersion` as `TBody` for full typing); every other family
  * currently receives only envelope-level validation.
  *
  * @experimental

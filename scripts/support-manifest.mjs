@@ -1003,7 +1003,7 @@ discovery (\`${discovery.status}\`, \`${discovery.environment}\`) and
 typed execution (\`${execution.status}\`, \`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-\`MapPackage\`s, realtime, collaboration, compatibility metadata, a richer hosted
+map documents, realtime, collaboration, compatibility metadata, a richer hosted
 \`/mcp\` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.`;

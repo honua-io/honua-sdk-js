@@ -22,7 +22,7 @@
 import type { HonuaClient } from "../core/client.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
-import { HonuaMapPackageError } from "./errors.js";
+import { HonuaMapDocumentError } from "./errors.js";
 import type { HonuaStyleRefBody, HonuaStyleRefLayerBinding, HonuaStyleRefLayerOverride } from "./map-package.js";
 import type { StyleRefResolver } from "./style-compose.js";
 import { readStyleLayerBindings, selectBoundStyleOverride } from "./style-ref-bindings.js";
@@ -103,7 +103,7 @@ export class OgcStylesClient {
     const path = this.stylePath(styleId);
     const body = await this.getJson(path, `${MAPLIBRE_STYLE_MEDIA_TYPE}, application/json;q=0.9`, options);
     if (!isRecord(body) || !Array.isArray((body as { layers?: unknown }).layers)) {
-      throw new HonuaMapPackageError(`OGC style "${styleId}" did not return a MapLibre style document`, {
+      throw new HonuaMapDocumentError(`OGC style "${styleId}" did not return a MapLibre style document`, {
         stage: "style-compose",
         detail: { styleId, path },
       });
@@ -119,7 +119,7 @@ export class OgcStylesClient {
     const path = `${this.stylePath(styleId)}/metadata`;
     const body = await this.getJson(path, "application/json", options);
     if (!isRecord(body)) {
-      throw new HonuaMapPackageError(`OGC style metadata for "${styleId}" was not an object`, {
+      throw new HonuaMapDocumentError(`OGC style metadata for "${styleId}" was not an object`, {
         stage: "style-compose",
         detail: { styleId, path },
       });
@@ -139,7 +139,7 @@ export class OgcStylesClient {
     try {
       return await response.json();
     } catch (cause) {
-      throw new HonuaMapPackageError(`OGC styles response from "${path}" was not valid JSON`, {
+      throw new HonuaMapDocumentError(`OGC styles response from "${path}" was not valid JSON`, {
         stage: "style-compose",
         detail: { path },
         cause,
@@ -194,7 +194,7 @@ export function styleDocumentToRefBody(
       bindings.map((binding) => {
         const selected = style.layers.filter((layer) => layer.id === binding.styleLayerId);
         if (selected.length !== 1 || selected[0].type !== binding.layerType)
-          throw new HonuaMapPackageError("The selected shared style render layer changed; rebind the style.", {
+          throw new HonuaMapDocumentError("The selected shared style render layer changed; rebind the style.", {
             stage: "style-compose",
             detail: { styleLayerId: binding.styleLayerId },
           });
@@ -243,7 +243,7 @@ function layerToOverride(layer: HonuaLayerSpecification): HonuaStyleRefLayerOver
 
 function normalizeStyleList(body: unknown): OgcStyleList {
   if (!isRecord(body) || !Array.isArray(body.styles)) {
-    throw new HonuaMapPackageError("OGC styles list did not contain a styles array", {
+    throw new HonuaMapDocumentError("OGC styles list did not contain a styles array", {
       stage: "style-compose",
       detail: { body },
     });

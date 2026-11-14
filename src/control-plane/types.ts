@@ -1,7 +1,7 @@
 import type { Capability, Protocol, SourceDescriptor, SourceLocator } from "../contract/index.js";
 import type { HonuaCacheValidator } from "../core/cache-state.js";
 import type { QueryMethod } from "../core/types.js";
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 
 export const HONUA_CONTROL_PLANE_BASE_PATH = "/api/v1/admin" as const;
 
@@ -103,7 +103,7 @@ export interface HonuaEntityValidators {
   readonly lastModified?: string;
 }
 
-export interface HonuaHostedMapSummary extends HonuaEntityValidators {
+export interface HonuaSavedMapSummary extends HonuaEntityValidators {
   readonly id: string;
   readonly title: string;
   readonly workspaceId?: string;
@@ -116,27 +116,27 @@ export interface HonuaHostedMapSummary extends HonuaEntityValidators {
   readonly [extra: string]: unknown;
 }
 
-export interface HonuaHostedMap extends HonuaHostedMapSummary {
+export interface HonuaSavedMap extends HonuaSavedMapSummary {
   readonly description?: string;
   readonly sourceDescriptors?: readonly HonuaControlPlaneSourceDescriptor[];
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
 }
 
-export interface HonuaCreateHostedMapRequest {
+export interface HonuaCreateSavedMapRequest {
   readonly title: string;
   readonly workspaceId?: string;
   readonly description?: string;
   readonly visibility?: "private" | "workspace" | "public" | (string & {});
   readonly sourceDescriptors?: readonly HonuaControlPlaneSourceDescriptor[];
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly metadata?: Record<string, unknown>;
 }
 
-export type HonuaUpdateHostedMapRequest = Partial<HonuaCreateHostedMapRequest> & {
+export type HonuaUpdateSavedMapRequest = Partial<HonuaCreateSavedMapRequest> & {
   readonly ifMatch?: string;
 };
 
-export interface HonuaMapPackageSummary extends HonuaEntityValidators {
+export interface HonuaMapDocumentSummary extends HonuaEntityValidators {
   readonly id: string;
   readonly mapPackageId?: string;
   readonly title?: string;
@@ -162,18 +162,18 @@ export interface HonuaMapPublicationIntent {
   readonly visibility?: "personal" | "team" | "organization" | "public";
 }
 
-export interface HonuaPublishMapPackageRequest {
+export interface HonuaPublishMapDocumentRequest {
   readonly mapId?: string;
   readonly workspaceId?: string;
-  readonly package: HonuaMapPackage;
+  readonly package: HonuaMapDocument;
   readonly intent?: HonuaMapPublicationIntent;
   readonly message?: string;
   readonly ifMatch?: string;
 }
 
-export interface HonuaPublishMapPackageResponse extends HonuaEntityValidators {
+export interface HonuaPublishMapDocumentResponse extends HonuaEntityValidators {
   readonly packageId: string;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly job?: HonuaControlPlaneJob;
   readonly links?: HonuaControlPlaneLinks;
   readonly [extra: string]: unknown;
@@ -218,7 +218,7 @@ export interface HonuaControlPlaneJob extends HonuaEntityValidators {
   readonly [extra: string]: unknown;
 }
 
-export interface HonuaApiTokenCreateRequest {
+export interface HonuaApiKeyCreateRequest {
   readonly name: string;
   readonly workspaceId?: string;
   readonly scopes?: readonly string[];
@@ -226,7 +226,7 @@ export interface HonuaApiTokenCreateRequest {
   readonly metadata?: Record<string, unknown>;
 }
 
-export interface HonuaApiToken extends HonuaEntityValidators {
+export interface HonuaApiKey extends HonuaEntityValidators {
   readonly id: string;
   readonly name: string;
   readonly workspaceId?: string;

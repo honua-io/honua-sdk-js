@@ -32,7 +32,7 @@ import {
   isHonuaCommandError,
   serializeHonuaCommandReceipt,
 } from "../../src/control-plane/index.js";
-import type { HonuaMapPackage } from "../../src/runtime/index.js";
+import type { HonuaMapDocument } from "../../src/runtime/index.js";
 import {
   HonuaStudioLifecycleClient,
   HonuaStudioPublicationRequestsClient,
@@ -70,7 +70,7 @@ const SELF_APPROVAL_KEYS = [
 /** Authority headers a caller must never be able to set on a command. */
 const APPROVAL_HEADERS = ["X-Honua-Approver", "X-Honua-Approved-By", "X-Honua-Policy-Decision"] as const;
 
-const MAP_PACKAGE = { id: "pkg-eval", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+const MAP_PACKAGE = { id: "pkg-eval", version: "1.0.0", layers: [] } as unknown as HonuaMapDocument;
 
 /** A minimal valid input for each catalog command, so only the smuggled key is at fault. */
 const VALID_INPUT: Readonly<Record<string, Record<string, unknown>>> = {

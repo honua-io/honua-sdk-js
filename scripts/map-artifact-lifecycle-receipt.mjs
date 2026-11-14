@@ -53,7 +53,7 @@ const installed = async (specifier) => import(pathToFileURL(consumerRequire.reso
 const { McpClient } = await installed("@honua/sdk-js/studio-agent");
 const { createHonuaStudioLifecycleClient } = await installed("@honua/sdk-js/studio");
 const { HonuaClient } = await installed("@honua/sdk-js");
-const { validateMapPackage, exportMapPackage, importMapPackage, applyStyleRefs } = await installed("@honua/sdk-js/runtime");
+const { validateMapDocument, exportMapDocument, importMapDocument, applyStyleRefs } = await installed("@honua/sdk-js/runtime");
 // playwright-core is CommonJS; its ESM namespace carries the API on `default`.
 const playwrightModule = await installed("playwright-core");
 const playwright = playwrightModule.chromium ? playwrightModule : playwrightModule.default;
@@ -218,12 +218,12 @@ await check("candidate-readiness", "AC5", async (evidence) => {
 // Portable artifact (installed SDK, no server).
 // ---------------------------------------------------------------------------
 await check("portable-fixture-valid-and-export-roundtrip", "AC2", async (evidence) => {
-  const validation = validateMapPackage(fixture);
+  const validation = validateMapDocument(fixture);
   assert.equal(validation.valid, true, JSON.stringify(validation.diagnostics));
-  const exported = exportMapPackage(fixture);
-  const imported = importMapPackage(JSON.parse(JSON.stringify(exported)));
+  const exported = exportMapDocument(fixture);
+  const imported = importMapDocument(JSON.parse(JSON.stringify(exported)));
   assert.equal(canonical(imported.mapPackage), canonical(fixture));
-  assert.equal(exportMapPackage(fixture).fingerprint, exported.fingerprint, "export fingerprint must be deterministic");
+  assert.equal(exportMapDocument(fixture).fingerprint, exported.fingerprint, "export fingerprint must be deterministic");
   evidence.fixtureSha256 = sha256(fixtureBytes);
   evidence.exportFingerprint = exported.fingerprint;
   state.fixtureValid = true;
@@ -237,7 +237,7 @@ await check("server-accepts-sdk-canonical-artifact", "AC2", async (evidence) => 
   // The SDK's own canonical showcase artifact, valid against
   // schemas/honua-map-package.v1.json, must be admissible as a map draft body.
   const showcase = JSON.parse(readFileSync(join(repoRoot, "examples/runtime-parity-showcase/fixtures/map-package.json"), "utf8"));
-  assert.equal(validateMapPackage(showcase).valid, true);
+  assert.equal(validateMapDocument(showcase).valid, true);
   const created = await tool(author, "honua_studio_create_draft", { packageKey: `${runKey}-showcase`, family: "map", schemaVersion: "1.0", body: showcase });
   assert.equal(created.isError, false, created.text);
   evidence.validation = created.content.validation;

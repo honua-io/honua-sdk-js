@@ -7,13 +7,13 @@
  *
  * `map publish` is the reference **thin transport adapter** for the shared
  * control-plane command layer (`src/control-plane/commands/`). It parses flags
- * into `MapPackagePublishInput` plus a `HonuaCommandInvocation` and hands both
+ * into `MapDocumentPublishInput` plus a `HonuaCommandInvocation` and hands both
  * to the shared `runCommandVerb` — nothing else. `--intent` accepts an object
  * such as `{"route":"/maps/operations","visibility":"team"}`; requesting a
  * destination never grants approval. Idempotency, `If-Match`, dry
  * run, cancellation, validation, the typed error taxonomy, and receipt
  * assembly all live on the command, so a `honua map publish …` call and the
- * equivalent `runtime.execute(mapPackagePublishCommand, …)` call from MCP,
+ * equivalent `runtime.execute(mapDocumentPublishCommand, …)` call from MCP,
  * Studio, or plain JS produce the same receipt and the same `auditKey`.
  *
  * `map export` and `tiles` below are deliberately NOT command-layer verbs.
@@ -31,10 +31,10 @@ import type {
   HonuaCommandInvocation,
   HonuaCommandStatus,
   HonuaMapPublicationIntent,
-  MapPackagePublishInput,
+  MapDocumentPublishInput,
 } from "../../control-plane/index.js";
-import { mapPackagePublishCommand } from "../../control-plane/index.js";
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import { mapDocumentPublishCommand } from "../../control-plane/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
 import { createClient } from "../client.js";
@@ -64,7 +64,7 @@ export async function mapCommand(parsed: ParsedArgs, ctx: CommandContext): Promi
  * @internal
  */
 export function mapPublishInvocation(parsed: ParsedArgs): {
-  readonly input: MapPackagePublishInput;
+  readonly input: MapDocumentPublishInput;
   readonly invocation: HonuaCommandInvocation;
 } {
   const mapId = parsed.positionals[0];
@@ -77,7 +77,7 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
   const intent = getString(parsed, "intent");
   return {
     input: {
-      package: readJsonObject(packageRaw, "package") as HonuaMapPackage,
+      package: readJsonObject(packageRaw, "package") as HonuaMapDocument,
       ...(intent ? { intent: readJsonObject(intent, "intent") as HonuaMapPublicationIntent } : {}),
       ...(mapId ? { mapId } : {}),
       ...(workspaceId ? { workspaceId } : {}),
@@ -120,7 +120,7 @@ export function mapPublishHeading(status: HonuaCommandStatus): string {
 async function mapPublish(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const { input, invocation } = mapPublishInvocation(parsed);
   await runCommandVerb({
-    command: mapPackagePublishCommand,
+    command: mapDocumentPublishCommand,
     input,
     invocation,
     parsed,

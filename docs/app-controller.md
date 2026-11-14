@@ -14,9 +14,9 @@ flows. It composes existing `HonuaMapRuntime`, generated-app runtime, and
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createHonuaController } from "@honua/sdk-js/app-controller";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
-const runtime = await loadMapPackage(mapPackage, map, {
+const runtime = await loadMapDocument(mapPackage, map, {
   client,
   skipCompatibilityCheck: true,
 });
@@ -115,7 +115,7 @@ The source shape follows MapLibre source entries for native `geojson`,
 sources such as `honua-feature-service`, `honua-map-service`,
 `honua-ogc-features`, `honua-wms`, and `honua-wmts` can also be passed through
 when the runtime has the corresponding adapter support. Query-tile and hosted
-MapPackage bindings should be materialized as runtime source specifications
+map document bindings should be materialized as runtime source specifications
 before calling `addSource`.
 
 Layer operations mirror the Felt-style app workflow: create a source, add one
@@ -127,7 +127,7 @@ diagnostics from the MapLibre style checks.
 
 Runtime-only mutations are ephemeral. `saveLayerSourceChanges()` and
 `discardLayerSourceChanges()` call optional hooks with a traceable payload:
-pending mutations, current composed style, current MapPackage, and optional
+pending mutations, current composed style, current map document, and optional
 version or concurrency tokens. When no hook is configured, the controller still
 tracks and clears local pending mutation state, but it does not write to a
 server or restore a previous renderer style.

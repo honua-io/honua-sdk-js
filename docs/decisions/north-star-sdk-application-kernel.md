@@ -523,7 +523,7 @@ The current runtime minimum is Node 22.12.
 | `explain()` / `ExecutionPlan` | Per-adapter compilers, `DegradedReason`, query-tile diagnostics | New shared planner contract, not a wrapper around log strings. Tracked by #389. |
 | Feature results | `Result<T>` | Preserve fields; add mandatory execution receipt only on the facade result. |
 | Columnar results | GeoParquet/DuckDB runtime and row mapping | Replace row-object default for large paths with batches; tracked by #394. |
-| `mount()` | `loadMapPackage`, `HonuaMapRuntime`, `HonuaMap`, source bridge | Adapt behind renderer contract; do not add renderer methods to `Dataset`/`Source`. |
+| `mount()` | `loadMapDocument`, `HonuaMapRuntime`, `HonuaMap`, source bridge | Adapt behind renderer contract; do not add renderer methods to `Dataset`/`Source`. |
 | MapLibre adapter | `HonuaMapRuntime`, `MaplibreMap`, `loadHonuaFeatureServiceGeoJson` | Productionize automatic source/style projection under #390. |
 | deck.gl adapter | No stable production adapter | New optional adapter under #388. |
 | Cesium adapter | App-platform scene adapters and compatibility examples | New stable renderer adapter without moving scene-workspace back into core; #395. |
@@ -542,7 +542,7 @@ The current runtime minimum is Node 22.12.
   `HonuaKernel`; `createHonua()` owns one or more clients as discovery requires.
 - `HonuaMap` remains a programmatic source/layer model. The mounted resource is
   named `MountedMap`, avoiding a third `HonuaMap` class.
-- `loadMapPackage()` remains the explicit saved-package path. `mount()` may
+- `loadMapDocument()` remains the explicit saved-package path. `mount()` may
   compile a transient package internally but must not hide hosted-package fetch
   or validation semantics.
 - `inspect()` is normalized kernel metadata. Protocol-specific `describe()`,

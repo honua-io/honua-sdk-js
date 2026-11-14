@@ -21,7 +21,7 @@ import type {
   HonuaStyleSpecification,
 } from "../style/specification.js";
 import { isHonuaSource } from "../style/specification.js";
-import type { HonuaMapPackage } from "./map-package.js";
+import type { HonuaMapDocument } from "./map-package.js";
 import {
   validateRuntimeFilterStyleSpecSync,
   validateRuntimeLayerStyleSpecSync,
@@ -114,7 +114,7 @@ export interface RuntimeExpressionValidationOptions {
 
 export interface RuntimeStyleValidationContext {
   readonly style?: HonuaStyleSpecification;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly operation?: string;
   readonly styleSpecValidationMode?: RuntimeStyleSpecValidationMode;
 }
@@ -598,7 +598,7 @@ export function resolveRuntimeBeforeId(
 
 export function sourceContextForLayer(
   style: HonuaStyleSpecification,
-  mapPackage: HonuaMapPackage | undefined,
+  mapPackage: HonuaMapDocument | undefined,
   layerId: string,
 ): { sourceId: string; sourceLayer: string | undefined; protocol: string | undefined } | undefined {
   const layer = style.layers.find((entry) => entry.id === layerId);
@@ -650,7 +650,7 @@ export function featureStateTargetKey(target: RuntimeFeatureStateTarget): string
 
 export function protocolForSource(
   style: HonuaStyleSpecification,
-  mapPackage: HonuaMapPackage | undefined,
+  mapPackage: HonuaMapDocument | undefined,
   sourceId: string | undefined,
 ): string | undefined {
   if (!sourceId) return undefined;
