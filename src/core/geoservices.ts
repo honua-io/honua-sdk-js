@@ -10,6 +10,7 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
+import { HonuaCapabilityNotSupportedError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
@@ -223,8 +224,17 @@ export async function applyEdits(
   if (request.updates !== undefined) {
     params.set("updates", encodeFormValue(request.updates));
   }
+  if ([...(request.adds ?? []), ...(request.updates ?? [])].some((feature) => feature.globalId !== undefined)) {
+    throw new HonuaCapabilityNotSupportedError("globalId", "geoservices-feature-service", request.serviceId);
+  }
+  if (request.useGlobalIds === true) {
+    params.set("useGlobalIds", "true");
+  }
   if (request.deletes !== undefined) {
-    params.set("deletes", encodeDeletesValue(request.deletes));
+    params.set(
+      "deletes",
+      request.useGlobalIds === true ? encodeGlobalIdDeletes(request.deletes) : encodeDeletesValue(request.deletes),
+    );
   }
 
   return transport.requestJson<HonuaApplyEditsResponse>(
@@ -580,11 +590,14 @@ function encodeFormValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function encodeDeletesValue(value: ApplyEditsRequest["deletes"]): string {
-  if (Array.isArray(value)) {
-    return value.join(",");
-  }
-  return String(value);
+function encodeDeletesValue(value: NonNullable<ApplyEditsRequest["deletes"]>): string {
+  return typeof value === "string" ? value : value.join(",");
+}
+
+/** GeoServices takes global-ID deletes as a JSON array of GUID strings. */
+function encodeGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): string {
+  const ids = typeof value === "string" ? value.split(",").map((id) => id.trim()) : value.map(String);
+  return JSON.stringify(ids);
 }
 
 function normalizeBBox(bbox: ExportMapRequest["bbox"]): string {
@@ -625,6 +638,10 @@ function normalizeSearchFields(searchFields: MapFindRequest["searchFields"]): st
 }
 
 function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesRequest | MapLayerQueryRequest): void {
+  if ("globalIds" in request && request.globalIds !== undefined) {
+    // GeoServices queries have no global-ID selector; never return an unfiltered page.
+    throw new HonuaCapabilityNotSupportedError("globalIds", "geoservices-feature-service", request.serviceId);
+  }
   if (request.outSr !== undefined) {
     params.set(
       "outSR",
