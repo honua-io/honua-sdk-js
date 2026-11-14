@@ -20,14 +20,13 @@ export async function hashDatasetImportFile(file: Blob, options: DatasetImportFi
   const state = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]);
-  const words = new Uint32Array(64);
   const block = new Uint8Array(64);
   let buffered = 0;
   const consume = (bytes: Uint8Array) => {
     let offset = 0;
     while (offset < bytes.length) {
       if (buffered === 0 && bytes.length - offset >= 64) {
-        compress(state, words, bytes.subarray(offset, offset + 64));
+        compress(state, bytes, offset);
         offset += 64;
         continue;
       }
@@ -36,7 +35,7 @@ export async function hashDatasetImportFile(file: Blob, options: DatasetImportFi
       offset += count;
       buffered += count;
       if (buffered === 64) {
-        compress(state, words, block);
+        compress(state, block, 0);
         buffered = 0;
       }
     }
@@ -65,30 +64,35 @@ export async function hashDatasetImportFile(file: Blob, options: DatasetImportFi
   return Array.from(state, (word) => word.toString(16).padStart(8, "0")).join("");
 }
 
-function compress(state: Uint32Array, words: Uint32Array, block: Uint8Array): void {
-  const view = new DataView(block.buffer, block.byteOffset, block.byteLength);
-  for (let index = 0; index < 16; index++) words[index] = view.getUint32(index * 4, false);
+// The hot loop runs once per 64-byte block (67 million times for 4 GiB), so it
+// allocates nothing, reads big-endian words in place and inlines rotations.
+// compress is synchronous, so concurrent hashes cannot interleave on this scratch schedule.
+const words = new Uint32Array(64);
+
+function compress(state: Uint32Array, bytes: Uint8Array, start: number): void {
+  for (let index = 0, at = start; index < 16; index++, at += 4)
+    words[index] = ((bytes[at] << 24) | (bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]) >>> 0;
   for (let index = 16; index < 64; index++) {
-    const before15 = words[index - 15] ?? 0;
-    const before2 = words[index - 2] ?? 0;
-    const s0 = rotateRight(before15, 7) ^ rotateRight(before15, 18) ^ (before15 >>> 3);
-    const s1 = rotateRight(before2, 17) ^ rotateRight(before2, 19) ^ (before2 >>> 10);
-    words[index] = ((words[index - 16] ?? 0) + s0 + (words[index - 7] ?? 0) + s1) >>> 0;
+    const before15 = words[index - 15];
+    const before2 = words[index - 2];
+    const s0 = ((before15 >>> 7) | (before15 << 25)) ^ ((before15 >>> 18) | (before15 << 14)) ^ (before15 >>> 3);
+    const s1 = ((before2 >>> 17) | (before2 << 15)) ^ ((before2 >>> 19) | (before2 << 13)) ^ (before2 >>> 10);
+    words[index] = (words[index - 16] + s0 + words[index - 7] + s1) >>> 0;
   }
 
-  let a = state[0] ?? 0;
-  let b = state[1] ?? 0;
-  let c = state[2] ?? 0;
-  let d = state[3] ?? 0;
-  let e = state[4] ?? 0;
-  let f = state[5] ?? 0;
-  let g = state[6] ?? 0;
-  let h = state[7] ?? 0;
+  let a = state[0];
+  let b = state[1];
+  let c = state[2];
+  let d = state[3];
+  let e = state[4];
+  let f = state[5];
+  let g = state[6];
+  let h = state[7];
   for (let index = 0; index < 64; index++) {
-    const upper1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+    const upper1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
     const choose = (e & f) ^ (~e & g);
-    const temp1 = (h + upper1 + choose + (SHA256_CONSTANTS[index] ?? 0) + (words[index] ?? 0)) >>> 0;
-    const upper0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+    const temp1 = (h + upper1 + choose + SHA256_CONSTANTS[index] + words[index]) >>> 0;
+    const upper0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
     const majority = (a & b) ^ (a & c) ^ (b & c);
     const temp2 = (upper0 + majority) >>> 0;
     h = g;
@@ -100,18 +104,14 @@ function compress(state: Uint32Array, words: Uint32Array, block: Uint8Array): vo
     b = a;
     a = (temp1 + temp2) >>> 0;
   }
-  state[0] = ((state[0] ?? 0) + a) >>> 0;
-  state[1] = ((state[1] ?? 0) + b) >>> 0;
-  state[2] = ((state[2] ?? 0) + c) >>> 0;
-  state[3] = ((state[3] ?? 0) + d) >>> 0;
-  state[4] = ((state[4] ?? 0) + e) >>> 0;
-  state[5] = ((state[5] ?? 0) + f) >>> 0;
-  state[6] = ((state[6] ?? 0) + g) >>> 0;
-  state[7] = ((state[7] ?? 0) + h) >>> 0;
-}
-
-function rotateRight(value: number, amount: number): number {
-  return (value >>> amount) | (value << (32 - amount));
+  state[0] = (state[0] + a) >>> 0;
+  state[1] = (state[1] + b) >>> 0;
+  state[2] = (state[2] + c) >>> 0;
+  state[3] = (state[3] + d) >>> 0;
+  state[4] = (state[4] + e) >>> 0;
+  state[5] = (state[5] + f) >>> 0;
+  state[6] = (state[6] + g) >>> 0;
+  state[7] = (state[7] + h) >>> 0;
 }
 
 const SHA256_CONSTANTS = new Uint32Array([
