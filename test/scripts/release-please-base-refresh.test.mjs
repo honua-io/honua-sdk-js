@@ -65,14 +65,18 @@ function pullListReads(calls) {
   return calls.filter(({ url }) => new URL(url).pathname.endsWith("/pulls")).length;
 }
 
-function harness(options = {}) {
-  const stale = { ...fixture, ...(options.snapshot ?? {}) };
-  const refreshed = {
+function refreshedSnapshot(stale) {
+  return {
     ...stale,
     baseSha: trustedPolicySha,
     headSha: refreshedHeadSha,
     updatedAt: "2026-08-09T04:10:00Z",
   };
+}
+
+function harness(options = {}) {
+  const stale = { ...fixture, ...(options.snapshot ?? {}) };
+  const refreshed = refreshedSnapshot(stale);
   const calls = [];
   let updateAccepted = false;
   let closed = false;
