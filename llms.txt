@@ -54,7 +54,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 ## Map runtime
 
 - [Renderer objects and temporal playback](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/renderers.md): First-class renderer objects (classBreaks/uniqueValue/heatmap/cluster) with legend contracts, bridge integration, and temporal playback.
-- [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.
+- [MapLibre GL JS Runtime (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/maplibre-runtime.md): loadMapDocument() and HonuaMapRuntime — render a map document on MapLibre GL JS.
 - [terra-draw sketch binding (@honua/sdk-js/runtime)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/terra-draw-sketch.md): terra-draw sketch binding: optional-peer draw modes adapted onto the edit-sketch workflow with undo/redo, snapping, and applyEdits.
 - [PMTiles](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/pmtiles.md): Native PMTiles support: auto-registered pmtiles:// protocol, lazy peer, describe() metadata, and a CDN recipe.
 - [Prebuilt browser bundle (CDN / build-less)](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/browser-bundle.md): Build-less CDN / IIFE usage via the prebuilt browser bundle.
@@ -87,7 +87,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [@honua/sdk-js/nl-map-control](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/nl-map-control/index.ts): Natural-language map control: compile NL instructions into serializable, inspectable plans over the agent-tools surface, and execute reviewed plans only.
 - [@honua/sdk-js/client-compat](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/client-compat-entry.ts): Drop-in compatibility wrappers for migrating GeoServices web apps (FeatureLayerCompat, MapViewCompat, ...).
 - [@honua/sdk-js/migration](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/migration-entry.ts): Codemod, scanner, and reporting used by the honua-migrate CLI.
-- [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua MapPackage.
+- [@honua/sdk-js/runtime](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/runtime/index.ts): @honua/sdk-js/runtime — MapLibre GL JS-first runtime for Honua HonuaMapDocument.
 - [@honua/sdk-js/geocoding](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/geocoding/index.ts): @honua/sdk-js/geocoding — HonuaGeocodingClient for forward / reverse geocoding and typeahead suggestions over a Honua-hosted GeocodeServer.
 - [@honua/sdk-js/routing](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/routing/index.ts): @honua/sdk-js/routing — provider-pluggable routing: the typed RoutingProvider contract plus first-party OSRM and Valhalla adapters and the Honua facade bridge.
 - [@honua/sdk-js/expr](https://github.com/honua-io/honua-sdk-js/blob/trunk/src/expr/index.ts): @honua/sdk-js/expr — Honua expression builder.
