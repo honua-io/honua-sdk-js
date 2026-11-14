@@ -6,7 +6,10 @@ import {
   wmtsSourceSchemaV2,
 } from "./connect-schema.js";
 import type { ConnectSourceSchemaProjection } from "./connect.js";
-import { createSourceSchemaV2, parseSourceSchemaV2 } from "./contract/schema.js";
+import {
+  createSourceSchemaV2,
+  parseSourceSchemaV2,
+} from "./contract/schema.js";
 import type { SourceProtocol } from "./contract/schema.js";
 
 function unavailableSchema(protocol: SourceProtocol, source: string) {
@@ -21,24 +24,37 @@ function unavailableSchema(protocol: SourceProtocol, source: string) {
 }
 
 /** @internal Shared only by focused schema/capability discovery entrypoints. */
-export const SOURCE_SCHEMA_V2_CONNECT_PROJECTION = Object.freeze<ConnectSourceSchemaProjection>({
-  cacheIdentity: "honua.source-schema@2.0",
-  parseCached: parseSourceSchemaV2,
-  grpc: async (metadata, context) => {
-    const { grpcSourceSchemaV2 } = await import("./connect-grpc-schema.js");
-    return grpcSourceSchemaV2(metadata, context);
-  },
-  stac: (context) => unavailableSchema("stac", context.source),
-  geoServices: (metadata, context) => geoServicesSourceSchemaV2(metadata, context),
-  odata: (metadata, entitySet, context) => odataSourceSchemaV2(metadata, entitySet, context),
-  geoParquet: (profile, context) => geoParquetSourceSchemaV2(profile, context),
-  geoservicesImage: (_metadata, context) => unavailableSchema("geoservices-image-service", context.source),
-  pmtiles: (context) => unavailableSchema("pmtiles", context.source),
-  wfs: (context) => unavailableSchema("wfs", context.source),
-  ogcFeatures: (context) => unavailableSchema("ogc-features", context.source),
-  ogcRecords: (context) => unavailableSchema("ogc-records", context.source),
-  ogcTiles: (context) => unavailableSchema("ogc-tiles", context.source),
-  ogcMaps: (context) => unavailableSchema("ogc-maps", context.source),
-  wms: (metadata, context) => wmsSourceSchemaV2(metadata, context),
-  wmts: (metadata, context) => wmtsSourceSchemaV2(metadata, context),
-});
+export const SOURCE_SCHEMA_V2_CONNECT_PROJECTION =
+  Object.freeze<ConnectSourceSchemaProjection>({
+    cacheIdentity: "honua.source-schema@2.0",
+    parseCached: parseSourceSchemaV2,
+    grpc: async (metadata, context) => {
+      const { grpcSourceSchemaV2 } = await loadGrpcSchemaProjection(
+        "./connect-grpc-schema.js",
+      );
+      return grpcSourceSchemaV2(metadata, context);
+    },
+    stac: (context) => unavailableSchema("stac", context.source),
+    geoServices: (metadata, context) =>
+      geoServicesSourceSchemaV2(metadata, context),
+    odata: (metadata, entitySet, context) =>
+      odataSourceSchemaV2(metadata, entitySet, context),
+    geoParquet: (profile, context) =>
+      geoParquetSourceSchemaV2(profile, context),
+    geoservicesImage: (_metadata, context) =>
+      unavailableSchema("geoservices-image-service", context.source),
+    pmtiles: (context) => unavailableSchema("pmtiles", context.source),
+    wfs: (context) => unavailableSchema("wfs", context.source),
+    ogcFeatures: (context) => unavailableSchema("ogc-features", context.source),
+    ogcRecords: (context) => unavailableSchema("ogc-records", context.source),
+    ogcTiles: (context) => unavailableSchema("ogc-tiles", context.source),
+    ogcMaps: (context) => unavailableSchema("ogc-maps", context.source),
+    wms: (metadata, context) => wmsSourceSchemaV2(metadata, context),
+    wmts: (metadata, context) => wmtsSourceSchemaV2(metadata, context),
+  });
+
+function loadGrpcSchemaProjection(
+  specifier: string,
+): Promise<typeof import("./connect-grpc-schema.js")> {
+  return import(/* @vite-ignore */ specifier);
+}
