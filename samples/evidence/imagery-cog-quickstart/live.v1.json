@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-11-14T02:43:30.392Z",
+  "observedAt": "2026-11-14T08:06:27.008Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.3.7",
-    "gitCommit": "bd7da27850186e2f34536aca70843abec9f6f66a"
+    "gitCommit": "6995bd62cc63000b385701f786e3160c8c48d0d0"
   },
   "source": {
     "provider": "Element 84 Earth Search",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "sentinel-2-l2a/S2B_21WWV_20260706_0_L2A/visual",
-    "observedAt": "2026-11-14T02:43:30.392Z",
+    "observedAt": "2026-11-14T08:06:27.008Z",
     "validAt": "2026-07-06T16:02:45.822000Z",
     "state": "live",
     "attribution": "ESA; Sinergise; AWS; Element 84"
@@ -39,8 +39,8 @@
     ]
   },
   "timing": {
-    "totalMs": 1146.8741380000001,
-    "firstSuccessfulInteractionMs": 1146.8741380000001
+    "totalMs": 2312.1012,
+    "firstSuccessfulInteractionMs": 2312.1012
   },
   "degradation": {
     "state": "none",
@@ -308,8 +308,8 @@
     },
     "freshness": {
       "acquisitionAt": "2026-07-06T16:02:45.822000Z",
-      "probedAt": "2026-11-14T02:43:30.392Z",
-      "validUntil": "2026-11-22T02:43:30.392Z",
+      "probedAt": "2026-11-14T08:06:27.008Z",
+      "validUntil": "2026-11-22T08:06:27.008Z",
       "cadenceDays": 7
     }
   }

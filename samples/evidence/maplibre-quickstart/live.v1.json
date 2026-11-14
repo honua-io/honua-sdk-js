@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-11-14T02:41:25.475Z",
+  "observedAt": "2026-11-14T08:04:20.482Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.3.7",
-    "gitCommit": "bd7da27850186e2f34536aca70843abec9f6f66a"
+    "gitCommit": "6995bd62cc63000b385701f786e3160c8c48d0d0"
   },
   "source": {
     "provider": "honua-demo",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "geoservices-feature-service:1",
-    "observedAt": "2026-11-14T02:41:26.825Z",
+    "observedAt": "2026-11-14T08:04:21.787Z",
     "validAt": null,
     "state": "live",
     "attribution": "maui-parcels"
@@ -45,8 +45,8 @@
     ]
   },
   "timing": {
-    "totalMs": 1636,
-    "firstSuccessfulInteractionMs": 1636
+    "totalMs": 858,
+    "firstSuccessfulInteractionMs": 858
   },
   "degradation": {
     "state": "none",
@@ -60,8 +60,8 @@
     },
     {
       "kind": "live-screenshot",
-      "path": "samples/evidence/maplibre-quickstart/runs/70ac4587-053b-49e9-be6a-35b46ddd06aa/artifacts/live-evidence.png",
-      "sha256": "6e6c2a4679e7ad0b753fb1608edd2f79b84f4562dfbb7c9f53de17d9de2526d9"
+      "path": "samples/evidence/maplibre-quickstart/runs/7b920c9c-d4d6-45db-86ff-6db070670de6/artifacts/live-evidence.png",
+      "sha256": "2d87dbdc49baea5e2d85a36adaf0321b8659979cc6d43688446b9b22dd11b54b"
     }
   ]
 }
