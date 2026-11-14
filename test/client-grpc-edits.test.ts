@@ -64,20 +64,7 @@ it("surfaces a whole-batch response error instead of returning empty success", a
 });
 
 it("preserves IDs through the canonical Source edit facade", async () => {
-  const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
-    expect(wire.updates.map((feature) => feature.id)).toEqual([7n, 9223372036854775807n]);
-    expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([["parcel_id"], ["parcel_id"]]);
-    expect(wire.updates[0].attributes.parcel_id.value).toEqual({ case: "int64Value", value: 7n });
-    expect(wire.updates[1].attributes.parcel_id.value).toEqual({ case: "stringValue", value: "9223372036854775807" });
-    expect(wire.deletes).toEqual([9223372036854775807n]);
-    return response(
-      create(ApplyEditsResponseSchema, {
-        updateResults: [{ objectId: 9223372036854775807n, success: true }],
-        deleteResults: [{ objectId: 9223372036854775807n, success: true }],
-      }),
-    );
-  });
+  const fetchFn = canonicalEditFetch();
   const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
   const source = createDataset({
     id: "fixture",
@@ -286,3 +273,20 @@ it("forwards a compatibility layer's custom primary key through native edits", a
   expect(fetchFn).toHaveBeenCalledTimes(1);
   expect(String(fetchFn.mock.calls[0][0])).toContain("/geospatial.v1.FeatureService/ApplyEdits");
 });
+
+function canonicalEditFetch() {
+  return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
+    expect(wire.updates.map((feature) => feature.id)).toEqual([7n, 9223372036854775807n]);
+    expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([["parcel_id"], ["parcel_id"]]);
+    expect(wire.updates[0].attributes.parcel_id.value).toEqual({ case: "int64Value", value: 7n });
+    expect(wire.updates[1].attributes.parcel_id.value).toEqual({ case: "stringValue", value: "9223372036854775807" });
+    expect(wire.deletes).toEqual([9223372036854775807n]);
+    return response(
+      create(ApplyEditsResponseSchema, {
+        updateResults: [{ objectId: 9223372036854775807n, success: true }],
+        deleteResults: [{ objectId: 9223372036854775807n, success: true }],
+      }),
+    );
+  });
+}
