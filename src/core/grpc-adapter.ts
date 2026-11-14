@@ -778,6 +778,12 @@ function coordToArray(x: number, y: number, z: number | undefined, m: number | u
   return coords;
 }
 
+function coordinateDimensionFlags(coordinates: { z?: number; m?: number }[]): Record<string, boolean> {
+  const hasZ = coordinates.some((coordinate) => coordinate.z !== undefined);
+  const hasM = coordinates.some((coordinate) => coordinate.m !== undefined);
+  return hasZ || hasM ? { hasZ, hasM } : {};
+}
+
 function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
   switch (geometry.shape.case) {
     case "point": {
@@ -791,18 +797,21 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
       const mp = geometry.shape.value;
       return {
         points: mp.points.map((p) => coordToArray(p.x, p.y, p.z, p.m)),
+        ...coordinateDimensionFlags(mp.points),
       };
     }
     case "polyline": {
       const pl = geometry.shape.value;
       return {
         paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
+        ...coordinateDimensionFlags(pl.paths.flatMap((path) => path.coords)),
       };
     }
     case "polygon": {
       const pg = geometry.shape.value;
       return {
         rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
+        ...coordinateDimensionFlags(pg.rings.flatMap((ring) => ring.coords)),
       };
     }
     case "multiPolygon": {
@@ -813,7 +822,10 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
           rings.push(ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m)));
         }
       }
-      return { rings };
+      return {
+        rings,
+        ...coordinateDimensionFlags(mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords))),
+      };
     }
     default:
       return null;

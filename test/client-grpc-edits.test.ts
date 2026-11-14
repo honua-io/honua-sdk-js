@@ -8,6 +8,9 @@ import {
   ApplyEditsRequestSchema,
   type ApplyEditsResponse,
   ApplyEditsResponseSchema,
+  type Geometry,
+  GeometrySchema,
+  QueryFeaturesResponseSchema,
 } from "../src/gen/geospatial/v1/index.js";
 
 function frame(bytes: Uint8Array, flags = 0): Uint8Array {
@@ -18,13 +21,29 @@ function frame(bytes: Uint8Array, flags = 0): Uint8Array {
   return framed;
 }
 
-function response(message: ApplyEditsResponse): Response {
-  const data = frame(toBinary(ApplyEditsResponseSchema, message));
+function wireResponse(bytes: Uint8Array): Response {
+  const data = frame(bytes);
   const trailers = frame(new TextEncoder().encode("grpc-status: 0\r\n"), 128);
   const body = new Uint8Array(data.length + trailers.length);
   body.set(data);
   body.set(trailers, data.length);
   return new Response(body, { headers: { "content-type": "application/grpc-web+proto" } });
+}
+
+function response(message: ApplyEditsResponse): Response {
+  return wireResponse(toBinary(ApplyEditsResponseSchema, message));
+}
+
+function queryResponse(geometry: Geometry): Response {
+  return wireResponse(
+    toBinary(
+      QueryFeaturesResponseSchema,
+      create(QueryFeaturesResponseSchema, {
+        objectIdFieldName: "OBJECTID",
+        features: [{ id: 1n, geometry }],
+      }),
+    ),
+  );
 }
 
 const target = { serviceId: "parcels", layerId: 0 };
@@ -121,6 +140,50 @@ describe("native gRPC-Web edits", () => {
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["multiPoint", "polyline", "polygon", "multiPolygon"] as const)(
+    "preserves M-only %s through query and update protobuf messages",
+    async (shape) => {
+      const coords = [
+        { x: 0, y: 1, m: 100 },
+        { x: 2, y: 3, m: 101 },
+      ];
+      const geometry = create(
+        GeometrySchema,
+        shape === "multiPoint"
+          ? { shape: { case: "multiPoint", value: { points: coords } } }
+          : shape === "polyline"
+            ? { shape: { case: "polyline", value: { paths: [{ coords }] } } }
+            : shape === "polygon"
+              ? { shape: { case: "polygon", value: { rings: [{ coords }] } } }
+              : { shape: { case: "multiPolygon", value: { polygons: [{ rings: [{ coords }] }] } } },
+      );
+      const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/QueryFeatures")) return queryResponse(geometry);
+        expect(String(input)).toBe("https://example.test/geospatial.v1.FeatureService/ApplyEdits");
+        const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
+        const encoded = wire.updates[0].geometry!;
+        const coordinates =
+          encoded.shape.case === "multiPoint"
+            ? encoded.shape.value.points
+            : encoded.shape.case === "polyline"
+              ? encoded.shape.value.paths[0].coords
+              : encoded.shape.case === "polygon"
+                ? encoded.shape.value.rings[0].coords
+                : [];
+        expect(coordinates.map(({ z, m }) => ({ z, m }))).toEqual([
+          { z: undefined, m: 100 },
+          { z: undefined, m: 101 },
+        ]);
+        return response(create(ApplyEditsResponseSchema, { updateResults: [{ objectId: 1n, success: true }] }));
+      });
+      const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+      const queried = await client.queryFeatures(target);
+      expect(queried.features?.[0].geometry).toMatchObject({ hasZ: false, hasM: true });
+      await client.applyEdits({ ...target, updates: queried.features });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("surfaces a whole-batch response error instead of returning empty success", async () => {
     const fetchFn = vi.fn(async () =>
