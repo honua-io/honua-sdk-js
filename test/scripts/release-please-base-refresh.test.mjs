@@ -74,6 +74,17 @@ function refreshedSnapshot(stale) {
   };
 }
 
+function ancestorComparison(stale) {
+  return {
+    status: "ahead",
+    ahead_by: 2,
+    behind_by: 0,
+    base_commit: { sha: stale.baseSha },
+    merge_base_commit: { sha: stale.baseSha },
+    commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
+  };
+}
+
 function harness(options = {}) {
   const stale = { ...fixture, ...(options.snapshot ?? {}) };
   const refreshed = refreshedSnapshot(stale);
@@ -100,14 +111,7 @@ function harness(options = {}) {
       };
     }
     if (pathname.includes("/compare/")) {
-      return options.comparison ?? {
-        status: "ahead",
-        ahead_by: 2,
-        behind_by: 0,
-        base_commit: { sha: stale.baseSha },
-        merge_base_commit: { sha: stale.baseSha },
-        commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
-      };
+      return options.comparison ?? ancestorComparison(stale);
     }
     if (pathname.endsWith(`/pulls/${stale.pullRequestNumber}/update-branch`)) {
       if (options.writeError) throw new Error("simulated update failure");
