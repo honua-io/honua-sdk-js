@@ -45,7 +45,7 @@ export async function discoverGrpcSources(
 }
 
 async function discoverIds(client: HonuaClient, serviceId: string, signal?: AbortSignal): Promise<number[]> {
-  const ids = new Set<number>();
+  let ids = new Set<number>();
   const tokens = new Set<string>();
   let pageToken = "";
   do {
@@ -55,7 +55,7 @@ async function discoverIds(client: HonuaClient, serviceId: string, signal?: Abor
     if (page.service?.serviceId !== serviceId) {
       throw new HonuaDiscoveryError("protocol-mismatch", "DescribeService returned a mismatched service.");
     }
-    addLayerIds(ids, page.layers);
+    ids = withLayerIds(ids, page.layers);
     pageToken = page.nextPageToken;
     if (pageToken && (tokens.has(pageToken) || page.layers.length === 0 || ids.size >= MAX_DISCOVERY_LAYERS)) {
       throw new HonuaDiscoveryError("protocol-mismatch", "DescribeService pagination did not make bounded progress.");
@@ -67,7 +67,8 @@ async function discoverIds(client: HonuaClient, serviceId: string, signal?: Abor
   return [...ids];
 }
 
-function addLayerIds(ids: Set<number>, layers: LayerSummary[]): void {
+function withLayerIds(current: ReadonlySet<number>, layers: LayerSummary[]): Set<number> {
+  const ids = new Set(current);
   for (const layer of layers) {
     if (
       !Number.isInteger(layer.layerId) ||
@@ -82,6 +83,7 @@ function addLayerIds(ids: Set<number>, layers: LayerSummary[]): void {
     }
     ids.add(layer.layerId);
   }
+  return ids;
 }
 
 function projectLayer(
