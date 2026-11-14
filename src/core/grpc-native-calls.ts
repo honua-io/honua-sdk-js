@@ -1,6 +1,6 @@
 import type { Client } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/geospatial/v1/feature_service_pb.js";
-import { HonuaGrpcError } from "./errors.js";
+import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import type {
   ApplyServiceEditsRequest,
   HonuaApplyServiceEditsResponse,
@@ -41,7 +41,7 @@ export async function queryRelatedRecordsOverGrpc(
         request.signal ? { signal: request.signal } : undefined,
       );
     } catch (error) {
-      throw adapter.wrapConnectError(error);
+      throw asCapabilityGap(adapter.wrapConnectError(error), "queryRelated", request);
     }
   };
   const pages = [await page("")];
@@ -77,6 +77,26 @@ export async function applyServiceEditsOverGrpc(
     );
     return adapter.fromProtoApplyServiceEditsResponse(response, protoRequest);
   } catch (error) {
-    throw adapter.wrapConnectError(error);
+    throw asCapabilityGap(adapter.wrapConnectError(error), "applyServiceEdits", { serviceId: request.serviceId });
+  }
+}
+
+/** gRPC status UNIMPLEMENTED: the server predates the RPC (geospatial-grpc 1.4). */
+const GRPC_UNIMPLEMENTED = 12;
+
+function asCapabilityGap(error: Error, capability: string, target: { serviceId: string; layerId?: number }): Error {
+  if (!(error instanceof HonuaGrpcError) || error.code !== GRPC_UNIMPLEMENTED) return error;
+  const scope = target.layerId === undefined ? target.serviceId : `${target.serviceId}/${target.layerId}`;
+  return new HonuaCapabilityNotSupportedError(capability, "grpc", scope, { cause: error });
+}
+
+/** Service edits name each layer once, on every transport. */
+export function assertDistinctServiceLayers(request: ApplyServiceEditsRequest): void {
+  const seen = new Set<number>();
+  for (const layer of request.edits) {
+    if (seen.has(layer.layerId)) {
+      throw new RangeError(`applyServiceEdits names layer ${layer.layerId} more than once.`);
+    }
+    seen.add(layer.layerId);
   }
 }

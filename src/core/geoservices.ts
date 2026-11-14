@@ -256,10 +256,9 @@ export async function applyServiceEdits(
   request: ApplyServiceEditsRequest,
 ): Promise<HonuaApplyServiceEditsResponse> {
   const modes = new Set(request.edits.map((layer) => layer.useGlobalIds === true));
-  const layers = new Set(request.edits.map((layer) => layer.layerId));
-  if (modes.size > 1 || layers.size !== request.edits.length) {
-    // GeoServices takes one useGlobalIds flag per request and one entry per layer.
-    throw new HonuaCapabilityNotSupportedError("mixedServiceEdits", "geoservices-feature-service", request.serviceId);
+  if (modes.size > 1) {
+    // GeoServices takes one useGlobalIds flag per request.
+    throw new HonuaCapabilityNotSupportedError("mixedGlobalIdModes", "geoservices-feature-service", request.serviceId);
   }
   const useGlobalIds = modes.has(true);
   const edits = request.edits.map((layer) => {
@@ -638,7 +637,7 @@ function refuseFeatureGlobalIds(edits: Pick<ApplyEditsRequest, "adds" | "updates
 /** Service-level `edits` JSON lists object-ID deletes as numbers where they are safe integers. */
 function serviceObjectIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
   return deleteTokens(value).map((id) =>
-    typeof id === "string" && Number.isSafeInteger(Number(id)) ? Number(id) : id,
+    typeof id === "string" && CANONICAL_INTEGER.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : id,
   );
 }
 
@@ -647,8 +646,12 @@ function serviceGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>
   return deleteTokens(value).map(String);
 }
 
+const CANONICAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
+
+/** Empty tokens (for example `"".split(",")`) are not IDs; never turn them into object ID 0. */
 function deleteTokens(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
-  return typeof value === "string" ? value.split(",").map((id) => id.trim()) : [...value];
+  const tokens = typeof value === "string" ? value.split(",").map((id) => id.trim()) : [...value];
+  return tokens.filter((id) => id !== "");
 }
 
 function encodeDeletesValue(value: NonNullable<ApplyEditsRequest["deletes"]>): string {

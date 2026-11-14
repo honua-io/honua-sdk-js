@@ -13,6 +13,8 @@ import {
   QueryRelatedRecordsResponseSchema,
 } from "../src/gen/geospatial/v1/index.js";
 
+import { wireResponse } from "./helpers/grpc-edit-wire.js";
+
 const GID = "6f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f";
 
 it("follows QueryRelatedRecords pages over gRPC-Web and merges groups by origin", async () => {
@@ -24,7 +26,7 @@ it("follows QueryRelatedRecords pages over gRPC-Web and merges groups by origin"
     expect(wire.outFields).toEqual(["status"]);
     expect(wire.returnGeometry).toBe(false);
     tokens.push(wire.pageToken);
-    return grpcResponse(toBinary(QueryRelatedRecordsResponseSchema, relatedPage(wire.pageToken)));
+    return wireResponse(toBinary(QueryRelatedRecordsResponseSchema, relatedPage(wire.pageToken)));
   });
   const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
   const result = await client.queryRelatedRecords({
@@ -50,7 +52,7 @@ it("follows QueryRelatedRecords pages over gRPC-Web and merges groups by origin"
 });
 
 it("backs canonical Source.queryRelated on gRPC", async () => {
-  const fetchFn = vi.fn(async () => grpcResponse(toBinary(QueryRelatedRecordsResponseSchema, relatedPage("page-2"))));
+  const fetchFn = vi.fn(async () => wireResponse(toBinary(QueryRelatedRecordsResponseSchema, relatedPage("page-2"))));
   const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
   const source = createDataset({
     id: "fixture",
@@ -115,7 +117,7 @@ it("sends parent and child layers in one ApplyServiceEdits call and keeps layer 
 
 it("throws a rolled-back service batch with every layer's diagnostics attached", async () => {
   const fetchFn = vi.fn(async () =>
-    grpcResponse(
+    wireResponse(
       toBinary(
         ApplyServiceEditsResponseSchema,
         create(ApplyServiceEditsResponseSchema, {
@@ -149,14 +151,14 @@ it("throws a rolled-back service batch with every layer's diagnostics attached",
   });
 });
 
-it("refuses duplicate layers and a service batch whose global IDs a pre-1.2 server ignored", async () => {
+it("refuses duplicate layers and a service batch whose global IDs were not applied", async () => {
   const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn: vi.fn() });
   await expect(client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0 }, { layerId: 0 }] })).rejects.toThrow(
-    "twice",
+    RangeError,
   );
 
   const ignoring = vi.fn(async () =>
-    grpcResponse(
+    wireResponse(
       toBinary(
         ApplyServiceEditsResponseSchema,
         create(ApplyServiceEditsResponseSchema, { results: [{ layerId: 0, results: {} }] }),
@@ -251,7 +253,7 @@ it("never replays ApplyServiceEdits automatically, even with retries configured"
 
 it("refuses a repeated continuation token instead of looping", async () => {
   const fetchFn = vi.fn(async () =>
-    grpcResponse(
+    wireResponse(
       toBinary(QueryRelatedRecordsResponseSchema, create(QueryRelatedRecordsResponseSchema, { nextPageToken: "same" })),
     ),
   );
@@ -271,14 +273,84 @@ it("maps outSR for related records, refuses other extra parameters and keeps exa
   expect(toProtoRelatedRequest({ ...base, objectIds: "9007199254740993" }).objectIds).toEqual([9007199254740993n]);
 });
 
-it("refuses duplicate layers on REST service edits", async () => {
+it("refuses duplicate layers with the same error on REST as on gRPC", async () => {
   const fetchFn = vi.fn();
   const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn });
-  await expect(
-    client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0 }, { layerId: 0 }] }),
-  ).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+  await expect(client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0 }, { layerId: 0 }] })).rejects.toThrow(
+    RangeError,
+  );
   expect(fetchFn).not.toHaveBeenCalled();
 });
+
+it("reports UNIMPLEMENTED related-record and service-edit RPCs as capability gaps", async () => {
+  const fetchFn = vi.fn(async () => statusResponse(12));
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+  await expect(
+    client.queryRelatedRecords({ serviceId: "s", layerId: 0, relationshipId: 1, objectIds: [1] }),
+  ).rejects.toMatchObject({ name: "HonuaCapabilityNotSupportedError", capability: "queryRelated" });
+  await expect(
+    client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, deletes: [1] }] }),
+  ).rejects.toMatchObject({
+    capability: "applyServiceEdits",
+  });
+});
+
+it("refuses a service response that omits a layer's results", async () => {
+  const fetchFn = vi.fn(async () =>
+    serviceResponse(create(ApplyServiceEditsResponseSchema, { results: [{ layerId: 0 }] })),
+  );
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+  await expect(
+    client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, adds: [{ attributes: {} }] }] }),
+  ).rejects.toMatchObject({ code: 13 });
+});
+
+it("retries QueryRelatedRecords on UNAVAILABLE because it is a read", async () => {
+  const fetchFn = vi
+    .fn()
+    .mockResolvedValueOnce(statusResponse(14))
+    .mockResolvedValueOnce(wireResponse(toBinary(QueryRelatedRecordsResponseSchema, relatedPage("page-2"))));
+  const client = new HonuaClient({
+    baseUrl: "https://example.test",
+    transport: "grpc-web",
+    fetchFn,
+    retry: { maxRetries: 2, baseDelayMs: 0 },
+  });
+  await expect(
+    client.queryRelatedRecords({ serviceId: "s", layerId: 0, relationshipId: 1, objectIds: [1] }),
+  ).resolves.toMatchObject({ relatedRecordGroups: [{ objectId: 1 }] });
+  expect(fetchFn).toHaveBeenCalledTimes(2);
+});
+
+it("sends REST global-ID service edits as one flag with GUID deletes and drops empty delete tokens", async () => {
+  const bodies: URLSearchParams[] = [];
+  const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(new URLSearchParams(String(init?.body)));
+    return Response.json([{ id: 0 }]);
+  });
+  const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn });
+  await client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, useGlobalIds: true, deletes: [GID] }] });
+  await client.applyServiceEdits({
+    serviceId: "s",
+    edits: [
+      { layerId: 0, deletes: "1,,2" },
+      { layerId: 1, deletes: "" },
+    ],
+  });
+  expect(bodies[0].get("useGlobalIds")).toBe("true");
+  expect(JSON.parse(bodies[0].get("edits") ?? "")).toEqual([{ id: 0, deletes: [GID] }]);
+  expect(bodies[1].get("useGlobalIds")).toBeNull();
+  expect(JSON.parse(bodies[1].get("edits") ?? "")).toEqual([
+    { id: 0, deletes: [1, 2] },
+    { id: 1, deletes: [] },
+  ]);
+});
+
+function statusResponse(status: number): Response {
+  return new Response(null, {
+    headers: { "content-type": "application/grpc-web+proto", "grpc-status": String(status), "grpc-message": "x" },
+  });
+}
 
 function parentChildResults() {
   return create(ApplyServiceEditsResponseSchema, {
@@ -293,7 +365,7 @@ function parentChildResults() {
 }
 
 function serviceResponse(message: ReturnType<typeof parentChildResults>): Response {
-  return grpcResponse(toBinary(ApplyServiceEditsResponseSchema, message));
+  return wireResponse(toBinary(ApplyServiceEditsResponseSchema, message));
 }
 
 function relatedPage(token: string) {
@@ -322,21 +394,4 @@ function relatedPage(token: string) {
 
 function stringValue(value: string) {
   return { value: { case: "stringValue" as const, value } };
-}
-
-function frame(bytes: Uint8Array, flags = 0): Uint8Array {
-  const framed = new Uint8Array(bytes.length + 5);
-  framed[0] = flags;
-  new DataView(framed.buffer).setUint32(1, bytes.length);
-  framed.set(bytes, 5);
-  return framed;
-}
-
-function grpcResponse(bytes: Uint8Array): Response {
-  const data = frame(bytes);
-  const trailers = frame(new TextEncoder().encode("grpc-status: 0\r\n"), 128);
-  const body = new Uint8Array(data.length + trailers.length);
-  body.set(data);
-  body.set(trailers, data.length);
-  return new Response(body, { headers: { "content-type": "application/grpc-web+proto" } });
 }

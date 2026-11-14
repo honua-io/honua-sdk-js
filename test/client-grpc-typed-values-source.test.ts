@@ -12,7 +12,7 @@ import {
   FieldType,
 } from "../src/gen/geospatial/v1/index.js";
 import { LayerDescriptorSchema } from "../src/gen/geospatial/v1/metadata_types_pb.js";
-import { response } from "./helpers/grpc-edit-wire.js";
+import { response, wireResponse } from "./helpers/grpc-edit-wire.js";
 
 // Canonical Source edits typed from DescribeLayer (geospatial-grpc 1.2 values and global IDs).
 const target = { serviceId: "inspections", layerId: 0 };
@@ -60,7 +60,7 @@ it("encodes canonical Source edits from one DescribeLayer read and returns globa
     const url = String(input);
     calls.push(url.slice(url.lastIndexOf("/") + 1));
     if (url.endsWith("/DescribeLayer")) {
-      return grpcResponse(toBinary(DescribeLayerResponseSchema, create(DescribeLayerResponseSchema, { layer })));
+      return wireResponse(toBinary(DescribeLayerResponseSchema, create(DescribeLayerResponseSchema, { layer })));
     }
     const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
     expect(wire.useGlobalIds).toBe(true);
@@ -171,23 +171,6 @@ function grpcSource(fetchFn: typeof fetch) {
       },
     ],
   }).source("source")!;
-}
-
-function frame(bytes: Uint8Array, flags = 0): Uint8Array {
-  const framed = new Uint8Array(bytes.length + 5);
-  framed[0] = flags;
-  new DataView(framed.buffer).setUint32(1, bytes.length);
-  framed.set(bytes, 5);
-  return framed;
-}
-
-function grpcResponse(bytes: Uint8Array): Response {
-  const data = frame(bytes);
-  const trailers = frame(new TextEncoder().encode("grpc-status: 0\r\n"), 128);
-  const body = new Uint8Array(data.length + trailers.length);
-  body.set(data);
-  body.set(trailers, data.length);
-  return new Response(body, { headers: { "content-type": "application/grpc-web+proto" } });
 }
 
 function statusResponse(status: number): Response {

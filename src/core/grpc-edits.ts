@@ -203,7 +203,7 @@ export function fromProtoApplyEditsResponse(
   sent?: Pick<ApplyEditsMessage, "useGlobalIds" | "deleteGlobalIds" | "adds" | "updates">,
 ): HonuaApplyEditsResponse {
   if (sent && !response.error && globalIdsIgnored(sent, response)) {
-    throw globalIdsIgnoredError(decodeOutcomes(response));
+    throw globalIdsIgnoredError(decodeOutcomes(response), "it predates geospatial-grpc 1.2");
   }
   const outcomes = decodeOutcomes(response);
   if (response.error) {
@@ -232,12 +232,11 @@ function globalIdsIgnored(
   );
 }
 
-/** Older servers drop unknown global-ID fields; other rows in the batch may have committed. */
-function globalIdsIgnoredError(details: unknown): HonuaGrpcError {
+/** Global IDs were dropped by the server; other rows in the batch may have committed. */
+function globalIdsIgnoredError(details: unknown, reason: string): HonuaGrpcError {
   return new HonuaGrpcError(
     FAILED_PRECONDITION,
-    "The server ignored global IDs in this batch (it predates geospatial-grpc 1.2); " +
-      "other edits in this batch may have been committed, see details.",
+    `The server ignored global IDs in this batch (${reason}); other edits in this batch may have been committed, see details.`,
     details,
   );
 }
@@ -258,12 +257,9 @@ function decodeOutcomes(response: ApplyEditsResponse) {
 
 /** Encode multi-layer edits with the same per-layer rules as `toProtoApplyEditsRequest`. */
 export function toProtoApplyServiceEditsRequest(request: ApplyServiceEditsRequest) {
-  const layers = new Set<number>();
   return create(ApplyServiceEditsRequestSchema, {
     serviceId: request.serviceId,
     edits: request.edits.map((layer) => {
-      if (layers.has(layer.layerId)) throw new Error(`ApplyServiceEdits names layer ${layer.layerId} twice.`);
-      layers.add(layer.layerId);
       const encoded = toProtoApplyEditsRequest({ ...layer, serviceId: request.serviceId });
       return {
         layerId: layer.layerId,
@@ -306,6 +302,9 @@ export function fromProtoApplyServiceEditsResponse(
       results: response.results.map((entry) => entry.layerId),
     });
   }
+  if (response.results.some((entry, index) => resultsIncomplete(sent.edits[index], entry.results))) {
+    throw new HonuaGrpcError(13, "ApplyServiceEdits omitted results for edits it was sent.", decoded);
+  }
   const ignored = response.results.some((entry, index) => {
     const layer = sent.edits[index];
     return (
@@ -316,7 +315,22 @@ export function fromProtoApplyServiceEditsResponse(
     );
   });
   if (ignored) {
-    throw globalIdsIgnoredError(decoded);
+    throw globalIdsIgnoredError(decoded, "the server did not echo them");
   }
   return decoded;
+}
+
+/** Every sent edit has a result unless its layer failed as a whole (a layer error). */
+function resultsIncomplete(
+  sent: Pick<ApplyEditsMessage, "adds" | "updates" | "deletes" | "deleteGlobalIds"> | undefined,
+  results: ApplyEditsResponse | undefined,
+): boolean {
+  if (!sent || results?.error) return false;
+  const deletes = sent.deletes.length + sent.deleteGlobalIds.length;
+  if (!results) return sent.adds.length + sent.updates.length + deletes > 0;
+  return (
+    results.addResults.length !== sent.adds.length ||
+    results.updateResults.length !== sent.updates.length ||
+    (sent.deletes.length > 0 && results.deleteResults.length !== deletes)
+  );
 }

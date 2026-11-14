@@ -1114,8 +1114,7 @@ export interface HonuaApplyEditsResponse {
 
 /** A group of related records for a single source object ID. */
 export interface HonuaRelatedRecordGroup {
-  /** gRPC int64 IDs outside the safe integer range are returned as decimal strings. */
-  objectId: number | string;
+  objectId: number;
   relatedRecords?: HonuaFeature[];
 }
 

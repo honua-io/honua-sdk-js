@@ -164,27 +164,11 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   }
 
   if (request.outFields !== undefined) {
-    const fields =
-      typeof request.outFields === "string"
-        ? request.outFields
-            .split(",")
-            .map((f) => f.trim())
-            .filter(Boolean)
-        : request.outFields;
-    msg.outFields = fields;
+    msg.outFields = splitOutFields(request.outFields);
   }
 
   if (request.objectIds !== undefined) {
-    const ids =
-      typeof request.objectIds === "string"
-        ? request.objectIds.split(",").map(toProtoObjectId)
-        : request.objectIds.map((id) => {
-            if (!Number.isSafeInteger(id)) {
-              throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
-            }
-            return BigInt(id);
-          });
-    msg.objectIds = ids;
+    msg.objectIds = toProtoObjectIds(request.objectIds);
   }
 
   if (request.globalIds !== undefined) {
@@ -658,8 +642,8 @@ function convertMultiPolygon(mpg: {
   };
 }
 
-function relatedOriginIds(objectIds: QueryRelatedRecordsRequest["objectIds"]): bigint[] {
-  if (objectIds === undefined) return [];
+/** Object-ID selectors for the int64 contract: safe integers or exact decimal strings. */
+function toProtoObjectIds(objectIds: number[] | string): bigint[] {
   if (typeof objectIds === "string") return objectIds.split(",").map(toProtoObjectId);
   return objectIds.map((id) => {
     if (!Number.isSafeInteger(id)) {
@@ -667,6 +651,15 @@ function relatedOriginIds(objectIds: QueryRelatedRecordsRequest["objectIds"]): b
     }
     return BigInt(id);
   });
+}
+
+function splitOutFields(outFields: string | readonly string[]): string[] {
+  return typeof outFields === "string"
+    ? outFields
+        .split(",")
+        .map((field) => field.trim())
+        .filter(Boolean)
+    : [...outFields];
 }
 
 /** Encode one QueryRelatedRecords page request; `objectIds` name origin-layer features. */
@@ -682,14 +675,8 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
     );
   }
   const outSpatialReference = toProtoSpatialReference(outSR ?? outSr);
-  const ids = relatedOriginIds(request.objectIds);
-  const outFields =
-    typeof request.outFields === "string"
-      ? request.outFields
-          .split(",")
-          .map((field) => field.trim())
-          .filter(Boolean)
-      : [...(request.outFields ?? [])];
+  const ids = request.objectIds === undefined ? [] : toProtoObjectIds(request.objectIds);
+  const outFields = request.outFields === undefined ? [] : splitOutFields(request.outFields);
   return create(QueryRelatedRecordsRequestSchema, {
     serviceId: request.serviceId,
     layerId: request.layerId,
@@ -701,6 +688,15 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
     ...(outSpatialReference ? { outSr: outSpatialReference } : {}),
     pageToken,
   });
+}
+
+/** `HonuaRelatedRecordGroup.objectId` is a number on every transport; refuse IDs it cannot hold. */
+function safeOriginId(objectId: bigint): number {
+  const id = Number(objectId);
+  if (!Number.isSafeInteger(id)) {
+    throw new RangeError(`Related-record origin ID ${objectId} exceeds the JavaScript safe integer range.`);
+  }
+  return id;
 }
 
 /**
@@ -715,7 +711,7 @@ export function fromProtoRelatedPages(pages: readonly QueryRelatedRecordsRespons
   for (const page of pages) {
     for (const group of page.groups) {
       const key = group.objectId.toString();
-      const target = groups.get(key) ?? { objectId: toSafeNumberOrString(group.objectId), relatedRecords: [] };
+      const target = groups.get(key) ?? { objectId: safeOriginId(group.objectId), relatedRecords: [] };
       target.relatedRecords?.push(...group.features.map((feature) => convertFeature(feature, identity)));
       groups.set(key, target);
     }

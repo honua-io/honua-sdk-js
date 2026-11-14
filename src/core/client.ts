@@ -46,6 +46,7 @@ import {
 import {
   REPLAY_SAFE_GRPC_METHODS,
   applyServiceEditsOverGrpc,
+  assertDistinctServiceLayers,
   queryRelatedRecordsOverGrpc,
 } from "./grpc-native-calls.js";
 import { HonuaOdataEntitySet } from "./odata.js";
@@ -1905,6 +1906,7 @@ export class HonuaClient {
    * gRPC-Web uses ApplyServiceEdits with no REST fallback; REST uses the service-level applyEdits.
    */
   public async applyServiceEdits(request: ApplyServiceEditsRequest): Promise<HonuaApplyServiceEditsResponse> {
+    assertDistinctServiceLayers(request);
     if (this.transport !== "grpc-web") {
       return applyServiceEdits(this.protocolTransport, request);
     }
