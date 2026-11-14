@@ -1,3 +1,4 @@
+import { ZARR_SUPPORT_CODECS, ZARR_SUPPORT_DATA_TYPES } from "./support-contract.js";
 import { HonuaHttpError } from "../core/errors.js";
 import { HonuaZarrError, HonuaZarrServiceError } from "./errors.js";
 import type {
@@ -15,20 +16,9 @@ import type {
 
 const DEFAULT_METADATA_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TILE_BYTES = 2 * 1024 * 1024;
-const V3_DATA_TYPE_BY_SERVER_DESCRIPTOR = new Map([
-  ["|b1", "bool"],
-  ["|i1", "int8"],
-  ["|u1", "uint8"],
-  ["<i2", "int16"],
-  ["<u2", "uint16"],
-  ["<i4", "int32"],
-  ["<u4", "uint32"],
-  ["<i8", "int64"],
-  ["<u8", "uint64"],
-  ["<f4", "float32"],
-  ["<f8", "float64"],
-]);
-const SUPPORTED_V3_DATA_TYPES = new Set(V3_DATA_TYPE_BY_SERVER_DESCRIPTOR.values());
+const V3_DATA_TYPE_BY_SERVER_DESCRIPTOR = new Map(
+  ZARR_SUPPORT_DATA_TYPES.filter(([version]) => version === 3).map(([, name, normalized]) => [normalized, name]),
+);
 const SUPPORTED_PROVIDERS = new Set(["AwsS3", "AzureBlob", "Local"]);
 
 /** Experimental client for Honua Server's versioned Zarr registration and tile contract. */
@@ -315,20 +305,11 @@ function selectTileVariable(
 }
 
 function isTileDtype(dataType: string, zarrFormat: number): boolean {
-  if (zarrFormat === 3) return SUPPORTED_V3_DATA_TYPES.has(dataType);
-  if (zarrFormat !== 2) return false;
-  const match = /^([<|=])([fiub])(1|2|4|8)$/.exec(dataType);
-  if (!match) return false;
-  const [, byteOrder, kind, width] = match;
-  if (byteOrder === "|" && width !== "1") return false;
-  if (kind === "f") return width === "4" || width === "8";
-  if (kind === "b") return width === "1";
-  return true;
+  return ZARR_SUPPORT_DATA_TYPES.some(([version, name]) => version === zarrFormat && name === dataType);
 }
 
 function isTileCodec(codec: string | null, zarrFormat: number): boolean {
-  if (codec === null) return zarrFormat === 2 || zarrFormat === 3;
-  return zarrFormat === 2 ? codec === "zlib" : zarrFormat === 3 && codec === "gzip";
+  return ZARR_SUPPORT_CODECS.some(([version, name]) => version === zarrFormat && name === (codec ?? "none"));
 }
 
 function isUsableSpatialExtent(value: unknown): value is readonly [number, number, number, number] {

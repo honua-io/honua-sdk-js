@@ -1,3 +1,4 @@
+import { ZARR_SUPPORT_DATA_TYPES } from "./support-contract.js";
 import type { ZarrObjectTransport } from "./direct-transport.js";
 import type { ZarrAxisRole, ZarrDirectFormat, ZarrLayoutStatus } from "./direct-types.js";
 import { HonuaZarrError } from "./errors.js";
@@ -434,20 +435,7 @@ function chunkKeyEncoding(
 }
 
 function v3Dtype(dataType: string, name: string): string {
-  const mapped: Record<string, string> = {
-    bool: "|b1",
-    int8: "|i1",
-    uint8: "|u1",
-    int16: "<i2",
-    uint16: "<u2",
-    int32: "<i4",
-    uint32: "<u4",
-    int64: "<i8",
-    uint64: "<u8",
-    float32: "<f4",
-    float64: "<f8",
-  };
-  const dtype = mapped[dataType];
+  const dtype = ZARR_SUPPORT_DATA_TYPES.find(([version, type]) => version === 3 && type === dataType)?.[2];
   if (!dtype) {
     throw new HonuaZarrError("unsupported-dtype", `Zarr v3 array "${name}" uses an unreviewed data type.`, {
       refusal: "unsupported-dtype",
