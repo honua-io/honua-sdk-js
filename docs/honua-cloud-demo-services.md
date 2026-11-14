@@ -132,4 +132,5 @@ manifest profiles, and `GET /api/v1/admin/capabilities`.
 ## Remaining Platform Work
 
 This JS-repo slice defines and tests the configuration contract. It does not
-provision Honua Cloud services. That remains the implementation gap for issue #128 and the parent seeded-demo epic.
+provision Honua Cloud services. That remains the implementation gap for issue
+#128 and the parent seeded-demo epic.
