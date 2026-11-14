@@ -13,7 +13,8 @@ async function fixture(run) {
   await writeFile(path.join(directory, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2022', strict: true }, include: ['*.ts'] }));
   const lint = new ESLint({ cwd: directory, overrideConfigFile: true, overrideConfig: [{
     files: ['**/*.ts'], languageOptions: { parser: tseslint.parser,
-      parserOptions: { project: path.join(directory, 'tsconfig.json') } },
+      // Fixtures edit the same file repeatedly; CI must refresh its typed program.
+      parserOptions: { project: path.join(directory, 'tsconfig.json'), disallowAutomaticSingleRunInference: true } },
     plugins: { '@typescript-eslint': tseslint.plugin }, linterOptions: { noInlineConfig: true },
     rules: { 'max-params': ['error', 3], 'max-depth': ['error', 2],
       '@typescript-eslint/no-floating-promises': 'error' },
