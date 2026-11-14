@@ -135,60 +135,6 @@
       }
     },
     {
-      "id": "storytelling-25d-readonly",
-      "title": "2.5D storytelling OGC collections",
-      "sampleDir": "examples/storytelling-25d-map",
-      "mode": "readonly",
-      "capabilities": [
-        "metadata",
-        "ogc-collections",
-        "route-replay",
-        "feature-render"
-      ],
-      "cloud": {
-        "baseUrlEnv": "VITE_HONUA_25D_BASE_URL",
-        "authEnv": {
-          "apiKey": "VITE_HONUA_25D_API_KEY"
-        },
-        "service": {
-          "kind": "OGCCollections",
-          "collections": [
-            {
-              "id": "story-25d-assets",
-              "idEnv": "VITE_HONUA_25D_ASSETS_COLLECTION"
-            },
-            {
-              "id": "story-25d-route",
-              "idEnv": "VITE_HONUA_25D_ROUTE_COLLECTION"
-            },
-            {
-              "id": "story-25d-stops",
-              "idEnv": "VITE_HONUA_25D_STOPS_COLLECTION"
-            }
-          ]
-        }
-      },
-      "fixtureFallback": {
-        "state": "fixture-degraded",
-        "mode": "same-origin-fixture",
-        "command": "npm run demo:25d:mock"
-      },
-      "smoke": {
-        "fixtureCommand": "npm run test:playwright:25d",
-        "cloudCommand": "npm run test:cloud-demo:staging",
-        "requiresEnv": [
-          "HONUA_CLOUD_DEMO_BASE_URL",
-          "VITE_HONUA_25D_ASSETS_COLLECTION",
-          "VITE_HONUA_25D_ROUTE_COLLECTION",
-          "VITE_HONUA_25D_STOPS_COLLECTION"
-        ]
-      },
-      "cacheNotes": {
-        "metadata": "cacheable-metadata",
-        "featureState": "uncached-query"
-      }
-    },
-    {
       "id": "incident-realtime-stream",
       "title": "Realtime incident stream",
       "sampleDir": "examples/realtime-incident-dashboard",
@@ -246,70 +192,6 @@
       "cacheNotes": {
         "metadata": "cacheable-metadata",
         "featureState": "uncached-realtime"
-      }
-    },
-    {
-      "id": "edit-workflow-writable-guarded",
-      "title": "Guarded writable field inspection service",
-      "sampleDir": "examples/edit-workflow-demo",
-      "mode": "writable-guarded",
-      "capabilities": [
-        "metadata",
-        "apply-edits",
-        "attachments",
-        "reset"
-      ],
-      "cloud": {
-        "baseUrlEnv": "VITE_HONUA_EDIT_WORKFLOW_BASE_URL",
-        "authEnv": {
-          "apiKey": "VITE_HONUA_EDIT_WORKFLOW_API_KEY",
-          "bearerToken": "VITE_HONUA_EDIT_WORKFLOW_BEARER_TOKEN"
-        },
-        "service": {
-          "kind": "FeatureServer",
-          "serviceId": "field-inspections-demo-writable",
-          "serviceIdEnv": "VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID",
-          "layerId": 0,
-          "layerIdEnv": "VITE_HONUA_EDIT_WORKFLOW_LAYER_ID",
-          "readonlyServiceId": "field-inspections-demo-readonly",
-          "readonlyServiceIdEnv": "VITE_HONUA_EDIT_WORKFLOW_READONLY_SERVICE_ID"
-        }
-      },
-      "writeSafeguards": {
-        "allowWritesEnv": "HONUA_CLOUD_DEMO_ALLOW_WRITES",
-        "requiredAllowWritesValue": "true",
-        "writeTokenEnv": "HONUA_CLOUD_DEMO_WRITE_TOKEN",
-        "resetTokenEnv": "HONUA_CLOUD_DEMO_RESET_TOKEN",
-        "resetUrlEnv": "HONUA_CLOUD_DEMO_RESET_URL",
-        "resetCadence": "before-and-after-smoke",
-        "requiredResetState": "seeded-clean",
-        "notes": [
-          "Writable smoke must fail closed unless HONUA_CLOUD_DEMO_ALLOW_WRITES=true.",
-          "Reset token must be separate from the browser API key or bearer token.",
-          "Reset calls are uncached and must run before and after any scheduled writable smoke."
-        ]
-      },
-      "fixtureFallback": {
-        "state": "fixture-degraded",
-        "mode": "local-edit-session-fixture",
-        "command": "npm run test:playwright:edit-workflow"
-      },
-      "smoke": {
-        "fixtureCommand": "npm run test:playwright:edit-workflow",
-        "cloudCommand": "npm run test:cloud-demo:staging",
-        "requiresEnv": [
-          "HONUA_CLOUD_DEMO_BASE_URL",
-          "HONUA_CLOUD_DEMO_ALLOW_WRITES",
-          "HONUA_CLOUD_DEMO_WRITE_TOKEN",
-          "HONUA_CLOUD_DEMO_RESET_TOKEN",
-          "HONUA_CLOUD_DEMO_RESET_URL",
-          "VITE_HONUA_EDIT_WORKFLOW_SERVICE_ID",
-          "VITE_HONUA_EDIT_WORKFLOW_LAYER_ID"
-        ]
-      },
-      "cacheNotes": {
-        "metadata": "cacheable-metadata",
-        "featureState": "uncached-edits"
       }
     }
   ]

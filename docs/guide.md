@@ -68,23 +68,11 @@ npm install
 # Run either mock server in its own terminal/session.
 npm run demo:quickstart:mock
 # or
-npm run demo:25d:mock
-# or
 npm run demo:geocoding:mock
 ```
 
-The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`, the 2.5D command prints
-`story25dMockUrl=http://127.0.0.1:PORT`, and the geocoding command prints
+The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT` and the geocoding command prints
 `geocodingMockUrl=http://127.0.0.1:PORT`.
-
-Live Honua flow for the `2.5D` demo:
-
-```bash
-cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
-npm run demo:25d
-```
-
-Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters, custom `routeIdField` matching and multi-route selection rules, terrain fallback behavior, and smoke-test globals.
 
 ## Server Compatibility Baseline
 

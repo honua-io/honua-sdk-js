@@ -12,11 +12,6 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
 const FIXTURE_TIMEOUT_MS = STARTUP_TIMEOUT_MS + FETCH_TIMEOUT_MS + SHUTDOWN_TIMEOUT_MS + 5_000;
 const FIXTURES = [
   {
-    name: "edit workflow",
-    file: "examples/edit-workflow-demo/mock-server.mjs",
-    marker: "editWorkflowUrl",
-  },
-  {
     name: "sketch editing",
     file: "examples/sketch-editing/mock-server.mjs",
     marker: "sketchEditingUrl",

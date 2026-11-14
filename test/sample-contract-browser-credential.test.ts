@@ -115,10 +115,10 @@ describe("synthetic browser-public credential contract", () => {
     await expect(
       validateCatalog(shipped, packageJson, {
         ...validationTime,
-        syntheticConfigurationFixtures: ["cesium-route-playback"],
+        syntheticConfigurationFixtures: ["automatic-source-workflow"],
       }),
     ).rejects.toThrow(
-      "cesium-route-playback: synthetic configuration fixture source must live under test/fixtures/sample-contract/",
+      "automatic-source-workflow: synthetic configuration fixture source must live under test/fixtures/sample-contract/",
     );
   });
 });

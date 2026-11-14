@@ -128,24 +128,19 @@ const REVIEWED_FIXTURE_HARNESS_IMPORTS = new Set([
 ]);
 const EXPECTED_FIXTURE_BUILD_HARNESSES = new Map([
   ["examples/ai-spatial-app-builder/mock-server.mjs", "demo:ai-spatial-builder:build"],
-  ["examples/edit-workflow-demo/mock-server.mjs", "demo:edit-workflow:build"],
   ["examples/geocoding-quickstart/mock-server.mjs", "demo:geocoding:build"],
-  ["examples/geoprocessing-job-runner/mock-server.mjs", "demo:gp-runner:build"],
   ["examples/imagery-cog-quickstart/mock-server.mjs", "demo:imagery-cog:build"],
   ["examples/maplibre-quickstart/mock-server.mjs", "demo:quickstart:build"],
-  ["examples/mcp-gis-assistant/mock-server.mjs", "demo:mcp-gis-assistant:build"],
   ["examples/migration-workbench/mock-server.mjs", "demo:migration-workbench:build"],
   ["examples/oauth-signin/mock-server.mjs", "demo:oauth-signin:build"],
   ["examples/overture-geoparquet/mock-server.mjs", "demo:overture:build:offline"],
   ["examples/pmtiles-static/mock-server.mjs", "demo:pmtiles-static:build"],
   ["examples/react-quickstart/mock-server.mjs", "demo:react-quickstart:build"],
   ["examples/realtime-incident-dashboard/mock-server.mjs", "demo:incident:build"],
-  ["examples/runtime-parity-showcase/mock-server.mjs", "demo:runtime-parity:build"],
   ["examples/service-explorer/mock-server.mjs", "demo:service-explorer:build"],
   ["examples/sketch-editing/mock-server.mjs", "demo:sketch-editing:build"],
   ["examples/spatial-analytics-workbench/mock-server.mjs", "demo:spatial-analytics:build"],
   ["examples/stac-imagery-browser/mock-server.mjs", "demo:stac-browser:build"],
-  ["examples/storytelling-25d-map/mock-server.mjs", "demo:25d:build"],
 ]);
 const CHILD_PROCESS_LAUNCH_APIS = new Set([
   "exec",
@@ -410,17 +405,13 @@ export function reviewedLiveProducer(command) {
 }
 
 const REVIEWED_BUILD_TYPECHECK_DEMOS = [
-  "25d",
   "ai-spatial-builder",
   "app-bootstrap",
   "columnar-query",
   "coverages-wcs",
-  "edit-workflow",
   "geocoding",
-  "gp-runner",
   "imagery-cog",
   "incident",
-  "mcp-gis-assistant",
   "migration-workbench",
   "nl-map-control",
   "oauth-signin",
@@ -428,7 +419,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "pmtiles-static",
   "quickstart",
   "react-quickstart",
-  "runtime-parity",
   "service-explorer",
   "sketch-editing",
   "spatial-analytics",

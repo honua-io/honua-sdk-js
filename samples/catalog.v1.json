@@ -142,56 +142,6 @@
       ]
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
-      "tier": "flagship",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset."
-      },
-      "sourcePath": "examples/edit-workflow-demo",
-      "docsPath": "examples/edit-workflow-demo/README.md",
-      "capabilities": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "protocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed deterministic edit fixture.",
-        "attribution": "Honua synthetic operations data.",
-        "freshness": "Deterministic fixture replay time."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:edit-workflow:mock"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability.",
-      "validation": [
-        "npm run demo:edit-workflow:typecheck",
-        "npm run demo:edit-workflow:build"
-      ]
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
@@ -240,56 +190,6 @@
       "validation": [
         "npm run demo:geocoding:typecheck",
         "npm run demo:geocoding:build"
-      ]
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
-      "tier": "advanced",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "merge",
-        "reason": "Fold into the analysis journey while retaining this focused recipe."
-      },
-      "sourcePath": "examples/geoprocessing-job-runner",
-      "docsPath": "examples/geoprocessing-job-runner/README.md",
-      "capabilities": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "protocols": [
-        "ogc-processes"
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
-        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
-        "freshness": "Immutable fixture contract; no public-live result claim."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:gp-runner:mock"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
-      "validation": [
-        "npm run demo:gp-runner:typecheck",
-        "npx vitest run test/geoprocessing-job-runner.test.ts",
-        "npm run demo:gp-runner:build"
       ]
     },
     {
@@ -455,56 +355,6 @@
         "npm run demo:quickstart:typecheck",
         "npm run demo:quickstart:build",
         "npm run test:playwright:quickstart"
-      ]
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
-      "tier": "advanced",
-      "supportStatus": "experimental",
-      "disposition": {
-        "decision": "rework",
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey."
-      },
-      "sourcePath": "examples/mcp-gis-assistant",
-      "docsPath": "examples/mcp-gis-assistant/README.md",
-      "capabilities": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "protocols": [
-        "honua",
-        "mcp"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed MCP response fixture.",
-        "attribution": "Tool results preserve source attribution.",
-        "freshness": "Deterministic fixture replay time."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:mcp-gis-assistant:build"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Write tools are unavailable without host policy and explicit approval.",
-      "validation": [
-        "npm run demo:mcp-gis-assistant:typecheck",
-        "npm run demo:mcp-gis-assistant:build"
       ]
     },
     {
@@ -933,57 +783,6 @@
       ]
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
-      "tier": "reference",
-      "supportStatus": "experimental",
-      "disposition": {
-        "decision": "replace",
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports."
-      },
-      "sourcePath": "examples/runtime-parity-showcase",
-      "docsPath": "examples/runtime-parity-showcase/README.md",
-      "capabilities": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "protocols": [
-        "honua"
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "config": [],
-        "provenance": "Committed renderer comparison fixtures.",
-        "attribution": "Honua synthetic fixtures.",
-        "freshness": "Versioned with the repository."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:runtime-parity:mock"
-          ]
-        },
-        "live": {
-          "status": "not-applicable",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences.",
-      "validation": [
-        "npm run demo:runtime-parity:typecheck",
-        "npm run demo:runtime-parity:build"
-      ]
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
@@ -1108,8 +907,8 @@
       "tier": "flagship",
       "supportStatus": "experimental",
       "disposition": {
-        "decision": "rework",
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans."
+        "decision": "keep",
+        "reason": "Joins the cloud-native analysis journey; plans show estimates until accepted and label fixture replay apart from executed live runs."
       },
       "sourcePath": "examples/spatial-analytics-workbench",
       "docsPath": "examples/spatial-analytics-workbench/README.md",
@@ -1223,58 +1022,6 @@
       ]
     },
     {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
-      "tier": "advanced",
-      "supportStatus": "supported",
-      "disposition": {
-        "decision": "merge",
-        "reason": "Use its strongest interactions inside the imagery and 3D journey."
-      },
-      "sourcePath": "examples/storytelling-25d-map",
-      "docsPath": "examples/storytelling-25d-map/README.md",
-      "capabilities": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "protocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_25D_BASE_URL"
-        ],
-        "provenance": "Committed Oahu story fixtures or configured Honua services.",
-        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
-        "freshness": "Fixture capture or live layer observation time."
-      },
-      "lanes": {
-        "fixture": {
-          "status": "executed",
-          "commands": [
-            "npm run demo:25d:mock"
-          ]
-        },
-        "live": {
-          "status": "planned",
-          "commands": []
-        }
-      },
-      "expectedDegradation": "Terrain and live overlays fail independently with structured status.",
-      "validation": [
-        "npm run demo:25d:typecheck",
-        "npm run demo:25d:build"
-      ]
-    },
-    {
       "id": "temporal-playback",
       "title": "Temporal playback",
       "summary": "Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems().",
@@ -1383,7 +1130,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "edit-workflow-demo"
+      "sampleId": "sketch-editing"
     },
     {
       "id": "esri-leaflet",
@@ -1407,7 +1154,7 @@
       "id": "gp-runner",
       "route": "demo-geoprocessing.html",
       "ownership": "sdk-projection",
-      "sampleId": "geoprocessing-job-runner"
+      "sampleId": "spatial-analytics-workbench"
     },
     {
       "id": "hello-webmap",
@@ -1432,7 +1179,7 @@
       "id": "maui-3d",
       "route": "demo-maui-3d.html",
       "ownership": "sdk-projection",
-      "sampleId": "storytelling-25d-map"
+      "sampleId": "imagery-cog-quickstart"
     },
     {
       "id": "maui-explorer",

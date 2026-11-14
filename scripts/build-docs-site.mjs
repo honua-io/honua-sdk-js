@@ -248,7 +248,6 @@ const NAV_GROUPS = [
       "docs/maplibre-runtime.md",
       "docs/browser-bundle.md",
       "docs/studio-package-contracts.md",
-      "docs/runtime-parity-showcase.md",
       "docs/scene-workspace.md",
     ],
   },

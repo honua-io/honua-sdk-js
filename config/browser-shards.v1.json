@@ -17,7 +17,6 @@
       "name": "Browser: realtime and collaboration",
       "owns": "Realtime subscriptions, checkpointing, collaborative and permitted editing surfaces, and the authenticated session they run inside. These stay realtime: splitting them out does not license a static substitute, and their concurrency and timing semantics are unchanged from the monolithic job.",
       "specs": [
-        "edit-workflow-demo.spec.mjs",
         "oauth-signin.spec.mjs",
         "realtime-checkpoint-store.spec.mjs",
         "realtime-incident-dashboard.spec.mjs",
@@ -29,9 +28,8 @@
     {
       "id": "map",
       "name": "Browser: heavyweight map, 3D, and Kepler",
-      "owns": "The expensive rendering surfaces: Kepler analytics, Cesium scenes, 2.5D storytelling, terrain and imagery rasters, and the large-payload geospatial formats behind them. This is the slowest shard by design, so isolating it is what keeps a Kepler regression from replaying every cheap browser test.",
+      "owns": "The expensive rendering surfaces: Kepler analytics, Cesium scenes, terrain and imagery rasters, and the large-payload geospatial formats behind them. This is the slowest shard by design, so isolating it is what keeps a Kepler regression from replaying every cheap browser test.",
       "specs": [
-        "cesium-route-playback.spec.mjs",
         "cesium-scene-adapter-fixtures.spec.mjs",
         "cog-default-fetch.spec.mjs",
         "coverages-wcs-basic.spec.mjs",
@@ -43,7 +41,6 @@
         "publication-lookup.spec.mjs",
         "spatial-analytics-workbench.spec.mjs",
         "stac-imagery-browser.spec.mjs",
-        "storytelling-25d-map.spec.mjs",
         "webmap-visual-variables.spec.mjs",
         "zarr-direct-reader.spec.mjs"
       ]
@@ -62,8 +59,6 @@
         "data-export.spec.mjs",
         "deckgl-hexbin.spec.mjs",
         "geocoding-quickstart.spec.mjs",
-        "geoprocessing-job-runner.spec.mjs",
-        "mcp-gis-assistant.spec.mjs",
         "migration-browser-installed-package.spec.mjs",
         "migration-browser-maplibre.spec.mjs",
         "migration-browser-owls.spec.mjs",
@@ -75,7 +70,6 @@
         "query-planner-resource.spec.mjs",
         "quickstart-map.spec.mjs",
         "react-quickstart.spec.mjs",
-        "runtime-parity-showcase.spec.mjs",
         "sample-console-teardown.spec.mjs",
         "service-explorer.spec.mjs",
         "web-components-basic.spec.mjs",

@@ -185,7 +185,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["src/**/*.ts", "examples/maplibre-quickstart/src/**/*.ts", "examples/storytelling-25d-map/src/**/*.ts"],
+      include: ["src/**/*.ts", "examples/maplibre-quickstart/src/**/*.ts"],
       exclude: [
         "dist/**",
         "src/gen/**",

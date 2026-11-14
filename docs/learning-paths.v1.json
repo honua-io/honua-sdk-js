@@ -127,20 +127,20 @@
     },
     {
       "id": "edit",
-      "title": "Edit with forms, attachments, and recovery",
-      "outcome": "Apply metadata-backed edits and attachments, surface conflicts, and roll back failed mutations without hiding unsupported operations.",
-      "labels": ["fixture", "degraded"],
-      "degradationReason": "Capability discovery failure disables mutation; deterministic fixture output is never presented as live evidence.",
+      "title": "Edit with sketching, snapping, and undo",
+      "outcome": "Draw, snap, undo, and submit edits through the SDK sketch workflow without hiding unsupported operations.",
+      "labels": ["fixture", "experimental", "degraded"],
+      "degradationReason": "The sketch workflow edits a committed fixture parcel source; deterministic fixture output is never presented as live evidence.",
       "siteJourneyId": "query-map-style",
-      "guidePath": "docs/shared-client-contract.md",
-      "sampleId": "edit-workflow-demo",
-      "sourcePath": "examples/edit-workflow-demo",
-      "sourceEntry": "examples/edit-workflow-demo/src/model.ts",
-      "docsPath": "examples/edit-workflow-demo/README.md",
-      "typecheckScript": "demo:edit-workflow:typecheck",
+      "guidePath": "docs/terra-draw-sketch.md",
+      "sampleId": "sketch-editing",
+      "sourcePath": "examples/sketch-editing",
+      "sourceEntry": "examples/sketch-editing/src/main.ts",
+      "docsPath": "examples/sketch-editing/README.md",
+      "typecheckScript": "demo:sketch-editing:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/contract", "symbols": ["createEditSession", "createEditSketchWorkflow"] },
-        { "specifier": "@honua/sdk-js/exploration", "symbols": ["createExplorationContext"] }
+        { "specifier": "@honua/sdk-js/contract", "symbols": ["createEditSketchWorkflow", "createSnapIndex"] },
+        { "specifier": "@honua/sdk-js/runtime", "symbols": ["createTerraDrawSketch"] }
       ]
     },
     {
@@ -162,20 +162,20 @@
     },
     {
       "id": "3d",
-      "title": "Add terrain and 3D context",
-      "outcome": "Progress from stable 2D map primitives to an explicitly experimental 2.5D/3D experience.",
+      "title": "Add imagery and terrain context",
+      "outcome": "Progress from stable 2D map primitives to STAC imagery, bounded COG windows, and terrain elevation profiles.",
       "labels": ["fixture", "authenticated", "experimental", "degraded"],
-      "degradationReason": "The runnable 2.5D shell still reaches the scene-workspace compatibility surface; stable map/runtime imports are the taught foundation until #399 migrates it.",
+      "degradationReason": "The default build replays pinned COG and terrain fixtures; live imagery needs a host-mediated endpoint.",
       "siteJourneyId": "imagery-terrain-3d",
-      "guidePath": "docs/scene-workspace.md",
-      "sampleId": "storytelling-25d-map",
-      "sourcePath": "examples/storytelling-25d-map",
-      "sourceEntry": "examples/storytelling-25d-map/src/map.ts",
-      "docsPath": "examples/storytelling-25d-map/README.md",
-      "typecheckScript": "demo:25d:typecheck",
+      "guidePath": "docs/cog.md",
+      "sampleId": "imagery-cog-quickstart",
+      "sourcePath": "examples/imagery-cog-quickstart",
+      "sourceEntry": "examples/imagery-cog-quickstart/src/main.ts",
+      "docsPath": "examples/imagery-cog-quickstart/README.md",
+      "typecheckScript": "demo:imagery-cog:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/map", "symbols": ["HonuaMap"] },
-        { "specifier": "@honua/sdk-js/runtime", "symbols": ["HonuaMapRuntime"] }
+        { "specifier": "@honua/sdk-js/cog", "symbols": ["mountStacCogAssetToMapLibre", "openStacCogAsset"] },
+        { "specifier": "@honua/sdk-js/honua", "symbols": ["HonuaImageService"] }
       ]
     },
     {
@@ -198,18 +198,19 @@
     {
       "id": "automate",
       "title": "Automate safely with agent tools",
-      "outcome": "Expose bounded map actions with capability explanations while keeping writes behind host approval.",
-      "labels": ["fixture", "experimental", "degraded"],
-      "degradationReason": "The current assistant shell still uses the app-workspace compatibility surface, and write execution stays disabled without explicit host approval.",
+      "outcome": "Dry-run, approve, and verify bounded agent map actions with signed receipts, keeping writes behind host approval.",
+      "labels": ["fixture", "authenticated", "experimental", "degraded"],
+      "degradationReason": "The builder dry-runs agent plans over fixtures by default, and write execution stays disabled without explicit host approval.",
       "siteJourneyId": "safe-agent-automation",
-      "guidePath": "docs/ai-map-kit.md",
-      "sampleId": "mcp-gis-assistant",
-      "sourcePath": "examples/mcp-gis-assistant",
-      "sourceEntry": "examples/mcp-gis-assistant/src/assistant.ts",
-      "docsPath": "examples/mcp-gis-assistant/README.md",
-      "typecheckScript": "demo:mcp-gis-assistant:typecheck",
+      "guidePath": "docs/agent-safety.md",
+      "sampleId": "ai-spatial-app-builder",
+      "sourcePath": "examples/ai-spatial-app-builder",
+      "sourceEntry": "examples/ai-spatial-app-builder/src/safe-agent.ts",
+      "docsPath": "examples/ai-spatial-app-builder/README.md",
+      "typecheckScript": "demo:ai-spatial-builder:typecheck",
       "api": [
-        { "specifier": "@honua/sdk-js/agent-tools", "symbols": ["HONUA_AGENT_TOOL_DEFINITIONS", "createHonuaAgentToolExecutor"] }
+        { "specifier": "@honua/sdk-js/agent-safety", "symbols": ["dryRunAgentPlan", "issueAgentApproval"] },
+        { "specifier": "@honua/sdk-js/agent-tools", "symbols": ["HONUA_AGENT_TOOL_NAMES"] }
       ]
     }
   ]

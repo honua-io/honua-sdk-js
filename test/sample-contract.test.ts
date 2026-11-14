@@ -263,13 +263,13 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(29);
+    expect(catalog.samples).toHaveLength(23);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(25);
+    ).toHaveLength(20);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
-    ).toHaveLength(4);
+    ).toHaveLength(3);
     expect(catalog.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(catalog.samples.filter((sample: { track: string }) => sample.track === "golden")).toHaveLength(4);
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "qualified")).toHaveLength(
@@ -278,15 +278,6 @@ describe("sample publication contract", () => {
     expect(catalog.goldenJourneys.filter((journey: { status: string }) => journey.status === "planned")).toHaveLength(
       3,
     );
-    expect(catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback")).toMatchObject({
-      lifecycle: { state: "rework", targetRelease: "0.4.0" },
-      data: { configurationStatus: "legacy-unsafe", config: [] },
-    });
-    expect(catalog.samples.find((sample: { id: string }) => sample.id === "edit-workflow-demo")).toMatchObject({
-      track: "recipe",
-      journeyId: "planning-permitting",
-      lifecycle: { state: "rework" },
-    });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
       track: "recipe",
       lifecycle: { state: "active" },
@@ -294,6 +285,7 @@ describe("sample publication contract", () => {
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "sketch-editing")).toMatchObject({
       track: "recipe",
+      journeyId: "planning-permitting",
       lifecycle: { state: "active" },
     });
     expect(catalog.siteMappings).toHaveLength(21);
@@ -960,12 +952,7 @@ describe("sample publication contract", () => {
     // Apply the pending policy to the first sorted entry so the deadline guard
     // runs before unrelated current-version live receipts. This synthetic
     // negative fixture changes no receipt or production catalog.
-    const pending = catalog.samples.find(
-      (sample: { lifecycle: { state: string } }) => sample.lifecycle.state !== "active",
-    );
-    expect(pending.lifecycle.targetRelease).toBe("0.4.0");
-    const expired = structuredClone(pending.lifecycle);
-    expired.targetRelease = "0.3.0";
+    const expired = { state: "rework", reason: "Expired rework fixture.", targetRelease: "0.3.0" };
     catalog.samples[0].lifecycle = expired;
     await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
       `${catalog.samples[0].id}: lifecycle ${expired.state} expired at 0.3.0`,
@@ -1120,13 +1107,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(29);
+    expect(projection.samples).toHaveLength(23);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(29);
+    expect(ciSelection.samples).toHaveLength(23);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1225,7 +1212,7 @@ describe("sample publication contract", () => {
       projection.routes
         .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
         .map((route) => String(route.sampleId ?? route.ownership)),
-    ).toEqual(["edit-workflow-demo", "site-exception"]);
+    ).toEqual(["sketch-editing", "site-exception"]);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);
@@ -1568,32 +1555,44 @@ describe("sample publication contract", () => {
       "runnable docs example inventory drift",
     );
 
+    const pendingTarget = nextMinorTarget(String(packageJson.version));
     const expiredLifecycle = await readJson("samples/catalog.v2.json");
-    expiredLifecycle.samples.find(
-      (sample: { id: string }) => sample.id === "cesium-route-playback",
-    ).lifecycle.targetRelease = packageJson.version;
+    expiredLifecycle.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle = {
+      state: "rework",
+      reason: "Expired rework fixture.",
+      targetRelease: packageJson.version,
+    };
     await expect(validateCatalog(expiredLifecycle, packageJson, validationTime)).rejects.toThrow(
-      `lifecycle rework expired at ${packageJson.version}`,
+      `geocoding-quickstart: lifecycle rework expired at ${packageJson.version}`,
     );
 
     const missingReplacement = await readJson("samples/catalog.v2.json");
-    const merged = missingReplacement.samples.find((sample: { lifecycle: { state: string } }) =>
-      ["merge", "replace", "retire"].includes(sample.lifecycle.state),
-    );
-    delete merged.lifecycle.replacement;
+    missingReplacement.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle = {
+      state: "merge",
+      reason: "Merge fixture without a replacement.",
+      targetRelease: pendingTarget,
+    };
     await expect(validateCatalog(missingReplacement, packageJson, validationTime)).rejects.toThrow(
       "JSON Schema validation failed",
     );
 
     const replacementCycle = await readJson("samples/catalog.v2.json");
-    const first = replacementCycle.samples.find((sample: { id: string }) => sample.id === "geoprocessing-job-runner");
+    const first = replacementCycle.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart");
     const second = replacementCycle.samples.find((sample: { id: string }) => sample.id === "stac-imagery-browser");
-    first.lifecycle.replacement = { kind: "sample", id: second.id };
-    second.lifecycle.state = "merge";
-    second.lifecycle.targetRelease = first.lifecycle.targetRelease;
-    second.lifecycle.replacement = { kind: "sample", id: first.id };
+    first.lifecycle = {
+      state: "merge",
+      reason: "Replacement cycle fixture.",
+      targetRelease: pendingTarget,
+      replacement: { kind: "sample", id: second.id },
+    };
+    second.lifecycle = {
+      state: "merge",
+      reason: "Replacement cycle fixture.",
+      targetRelease: pendingTarget,
+      replacement: { kind: "sample", id: first.id },
+    };
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
-      "sample/journey replacement cycle: sample:geoprocessing-job-runner -> sample:stac-imagery-browser -> sample:geoprocessing-job-runner",
+      "sample/journey replacement cycle: sample:geocoding-quickstart -> sample:stac-imagery-browser -> sample:geocoding-quickstart",
     );
 
     const expandedJourneyCycle = await readJson("samples/catalog.v2.json");
@@ -1601,9 +1600,7 @@ describe("sample publication contract", () => {
       (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
     );
     imagery.lifecycle.state = "merge";
-    imagery.lifecycle.targetRelease = expandedJourneyCycle.samples.find(
-      (sample: { id: string }) => sample.id === "storytelling-25d-map",
-    ).lifecycle.targetRelease;
+    imagery.lifecycle.targetRelease = pendingTarget;
     imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
     await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",
@@ -1640,10 +1637,13 @@ describe("sample publication contract", () => {
     );
 
     const unsafeActiveConfig = await readJson("samples/catalog.v2.json");
-    const cesium = unsafeActiveConfig.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback");
-    cesium.lifecycle = { state: "active", reason: "Invalid promotion fixture." };
+    const unsafeGeocoding = unsafeActiveConfig.samples.find(
+      (sample: { id: string }) => sample.id === "geocoding-quickstart",
+    );
+    unsafeGeocoding.data.configurationStatus = "legacy-unsafe";
+    unsafeGeocoding.data.configurationGap = "Invalid promotion fixture.";
     await expect(validateCatalog(unsafeActiveConfig, packageJson, validationTime)).rejects.toThrow(
-      "cesium-route-playback: legacy-unsafe configuration requires bounded rework",
+      "geocoding-quickstart: legacy-unsafe configuration requires bounded rework",
     );
 
     const sensitiveReplacementUrl = await readJson("samples/catalog.v2.json");
@@ -1705,14 +1705,6 @@ describe("sample publication contract", () => {
         credentialScope: "secret",
       });
     }
-    // Both halves of this used to run through kepler-analytics, which #1674
-    // retired. They are separate properties and neither depended on that
-    // sample in particular, so each is re-anchored rather than dropped.
-    const legacyUnsafe = catalog.samples.find((sample: { id: string }) => sample.id === "cesium-route-playback");
-    expect(legacyUnsafe).toMatchObject({
-      lifecycle: { state: "rework" },
-      data: { configurationStatus: "legacy-unsafe" },
-    });
     // No sample declares VITE_MAPBOX_TOKEN any more, so the public-token arm is
     // only reachable at the classifier. Asserting it there keeps the arm proven
     // and stops the next retirement from silently deleting the coverage.
@@ -1741,24 +1733,6 @@ describe("sample publication contract", () => {
     });
     await expect(validateCatalog(inventedRead, packageJson, validationTime)).rejects.toThrow(
       "node-backend-quickstart: configuration declaration drift",
-    );
-
-    // Bounded rework is still proved here, on a shipped sample whose legacy
-    // configuration declares no names. Approving a browser-public credential
-    // cannot be proved on a shipped sample: the ones that declare one also
-    // pass a whole import.meta.env object, so the earlier whole-environment
-    // guard fires first. The status rule is proved by the named-key fixture
-    // in the next test.
-    const unboundedRework = structuredClone(catalog);
-    const legacyUnsafeSample = unboundedRework.samples.find(
-      (sample: { id: string }) => sample.id === "cesium-route-playback",
-    );
-    // The schema forbids targetRelease on an active sample, so dropping it is
-    // what makes this a legitimate catalog rather than a schema violation the
-    // invariant never gets to see.
-    legacyUnsafeSample.lifecycle = { state: "active", reason: legacyUnsafeSample.lifecycle.reason };
-    await expect(validateCatalog(unboundedRework, packageJson, validationTime)).rejects.toThrow(
-      "cesium-route-playback: legacy-unsafe configuration requires bounded rework",
     );
 
     const maplibre = catalog.samples.find((sample: { id: string }) => sample.id === "maplibre-quickstart");
@@ -2305,7 +2279,7 @@ runNpmScriptSync("demo:wrong:build", {
         "demo:fixture:build",
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
-    await expect(validateFixtureBuildHarnesses()).resolves.toBe(19);
+    await expect(validateFixtureBuildHarnesses()).resolves.toBe(14);
   });
 
   it("keeps the columnar browser validation exact and bounded", async () => {

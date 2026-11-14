@@ -63,11 +63,11 @@ test("derives learning-card metadata from the versioned sample catalog", async (
 
   const markdown = generateLearningMarkdown(manifest, sampleCatalog);
   const edit = manifest.paths.find((learningPath) => learningPath.id === "edit");
-  assert.equal(edit.sampleId, "edit-workflow-demo");
-  assert.equal(edit.sourceEntry, "examples/edit-workflow-demo/src/model.ts");
-  assert.match(markdown, /edit-workflow-demo[\s\S]*Sample contract: `recipe` · `supported` · `rework`/);
-  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `rework`/);
-  assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `lab` · `supported` · `merge`/);
+  assert.equal(edit.sampleId, "sketch-editing");
+  assert.equal(edit.sourceEntry, "examples/sketch-editing/src/main.ts");
+  assert.match(markdown, /sketch-editing[\s\S]*Sample contract: `recipe` · `experimental` · `active`/);
+  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `active`/);
+  assert.match(markdown, /imagery-cog-quickstart[\s\S]*Sample contract: `golden` · `supported` · `active`/);
   assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);
   assert.match(
     markdown,

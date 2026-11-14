@@ -238,7 +238,7 @@ owned failure domains:
 | --- | --- |
 | `offline` | The offline region reference, its service-worker shell generation, IndexedDB persistence, static/on-disk asset serving. |
 | `realtime` | Realtime subscriptions, checkpointing, collaborative and permitted editing, the authenticated session around them. |
-| `map` | Kepler, Cesium, 2.5D storytelling, terrain and imagery rasters, large-payload formats, and the rendering benchmark. |
+| `map` | Kepler, Cesium, terrain and imagery rasters, large-payload formats, and the rendering benchmark. |
 | `examples` | Quickstarts, scaffolded apps, migration browser surfaces, web components, general smoke, and the MapLibre 5.x/6.x peer-major matrix. |
 
 The partition is a **reviewed list, not a glob**. A glob-defined shard silently
