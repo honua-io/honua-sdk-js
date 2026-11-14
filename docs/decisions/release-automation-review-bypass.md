@@ -183,6 +183,23 @@ token in the release job and pass it where `secrets.GITHUB_TOKEN` is used at
 line 40, keeping `GITHUB_TOKEN` as the fallback so a missing secret degrades to
 today's behaviour rather than breaking the release.
 
+## Release candidate refresh recovery
+
+The trusted refresh closes a conflicting Release Please PR only after an
+update-branch HTTP 422 and fresh confirmation of the exact bot candidate,
+unchanged head/base, and `mergeable: false`. Other update failures remain errors.
+It checks every supported release branch before requesting regeneration; closed
+candidates never reach normalization or canonical CI dispatch.
+
+A moved trusted trunk or confirmed conflict requests one new workflow dispatch
+on `trunk` with `retry_release_pr_refresh=true`. This run checks out its own
+triggering trunk revision and regenerates release PRs with the bot App token.
+The retry skips the release iterator and package publication; it cannot be
+combined with stranded-release recovery inputs. A second refresh failure fails
+closed without another dispatch. Existing head, ancestry, normalization, and
+required CI checks still apply. The normal successful path adds no jobs; recovery
+adds one short dispatch job and one serialized refresh-only workflow run.
+
 ## What closes the issue
 
 The validation on #1093 is behavioural, not a diff: *a fresh release-please PR
