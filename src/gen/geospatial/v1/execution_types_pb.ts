@@ -104,7 +104,7 @@ export const PlanStepSchema: GenMessage<PlanStep> = /*@__PURE__*/
  * structured error — streaming terminal error events, feature edit failures
  * (FeatureService), and spec diagnostics (SpecService) — so that clients parse
  * one error shape everywhere.
- * 
+ *
  * Fields 1-3 are the canonical core (code, message, details); fields 4-8 carry
  * optional execution-context that the operator/execution surfaces populate and
  * that other surfaces simply leave unset. Fields 9-10 carry diagnostic context
@@ -115,7 +115,7 @@ export const PlanStepSchema: GenMessage<PlanStep> = /*@__PURE__*/
  */
 export type ErrorDetail = Message<"geospatial.v1.ErrorDetail"> & {
   /**
-   * Numeric, machine-parseable error code. Aligned with GeoServices/Esri REST
+   * Numeric, machine-parseable error code. Aligned with GeoServices REST
    * error-code semantics where applicable (e.g. 400 invalid/missing parameters,
    * 403 forbidden, 404 not found, 498/499 token/auth, 500 internal server
    * error); these also line up with HTTP/gRPC status conventions. 0 means
@@ -203,7 +203,7 @@ export const ErrorDetailSchema: GenMessage<ErrorDetail> = /*@__PURE__*/
  * handles for its owning workspace, bound retention policy, and
  * materialization state. The full Artifact resource is returned by
  * ArtifactService.GetArtifact.
- * 
+ *
  * Field 5 (workspace_ref), field 6 (retention_policy_ref), and field 7
  * (materialization_state) are the legacy string handles. They remain wire-
  * and JSON-compatible with prior v1 releases and are deprecated in favor of
@@ -817,7 +817,7 @@ export const ParameterMapSchema: GenMessage<ParameterMap> = /*@__PURE__*/
  * ListArtifactsRequest when the workspace filter is unset),
  * `ExecutionContext.workspace` is informational only; it does not implicitly
  * narrow results, and servers evaluate caller scope from request metadata.
- * 
+ *
  * Workspace identity precedence. When the enclosing request already carries
  * a WorkspaceRef elsewhere — for example `ArtifactRef.workspace`,
  * `ArtifactHeader.workspace`, `WorkspaceRef ref` on WorkspaceService
@@ -829,7 +829,7 @@ export const ParameterMapSchema: GenMessage<ParameterMap> = /*@__PURE__*/
  * `workspace_revision`) and the server returns INVALID_ARGUMENT on
  * mismatch. Callers that already carry workspace identity on the resource
  * or filter handle MAY leave `ExecutionContext.workspace` unset.
- * 
+ *
  * Field 1 (workspace_id) is the legacy string handle retained for wire and
  * JSON compatibility. It is deprecated in favor of the typed `workspace`
  * handle on field 4; when both are populated they MUST identify the same

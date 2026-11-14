@@ -101,3 +101,5 @@ export function connectWithSourceSchemaV2(options: ConnectOptions): Promise<Honu
     SOURCE_SCHEMA_V2_CONNECT_PROJECTION,
   ) as Promise<HonuaConnectionWithSourceSchemaV2>;
 }
+
+export { grpcSourceSchemaV2 } from "./connect-grpc-schema.js";

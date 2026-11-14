@@ -1,3 +1,4 @@
+import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
 /**
  * Explicit, fail-closed connection discovery facade.
  *
@@ -162,6 +163,7 @@ export interface ConnectSourceSchemaProjectionContext {
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
   parseCached(value: unknown): SourceSchemaV2Envelope;
+  grpc(metadata: LayerDescriptor, context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   stac(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,
@@ -289,8 +291,12 @@ export interface ConnectDiscoverySnapshot {
 }
 
 export interface ConnectOptions {
-  /** OGC API, STAC API, WFS 2.0, WMS/WMTS, or canonical GeoServices URL. */
+  /** Native gRPC-Web base URL, OGC API, STAC API, WFS, WMS/WMTS, or canonical GeoServices URL. */
   readonly endpoint: string | URL;
+  /** Native gRPC service identity, independent of the endpoint URL. */
+  readonly serviceId?: string;
+  /** Restrict native gRPC discovery to one layer. */
+  readonly layerId?: number;
   /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
   readonly protocol: ConnectSourceProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
@@ -439,7 +445,7 @@ export async function connectWithSourceSchemaProjection(
   throwIfAborted(options.signal);
   const pmtilesAutoEvidence = options.protocol === "auto" && isPmtilesSchemeInput(options.endpoint);
   const endpoint = validateConnectEndpoint(options.endpoint, options.protocol);
-  const target = resolveConnectTarget(endpoint, pmtilesAutoEvidence ? "pmtiles" : options.protocol);
+  const target = resolveConnectTarget(endpoint, pmtilesAutoEvidence ? "pmtiles" : options.protocol, options);
   if (target.protocol !== "stac" && options.stac !== undefined) {
     throw new HonuaDiscoveryError("invalid-endpoint", "stac traversal options are only valid for STAC connections.");
   }
@@ -528,6 +534,7 @@ export async function connectWithSourceSchemaProjection(
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
     ...(assetVariant ? { assetVariant } : {}),
     ...(target.protocol === "pmtiles" ? { profile: pmtilesDiscoveryPolicyIdentity(pmtilesLimits) } : {}),
+    ...(target.protocol === "grpc" ? { profile: "grpc-native-descriptors@1.1" } : {}),
     ...(stacPolicy ? { profile: stacStaticTraversalPolicyIdentity(stacPolicy) } : {}),
   });
   if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
@@ -555,7 +562,16 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: target.clientBaseUrl });
+  const client =
+    options.client ??
+    new HonuaClient({
+      ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
+      ...options.clientOptions,
+      baseUrl: target.clientBaseUrl,
+    });
+  if (target.protocol === "grpc" && !client.isGrpcWeb) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Native discovery requires transport: grpc-web.");
+  }
   if (!snapshot) {
     snapshot =
       target.protocol === "grpc"
@@ -975,7 +991,10 @@ async function discoverGrpc(
   options: ConnectOptions,
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverGrpcSources(client, target, options, sourceSchemaProjection);
+  const discovered = await discoverGrpcSources(client, target, {
+    ...options,
+    ...(sourceSchemaProjection ? { sourceSchemaProjection } : {}),
+  });
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1787,9 +1806,6 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
     protocol === "pmtiles" ||
     protocol === "geoservices-feature-service" ||
     protocol === "geoservices-map-service" ||
-    // gRPC FeatureServer discovery routes through the geoservices projection and emits a
-    // schemaV2 payload; it must be projection-applicable so cache writes and reads agree
-    // (otherwise the first gRPC schema discovery caches an entry every later read rejects).
     protocol === "grpc"
   );
 }
@@ -1971,7 +1987,7 @@ function validateSnapshotLocator(
   ) {
     throw new HonuaDiscoveryError(
       "invalid-discovery-cache",
-      "Cached GeoServices source locator does not match the service endpoint.",
+      "Cached source locator does not match the service endpoint.",
     );
   }
 }

@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "Native descriptor discovery (#2502) adds typed gRPC metadata projection to /source-schema. The build-host measurement is 203034 gzip bytes; only that exceeded ceiling is reset to 223338, ceil(actual * 1.1). The root-connect retention guard and every other ceiling stay in place.",
   "Advertised OGC vector tileset discovery measures /source-schema at 200537 gzip bytes. Its narrow gzip ceiling is 201000 (0.5% above the prior ceiling), still below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
   "/analytics/uplot min was reset because splitting the chart helpers under the line budget keeps extra function boundaries in the minified entry. CI at 565ff6b5 measures 14925 minified bytes, 665 over the prior 14260 ceiling. The new ceiling is 16418, ceil(actual * 1.1). Gzip stayed inside 5868, and every other entrypoint ceiling is unchanged.",
   "Scatter selection and the optional uPlot renderer (#2367) add paired-axis ranges, point picking, rectangle selection and stable endpoint padding. Measured /analytics 42,313 minified / 12,919 gzip, /analytics/uplot 12,963 / 4,821, and tree-shake:analytics-core 33,416 / 10,517 bytes. Only these exceeded metrics are reset to measured actual plus 10% headroom.",
@@ -138,7 +139,7 @@
   },
   "/source-schema": {
    "min": 880000,
-   "gzip": 201000
+   "gzip": 223338
   },
   "/source-capabilities": {
    "min": 263724,

@@ -1,3 +1,4 @@
+import { grpcSourceSchemaV2 } from "./connect-grpc-schema.js";
 import {
   geoParquetSourceSchemaV2,
   geoServicesSourceSchemaV2,
@@ -24,6 +25,7 @@ function unavailableSchema(protocol: SourceProtocol, source: string) {
 export const SOURCE_SCHEMA_V2_CONNECT_PROJECTION = Object.freeze<ConnectSourceSchemaProjection>({
   cacheIdentity: "honua.source-schema@2.0",
   parseCached: parseSourceSchemaV2,
+  grpc: (metadata, context) => grpcSourceSchemaV2(metadata, context),
   stac: (context) => unavailableSchema("stac", context.source),
   geoServices: (metadata, context) => geoServicesSourceSchemaV2(metadata, context),
   odata: (metadata, entitySet, context) => odataSourceSchemaV2(metadata, entitySet, context),
