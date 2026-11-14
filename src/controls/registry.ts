@@ -26,8 +26,8 @@
  * owns — including contested tags — as a side effect of registering just
  * one, which a Rollup/Vite production build can also reorder *earlier* than
  * intended when the dynamic import target is merged into the same chunk as a
- * sibling static import of `@honua/app-platform/web-components` (issue #679 PR
- * review; this combination was the root cause of a real ordering bug in the
+ * sibling static import of `@honua/app-platform/web-components` (this
+ * combination was the root cause of a real ordering bug in the
  * `web-components-basic` sample before this module existed).
  *
  * Because both the synchronous and dynamic paths funnel through the exact
