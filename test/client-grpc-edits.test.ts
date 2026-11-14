@@ -84,6 +84,9 @@ describe("native gRPC-Web edits", () => {
       response(
         create(ApplyEditsResponseSchema, {
           error: { code: 1000, message: "batch rejected" },
+          deleteResults: [
+            { objectId: 9223372036854775807n, success: false, error: { code: 400, message: "invalid row" } },
+          ],
         }),
       ),
     );
@@ -91,7 +94,15 @@ describe("native gRPC-Web edits", () => {
     await expect(client.applyEdits({ ...target, deletes: [1] })).rejects.toMatchObject({
       name: "HonuaGrpcError",
       code: 2,
-      details: { code: 1000, message: "batch rejected" },
+      details: {
+        code: 1000,
+        message: "batch rejected",
+        addResults: [],
+        updateResults: [],
+        deleteResults: [
+          { objectId: "9223372036854775807", success: false, error: { code: 400, description: "invalid row" } },
+        ],
+      },
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
@@ -130,6 +141,19 @@ describe("native gRPC-Web edits", () => {
     expect(result.updated[0].id).toBe("9223372036854775807");
     expect(result.deleted[0].id).toBe("9223372036854775807");
     expect(fetchFn).toHaveBeenCalledTimes(1);
+    for (const deletes of [[Number.MAX_SAFE_INTEGER + 1], ["9223372036854775807", Number.MAX_SAFE_INTEGER + 1]]) {
+      await expect(source.applyEdits({ deletes })).rejects.toThrow("safe integers");
+    }
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects explicit geometry clearing before sending an update", async () => {
+    const fetchFn = vi.fn();
+    const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+    await expect(
+      client.applyEdits({ ...target, updates: [{ attributes: { OBJECTID: 1 }, geometry: null }] }),
+    ).rejects.toMatchObject({ name: "HonuaCapabilityNotSupportedError", capability: "clearGeometry" });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("preserves partial row failures when rollback is disabled", async () => {

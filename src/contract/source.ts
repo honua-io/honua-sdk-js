@@ -4993,6 +4993,9 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
     out.updates = envelope.updates.map(canonicalToHonuaFeature);
   }
   if (envelope.deletes && envelope.deletes.length > 0) {
+    if (envelope.deletes.some((id) => typeof id === "number" && !Number.isSafeInteger(id))) {
+      throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
+    }
     const numericIds: number[] = [];
     let allNumeric = true;
     for (const id of envelope.deletes) {

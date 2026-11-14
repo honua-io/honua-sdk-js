@@ -844,6 +844,9 @@ export function toProtoApplyEditsRequest(request: ApplyEditsRequest) {
     layerId: request.layerId,
     adds: (request.adds ?? []).map(feature),
     updates: (request.updates ?? []).map((input) => {
+      if (input.geometry === null) {
+        throw new HonuaCapabilityNotSupportedError("clearGeometry", "grpc", `${request.serviceId}/${request.layerId}`);
+      }
       const encoded = feature(input);
       const idField =
         (request.objectIdField && request.objectIdField in input.attributes ? request.objectIdField : undefined) ??
@@ -888,17 +891,18 @@ function toEditAttribute(value: unknown): AttributeValue {
 }
 
 export function fromProtoApplyEditsResponse(response: ApplyEditsResponse): HonuaApplyEditsResponse {
-  if (response.error) {
-    throw new HonuaGrpcError(2, response.error.message, response.error);
-  }
   const result = (entry: EditResult): HonuaEditResult => ({
     objectId: toSafeNumberOrString(entry.objectId),
     success: entry.success,
     ...(entry.error ? { error: { code: entry.error.code, description: entry.error.message } } : {}),
   });
-  return {
+  const outcomes = {
     addResults: response.addResults.map(result),
     updateResults: response.updateResults.map(result),
     deleteResults: response.deleteResults.map(result),
   };
+  if (response.error) {
+    throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...outcomes });
+  }
+  return outcomes;
 }
