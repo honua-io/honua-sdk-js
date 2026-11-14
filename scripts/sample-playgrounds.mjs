@@ -47,6 +47,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadTemplateManifest, playgroundUrl } from "../packages/create-honua-app/lib/templates.mjs";
+import { subpathName } from "./lib/public-surface.mjs";
 import { SAMPLE_BUNDLE_AUDIT } from "./build-sample-bundles.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -330,6 +331,8 @@ const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
 const HTML_MODULE_PATTERN = /<script[^>]*\ssrc=["']([^"']+)["']/g;
 const ENV_PATTERN = /import\.meta\.env\.(VITE_[A-Z0-9_]+)/g;
 const SDK_PACKAGE = "@honua/sdk-js";
+// Published from the same build at the same version as the SDK.
+const APP_PLATFORM_PACKAGE = "@honua/app-platform";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf8"));
@@ -404,6 +407,10 @@ export function publishedSdkEntrypoints(rootManifest) {
   return new Set(
     Object.keys(rootManifest.exports ?? {}).map((key) => (key === "." ? SDK_PACKAGE : `${SDK_PACKAGE}/${key.slice(2)}`)),
   );
+}
+
+export function publishedAppPlatformEntrypoints(publicSurface) {
+  return new Set(publicSurface.appPlatformSubpaths.map((subpath) => `${APP_PLATFORM_PACKAGE}/${subpathName(subpath)}`));
 }
 
 /** Strip a CSS/asset suffix so `maplibre-gl/dist/maplibre-gl.css` resolves to its package. */
@@ -546,6 +553,13 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
         return exclude("unpublished-entrypoint", `${specifier} is not a published SDK entrypoint.`);
       }
       dependencies[SDK_PACKAGE] = context.sdkVersion;
+      continue;
+    }
+    if (specifier.startsWith(`${APP_PLATFORM_PACKAGE}/`)) {
+      if (!context.appPlatformEntrypoints.has(specifier)) {
+        return exclude("unpublished-entrypoint", `${specifier} is not a published ${APP_PLATFORM_PACKAGE} entrypoint.`);
+      }
+      dependencies[APP_PLATFORM_PACKAGE] = context.sdkVersion;
       continue;
     }
     const packageName = bareSpecifierPackage(specifier);
@@ -978,6 +992,7 @@ function collectPlan() {
     analyze: analyzeSampleSource,
     resolveFixtureOrigin,
     sdkEntrypoints: publishedSdkEntrypoints(readJson("package.json")),
+    appPlatformEntrypoints: publishedAppPlatformEntrypoints(readJson("config/public-surface.json")),
     sdkVersion: manifest.sdk.version,
   };
   const decisions = derivePlaygroundDecisions(catalog, context);

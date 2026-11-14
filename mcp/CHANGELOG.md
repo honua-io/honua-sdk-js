@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.5.1...mcp-server-v0.6.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** import control-plane and studio from @honua/app-platform
+
+### Bug Fixes
+
+* **mcp:** import control-plane and studio from @honua/app-platform ([8ee23e4](https://github.com/honua-io/honua-sdk-js/commit/8ee23e4302149b4f0eb6a8789f5f6f68ba7f2208))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.3.0 || ^0.4.0
+
 ## [0.5.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.5.0...mcp-server-v0.5.1) (2026-11-14)
 
 

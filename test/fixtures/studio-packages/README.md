@@ -4,7 +4,7 @@ These fixtures are AI-generated Studio packages that exercise the cross-surface
 parity contract from `honua-sdk-js#226`: each is shaped exactly as it would be
 when produced through an MCP client or the QGIS plugin (note the
 `provenance.origin` of `"mcp"` / `"qgis"`), and each can be opened by Console
-and inspected by SDK tests through `@honua/sdk-js/studio`.
+and inspected by SDK tests through `@honua/app-platform/studio`.
 
 | Fixture | Family | Origin | Notes |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ and inspected by SDK tests through `@honua/sdk-js/studio`.
 Every fixture carries a `provenance` envelope (`honua_package_provenance.v1`)
 recording prompt, plan, data bindings, and permissions consistently — the same
 shape regardless of which surface generated it. `validateStudioPackage(family,
-pkg)` from `@honua/sdk-js/studio` validates all four against one envelope; see
+pkg)` from `@honua/app-platform/studio` validates all four against one envelope; see
 `test/studio/studio-package-parity.test.ts`.
 
 Permissions flag client-vs-server execution via `clientSide`: a `true`

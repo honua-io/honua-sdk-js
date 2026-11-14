@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/share` — browser-safe Share, embed-token, public-link, and
+ * `@honua/app-platform/share` — browser-safe Share, embed-token, public-link, and
  * open-data contract types and helpers.
  *
  * The long-term Console runtime is .NET/Blazor, but generated apps and
@@ -18,7 +18,7 @@
  *
  * This entrypoint owns no transport: it consumes server responses that are
  * already available. Admin/write share operations live on
- * `@honua/sdk-js/control-plane`.
+ * `@honua/app-platform/control-plane`.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.

@@ -99,7 +99,7 @@ Hosted Honua deployments can use the experimental control-plane subpath to disco
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+import { createHonuaControlPlane } from "@honua/app-platform/control-plane";
 import { loadMapDocumentFromId } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://cloud.honua.io", apiKey: process.env.HONUA_API_KEY });

@@ -117,7 +117,7 @@ Labels: `fixture` · `experimental` · `degraded`
 - Live sample: [demo-analyst-workbench.html](https://honua.io/demo-analyst-workbench.html) · [demo-geoprocessing.html](https://honua.io/demo-geoprocessing.html) · [sample-spatial-analytics.html](https://honua.io/sample-spatial-analytics.html)
 - Supported API imports: `@honua/sdk-js/contract` (`resolveSpatialAggregationWidgetSummary`); `@honua/sdk-js/exploration` (`createExplorationContext`)
 - honua.io journey: `linked-large-data-analysis`
-- Degradation: The current shell still uses the app-workspace compatibility shim retained through 0.3.x and removed in 0.4.0; #399 owns its supported-import migration.
+- Degradation: The shell state comes from @honua/app-platform/app-workspace, outside the supported @honua/sdk-js surface; #399 owns its supported-import migration.
 
 ### 6. Edit with sketching, snapping, and undo
 

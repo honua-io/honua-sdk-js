@@ -353,7 +353,7 @@ runtime.
 
 ## Web components vs. React
 
-The SDK also ships framework-neutral web components (`@honua/sdk-js/web-components`).
+The SDK also ships framework-neutral web components (`@honua/app-platform/web-components`).
 Choose based on your app:
 
 - **Use `@honua/react`** in a React app: you get JSX, typed props, hooks that

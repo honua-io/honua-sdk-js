@@ -3075,7 +3075,7 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
 
 /**
  * Registers every custom element this kit owns. Skips tags already defined.
- * Called automatically on import of `./index.js` (`@honua/sdk-js/web-components`)
+ * Called automatically on import of `./index.js` (`@honua/app-platform/web-components`)
  * — NOT on import of this module, which stays side-effect-free (issue #679).
  */
 export function defineHonuaWebComponents(registry = globalDom.customElements): void {
@@ -3107,7 +3107,7 @@ function defineIfMissing(registry: CustomElementRegistry, tagName: string, ctor:
 // this module must stay side-effect-free on import so `../controls/registry.js`
 // can dynamically `import()` it for single-tag registration without that
 // import silently claiming every tag the kit owns. The blanket
-// auto-registration importing `@honua/sdk-js/web-components` triggers lives
+// auto-registration importing `@honua/app-platform/web-components` triggers lives
 // in `./index.js`, which is every existing consumer's actual entry point —
 // see that module for the `defineHonuaWebComponents()` call.
 

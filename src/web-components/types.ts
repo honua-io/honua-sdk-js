@@ -740,7 +740,7 @@ export interface HonuaMeasureControlMessages {
  * Minimal duck-typed subset of `maplibre-gl.Map` required by
  * `<honua-measurement>`. Any MapLibre-GL `Map` instance satisfies this
  * interface, and tests can pass a plain stub (matching the duck-typing
- * posture of the `@honua/sdk-js/controls` kit and `src/runtime/runtime.ts`).
+ * posture of the `@honua/app-platform/controls` kit and `src/runtime/runtime.ts`).
  */
 export interface HonuaMeasurementMap {
   /** Subscribes to map events (`click`, `dblclick`). */

@@ -1,10 +1,10 @@
 ---
 type: reference
-title: "Generated App Runtime (`@honua/sdk-js/generated-app`)"
+title: "Generated App Runtime (`@honua/app-platform/generated-app`)"
 description: "The browser runtime for generated operations dashboards: manifest profile, canonical mapping, preview host, response contract and runtime interactions."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Generated App Runtime (`@honua/sdk-js/generated-app`)
+# Generated App Runtime (`@honua/app-platform/generated-app`)
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
@@ -21,7 +21,7 @@ The subpath is intentionally separate from the root barrel and
 import {
   HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
   previewGeneratedApp,
-} from "@honua/sdk-js/generated-app";
+} from "@honua/app-platform/generated-app";
 ```
 
 ## Manifest Profile

@@ -42,11 +42,11 @@ HONUA_API_KEY=dev-fixture-key npm run demo:node-backend
 
 ## Control-Plane Pattern
 
-Backend processes can use `@honua/sdk-js/control-plane` for hosted product administration while keeping runtime data operations on the regular SDK client:
+Backend processes can use `@honua/app-platform/control-plane` for hosted product administration while keeping runtime data operations on the regular SDK client:
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+import { createHonuaControlPlane } from "@honua/app-platform/control-plane";
 
 const client = new HonuaClient({
   baseUrl: process.env.HONUA_BASE_URL ?? "https://cloud.honua.io",

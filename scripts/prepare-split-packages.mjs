@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { entrypointsInTier, loadPublicSurface } from "./lib/public-surface.mjs";
+import { loadPublicSurface, subpathName } from "./lib/public-surface.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -593,17 +593,7 @@ function createAppPlatformPackage() {
   // client-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
-  // A deprecated subpath whose replacement stays inside @honua/sdk-js is not an
-  // app-platform move. Only app-platform replacements belong in this package.
-  const movedSubpaths = entrypointsInTier(publicSurface, "deprecated")
-    .filter((entrypoint) => !entrypoint.replacement.startsWith("@honua/sdk-js/"))
-    .map((entrypoint) => {
-      const prefix = "@honua/app-platform/";
-      if (!entrypoint.replacement.startsWith(prefix)) {
-        throw new Error(`${entrypoint.subpath} has invalid app-platform replacement ${entrypoint.replacement}`);
-      }
-      return entrypoint.replacement.slice(prefix.length);
-    });
+  const movedSubpaths = publicSurface.appPlatformSubpaths.map(subpathName);
   const appPlatformDirectories = [...new Set(movedSubpaths.map((subpath) => subpath.split("/")[0]))];
   const stableClosureDirectories = [
     "contract",

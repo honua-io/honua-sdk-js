@@ -4,7 +4,7 @@
  * patterns: {@link HonuaShareRequest} / {@link HonuaShareResponse} are
  * re-exported from `control-plane/types` (single source of truth — not
  * re-declared) so Console and MCP can reach the share contract from the one
- * `@honua/sdk-js/studio` path without taking on the full control-plane client.
+ * `@honua/app-platform/studio` path without taking on the full control-plane client.
  *
  * @experimental Not yet covered by the SDK's semver contract — these shapes
  *   may change in any minor release prior to `1.0.0`.

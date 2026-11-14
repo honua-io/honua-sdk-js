@@ -8,13 +8,13 @@ resource: "honua://capability/collaboration.map-sessions"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/sdk-js/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
+`@honua/app-platform/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
 
 ```ts doc-test=compile
 import {
   createFixtureSavedMapCollaborationTransport,
   createHonuaSavedMapCollaboration,
-} from "@honua/sdk-js/collaboration";
+} from "@honua/app-platform/collaboration";
 
 const collaboration = createHonuaSavedMapCollaboration({
   transport: createFixtureSavedMapCollaborationTransport(),

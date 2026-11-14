@@ -154,11 +154,11 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Agent safety boundary (signed approvals, effect budgets, single-use consumption, receipts; stable tier): `@honua/sdk-js/agent-safety` — see [`docs/agent-safety.md`](./agent-safety.md) and the [threat model](./agent-safety-threat-model.md)
 - Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
-- Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
-- Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
+- Generated operations-dashboard manifest projection and preview runtime: `@honua/app-platform/generated-app`
+- Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/app-platform/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
 The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility. Surfaces documented
-as subpath-only, including `@honua/sdk-js/generated-app`, should be imported from their named subpath.
+as subpath-only, including `@honua/app-platform/generated-app`, should be imported from their named subpath.
 
 ## Shared Client Contract And Exploration
 
@@ -322,13 +322,13 @@ entries (now carrying optional `sourceId`) for per-source attribution. Full comp
 
 ## Generated App Preview Runtime
 
-`@honua/sdk-js/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
+`@honua/app-platform/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
 canonical `BuildSpec`, `AppVersion.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { previewGeneratedApp } from "@honua/sdk-js/generated-app";
+import { previewGeneratedApp } from "@honua/app-platform/generated-app";
 
 const preview = await previewGeneratedApp(
   { appPackage, mapPackage },

@@ -17,7 +17,7 @@ function copyManifest() {
   return structuredClone(manifest);
 }
 
-test("rejects a stale or deprecated SDK subpath", async () => {
+test("rejects an SDK subpath the package does not export", async () => {
   const invalid = copyManifest();
   invalid.paths[0].api[0].specifier = "@honua/sdk-js/app";
   await assert.rejects(
@@ -29,7 +29,25 @@ test("rejects a stale or deprecated SDK subpath", async () => {
       sampleCatalog: undefined,
       checkRuntimeImports: false,
     }),
-    /deprecated SDK subpath @honua\/sdk-js\/app cannot be taught/,
+    /unknown SDK subpath @honua\/sdk-js\/app/,
+  );
+});
+
+test("rejects a deprecated SDK subpath", async () => {
+  const invalid = copyManifest();
+  invalid.paths[0].api[0].specifier = "@honua/sdk-js/legacy";
+  const surfaceWithDeprecated = structuredClone(publicSurface);
+  surfaceWithDeprecated.entrypoints.push({ subpath: "./legacy", tier: "deprecated" });
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: invalid,
+      projectRoot: root,
+      packageJson,
+      publicSurface: surfaceWithDeprecated,
+      sampleCatalog: undefined,
+      checkRuntimeImports: false,
+    }),
+    /deprecated SDK subpath @honua\/sdk-js\/legacy cannot be taught/,
   );
 });
 

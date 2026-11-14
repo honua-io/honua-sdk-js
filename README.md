@@ -94,7 +94,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.3.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 28 experimental subpaths may change before 1.0, and
-18 deprecated compatibility subpaths have explicit removal versions. See
+0 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
 [`support/projections/sdk-support.v1.json`](./support/projections/sdk-support.v1.json) for the generic
@@ -747,9 +747,8 @@ correctly use this SDK:
   - **Application-platform surfaces** (`/app`, `/app-controller`, `/app-workspace`,
     `/scene-workspace`, `/collaboration`, `/control-plane`, `/replica-sync`, `/share`,
     `/operate`, `/generated-app`, `/studio`, `/controls`, `/web-components`, `/operator`,
-    `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
-    18 deprecated compatibility subpaths remain through `0.3.x` and are removed in
-    `0.4.0`. The `/console` entrypoint was removed outright (no shim).
+    `/operator/*`) live in the separate `@honua/app-platform` package. `0.4.0` removed
+    their `@honua/sdk-js` forwarders, and the `/console` entrypoint is gone too.
     `@honua/app-platform/scene-workspace` is the first of those replacements promoted to
     **`beta`**: the renderer-neutral workspace state, the scene primitive contract, and
     the Cesium primitive adapter carry a shape commitment through `0.1.x`, while Honua
@@ -779,11 +778,9 @@ We publish a lifecycle because a library you build on should tell you what it pr
   versions are coordinated across the Honua SDK family (JavaScript, Python, .NET) so one semver
   line describes the contract on every platform.
 - **Application-platform surfaces move separately.** App-shell, builder, and hosted-product
-  entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
-  its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
-  Their old `@honua/sdk-js/*` subpaths remain as `@deprecated` re-export shims through
-  `0.3.x` and are removed in `0.4.0`. Promoting a replacement (the Cesium scene surface is
-  now `beta`) does not extend or shorten a forwarder's removal window. See
+  entrypoints live in a separate `@honua/app-platform` package that versions at its own
+  pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
+  `@honua/sdk-js` `0.4.0` removed their old subpaths; import `@honua/app-platform/<subpath>`. See
   [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 - **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on
   the current line. We will publish that policy when we cut 1.0.

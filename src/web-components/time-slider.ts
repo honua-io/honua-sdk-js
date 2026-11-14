@@ -15,7 +15,7 @@
  * ## Wiring
  * ```ts doc-test=skip reason="wiring snippet requires an application host"
  * import { createTemporalPlayback } from "@honua/sdk-js/map";
- * import "@honua/sdk-js/web-components";
+ * import "@honua/app-platform/web-components";
  *
  * const playback = createTemporalPlayback({ handle: mounted, timeField: "event_time", ... });
  * document.querySelector("honua-time-slider").playback = playback;

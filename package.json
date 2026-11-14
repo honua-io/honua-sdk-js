@@ -78,10 +78,6 @@
       "types": "./dist/src/routing/index.d.ts",
       "default": "./dist/src/routing/index.js"
     },
-    "./controls": {
-      "types": "./dist/src/_deprecated/controls.d.ts",
-      "default": "./dist/src/_deprecated/controls.js"
-    },
     "./contract": {
       "types": "./dist/src/contract/index.d.ts",
       "default": "./dist/src/contract/index.js"
@@ -130,22 +126,6 @@
       "types": "./dist/src/analytics/adapters/uplot.d.ts",
       "default": "./dist/src/analytics/adapters/uplot.js"
     },
-    "./control-plane": {
-      "types": "./dist/src/_deprecated/control-plane.d.ts",
-      "default": "./dist/src/_deprecated/control-plane.js"
-    },
-    "./collaboration": {
-      "types": "./dist/src/_deprecated/collaboration.d.ts",
-      "default": "./dist/src/_deprecated/collaboration.js"
-    },
-    "./replica-sync": {
-      "types": "./dist/src/_deprecated/replica-sync.d.ts",
-      "default": "./dist/src/_deprecated/replica-sync.js"
-    },
-    "./share": {
-      "types": "./dist/src/_deprecated/share.d.ts",
-      "default": "./dist/src/_deprecated/share.js"
-    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
@@ -170,14 +150,6 @@
       "types": "./dist/src/offline/index.d.ts",
       "default": "./dist/src/offline/index.js"
     },
-    "./app-controller": {
-      "types": "./dist/src/_deprecated/app-controller.d.ts",
-      "default": "./dist/src/_deprecated/app-controller.js"
-    },
-    "./app-workspace": {
-      "types": "./dist/src/_deprecated/app-workspace.d.ts",
-      "default": "./dist/src/_deprecated/app-workspace.js"
-    },
     "./map": {
       "types": "./dist/src/map/index.d.ts",
       "default": "./dist/src/map/index.js"
@@ -186,33 +158,13 @@
       "types": "./dist/src/style/index.d.ts",
       "default": "./dist/src/style/index.js"
     },
-    "./scene-workspace": {
-      "types": "./dist/src/_deprecated/scene-workspace.d.ts",
-      "default": "./dist/src/_deprecated/scene-workspace.js"
-    },
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
     },
-    "./app": {
-      "types": "./dist/src/_deprecated/app.d.ts",
-      "default": "./dist/src/_deprecated/app.js"
-    },
-    "./web-components": {
-      "types": "./dist/src/_deprecated/web-components.d.ts",
-      "default": "./dist/src/_deprecated/web-components.js"
-    },
     "./react": {
       "types": "./dist/src/react/index.d.ts",
       "default": "./dist/src/react/index.js"
-    },
-    "./generated-app": {
-      "types": "./dist/src/_deprecated/generated-app.d.ts",
-      "default": "./dist/src/_deprecated/generated-app.js"
-    },
-    "./studio": {
-      "types": "./dist/src/_deprecated/studio.d.ts",
-      "default": "./dist/src/_deprecated/studio.js"
     },
     "./agent-tools": {
       "types": "./dist/src/agent-tools/index.d.ts",
@@ -229,30 +181,6 @@
     "./studio-agent": {
       "types": "./dist/src/studio-agent/index.d.ts",
       "default": "./dist/src/studio-agent/index.js"
-    },
-    "./operator": {
-      "types": "./dist/src/_deprecated/operator.d.ts",
-      "default": "./dist/src/_deprecated/operator.js"
-    },
-    "./operator/controllers": {
-      "types": "./dist/src/_deprecated/operator/controllers.d.ts",
-      "default": "./dist/src/_deprecated/operator/controllers.js"
-    },
-    "./operator/workspace": {
-      "types": "./dist/src/_deprecated/operator/workspace.d.ts",
-      "default": "./dist/src/_deprecated/operator/workspace.js"
-    },
-    "./operator/theming": {
-      "types": "./dist/src/_deprecated/operator/theming.d.ts",
-      "default": "./dist/src/_deprecated/operator/theming.js"
-    },
-    "./operator/i18n": {
-      "types": "./dist/src/_deprecated/operator/i18n.d.ts",
-      "default": "./dist/src/_deprecated/operator/i18n.js"
-    },
-    "./operate": {
-      "types": "./dist/src/_deprecated/operate.d.ts",
-      "default": "./dist/src/_deprecated/operate.js"
     },
     "./cli": {
       "types": "./dist/src/cli/main.d.ts",
@@ -688,7 +616,7 @@
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
     "bench:ttfm": "node scripts/benchmark-time-to-first-map.mjs",
     "bench:stream": "npm run build --silent && node dist/bench/run.js",
-    "bench:lab": "npm run build --silent && node --expose-gc dist/bench/lab.js --check --output test-results/benchmark-lab.json",
+    "bench:lab": "npm run build --silent && node --expose-gc --import ./scripts/lib/register-app-platform-source.mjs dist/bench/lab.js --check --output test-results/benchmark-lab.json",
     "bench:references": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-reference-corpus.json",
     "bench:references:refresh-terms": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-terms-refresh.json --refresh-terms",
     "bench:references:source-tree": "npm run build --silent && node dist/bench/cross-sdk/validate.js --print-source-tree",
@@ -954,15 +882,11 @@
     "./dist/src/client-compat-entry.js",
     "./src/client-compat-entry.ts",
     "./dist/src/web-components/index.js",
-    "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",
-    "./src/_deprecated/web-components.ts",
     "./dist/src/controls/index.js",
     "./dist/src/controls/basemap-switcher.js",
-    "./dist/src/_deprecated/controls.js",
     "./src/controls/index.ts",
     "./src/controls/basemap-switcher.ts",
-    "./src/_deprecated/controls.ts",
     "./examples/shared/maplibre-vite-worker.ts",
     "./test/fixtures/web-components-host/src/register-controls-legend.ts"
   ],

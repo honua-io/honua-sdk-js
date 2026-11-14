@@ -112,7 +112,7 @@
       "title": "Analyze linked spatial views",
       "outcome": "Keep map, table, chart, and spatial aggregation state aligned with visible fallback evidence.",
       "labels": ["fixture", "experimental", "degraded"],
-      "degradationReason": "The current shell still uses the app-workspace compatibility shim retained through 0.3.x and removed in 0.4.0; #399 owns its supported-import migration.",
+      "degradationReason": "The shell state comes from @honua/app-platform/app-workspace, outside the supported @honua/sdk-js surface; #399 owns its supported-import migration.",
       "siteJourneyId": "linked-large-data-analysis",
       "guidePath": "docs/warehouse-analytics-sources.md",
       "sampleId": "spatial-analytics-workbench",

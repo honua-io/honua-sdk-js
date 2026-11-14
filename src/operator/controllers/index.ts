@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/operator/controllers` — framework-neutral controllers behind the
+ * `@honua/app-platform/operator/controllers` — framework-neutral controllers behind the
  * operator-native component architecture.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract

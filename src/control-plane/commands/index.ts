@@ -10,7 +10,7 @@
  * import {
  *   createHonuaCommandRuntime,
  *   mapDocumentPublishCommand,
- * } from "@honua/sdk-js/control-plane";
+ * } from "@honua/app-platform/control-plane";
  *
  * const runtime = createHonuaCommandRuntime({ client });
  * const receipt = await runtime.execute(
@@ -22,7 +22,7 @@
  * ```
  *
  * @experimental Reachable from the experimental
- *   `@honua/sdk-js/control-plane` entrypoint; not yet covered by the SDK's
+ *   `@honua/app-platform/control-plane` entrypoint; not yet covered by the SDK's
  *   semver contract.
  * @module
  */

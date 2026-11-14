@@ -188,12 +188,8 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 68 = 59 original package entrypoints + the experimental STAC, raster,
-    // PMTiles, zarr, and the experimental declarative-interactions compiler
-    // and Studio agent session, plus the experimental local installer, plus
-    // `./client-compat`, the Node-only GeoParquet driver and the experimental
-    // paired-publication entrypoint.
-    expect(matrix.packageEntrypoints).toHaveLength(68);
+    // 50 = the 22 stable and 28 experimental entrypoints in config/public-surface.json.
+    expect(matrix.packageEntrypoints).toHaveLength(50);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
@@ -234,11 +230,7 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "unsupported",
       coverage: { state: "unsupported" },
     });
-    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./app")).toMatchObject({
-      supportStatus: "deprecated",
-      replacement: "@honua/app-platform/app",
-      coverage: { state: "unsupported" },
-    });
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./app")).toBeUndefined();
     expect(new Set(matrix.gaps.map((gap) => gap.coverageState))).toEqual(
       new Set(["partial", "planned", "experimental", "unsupported"]),
     );

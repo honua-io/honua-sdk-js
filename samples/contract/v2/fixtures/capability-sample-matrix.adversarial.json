@@ -33,7 +33,7 @@
     {
       "id": "overstated-package-entrypoint-join",
       "kind": "overstated-package-entrypoint-join",
-      "targetId": "./app",
+      "targetId": "./local-install",
       "qualifiedCoverageSourceId": "./map",
       "expectedFailure": "capability matrix coverage is orphaned, stale, or overstated"
     }

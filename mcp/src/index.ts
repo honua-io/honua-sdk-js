@@ -230,7 +230,7 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
  * Control-plane MUTATION is likewise absent by default, and when a host does
  * enable it ({@link CreateServerOptions.controlPlaneCommands}) MCP does not get
  * a workflow of its own: the tools are generated from the shared command
- * catalog in `@honua/sdk-js/control-plane`, so an MCP invocation and the
+ * catalog in `@honua/app-platform/control-plane`, so an MCP invocation and the
  * equivalent `honua` CLI, Studio, or direct-JS invocation share one
  * implementation and one receipt `auditKey`.
  */

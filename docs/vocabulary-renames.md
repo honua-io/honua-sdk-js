@@ -19,9 +19,9 @@ them. Affected entry points:
 
 - `@honua/sdk-js/runtime`: the `MapPackage` / `MAP_PACKAGE` names (92 in the 0.3.4 stable API report),
   for example `HonuaMapPackage`, `fetchMapPackage`, `exportMapPackage`, `HonuaMapPackageError`.
-- `@honua/sdk-js/control-plane`: `HonuaApiToken*`, `HonuaHostedMap*`, `HonuaMapPackagesClient`,
+- `@honua/app-platform/control-plane`: `HonuaApiToken*`, `HonuaHostedMap*`, `HonuaMapPackagesClient`,
   `HonuaPublishMapPackage*`, `mapPackagePublishCommand`.
-- `@honua/sdk-js/app`, `/studio`, `/generated-app`, `/web-components` and `/operator`: the same
+- `@honua/app-platform/app`, `/studio`, `/generated-app`, `/web-components` and `/operator`: the same
   map-document types they re-export, plus `HonuaGeneratedAppPackage`, `AppPackage`,
   `projectMapPackageToGeneratedAppManifest`, `layersFromMapPackage`, `legendFromMapPackage` and
   `fromMapPackageValidation`.

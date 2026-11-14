@@ -1,4 +1,3 @@
-import { HonuaClient } from "@honua/sdk-js";
 import {
   HONUA_COMMANDS,
   HONUA_COMMAND_IDS,
@@ -6,7 +5,8 @@ import {
   createHonuaCommandRuntime,
   importCreateCommand,
   mapDocumentPublishCommand,
-} from "@honua/sdk-js/control-plane";
+} from "@honua/app-platform/control-plane";
+import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";

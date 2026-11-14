@@ -1,6 +1,6 @@
 /**
  * `HonuaWidgetHost` — mounts the app-platform survival-tier web components
- * (`@honua/sdk-js/web-components`, moving to `@honua/app-platform`) into the
+ * (`@honua/app-platform/web-components`) into the
  * `container` an client-compat widget shim was constructed with, so shim UI
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
@@ -74,7 +74,7 @@ export interface HonuaWidgetHostElement extends HTMLElement {
 }
 
 /**
- * Structural slice of the `@honua/sdk-js/web-components` module the host
+ * Structural slice of the `@honua/app-platform/web-components` module the host
  * needs: the element classes (to verify tag ownership) and the registration
  * helper. Passing the whole module object satisfies this interface.
  */

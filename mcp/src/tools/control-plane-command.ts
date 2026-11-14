@@ -2,7 +2,7 @@
  * The MCP transport adapter for the shared control-plane command layer.
  *
  * Every tool registered here is *generated* from `HONUA_COMMANDS` in
- * `@honua/sdk-js/control-plane`: the name, title, description, and argument
+ * `@honua/app-platform/control-plane`: the name, title, description, and argument
  * schema are projections of the command's own declaration, and the handler
  * does exactly three things — build a `HonuaCommandInvocation`, call
  * `HonuaCommandRuntime.execute`, and render the returned receipt. There is no
@@ -42,7 +42,7 @@ import {
   type HonuaCommandInvocation,
   type HonuaCommandJsonSchema,
   type HonuaCommandRuntime,
-} from "@honua/sdk-js/control-plane";
+} from "@honua/app-platform/control-plane";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";

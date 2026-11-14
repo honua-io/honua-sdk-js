@@ -187,21 +187,6 @@ const FROZEN_MANIFEST_WIRE = JSON.stringify({
   links: [{ rel: "self", href: "/api/v1/capabilities/manifest", type: "application/json" }],
 });
 
-describe("@honua/sdk-js/studio package.json export", () => {
-  it("registers the ./studio subpath against the one-minor deprecation shim", () => {
-    // Moved to `@honua/app-platform/studio` in the 1.0 scope split; the old
-    // `@honua/sdk-js/studio` subpath resolves through a `@deprecated` re-export
-    // shim for one minor (docs/decisions/scope-split-and-1.0.md).
-    const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
-      exports?: Record<string, { types?: string; default?: string }>;
-    };
-    expect(packageJson.exports?.["./studio"]).toEqual({
-      types: "./dist/src/_deprecated/studio.d.ts",
-      default: "./dist/src/_deprecated/studio.js",
-    });
-  });
-});
-
 describe("StudioPackageValidationResponse adapter", () => {
   it("adapts a valid ValidateMapDocumentResult into the unified envelope", () => {
     const result = validateMapDocument(minimalValidMapPackage());
