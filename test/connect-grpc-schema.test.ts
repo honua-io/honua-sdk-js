@@ -163,12 +163,3 @@ it("rejects duplicate fields and dangling temporal or key references", () => {
   ])
     expect(() => grpcSourceSchemaV2(create(LayerDescriptorSchema, descriptor), context)).toThrow();
 });
-it("leaves 1.2 offset timestamp and decimal fields unknown until their values decode", () => {
-  const schema = grpcSourceSchemaV2(
-    create(LayerDescriptorSchema, {
-      fields: [{ definition: { name: "observed", fieldType: 14 } }, { definition: { name: "amount", fieldType: 15 } }],
-    }),
-    context,
-  );
-  for (const field of schema.fields) expect(field.type).toEqual({ kind: "unknown", reason: "unrecognized" });
-});

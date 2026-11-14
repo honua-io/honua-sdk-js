@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 81091,
-      "sha256": "sha256:c632b44d7e99463d024fd88125e01530f61ba74c037ac46d9c19d33320e75f27"
+      "bytes": 81394,
+      "sha256": "sha256:ad63c0684f2ddecefc850501a4ef23cfffa4e6434fe14f7098c8fe7dd408c5ef"
     }
   ],
   "profiles": {
@@ -419,7 +419,8 @@
           "queryExtent": "supported",
           "queryObjectIds": "supported",
           "stream": "supported",
-          "applyEdits": "supported"
+          "applyEdits": "supported",
+          "attachments": "supported"
         },
         "geoservices-feature-service": {
           "query": "supported",
@@ -533,20 +534,20 @@
     }
   },
   "digests": {
-    "inputs": "sha256:9be102d2105ca766f2eed5d4039540ce9554cfe4e76532af3f56091e2d447217",
+    "inputs": "sha256:30a717d9ae3cbd0a734c9abfae7cd9f06b32859e9168074931b8f17cc74a4914",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
-    "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
-    "rows": "sha256:d33972b2e3ef19e46d1993e25327281ffc1175b2c83d15d4843894f3c4819e67"
+    "supportProfile": "sha256:eaeafde314694f735d2d812a6120b61efd3edc6f589901c1a79d9a47615110eb",
+    "rows": "sha256:65937800d10aae96ebfb96071f068212ef9f9378dd847345512e2bdab8e278e6"
   },
   "summary": {
-    "rows": 295,
-    "counting": 222,
+    "rows": 296,
+    "counting": 223,
     "visibleNonCounting": 73,
     "renderer": 2,
     "portableMapArtifact": 48,
     "rendererFromPortableMapArtifact": 2,
     "byTier": {
-      "supported": 228,
+      "supported": 229,
       "beta": 24,
       "experimental": 30,
       "facade-required": 5,
@@ -555,7 +556,7 @@
     },
     "byFamily": {
       "protocol-certification": 67,
-      "protocol-operation": 72,
+      "protocol-operation": 73,
       "sdk-operation": 90,
       "terminal-journey": 66
     }
@@ -3093,6 +3094,31 @@
       },
       "evidence": [
         "grpc-edit-fixtures"
+      ],
+      "counts": true,
+      "environmentSkipAllowed": false
+    },
+    {
+      "cappedBy": null,
+      "id": "protocol-operation:grpc:attachments",
+      "family": "protocol-operation",
+      "subject": "grpc",
+      "label": "gRPC",
+      "operation": "attachments",
+      "tier": "supported",
+      "tierSource": "config/support-manifest.v1.json#/protocols/0/operationClaims/2/status",
+      "protocol": "grpc",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "renderer": false,
+      "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
+      "source": {
+        "path": "config/support-manifest.v1.json",
+        "pointer": "/protocols/0/operationClaims/2"
+      },
+      "evidence": [
+        "grpc-attachment-fixtures"
       ],
       "counts": true,
       "environmentSkipAllowed": false
