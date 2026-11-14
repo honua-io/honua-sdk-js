@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "Native gRPC-Web attachments (#2517) add the unary and chunked-upload attachment facade and signed download URLs. CI at bdeb3269 measures /contract at 110634 and /web-components at 364851 gzip bytes; only these exceeded gzip ceilings are reset to ceil(actual * 1.1): 121698 and 401337. Minified ceilings and every other entrypoint stay unchanged.",
   "Native descriptor discovery (#2502) adds typed gRPC metadata projection to /source-schema. The build-host measurement is 203034 gzip bytes; only that exceeded ceiling is reset to 223338, ceil(actual * 1.1). The root-connect retention guard and every other ceiling stay in place.",
   "Advertised OGC vector tileset discovery measures /source-schema at 200537 gzip bytes. Its narrow gzip ceiling is 201000 (0.5% above the prior ceiling), still below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
   "/analytics/uplot min was reset because splitting the chart helpers under the line budget keeps extra function boundaries in the minified entry. CI at 565ff6b5 measures 14925 minified bytes, 665 over the prior 14260 ceiling. The new ceiling is 16418, ceil(actual * 1.1). Gzip stayed inside 5868, and every other entrypoint ceiling is unchanged.",
@@ -135,7 +136,7 @@
   },
   "/contract": {
    "min": 410199,
-   "gzip": 110609
+   "gzip": 121698
   },
   "/source-schema": {
    "min": 880000,
@@ -243,7 +244,7 @@
   },
   "/web-components": {
    "min": 1428878,
-   "gzip": 364681
+   "gzip": 401337
   },
   "/kepler": {
    "min": 69154,
