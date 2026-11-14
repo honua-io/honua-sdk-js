@@ -12,8 +12,8 @@ import {
 import type { HonuaControllerAdapter, HonuaControllerRuntimeLike, HonuaViewport } from "../src/app-controller/index.js";
 import { createExplorationContext } from "../src/exploration/index.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   HonuaRuntimeDiagnosticError,
   type MaplibreMap,
 } from "../src/runtime/index.js";
@@ -52,10 +52,10 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
-function makeMapPackage(): HonuaMapPackage {
+function makeMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "controller-package",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "incidents",
@@ -190,7 +190,7 @@ function makeMockMap(): MockMap {
 function makeRuntime(map = makeMockMap()): HonuaControllerRuntimeLike & { readonly calls: MockCall[] } {
   const mapPackage = makeMapPackage();
   const runtimeCalls: MockCall[] = [];
-  let composedStyle = structuredClone(mapPackage.mapSpec) as HonuaMapPackage["mapSpec"];
+  let composedStyle = structuredClone(mapPackage.mapSpec) as HonuaMapDocument["mapSpec"];
   return {
     calls: runtimeCalls,
     map,
@@ -499,7 +499,7 @@ describe("HonuaController", () => {
   });
 
   it("runs source and layer CRUD through a renderer-neutral adapter test double", () => {
-    let style: HonuaMapPackage["mapSpec"] = { version: 8, sources: {}, layers: [] };
+    let style: HonuaMapDocument["mapSpec"] = { version: 8, sources: {}, layers: [] };
     const calls: MockCall[] = [];
     const adapter: HonuaControllerAdapter = {
       getStyle: () => style,

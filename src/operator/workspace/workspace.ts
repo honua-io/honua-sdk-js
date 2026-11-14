@@ -11,7 +11,7 @@
  */
 
 import type { LinkedViewPresetName } from "../../exploration/index.js";
-import type { LoadMapPackageOptions } from "../../runtime/index.js";
+import type { LoadMapDocumentOptions } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { ApprovalController } from "../controllers/approval.js";
 import { ListenerBag } from "../controllers/base.js";
@@ -33,8 +33,8 @@ export interface OperatorWorkspaceOptions {
   client: OperatorClient;
   /** Optional MapLibre map factory; required if the host plans to load map packages. */
   mapFactory?: MapFactory;
-  /** Map-runtime options for `loadMapPackage`. */
-  mapLoadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
+  /** Map-runtime options for `loadMapDocument`. */
+  mapLoadOptions?: Omit<LoadMapDocumentOptions, "telemetry">;
   /** Linked-view preset for the embedded `ExplorationContext`. Defaults to `"mapDriven"`. */
   explorationPreset?: LinkedViewPresetName;
   theme?: ThemeProvider | OperatorThemeTokens;
@@ -227,22 +227,22 @@ export class OperatorWorkspace {
             this.#bag.emit({ kind: "execution-terminal", executionId, result: event.result });
             const { result } = event;
             if (result.mapPackage && this.map) {
-              // Map / app loadPackage always rejects with a typed
+              // Map loadMapDocument / app loadAppVersion always rejects with a typed
               // operator error after wrapping; route any rejection
               // through `#emitError` (which wraps unknowns) so a host
               // factory failure cannot disappear from the event stream
               // — but only when the execution is still active.
-              void this.map.loadPackage(result.mapPackage).catch((error: unknown) => {
+              void this.map.loadMapDocument(result.mapPackage).catch((error: unknown) => {
                 if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
             }
             if (result.appPackage) {
-              void this.builder.loadPackage(result.appPackage).catch((error: unknown) => {
+              void this.builder.loadAppVersion(result.appPackage).catch((error: unknown) => {
                 if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
-              if (result.mapPackage) this.builder.bindMapPackage(result.mapPackage);
+              if (result.mapPackage) this.builder.bindMapDocument(result.mapPackage);
             }
             break;
           }

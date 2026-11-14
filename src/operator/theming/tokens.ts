@@ -1,6 +1,6 @@
 /**
  * Operator theming tokens. Flat name-keyed map matching the
- * `HonuaMapPackageThemeSpec` shape from `src/runtime/map-package.ts` so
+ * `HonuaMapDocumentThemeSpec` shape from `src/runtime/map-package.ts` so
  * one theme can drive both the map runtime and the surrounding operator
  * components.
  *

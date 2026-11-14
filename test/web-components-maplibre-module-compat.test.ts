@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HonuaClient } from "../src/index.js";
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import { createHonuaWebComponentController } from "../src/web-components/index.js";
 
 /**
@@ -67,7 +67,7 @@ function createFakeMapClass(): unknown {
   };
 }
 
-function makeMapPackage(): HonuaMapPackage {
+function makeMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "module-compat",
     format: "honua_map_package.v1",
@@ -80,7 +80,7 @@ function makeMapPackage(): HonuaMapPackage {
       sources: {},
       layers: [{ id: "base", type: "background", paint: { "background-color": "#eee" } }],
     },
-  } as unknown as HonuaMapPackage;
+  } as unknown as HonuaMapDocument;
 }
 
 /**

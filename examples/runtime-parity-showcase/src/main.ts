@@ -11,13 +11,13 @@ import {
   serializeInteractionQueryState,
 } from "@honua/sdk-js/interactions";
 import {
-  fetchMapPackage,
-  loadMapPackage,
+  fetchMapDocument,
+  loadMapDocument,
   throwRuntimeDiagnostics,
   validateRuntimeLayer,
   validateRuntimeSource,
 } from "@honua/sdk-js/runtime";
-import type { HonuaMapPackage, HonuaMapRuntime, MapPackageFetchCache } from "@honua/sdk-js/runtime";
+import type { HonuaMapDocument, HonuaMapRuntime, MapDocumentFetchCache } from "@honua/sdk-js/runtime";
 import { createHonuaWebComponentControllerFromRuntime } from "@honua/sdk-js/web-components";
 import type { HonuaChartElement, HonuaMapElement, HonuaWebComponentRuntimeLike } from "@honua/sdk-js/web-components";
 import * as maplibregl from "maplibre-gl";
@@ -134,7 +134,7 @@ async function boot(): Promise<void> {
   smokeRuntime.packageLoaded = true;
 
   const map = createMap();
-  runtime = await loadMapPackage(fetched.mapPackage, map, {
+  runtime = await loadMapDocument(fetched.mapPackage, map, {
     client: createFixtureClient(),
     skipCompatibilityCheck: true,
     onEvent(event) {
@@ -227,12 +227,12 @@ function createSafeRuntime(
 }
 
 async function loadHostedPackage(): Promise<{
-  mapPackage: HonuaMapPackage;
+  mapPackage: HonuaMapDocument;
   cache: ReturnType<typeof normalizeCacheState>;
 }> {
   const client = createFixtureClient();
-  const cache: MapPackageFetchCache = new Map();
-  const fetched = await fetchMapPackage(PACKAGE_ID, {
+  const cache: MapDocumentFetchCache = new Map();
+  const fetched = await fetchMapDocument(PACKAGE_ID, {
     client,
     cache,
     maxAgeMs: 1000 * 60 * 60 * 24 * 45,
@@ -248,7 +248,7 @@ function createFixtureClient(): HonuaClient {
   return new HonuaClient({ baseUrl: "", fetchFn: window.fetch.bind(window) });
 }
 
-function normalizeCacheState(cache: Awaited<ReturnType<typeof fetchMapPackage>>["cache"]): {
+function normalizeCacheState(cache: Awaited<ReturnType<typeof fetchMapDocument>>["cache"]): {
   readonly status: string;
 } {
   return { status: cache.status };
@@ -272,7 +272,7 @@ function createMap(): maplibregl.Map {
   });
 }
 
-function validatePackageStyle(mapPackage: HonuaMapPackage): number {
+function validatePackageStyle(mapPackage: HonuaMapDocument): number {
   const diagnostics = [
     ...Object.entries(mapPackage.mapSpec.sources).flatMap(([sourceId, source]) =>
       validateRuntimeSource(sourceId, source, {

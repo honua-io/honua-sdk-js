@@ -84,7 +84,7 @@
 
 import { HonuaSdkError } from "../core/error-envelope.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../core/errors.js";
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 import {
   type HonuaExportRedaction,
   HonuaExportSafetyError,
@@ -338,7 +338,7 @@ export function approximateHonuaScaleLabel(viewport: HonuaViewportState | undefi
 }
 
 /** Attribution strings a map package's own bindings and style sources declare. */
-function collectDeclaredAttribution(mapPackage: HonuaMapPackage | undefined): string[] {
+function collectDeclaredAttribution(mapPackage: HonuaMapDocument | undefined): string[] {
   const attribution = new Set<string>();
   for (const binding of mapPackage?.sourceBindings ?? []) {
     if (typeof binding.attribution === "string" && binding.attribution.trim().length > 0) {
@@ -358,7 +358,7 @@ function collectDeclaredAttribution(mapPackage: HonuaMapPackage | undefined): st
 }
 
 /** Licence notices declared on the map package (`license`, `licence`, or `metadata.license`). */
-function collectDeclaredLicenseNotices(mapPackage: HonuaMapPackage | undefined): string[] {
+function collectDeclaredLicenseNotices(mapPackage: HonuaMapDocument | undefined): string[] {
   const notices = new Set<string>();
   const candidates: unknown[] = [
     mapPackage?.license,

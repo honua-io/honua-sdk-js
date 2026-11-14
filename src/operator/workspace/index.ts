@@ -15,7 +15,7 @@ export type {
 export type {
   AnalysisIntent,
   AnalysisPlan,
-  AppPackage,
+  AppVersion,
   ApprovalAuditEntry,
   ApprovalDecision,
   ApprovalState,

@@ -3,13 +3,13 @@ import type { HonuaClient } from "../core/client.js";
 import { HonuaHttpError } from "../core/errors.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 import { type StudioCapabilityManifest, assertStudioCapabilityManifest } from "../studio/capability-manifest.js";
 import {
   HONUA_CAPABILITY_MANIFEST_PATH,
   HONUA_CONTROL_PLANE_BASE_PATH,
-  type HonuaApiToken,
-  type HonuaApiTokenCreateRequest,
+  type HonuaApiKey,
+  type HonuaApiKeyCreateRequest,
   type HonuaCapabilityManifestOptions,
   type HonuaConnectionSummary,
   type HonuaControlPlaneCapability,
@@ -21,17 +21,17 @@ import {
   type HonuaControlPlaneRawRequest,
   type HonuaControlPlaneRequestOptions,
   type HonuaControlPlaneResult,
-  type HonuaCreateHostedMapRequest,
-  type HonuaHostedMap,
-  type HonuaHostedMapSummary,
+  type HonuaCreateSavedMapRequest,
   type HonuaImportCreateRequest,
-  type HonuaMapPackageSummary,
+  type HonuaMapDocumentSummary,
   type HonuaProblemDetails,
-  type HonuaPublishMapPackageRequest,
-  type HonuaPublishMapPackageResponse,
+  type HonuaPublishMapDocumentRequest,
+  type HonuaPublishMapDocumentResponse,
+  type HonuaSavedMap,
+  type HonuaSavedMapSummary,
   type HonuaShareRequest,
   type HonuaShareResponse,
-  type HonuaUpdateHostedMapRequest,
+  type HonuaUpdateSavedMapRequest,
   type HonuaWorkspaceSummary,
 } from "./types.js";
 
@@ -48,10 +48,10 @@ export class HonuaControlPlaneClient {
   readonly #client: HonuaClient;
   readonly #basePath: string;
 
-  public readonly hostedMaps: HonuaHostedMapsClient;
-  public readonly packages: HonuaMapPackagesClient;
+  public readonly savedMaps: HonuaSavedMapsClient;
+  public readonly mapDocuments: HonuaMapDocumentsClient;
   public readonly imports: HonuaImportsClient;
-  public readonly tokens: HonuaApiTokensClient;
+  public readonly apiKeys: HonuaApiKeysClient;
   public readonly workspaces: HonuaWorkspacesClient;
   public readonly connections: HonuaConnectionsClient;
   public readonly sharing: HonuaSharingClient;
@@ -59,10 +59,10 @@ export class HonuaControlPlaneClient {
   public constructor(options: HonuaControlPlaneClientOptions) {
     this.#client = options.client;
     this.#basePath = normalizeBasePath(options.basePath ?? HONUA_CONTROL_PLANE_BASE_PATH);
-    this.hostedMaps = new HonuaHostedMapsClient(this);
-    this.packages = new HonuaMapPackagesClient(this);
+    this.savedMaps = new HonuaSavedMapsClient(this);
+    this.mapDocuments = new HonuaMapDocumentsClient(this);
     this.imports = new HonuaImportsClient(this);
-    this.tokens = new HonuaApiTokensClient(this);
+    this.apiKeys = new HonuaApiKeysClient(this);
     this.workspaces = new HonuaWorkspacesClient(this);
     this.connections = new HonuaConnectionsClient(this);
     this.sharing = new HonuaSharingClient(this);
@@ -169,7 +169,7 @@ export class HonuaControlPlaneClient {
   }
 }
 
-export class HonuaHostedMapsClient {
+export class HonuaSavedMapsClient {
   readonly #controlPlane: HonuaControlPlaneClient;
 
   public constructor(controlPlane: HonuaControlPlaneClient) {
@@ -178,14 +178,14 @@ export class HonuaHostedMapsClient {
 
   public list(
     options: HonuaControlPlaneListOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaHostedMapSummary>>> {
+  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaSavedMapSummary>>> {
     return this.#controlPlane.requestPage("hosted-maps", "/maps", options);
   }
 
   public get(
     mapId: string,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaHostedMap>> {
+  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
     return this.#controlPlane.requestJson(
       "hosted-maps",
       "GET",
@@ -196,17 +196,17 @@ export class HonuaHostedMapsClient {
   }
 
   public create(
-    request: HonuaCreateHostedMapRequest,
+    request: HonuaCreateSavedMapRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaHostedMap>> {
+  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
     return this.#controlPlane.requestJson("hosted-maps", "POST", "/maps", request, options);
   }
 
   public update(
     mapId: string,
-    request: HonuaUpdateHostedMapRequest,
+    request: HonuaUpdateSavedMapRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaHostedMap>> {
+  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
     const { ifMatch, ...body } = request;
     return this.#controlPlane.requestJson("hosted-maps", "PATCH", `/maps/${encodeURIComponent(mapId)}`, body, {
       ...options,
@@ -214,10 +214,10 @@ export class HonuaHostedMapsClient {
     });
   }
 
-  public async getPackage(
+  public async getMapDocument(
     mapId: string,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaMapPackage>> {
+  ): Promise<HonuaControlPlaneResult<HonuaMapDocument>> {
     return this.#controlPlane.requestJson(
       "map-packages",
       "GET",
@@ -227,7 +227,7 @@ export class HonuaHostedMapsClient {
     );
   }
 
-  public async getPackageLocator(
+  public async getMapDocumentLocator(
     mapId: string,
     options: HonuaControlPlaneRequestOptions = {},
   ): Promise<HonuaControlPlaneResult<{ readonly path: string }>> {
@@ -238,7 +238,7 @@ export class HonuaHostedMapsClient {
   }
 }
 
-export class HonuaMapPackagesClient {
+export class HonuaMapDocumentsClient {
   readonly #controlPlane: HonuaControlPlaneClient;
 
   public constructor(controlPlane: HonuaControlPlaneClient) {
@@ -247,14 +247,14 @@ export class HonuaMapPackagesClient {
 
   public list(
     options: HonuaControlPlaneListOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaMapPackageSummary>>> {
+  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaMapDocumentSummary>>> {
     return this.#controlPlane.requestPage("map-packages", "/packages", options);
   }
 
   public get(
     packageId: string,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaMapPackage>> {
+  ): Promise<HonuaControlPlaneResult<HonuaMapDocument>> {
     return this.#controlPlane.requestJson(
       "map-packages",
       "GET",
@@ -265,9 +265,9 @@ export class HonuaMapPackagesClient {
   }
 
   public publish(
-    request: HonuaPublishMapPackageRequest,
+    request: HonuaPublishMapDocumentRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaPublishMapPackageResponse>> {
+  ): Promise<HonuaControlPlaneResult<HonuaPublishMapDocumentResponse>> {
     const { ifMatch, ...body } = request;
     return this.#controlPlane.requestJson("map-packages", "POST", "/packages", body, {
       ...options,
@@ -455,7 +455,7 @@ function slug(value: string): string {
   return normalized.slice(start, end) || "imported_data";
 }
 
-export class HonuaApiTokensClient {
+export class HonuaApiKeysClient {
   readonly #controlPlane: HonuaControlPlaneClient;
 
   public constructor(controlPlane: HonuaControlPlaneClient) {
@@ -464,16 +464,16 @@ export class HonuaApiTokensClient {
 
   public list(
     options: HonuaControlPlaneListOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaApiToken>>> {
-    return this.#controlPlane.requestPage<HonuaApiToken>("api-tokens", "/tokens", options).then(redactPageResult);
+  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaApiKey>>> {
+    return this.#controlPlane.requestPage<HonuaApiKey>("api-tokens", "/tokens", options).then(redactPageResult);
   }
 
   public create(
-    request: HonuaApiTokenCreateRequest,
+    request: HonuaApiKeyCreateRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaApiToken>> {
+  ): Promise<HonuaControlPlaneResult<HonuaApiKey>> {
     return this.#controlPlane
-      .requestJson<HonuaApiToken>("api-tokens", "POST", "/tokens", request, options)
+      .requestJson<HonuaApiKey>("api-tokens", "POST", "/tokens", request, options)
       .then(redactTokenResult);
   }
 
@@ -718,9 +718,9 @@ function redactPageResult<T extends Record<string, unknown>>(
   };
 }
 
-function redactTokenResult(result: HonuaControlPlaneResult<HonuaApiToken>): HonuaControlPlaneResult<HonuaApiToken> {
+function redactTokenResult(result: HonuaControlPlaneResult<HonuaApiKey>): HonuaControlPlaneResult<HonuaApiKey> {
   if (!result.supported) return result;
-  return { supported: true, value: redactSecrets(result.value) as HonuaApiToken };
+  return { supported: true, value: redactSecrets(result.value) as HonuaApiKey };
 }
 
 function redactSecrets<T extends Record<string, unknown>>(value: T): T {

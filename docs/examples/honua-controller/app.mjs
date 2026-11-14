@@ -2,7 +2,7 @@ import * as maplibregl from "maplibre-gl";
 
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaController } from "@honua/sdk-js/app-controller";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example.com" });
 const map = new maplibregl.Map({
@@ -11,7 +11,7 @@ const map = new maplibregl.Map({
 });
 const mapPackage = await fetch("/api/map-package").then((response) => response.json());
 
-const runtime = await loadMapPackage(mapPackage, map, { client });
+const runtime = await loadMapDocument(mapPackage, map, { client });
 const controller = createHonuaController({
   runtime,
   layerGroups: {

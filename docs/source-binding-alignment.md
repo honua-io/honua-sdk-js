@@ -3,7 +3,7 @@
 This document keeps the SDK's `SourceDescriptor` shape aligned with the
 server's `SourceBinding` model (currently implemented in
 `honua-server/src/Honua.Core/Features/Geoprocessing/Domain/SourceBinding.cs`)
-and the SDK runtime's `HonuaMapPackageSourceBinding` mirror. The SDK
+and the SDK runtime's `HonuaMapDocumentSourceBinding` mirror. The SDK
 `SourceLocator` is a superset of the current server locator: `url`,
 `serviceId`, and `layerId` are guaranteed by the server model today,
 while OGC route hints such as `collectionId`, `tileMatrixSetId`, and
@@ -34,7 +34,7 @@ locator fields until the server schema exposes them explicitly.
 | `schema.timeField` | `schema.timeField` | Optional temporal validity hint. |
 | `attribution` | `attribution` | Free text. Attribution survives round-trip; the SDK does not modify it. |
 
-## MapBinding ↔ MapPackage
+## MapBinding ↔ Map document
 
 | `MapBinding` (SDK) | `MapPackage.sourceBindings[i]` / `mapSpec.layers[j]` (server) |
 | --- | --- |
@@ -43,11 +43,11 @@ locator fields until the server schema exposes them explicitly.
 | `style` | Merged into the corresponding `mapSpec.layers[].paint` / `.layout` blocks. |
 | `minzoom` / `maxzoom` | `mapSpec.layers[].minzoom` / `.maxzoom`. |
 
-The SDK does not own `MapPackage.metadata` or the canonical `AppPackage`
+The SDK does not own `MapPackage.metadata` or the canonical `AppVersion`
 wire shape — those are server-side concepts. The generated-app proof subpath
-does consume the browser-safe `AppPackage.manifest_artifact` projection; see
+does consume the browser-safe `AppVersion.manifest_artifact` projection; see
 [`generated-app-runtime.md`](./generated-app-runtime.md) for the
-`BuildSpec` / `AppPackage` / `MapPackage` mapping table. Server-side package
+`BuildSpec` / `AppVersion` / `HonuaMapDocument` mapping table. Server-side package
 writers should still construct one canonical package document and place the
 SDK manifest projection in `manifest_artifact` rather than inventing a second
 client-only package contract.
@@ -106,8 +106,8 @@ document and `PROTOCOL_DEFAULT_CAPABILITIES`.
 
 ## Runtime consumer: `@honua/sdk-js/runtime`
 
-The MapLibre GL JS-first runtime (`loadMapPackage`) consumes a
-server-produced `MapPackage` and projects its `sourceBindings[]` through
+The MapLibre GL JS-first runtime (`loadMapDocument`) consumes a
+server-produced `HonuaMapDocument` and projects its `sourceBindings[]` through
 the same alignment table. Protocol name translation happens inside the
 runtime's `source-bridge.ts`:
 
@@ -121,24 +121,24 @@ runtime's `source-bridge.ts`:
 | `wfs` / `odata` | `wfs` / `odata` |
 | `vector_tile` / `ogc_tiles` | MapLibre-native `vector` source (no SDK adapter) |
 | `raster_tile` / `ogc_maps` | MapLibre-native `raster` source (no SDK adapter) |
-| `workspace_artifact` | Deferred — throws `HonuaMapPackageError { stage: "source-bind" }` until a workspace resolver is wired. |
+| `workspace_artifact` | Deferred — throws `HonuaMapDocumentError { stage: "source-bind" }` until a workspace resolver is wired. |
 
 The `geoservices-image-service`, `geoservices-geometry-service`, and
 `geoservices-gp-service` protocols are first-party at the contract
 layer (`createDataset`, `Source.protocol()`) but are **not yet
 translated by `source-bridge.ts`** — the runtime currently rejects a
-`MapPackage` that ships an ImageServer / Geometry / GP binding because
+`HonuaMapDocument` that ships an ImageServer / Geometry / GP binding because
 those services are not typically composed as map sources. Direct
 construction via `geoServicesImageSource(...)`,
 `geoServicesGeometryServiceSource(...)`, or
 `geoServicesGPServiceSource(...)` works without going through the
 package projection. Routing them through `MapPackage.sourceBindings[]`
 is tracked as a follow-on; until it lands the server should not emit
-those protocols on bindings consumed by `loadMapPackage`.
+those protocols on bindings consumed by `loadMapDocument`.
 
 Unknown fields on a `SourceBinding` are preserved on the
-`HonuaMapPackage` round-trip so server additions do not break runtime
+`HonuaMapDocument` round-trip so server additions do not break runtime
 consumers. See [`maplibre-runtime.md`](./maplibre-runtime.md) for the
 full runtime surface, `src/runtime/index.ts` for the module barrel, and
 `test/runtime/runtime.test.ts` for the lifecycle contract (`load →
-updatePackage → dispose`).
+updateMapDocument → dispose`).

@@ -8,10 +8,10 @@ and inspected by SDK tests through `@honua/sdk-js/studio`.
 
 | Fixture | Family | Origin | Notes |
 | --- | --- | --- | --- |
-| `map-only.v1.json` | `map` | `mcp` | Minimal valid `HonuaMapPackage` with provenance. |
+| `map-only.v1.json` | `map` | `mcp` | Minimal valid `HonuaMapDocument` with provenance. |
 | `dashboard.v1.json` | `dashboard` | `qgis` | `HonuaGeneratedAppManifest` with category + time-series charts. |
 | `report.v1.json` | `report` | `mcp` | `HonuaReportPackage`; declares a server-side `report:render` permission. |
-| `app.v1.json` | `app` | `mcp` | `HonuaGeneratedAppPackage` wrapping a manifest artifact. |
+| `app.v1.json` | `app` | `mcp` | `HonuaGeneratedAppVersion` wrapping a manifest artifact. |
 
 Every fixture carries a `provenance` envelope (`honua_package_provenance.v1`)
 recording prompt, plan, data bindings, and permissions consistently — the same

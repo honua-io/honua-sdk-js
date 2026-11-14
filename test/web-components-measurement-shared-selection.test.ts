@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { HonuaClient } from "../src/index.js";
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import type {
   HonuaMapClickDetail,
   HonuaSelectionChangeDetail,
@@ -95,7 +95,7 @@ vi.mock("maplibre-gl", () => {
   return { Map: FakeMap, default: undefined };
 });
 
-function makeMapPackage(): HonuaMapPackage {
+function makeMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "shared-selection",
     format: "honua_map_package.v1",
@@ -110,7 +110,7 @@ function makeMapPackage(): HonuaMapPackage {
       },
       layers: [{ id: "parcels-fill", type: "fill", source: "parcels", paint: { "fill-color": "#888" } }],
     },
-  } as unknown as HonuaMapPackage;
+  } as unknown as HonuaMapDocument;
 }
 
 async function loadRenderer(controller: HonuaWebComponentController) {

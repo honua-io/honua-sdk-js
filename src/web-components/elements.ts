@@ -7,7 +7,7 @@ import {
 } from "../contract/edit-snapping.js";
 import type { HonuaClient } from "../core/client.js";
 import type { FilterClause } from "../filter-registry/index.js";
-import type { MapPackageLocator } from "../runtime/index.js";
+import type { MapDocumentLocator } from "../runtime/index.js";
 import { type HistogramStats, histogramBins, histogramRangeFilter } from "../widget-capabilities.js";
 import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { createHonuaWebComponentController } from "./controller.js";
@@ -293,7 +293,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     this.#packageLoadError = undefined;
     this.#packageLoading = Boolean(this.#packageUrl);
     this.render();
-    if (this.#packageUrl) void this.loadPackageFromUrl(this.#packageUrl);
+    if (this.#packageUrl) void this.loadMapDocumentFromUrl(this.#packageUrl);
   }
 
   public get mapPackage(): CreateHonuaWebComponentControllerOptions<T>["mapPackage"] {
@@ -357,7 +357,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   public connectedCallback(): void {
     super.connectedCallback();
     this.ensureController();
-    if (this.#packageUrl && !this.state?.mapPackage) void this.loadPackageFromUrl(this.#packageUrl);
+    if (this.#packageUrl && !this.state?.mapPackage) void this.loadMapDocumentFromUrl(this.#packageUrl);
     void this.syncRenderer();
   }
 
@@ -476,19 +476,19 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     await this.#renderer.applyState(state);
   }
 
-  private async loadPackageFromUrl(locator: MapPackageLocator): Promise<void> {
+  private async loadMapDocumentFromUrl(locator: MapDocumentLocator): Promise<void> {
     const token = ++this.#packageLoadToken;
     this.#packageLoading = true;
     this.#packageLoadError = undefined;
     this.render();
     try {
-      const [{ fetchMapPackage }, { HonuaClient }] = await Promise.all([
+      const [{ fetchMapDocument }, { HonuaClient }] = await Promise.all([
         import("../runtime/index.js"),
         import("../core/client.js"),
       ]);
       if (token !== this.#packageLoadToken) return;
       const client = this.#client ?? new HonuaClient({ baseUrl: browserOrigin() });
-      const result = await fetchMapPackage(locator, {
+      const result = await fetchMapDocument(locator, {
         client,
         requireStyleRefResolution: false,
         allowInvalid: false,
@@ -514,8 +514,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   private mapStatusText(state: HonuaWebComponentState<T> | undefined): string {
     if (this.#packageLoadError) return this.#packageLoadError;
     if (state?.mapPackage) return "";
-    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map package";
-    return this.#messages.noPackage ?? "No map package";
+    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map document";
+    return this.#messages.noPackage ?? "No map document";
   }
 }
 

@@ -68,7 +68,7 @@ import {
 } from "@honua/sdk-js/nl-map-control";
 
 const nl = createNlMapControl({
-  // Any HonuaAgentRuntime adapter: a HonuaController, a MapPackage runtime,
+  // Any HonuaAgentRuntime adapter: a HonuaController, a map document runtime,
   // or your own object over a MapLibre map.
   tools: { runtime },
   // Bring your own model. Any provider, any transport.

@@ -1,5 +1,5 @@
 /**
- * Popup bindings. The runtime wires `MapPackage.popupBindings[]` into
+ * Popup bindings. The runtime wires `HonuaMapDocument.popupBindings[]` into
  * MapLibre `click` handlers using a duck-typed map interface (no runtime
  * dependency on `maplibre-gl`). The default DOM renderer is intentionally
  * unstyled — `#29` operator components replace it with richer popup UIs.
@@ -8,7 +8,7 @@
  */
 
 import type { MapEventTarget } from "../interactions/feature-state.js";
-import type { HonuaMapPackagePopupBinding } from "./map-package.js";
+import type { HonuaMapDocumentPopupBinding } from "./map-package.js";
 
 /**
  * Minimal subset of `maplibre-gl.Popup` needed to open a popup at
@@ -29,7 +29,7 @@ export type PopupFactory = () => PopupHandle;
 export type PopupRenderer = (context: PopupRenderContext) => Node | string | undefined;
 
 export interface PopupRenderContext {
-  binding: HonuaMapPackagePopupBinding;
+  binding: HonuaMapDocumentPopupBinding;
   features: ReadonlyArray<PopupFeature>;
   lngLat: [number, number];
 }
@@ -41,7 +41,7 @@ export interface PopupFeature {
 }
 
 export interface BindPopupOptions {
-  binding: HonuaMapPackagePopupBinding;
+  binding: HonuaMapDocumentPopupBinding;
   /** MapLibre layer id to listen to for clicks. */
   layerId: string;
   /** Create a new popup handle (usually `new maplibregl.Popup()`). */

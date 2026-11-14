@@ -3,13 +3,13 @@ import { describe, expect, test, vi } from "vitest";
 import { HonuaClient } from "../src/core/client.js";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   type HonuaRuntimeDiagnostic,
   HonuaRuntimeDiagnosticError,
-  type LoadMapPackageOptions,
+  type LoadMapDocumentOptions,
   type MaplibreMap,
-  loadMapPackage,
+  loadMapDocument,
   validateRuntimeFilterExpression,
   validateRuntimeStyleSpec,
 } from "../src/runtime/index.js";
@@ -146,10 +146,10 @@ function makeClient(): HonuaClient {
   });
 }
 
-function makePackage(): HonuaMapPackage {
+function makePackage(): HonuaMapDocument {
   return {
     mapPackageId: "pkg-style-interactions",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "parcels",
@@ -175,9 +175,9 @@ function makePackage(): HonuaMapPackage {
 
 async function loadRuntime(
   map = makeMockMap(),
-  options: Partial<Pick<LoadMapPackageOptions, "styleSpecValidationMode">> = {},
+  options: Partial<Pick<LoadMapDocumentOptions, "styleSpecValidationMode">> = {},
 ) {
-  const runtime = await loadMapPackage(makePackage(), map, {
+  const runtime = await loadMapDocument(makePackage(), map, {
     client: makeClient(),
     skipCompatibilityCheck: true,
     applyInitialView: false,

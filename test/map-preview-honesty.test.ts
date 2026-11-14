@@ -4,7 +4,7 @@
  * The guarantee is enforced by *absence*, at every boundary where this SDK
  * emits a map artifact or a record of a map operation:
  *
- * 1. the portable map artifact (`exportMapPackage` / `importMapPackage`),
+ * 1. the portable map artifact (`exportMapDocument` / `importMapDocument`),
  * 2. the command receipt every transport renders (`HonuaCommandRuntime`),
  * 3. the signed NL-plan receipt (`src/nl-map-control`),
  * 4. the CLI's rendering of a publish receipt,
@@ -30,18 +30,18 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type HonuaCommand,
   createHonuaCommandRuntime,
-  mapPackagePublishCommand,
+  mapDocumentPublishCommand,
   serializeHonuaCommandReceipt,
 } from "../src/control-plane/index.js";
-import { projectMapPackageToGeneratedAppManifest } from "../src/generated-app/index.js";
+import { projectMapDocumentToGeneratedAppManifest } from "../src/generated-app/index.js";
 import { HonuaClient } from "../src/index.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
-  HonuaMapPackageError,
-  exportMapPackage,
-  importMapPackage,
-  mapPackageFingerprint,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
+  HonuaMapDocumentError,
+  exportMapDocument,
+  importMapDocument,
+  mapDocumentFingerprint,
 } from "../src/runtime/index.js";
 
 const PUBLICATION_URL = "https://maps.example.com/published/pkg-1426";
@@ -52,10 +52,10 @@ const PUBLICATION_URL = "https://maps.example.com/published/pkg-1426";
  * server with the additive location fields the wire format permits
  * (`honua_map_package.v1` is `additionalProperties: true` everywhere).
  */
-function previewPackage(overrides: Record<string, unknown> = {}): HonuaMapPackage {
+function previewPackage(overrides: Record<string, unknown> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-1426",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Composing",
     previewArtifactId: "preview-artifact-77",
     expiresAt: "2099-01-01T00:00:00.000Z",
@@ -73,7 +73,7 @@ function previewPackage(overrides: Record<string, unknown> = {}): HonuaMapPackag
     },
     attribution: [{ text: "City of Example", url: "https://example.com/credits" }],
     ...overrides,
-  } as unknown as HonuaMapPackage;
+  } as unknown as HonuaMapDocument;
 }
 
 describe("the portable map artifact never asserts where the map is published", () => {
@@ -85,7 +85,7 @@ describe("the portable map artifact never asserts where the map is published", (
       permalink: PUBLICATION_URL,
     });
 
-    const envelope = exportMapPackage(pkg, { exportedAt: "2026-01-02T00:00:00.000Z" });
+    const envelope = exportMapDocument(pkg, { exportedAt: "2026-01-02T00:00:00.000Z" });
     const bytes = JSON.stringify(envelope);
 
     // The bytes are the guarantee: nothing a reader of this file can quote
@@ -113,12 +113,12 @@ describe("the portable map artifact never asserts where the map is published", (
 
     // The stamped fingerprint describes what was emitted, so the envelope
     // still imports cleanly.
-    expect(envelope.fingerprint).toBe(mapPackageFingerprint(envelope.mapPackage));
-    expect(() => importMapPackage(JSON.parse(bytes))).not.toThrow();
+    expect(envelope.fingerprint).toBe(mapDocumentFingerprint(envelope.mapPackage));
+    expect(() => importMapDocument(JSON.parse(bytes))).not.toThrow();
   });
 
   it("matches location keys by name, ignoring case and separators", () => {
-    const envelope = exportMapPackage(
+    const envelope = exportMapDocument(
       previewPackage({ "PUBLICATION-URL": PUBLICATION_URL, public_url: PUBLICATION_URL }),
     );
     expect(JSON.stringify(envelope)).not.toContain(PUBLICATION_URL);
@@ -126,7 +126,7 @@ describe("the portable map artifact never asserts where the map is published", (
   });
 
   it("refuses an envelope that had a location pointer put back into it", () => {
-    const envelope = exportMapPackage(previewPackage());
+    const envelope = exportMapDocument(previewPackage());
     // Forge the file the exporter would never write, and re-stamp it so the
     // integrity check cannot be what catches it.
     const forged = JSON.parse(JSON.stringify(envelope)) as {
@@ -134,12 +134,12 @@ describe("the portable map artifact never asserts where the map is published", (
       mapPackage: Record<string, unknown>;
     };
     forged.mapPackage.links = { self: PUBLICATION_URL };
-    forged.fingerprint = mapPackageFingerprint(forged.mapPackage as unknown as HonuaMapPackage);
+    forged.fingerprint = mapDocumentFingerprint(forged.mapPackage as unknown as HonuaMapDocument);
 
-    expect(() => importMapPackage(forged)).toThrow(HonuaMapPackageError);
-    expect(() => importMapPackage(forged)).toThrow(/location pointer/i);
+    expect(() => importMapDocument(forged)).toThrow(HonuaMapDocumentError);
+    expect(() => importMapDocument(forged)).toThrow(/location pointer/i);
     // Not merely an integrity complaint: the fingerprint agrees with the body.
-    expect(() => importMapPackage(forged)).not.toThrow(/fingerprint/i);
+    expect(() => importMapDocument(forged)).not.toThrow(/fingerprint/i);
   });
 
   it("refuses a publication claim smuggled onto the envelope beside the package", () => {
@@ -147,11 +147,11 @@ describe("the portable map artifact never asserts where the map is published", (
     // check that looks only at `mapPackage` passes. The claim rides on the
     // envelope — which is itself an artifact a reader will believe.
     for (const smuggled of [{ publicationUrl: PUBLICATION_URL }, { links: { self: PUBLICATION_URL } }]) {
-      const forged = { ...JSON.parse(JSON.stringify(exportMapPackage(previewPackage()))), ...smuggled };
+      const forged = { ...JSON.parse(JSON.stringify(exportMapDocument(previewPackage()))), ...smuggled };
       const key = Object.keys(smuggled)[0];
-      expect(() => importMapPackage(forged), key).toThrow(HonuaMapPackageError);
-      expect(() => importMapPackage(forged), key).toThrow(new RegExp(`location pointer.*\\b${key}\\b`, "i"));
-      expect(() => importMapPackage(forged), key).not.toThrow(/fingerprint/i);
+      expect(() => importMapDocument(forged), key).toThrow(HonuaMapDocumentError);
+      expect(() => importMapDocument(forged), key).toThrow(new RegExp(`location pointer.*\\b${key}\\b`, "i"));
+      expect(() => importMapDocument(forged), key).not.toThrow(/fingerprint/i);
     }
   });
 
@@ -168,18 +168,18 @@ describe("the portable map artifact never asserts where the map is published", (
       ],
     ];
     for (const [path, smuggled] of nested) {
-      const forged = JSON.parse(JSON.stringify(exportMapPackage(previewPackage()))) as {
+      const forged = JSON.parse(JSON.stringify(exportMapDocument(previewPackage()))) as {
         fingerprint: string;
         mapPackage: Record<string, unknown>;
       };
       Object.assign(forged.mapPackage, smuggled);
-      forged.fingerprint = mapPackageFingerprint(forged.mapPackage as unknown as HonuaMapPackage);
+      forged.fingerprint = mapDocumentFingerprint(forged.mapPackage as unknown as HonuaMapDocument);
 
-      expect(() => importMapPackage(forged), path).toThrow(HonuaMapPackageError);
-      expect(() => importMapPackage(forged), path).toThrow(
+      expect(() => importMapDocument(forged), path).toThrow(HonuaMapDocumentError);
+      expect(() => importMapDocument(forged), path).toThrow(
         new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
       );
-      expect(() => importMapPackage(forged), path).not.toThrow(/fingerprint/i);
+      expect(() => importMapDocument(forged), path).not.toThrow(/fingerprint/i);
     }
   });
 
@@ -187,7 +187,7 @@ describe("the portable map artifact never asserts where the map is published", (
     const pkg = previewPackage({
       metadata: { publicationUrl: PUBLICATION_URL, note: "composed for review" },
     });
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     const bytes = JSON.stringify(envelope);
 
     expect(bytes).not.toContain(PUBLICATION_URL);
@@ -196,7 +196,7 @@ describe("the portable map artifact never asserts where the map is published", (
     // Asserted on the imported package, not on the exporter's intermediate:
     // the container survives, only the claim is gone, and the artifact the
     // exporter produced is one its own importer accepts.
-    const imported = importMapPackage(JSON.parse(bytes)).mapPackage as unknown as {
+    const imported = importMapDocument(JSON.parse(bytes)).mapPackage as unknown as {
       metadata: Record<string, unknown>;
     };
     expect(imported.metadata).toEqual({ note: "composed for review" });
@@ -218,9 +218,9 @@ describe("the portable map artifact never asserts where the map is published", (
       widgets: [{ widgetId: "info", type: "info", config: { links: [{ href: "https://example.com/help" }] } }],
     });
 
-    const envelope = exportMapPackage(pkg);
+    const envelope = exportMapDocument(pkg);
     expect(envelope.redactions).toEqual([]);
-    expect(importMapPackage(JSON.parse(JSON.stringify(envelope))).mapPackage).toEqual(pkg);
+    expect(importMapDocument(JSON.parse(JSON.stringify(envelope))).mapPackage).toEqual(pkg);
   });
 });
 
@@ -294,10 +294,10 @@ describe("a command receipt never links to a resource the command did not create
       packageId: "pkg-ops-42",
       links: { self: "https://example.test/api/v1/admin/packages/pkg-ops-42" },
     };
-    const mapPackage = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+    const mapPackage = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapDocument;
 
     const preview = await runtimeFor(neverCalled()).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: mapPackage },
       { transport: "cli", dryRun: true },
     );
@@ -313,7 +313,7 @@ describe("a command receipt never links to a resource the command did not create
         headers: { "content-type": "application/json" },
       })) as unknown as typeof fetch;
     const executed = await runtimeFor(fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: mapPackage },
       { transport: "cli" },
     );
@@ -434,7 +434,7 @@ describe("the CLI never prints a publication heading for a publication that did 
 
 describe("a generated-app manifest never takes its identity from a preview", () => {
   it("identifies the app by the map package, not by its rendered preview artifact", () => {
-    const manifest = projectMapPackageToGeneratedAppManifest(previewPackage());
+    const manifest = projectMapDocumentToGeneratedAppManifest(previewPackage());
 
     expect(manifest.appId).toBe("pkg-1426");
     expect(manifest.appId).not.toBe("preview-artifact-77");

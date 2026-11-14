@@ -1,6 +1,6 @@
 /**
  * Conformance tests for the MapLibre GL JS-first runtime. Exercises the
- * load → updatePackage → dispose lifecycle against a mock map that
+ * load → updateMapDocument → dispose lifecycle against a mock map that
  * records every call so we can assert the bridge behaviour without
  * pulling `maplibre-gl` in as a runtime dep.
  */
@@ -9,14 +9,14 @@ import { describe, expect, test, vi } from "vitest";
 
 import { HonuaClient } from "../../src/core/client.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
-  HonuaMapPackageError,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
+  HonuaMapDocumentError,
   type HonuaRuntimeEvent,
   type MaplibreMap,
-  loadMapPackage,
+  loadMapDocument,
 } from "../../src/runtime/index.js";
-import { applyTheme, buildLegend, diffPackages, projectSourceBindings } from "../../src/runtime/index.js";
+import { applyTheme, buildLegend, diffMapDocuments, projectSourceBindings } from "../../src/runtime/index.js";
 import type { PopupFactory, PopupHandle } from "../../src/runtime/popups.js";
 
 // ── Mock map ─────────────────────────────────────────────────
@@ -142,10 +142,10 @@ function makeClient(): HonuaClient {
   });
 }
 
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-001",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "parcels",
@@ -176,13 +176,13 @@ function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
 
 // ── Tests ────────────────────────────────────────────────────
 
-describe("loadMapPackage", () => {
+describe("loadMapDocument", () => {
   test("binds package sources, composes style, and emits lifecycle events", async () => {
     const map = makeMockMap();
     const pkg = makePackage();
     const events: HonuaRuntimeEvent[] = [];
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -216,7 +216,7 @@ describe("loadMapPackage", () => {
       initialView: { center: [-157.86, 21.3], zoom: 11 },
     });
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -229,12 +229,12 @@ describe("loadMapPackage", () => {
     });
   });
 
-  test("rejects unsupported package format via HonuaMapPackageError", async () => {
+  test("rejects unsupported package format via HonuaMapDocumentError", async () => {
     const map = makeMockMap();
-    const bad = makePackage({ format: "honua_map_package.v999" as unknown as typeof HONUA_MAP_PACKAGE_FORMAT_V1 });
+    const bad = makePackage({ format: "honua_map_package.v999" as unknown as typeof HONUA_MAP_DOCUMENT_FORMAT_V1 });
     await expect(
-      loadMapPackage(bad, map, { client: makeClient(), skipCompatibilityCheck: true }),
-    ).rejects.toBeInstanceOf(HonuaMapPackageError);
+      loadMapDocument(bad, map, { client: makeClient(), skipCompatibilityCheck: true }),
+    ).rejects.toBeInstanceOf(HonuaMapDocumentError);
   });
 
   test("rejects workspace_artifact bindings without a server resolver", async () => {
@@ -249,14 +249,14 @@ describe("loadMapPackage", () => {
       ],
     });
     await expect(
-      loadMapPackage(pkg, map, { client: makeClient(), skipCompatibilityCheck: true }),
+      loadMapDocument(pkg, map, { client: makeClient(), skipCompatibilityCheck: true }),
     ).rejects.toMatchObject({ stage: "source-bind" });
   });
 
   test("applies initialView on first load when applyInitialView is not disabled", async () => {
     const map = makeMockMap();
     const pkg = makePackage();
-    await loadMapPackage(pkg, map, { client: makeClient(), skipCompatibilityCheck: true });
+    await loadMapDocument(pkg, map, { client: makeClient(), skipCompatibilityCheck: true });
     const fit = map._calls.find((c) => c.method === "fitBounds");
     expect(fit).toBeDefined();
   });
@@ -265,7 +265,7 @@ describe("loadMapPackage", () => {
 describe("HonuaMapRuntime", () => {
   test("suppresses animated camera transitions when reduced motion is requested", async () => {
     const map = makeMockMap(true);
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -279,7 +279,7 @@ describe("HonuaMapRuntime", () => {
   test("getLegend backfills color from composed style", async () => {
     const map = makeMockMap();
     const pkg = makePackage();
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -291,7 +291,7 @@ describe("HonuaMapRuntime", () => {
 
   test("setLayerVisibility proxies to setLayoutProperty", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -301,9 +301,9 @@ describe("HonuaMapRuntime", () => {
     expect(call?.args).toEqual(["parcels-fill", "visibility", "none"]);
   });
 
-  test("incremental updatePackage applies paint-only changes via setPaintProperty", async () => {
+  test("incremental updateMapDocument applies paint-only changes via setPaintProperty", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -326,7 +326,7 @@ describe("HonuaMapRuntime", () => {
         ],
       },
     });
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(false);
     const paint = map._calls.find((c) => c.method === "setPaintProperty");
@@ -345,7 +345,7 @@ describe("HonuaMapRuntime", () => {
       },
     });
     const map = makeMockMap();
-    const runtime = await loadMapPackage(initial, map, {
+    const runtime = await loadMapDocument(initial, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -366,18 +366,18 @@ describe("HonuaMapRuntime", () => {
       },
     });
 
-    const diff = diffPackages(runtime.mapPackage, next);
+    const diff = diffMapDocuments(runtime.mapPackage, next);
     expect(diff.incremental).toBe(false);
     expect(diff.structuralReason).toContain('mapSpec source "incidents" changed');
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
   });
 
   test("paint changes fall back when renderer lacks paint patch support", async () => {
     const map = makeMockMap();
     delete map.setPaintProperty;
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -400,7 +400,7 @@ describe("HonuaMapRuntime", () => {
       },
     });
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     expect(map._calls.some((c) => c.method === "setPaintProperty")).toBe(false);
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
@@ -409,7 +409,7 @@ describe("HonuaMapRuntime", () => {
 
   test("composed root layer changes fall back to full setStyle", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -433,7 +433,7 @@ describe("HonuaMapRuntime", () => {
       },
     });
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     const setStyle = map._calls.find((c) => c.method === "setStyle");
     expect(setStyle, "minzoom cannot be patched through paint/layout/filter setters").toBeDefined();
@@ -447,7 +447,7 @@ describe("HonuaMapRuntime", () => {
 
   test("structural update (layer added) falls back to full setStyle", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -465,11 +465,11 @@ describe("HonuaMapRuntime", () => {
       },
     });
 
-    const diff = diffPackages(runtime.mapPackage, next);
+    const diff = diffMapDocuments(runtime.mapPackage, next);
     expect(diff.incremental).toBe(false);
     expect(diff.structuralReason).toBeDefined();
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
   });
 
@@ -481,7 +481,7 @@ describe("HonuaMapRuntime", () => {
       return handle;
     };
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -504,18 +504,18 @@ describe("HonuaMapRuntime", () => {
     expect(map._listeners.find((l) => l.layer === "parcels-fill")).toBeUndefined();
   });
 
-  test("bindPopup without popupFactory raises HonuaMapPackageError stage=popup", async () => {
-    const runtime = await loadMapPackage(makePackage(), makeMockMap(), {
+  test("bindPopup without popupFactory raises HonuaMapDocumentError stage=popup", async () => {
+    const runtime = await loadMapDocument(makePackage(), makeMockMap(), {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
     });
-    expect(() => runtime.bindPopup("parcels-fill")).toThrow(HonuaMapPackageError);
+    expect(() => runtime.bindPopup("parcels-fill")).toThrow(HonuaMapDocumentError);
   });
 
   test("dispose removes layers, sources, and listeners; further calls throw", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -529,7 +529,7 @@ describe("HonuaMapRuntime", () => {
     expect(map._calls.some((c) => c.method === "removeSource" && c.args[0] === "parcels")).toBe(true);
     expect(events.some((e) => e.type === "disposed")).toBe(true);
 
-    expect(() => runtime.setLayerVisibility("parcels-fill", false)).toThrow(HonuaMapPackageError);
+    expect(() => runtime.setLayerVisibility("parcels-fill", false)).toThrow(HonuaMapDocumentError);
 
     runtime.dispose();
   });
@@ -566,7 +566,7 @@ describe("projectSourceBindings", () => {
         { sourceId: "a", protocol: "ogc_features", locator: { url: "https://a" } },
         { sourceId: "a", protocol: "ogc_features", locator: { url: "https://b" } },
       ]),
-    ).toThrow(HonuaMapPackageError);
+    ).toThrow(HonuaMapDocumentError);
   });
 });
 
@@ -614,10 +614,10 @@ describe("buildLegend", () => {
 
 // ── Regression coverage for review findings ──────────────────
 
-describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", () => {
+describe("updateMapDocument: source-binding changes swap runtime dataset/honuaMap", () => {
   test("locator change triggers setStyle and refreshes runtime.dataset", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -637,12 +637,12 @@ describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", 
       ],
     });
 
-    const diff = diffPackages(runtime.mapPackage, next);
+    const diff = diffMapDocuments(runtime.mapPackage, next);
     expect(diff.incremental).toBe(false);
     expect(diff.structuralReason).toBeDefined();
     expect(diff.changedSourceIds).toContain("parcels");
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
     expect(runtime.dataset).not.toBe(datasetBefore);
@@ -653,7 +653,7 @@ describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", 
 
   test("added source binding triggers structural fallback even without style changes", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -671,11 +671,11 @@ describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", 
       ],
     });
 
-    const diff = diffPackages(runtime.mapPackage, next);
+    const diff = diffMapDocuments(runtime.mapPackage, next);
     expect(diff.incremental).toBe(false);
     expect(diff.addedSourceBindings.map((b) => b.sourceId)).toEqual(["owners"]);
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
     expect(map._calls.some((c) => c.method === "setStyle")).toBe(true);
     expect(runtime.dataset.sourceIds()).toContain("owners");
   });
@@ -684,7 +684,7 @@ describe("updatePackage: source-binding changes swap runtime dataset/honuaMap", 
 describe("#patchLayer: paint/layout key removal", () => {
   test("removing a paint key calls setPaintProperty with undefined to clear it", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -706,7 +706,7 @@ describe("#patchLayer: paint/layout key removal", () => {
         ],
       },
     });
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     const removedPaint = map._calls.find((c) => c.method === "setPaintProperty" && c.args[1] === "fill-opacity");
     expect(removedPaint, "setPaintProperty should be called for removed fill-opacity").toBeDefined();
@@ -730,7 +730,7 @@ describe("#patchLayer: paint/layout key removal", () => {
       },
     });
     const map = makeMockMap();
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -752,7 +752,7 @@ describe("#patchLayer: paint/layout key removal", () => {
         ],
       },
     });
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     const removedLayout = map._calls.find((c) => c.method === "setLayoutProperty" && c.args[1] === "fill-sort-key");
     expect(removedLayout, "setLayoutProperty should be called for removed fill-sort-key").toBeDefined();
@@ -806,7 +806,7 @@ describe("projectSourceBindings: locator normalization", () => {
 
   test("runtime.dataset.source(...) is usable when the package ships URL-only GeoServices locators", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(
+    const runtime = await loadMapDocument(
       makePackage({
         sourceBindings: [
           {
@@ -830,13 +830,13 @@ describe("projectSourceBindings: locator normalization", () => {
   });
 });
 
-describe("loadMapPackage: onEvent captures initial lifecycle events", () => {
+describe("loadMapDocument: onEvent captures initial lifecycle events", () => {
   test("source-ready and package-loaded reach a listener registered via options.onEvent", async () => {
     const map = makeMockMap();
     const pkg = makePackage();
     const captured: HonuaRuntimeEvent[] = [];
 
-    await loadMapPackage(pkg, map, {
+    await loadMapDocument(pkg, map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -848,10 +848,10 @@ describe("loadMapPackage: onEvent captures initial lifecycle events", () => {
   });
 });
 
-describe("updatePackage: structural fallback error paths and popup reaping", () => {
+describe("updateMapDocument: structural fallback error paths and popup reaping", () => {
   test("setStyle failure on structural update leaves previous honuaMap intact", async () => {
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -878,7 +878,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
       ],
     });
 
-    await expect(runtime.updatePackage(next)).rejects.toBeInstanceOf(HonuaMapPackageError);
+    await expect(runtime.updateMapDocument(next)).rejects.toBeInstanceOf(HonuaMapDocumentError);
 
     expect(runtime.honuaMap).toBe(previousHonuaMap);
     expect(runtime.mapPackage).toBe(previousPackage);
@@ -888,7 +888,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
   test("removing a layer in a structural update tears down its popup binding", async () => {
     const popupFactory: PopupFactory = () => makePopupHandle();
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -915,7 +915,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
         ],
       },
     });
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeUndefined();
   });
@@ -923,7 +923,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
   test("changing a package popup binding tears down the active package-resolved listener", async () => {
     const popupFactory: PopupFactory = () => makePopupHandle();
     const map = makeMockMap();
-    const runtime = await loadMapPackage(makePackage(), map, {
+    const runtime = await loadMapDocument(makePackage(), map, {
       client: makeClient(),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -937,7 +937,7 @@ describe("updatePackage: structural fallback error paths and popup reaping", () 
       popupBindings: [{ sourceId: "parcels", fieldName: "OWNER", title: "Owner" }],
     });
 
-    await runtime.updatePackage(next);
+    await runtime.updateMapDocument(next);
 
     expect(map._listeners.find((l) => l.event === "click" && l.layer === "parcels-fill")).toBeUndefined();
   });
