@@ -373,7 +373,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:spatial-analytics:build",
     auditedVia:
-      "examples/spatial-analytics-workbench/src/linked-analysis.ts linkedAnalysisConfigFromLocation defaults to fixture mode unless ?mode=live is requested, and fixture mode answers from the bundled ./fixtures.js dataset; the live GeoServices lane needs an explicit configured base URL.",
+      "examples/spatial-analytics-workbench/src/linked-analysis.ts linkedAnalysisConfigFromLocation defaults to fixture mode unless ?mode=live is requested, and the controller is built from the model.ts session dataset (bundled ./fixtures.js); the live GeoServices or OGC Features lane needs an explicit configured base URL.",
   },
   {
     id: "stac-imagery-browser",

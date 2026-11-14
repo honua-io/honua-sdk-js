@@ -33,7 +33,7 @@
     },
     "uncached": [
       "realtime incident state, cursors, watermarks, and deltas",
-      "edit submissions, attachment mutations, and writable reset calls",
+      "edit submissions and attachment mutations",
       "ad hoc spatial queries driven by viewport, drawn geometry, or user filters"
     ],
     "materialized": [

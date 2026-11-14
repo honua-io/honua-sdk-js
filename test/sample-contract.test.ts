@@ -230,6 +230,15 @@ function nextMinorTarget(version: string) {
   return `${major}.${Number(minor) + 1}.0`;
 }
 
+function unresolvedLifecycle(state: string, targetRelease: string, replacement?: { kind: string; id: string }) {
+  return {
+    state,
+    reason: `Synthetic ${state} lifecycle fixture.`,
+    targetRelease,
+    ...(replacement ? { replacement } : {}),
+  };
+}
+
 async function promotedIncidentDashboard() {
   const catalog = await readJson("samples/catalog.v2.json");
   catalog.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations").status = "qualified";
@@ -952,7 +961,7 @@ describe("sample publication contract", () => {
     // Apply the pending policy to the first sorted entry so the deadline guard
     // runs before unrelated current-version live receipts. This synthetic
     // negative fixture changes no receipt or production catalog.
-    const expired = { state: "rework", reason: "Expired rework fixture.", targetRelease: "0.3.0" };
+    const expired = unresolvedLifecycle("rework", "0.3.0");
     catalog.samples[0].lifecycle = expired;
     await expect(validateCatalog(catalog, { ...packageJson, version: "0.3.0" }, validationTime)).rejects.toThrow(
       `${catalog.samples[0].id}: lifecycle ${expired.state} expired at 0.3.0`,
@@ -1557,21 +1566,15 @@ describe("sample publication contract", () => {
 
     const pendingTarget = nextMinorTarget(String(packageJson.version));
     const expiredLifecycle = await readJson("samples/catalog.v2.json");
-    expiredLifecycle.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle = {
-      state: "rework",
-      reason: "Expired rework fixture.",
-      targetRelease: packageJson.version,
-    };
+    expiredLifecycle.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle =
+      unresolvedLifecycle("rework", packageJson.version);
     await expect(validateCatalog(expiredLifecycle, packageJson, validationTime)).rejects.toThrow(
       `geocoding-quickstart: lifecycle rework expired at ${packageJson.version}`,
     );
 
     const missingReplacement = await readJson("samples/catalog.v2.json");
-    missingReplacement.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle = {
-      state: "merge",
-      reason: "Merge fixture without a replacement.",
-      targetRelease: pendingTarget,
-    };
+    missingReplacement.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart").lifecycle =
+      unresolvedLifecycle("merge", pendingTarget);
     await expect(validateCatalog(missingReplacement, packageJson, validationTime)).rejects.toThrow(
       "JSON Schema validation failed",
     );
@@ -1579,18 +1582,8 @@ describe("sample publication contract", () => {
     const replacementCycle = await readJson("samples/catalog.v2.json");
     const first = replacementCycle.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart");
     const second = replacementCycle.samples.find((sample: { id: string }) => sample.id === "stac-imagery-browser");
-    first.lifecycle = {
-      state: "merge",
-      reason: "Replacement cycle fixture.",
-      targetRelease: pendingTarget,
-      replacement: { kind: "sample", id: second.id },
-    };
-    second.lifecycle = {
-      state: "merge",
-      reason: "Replacement cycle fixture.",
-      targetRelease: pendingTarget,
-      replacement: { kind: "sample", id: first.id },
-    };
+    first.lifecycle = unresolvedLifecycle("merge", pendingTarget, { kind: "sample", id: second.id });
+    second.lifecycle = unresolvedLifecycle("merge", pendingTarget, { kind: "sample", id: first.id });
     await expect(validateCatalog(replacementCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:geocoding-quickstart -> sample:stac-imagery-browser -> sample:geocoding-quickstart",
     );
@@ -1599,9 +1592,7 @@ describe("sample publication contract", () => {
     const imagery = expandedJourneyCycle.samples.find(
       (sample: { id: string }) => sample.id === "imagery-cog-quickstart",
     );
-    imagery.lifecycle.state = "merge";
-    imagery.lifecycle.targetRelease = pendingTarget;
-    imagery.lifecycle.replacement = { kind: "journey", id: "imagery-terrain" };
+    imagery.lifecycle = unresolvedLifecycle("merge", pendingTarget, { kind: "journey", id: "imagery-terrain" });
     await expect(validateCatalog(expandedJourneyCycle, packageJson, validationTime)).rejects.toThrow(
       "sample/journey replacement cycle: sample:imagery-cog-quickstart -> journey:imagery-terrain -> sample:imagery-cog-quickstart",
     );

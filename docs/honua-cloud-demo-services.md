@@ -101,7 +101,7 @@ These operations remain uncached unless a separate materialization workflow
 owns the result:
 
 - realtime incident feature snapshots, cursors, watermarks, and deltas
-- edit submissions, attachment mutations, and writable reset calls
+- edit submissions and attachment mutations
 - ad hoc spatial requests driven by viewport, drawn geometry, or user filters
 
 Materialized analytics exports, including the kepler GeoJSON bundle, must be
@@ -132,5 +132,4 @@ manifest profiles, and `GET /api/v1/admin/capabilities`.
 ## Remaining Platform Work
 
 This JS-repo slice defines and tests the configuration contract. It does not
-provision Honua Cloud services or implement server-side reset endpoints. Those
-remain the implementation gaps for issue #128 and the parent seeded-demo epic.
+provision Honua Cloud services. That remains the implementation gap for issue #128 and the parent seeded-demo epic.

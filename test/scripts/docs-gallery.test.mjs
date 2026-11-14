@@ -99,13 +99,24 @@ function sampleById(value, id) {
   return value.samples.find((sample) => sample.id === id);
 }
 
-function externalReplacementLifecycle(value) {
+function replacedLifecycle(replacement) {
+  const [major, minor] = JSON.parse(fs.readFileSync("package.json", "utf8")).version.split(".");
   return {
     state: "replace",
-    reason: "External replacement fixture.",
-    targetRelease: "99.0.0",
-    replacement: { kind: "external", id: value.externalReplacements[0].id },
+    reason: "Synthetic replacement fixture.",
+    targetRelease: `${major}.${Number(minor) + 1}.0`,
+    replacement,
   };
+}
+
+function externalReplacementLifecycle(value) {
+  return replacedLifecycle({ kind: "external", id: value.externalReplacements[0].id });
+}
+
+function journeyReplacedProjection() {
+  const replaced = structuredClone(projection);
+  sampleById(replaced, "geocoding-quickstart").lifecycle = replacedLifecycle({ kind: "journey", id: "service-explorer" });
+  return replaced;
 }
 
 function galleryCards(gallery) {
@@ -201,8 +212,11 @@ test("deep-freezes and brands every rendered model claim", async () => {
   const cards = galleryCards(gallery);
   const endpointCard = cards.find((card) => card.sample.id === "maplibre-quickstart");
   const incidentCard = cards.find((card) => card.sample.id === "realtime-incident-dashboard");
+  const replacedGallery = await verifiedGallery(journeyReplacedProjection());
+  const replacementCard = galleryCards(replacedGallery).find((card) => card.sample.id === "geocoding-quickstart");
 
   assertDeepFrozen(gallery);
+  assertDeepFrozen(replacedGallery);
   const mutations = [
     () => {
       gallery.integrity.projectionSha256 = "0".repeat(64);
@@ -271,7 +285,7 @@ test("deep-freezes and brands every rendered model claim", async () => {
       incidentCard.journey.title = "Forged journey";
     },
     () => {
-      incidentCard.sample.lifecycle.state = "forged";
+      replacementCard.replacement.id = "forged";
     },
     () => {
       gallery.filters.capabilities.push("forged");
@@ -681,6 +695,20 @@ test("requires an ownership-bound source resolver and rejects unsafe or foreign 
     html,
     /href="guides\/examples\/shared-renderer-state\/README\.html">Read the walkthrough/,
   );
+});
+
+test("projects a journey replacement with the journey's candidate truth", async () => {
+  const replaced = journeyReplacedProjection();
+  const card = galleryCards(await verifiedGallery(replaced)).find((entry) => entry.sample.id === "geocoding-quickstart");
+  const serviceExplorer = replaced.goldenJourneys.find((journey) => journey.id === "service-explorer");
+  assert.deepEqual(card.replacement, {
+    kind: "journey",
+    id: "service-explorer",
+    title: "Universal Service Explorer",
+    status: serviceExplorer.status,
+    candidateSampleId: "service-explorer",
+    publicSampleId: "service-explorer",
+  });
 });
 
 test("rejects unsafe public source paths before minting a model or invoking a resolver", async () => {

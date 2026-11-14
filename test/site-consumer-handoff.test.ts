@@ -91,6 +91,22 @@ function canonicalInputs(): Promise<CanonicalInputs> {
   return canonicalInputsPromise;
 }
 
+type LifecycleReplacement = { kind: "journey" | "sample" | "external"; id: string };
+
+function handoffWithReplacedGeocoding(inputs: CanonicalInputs, replacement: LifecycleReplacement) {
+  const [major, minor] = String(inputs.packageJson.version).split(".");
+  const projection = structuredClone(inputs.projection);
+  const replaced = projection.samples.find((sample) => sample.id === "geocoding-quickstart");
+  if (!replaced) throw new Error("geocoding-quickstart is missing from the projection");
+  replaced.lifecycle = {
+    state: "replace",
+    reason: "Synthetic replacement fixture.",
+    targetRelease: `${major}.${Number(minor) + 1}.0`,
+    replacement,
+  };
+  return generateSiteConsumerHandoff(projection, inputs.matrix, inputs.visualEvidence);
+}
+
 function allObjectKeys(value: unknown): string[] {
   if (value === null || typeof value !== "object") return [];
   if (Array.isArray(value)) return value.flatMap(allObjectKeys);
@@ -428,6 +444,21 @@ describe("honua-site consumer handoff", () => {
     );
   });
 
+  it("routes a journey-replaced sample to a lifecycle status page with its replacement notice", async () => {
+    const handoff = handoffWithReplacedGeocoding(await canonicalInputs(), { kind: "journey", id: "service-explorer" });
+    expect(handoff.canonicalRoutes.find((route) => route.sampleId === "geocoding-quickstart")).toMatchObject({
+      lifecycleState: "replace",
+      presentation: "lifecycle-status",
+    });
+    expect(handoff.lifecycleNotices).toHaveLength(1);
+    expect(handoff.lifecycleNotices[0]).toMatchObject({
+      sampleId: "geocoding-quickstart",
+      state: "replace",
+      replacement: { kind: "journey", id: "service-explorer" },
+    });
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+  });
+
   it("keeps the incident journey realtime while its absent qualification remains explicit", async () => {
     const { projection, matrix, visualEvidence, handoff } = await canonicalInputs();
     const incident = handoff.cards.find((card) => card.id === "realtime-incident-dashboard");
@@ -577,16 +608,7 @@ describe("honua-site consumer handoff", () => {
 
     const externalTarget = inputs.projection.externalReplacements[0];
     if (!externalTarget) throw new Error("canonical external replacement target is missing");
-    const replacedProjection = structuredClone(inputs.projection);
-    const replaced = replacedProjection.samples.find((sample) => sample.id === "geocoding-quickstart");
-    if (!replaced) throw new Error("geocoding-quickstart is missing from the projection");
-    replaced.lifecycle = {
-      state: "replace",
-      reason: "External replacement fixture.",
-      targetRelease: "99.0.0",
-      replacement: { kind: "external", id: externalTarget.id },
-    };
-    const externalQuery = generateSiteConsumerHandoff(replacedProjection, inputs.matrix, inputs.visualEvidence);
+    const externalQuery = handoffWithReplacedGeocoding(inputs, { kind: "external", id: externalTarget.id });
     const externalNotice = externalQuery.lifecycleNotices[0];
     if (externalNotice?.replacement?.kind !== "external") {
       throw new Error("external lifecycle notice is missing");
