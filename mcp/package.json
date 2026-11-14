@@ -93,10 +93,12 @@
     "qs": "^6.16.1"
   },
   "peerDependencies": {
+    "@honua/app-platform": "^0.3.7 || ^0.4.0",
     "@honua/sdk-js": "^0.3.0 || ^0.4.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@honua/app-platform": "file:../dist/packages/honua-app-platform",
     "@honua/sdk-js": "file:..",
     "@types/node": "^24.3.1",
     "@vitest/coverage-v8": "^4.1.11",

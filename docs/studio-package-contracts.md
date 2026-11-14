@@ -1,16 +1,16 @@
 ---
 type: reference
-title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
+title: "Studio Package Contracts (`@honua/app-platform/studio`)"
 description: "One browser-safe import path for the Studio package families, the unified validation and preview envelopes, the capability manifest, and the publish, share and embed contracts."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Studio Package Contracts (`@honua/sdk-js/studio`)
+# Studio Package Contracts (`@honua/app-platform/studio`)
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Status: experimental.
 
-`@honua/sdk-js/studio` is the single, browser-safe import path for the Studio
+`@honua/app-platform/studio` is the single, browser-safe import path for the Studio
 package families, their unified validation/preview envelopes, the capability
 manifest, and the publish/share/embed contracts. It exists so Console browser
 interop, MCP, QGIS, generated apps, and embeds **consume one set of
@@ -24,7 +24,7 @@ import {
   type StudioPackageValidationResponse,
   tagStudioPackage,
   toStudioValidationResponse,
-} from "@honua/sdk-js/studio";
+} from "@honua/app-platform/studio";
 ```
 
 ## MCP / QGIS safety
@@ -32,7 +32,7 @@ import {
 The barrel exports **only types and pure functions** and never imports from
 `operator`, `client-compat`, `web-components`, `interactions`, or `realtime` —
 none of the MapLibre/DOM/Console-coupled modules. MCP servers and QGIS plugins
-can import `@honua/sdk-js/studio` without pulling renderer code or triggering a
+can import `@honua/app-platform/studio` without pulling renderer code or triggering a
 build error from Console/Esri internals.
 
 The established `map` and `app` shapes are re-exported from their leaf modules.
@@ -118,7 +118,7 @@ structurally bridged:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { validateMapDocument } from "@honua/sdk-js/runtime";
-import { fromMapDocumentValidation } from "@honua/sdk-js/studio";
+import { fromMapDocumentValidation } from "@honua/app-platform/studio";
 
 const response = fromMapDocumentValidation(validateMapDocument(rawMapPackage));
 // response: StudioPackageValidationResponse<HonuaMapDocument>
@@ -148,7 +148,7 @@ diagnostics.
 connected server actually supports:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { hasCapability, getCapability } from "@honua/sdk-js/studio";
+import { hasCapability, getCapability } from "@honua/app-platform/studio";
 
 if (hasCapability(manifest, "package.query")) {
   // advertise the query builder
@@ -169,7 +169,7 @@ coerced to GA; missing governance fields raise
 carry the versioned publication contract for generated artifacts.
 `HonuaShareRequest` / `HonuaShareResponse` are **re-exported from
 `control-plane/types`** (single source of truth — not re-declared) so Console
-and MCP reach the share contract from the one `@honua/sdk-js/studio` path
+and MCP reach the share contract from the one `@honua/app-platform/studio` path
 without taking on the full control-plane client.
 
 `StudioEmbedConfig.token` / `embedUrl` describe an **already-issued** embed
@@ -178,7 +178,7 @@ descriptor; the type does not imply a token-minting call inside the SDK.
 ## Generated apps
 
 Generated apps consume published `map`, `dashboard`, `report`, and `app`
-package projections from `@honua/sdk-js/studio` without importing Console or
+package projections from `@honua/app-platform/studio` without importing Console or
 MapLibre code. `HonuaDashboardPackage` is the authored dashboard artifact;
 `HonuaGeneratedAppManifest` remains a runtime hydration projection rather than
 the dashboard authoring wire format. For the preview runtime, see

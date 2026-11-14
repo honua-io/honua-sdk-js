@@ -33,8 +33,8 @@
       "@honua/sdk-js/routing": [
         "../src/routing/index.ts"
       ],
-      "@honua/sdk-js/controls": [
-        "../src/_deprecated/controls.ts"
+      "@honua/app-platform/controls": [
+        "../src/controls/index.ts"
       ],
       "@honua/sdk-js/contract": [
         "../src/contract/index.ts"
@@ -72,17 +72,17 @@
       "@honua/sdk-js/analytics/uplot": [
         "../src/analytics/adapters/uplot.ts"
       ],
-      "@honua/sdk-js/control-plane": [
-        "../src/_deprecated/control-plane.ts"
+      "@honua/app-platform/control-plane": [
+        "../src/control-plane/index.ts"
       ],
-      "@honua/sdk-js/collaboration": [
-        "../src/_deprecated/collaboration.ts"
+      "@honua/app-platform/collaboration": [
+        "../src/collaboration/index.ts"
       ],
-      "@honua/sdk-js/replica-sync": [
-        "../src/_deprecated/replica-sync.ts"
+      "@honua/app-platform/replica-sync": [
+        "../src/replica-sync/index.ts"
       ],
-      "@honua/sdk-js/share": [
-        "../src/_deprecated/share.ts"
+      "@honua/app-platform/share": [
+        "../src/share/index.ts"
       ],
       "@honua/sdk-js/exploration": [
         "../src/exploration/index.ts"
@@ -102,11 +102,11 @@
       "@honua/sdk-js/offline": [
         "../src/offline/index.ts"
       ],
-      "@honua/sdk-js/app-controller": [
-        "../src/_deprecated/app-controller.ts"
+      "@honua/app-platform/app-controller": [
+        "../src/app-controller/index.ts"
       ],
-      "@honua/sdk-js/app-workspace": [
-        "../src/_deprecated/app-workspace.ts"
+      "@honua/app-platform/app-workspace": [
+        "../src/app-workspace/index.ts"
       ],
       "@honua/sdk-js/map": [
         "../src/map/index.ts"
@@ -114,26 +114,26 @@
       "@honua/sdk-js/style": [
         "../src/style/index.ts"
       ],
-      "@honua/sdk-js/scene-workspace": [
-        "../src/_deprecated/scene-workspace.ts"
+      "@honua/app-platform/scene-workspace": [
+        "../src/scene-workspace/index.ts"
       ],
       "@honua/sdk-js/runtime": [
         "../src/runtime/index.ts"
       ],
-      "@honua/sdk-js/app": [
-        "../src/_deprecated/app.ts"
+      "@honua/app-platform/app": [
+        "../src/app/index.ts"
       ],
-      "@honua/sdk-js/web-components": [
-        "../src/_deprecated/web-components.ts"
+      "@honua/app-platform/web-components": [
+        "../src/web-components/index.ts"
       ],
       "@honua/sdk-js/react": [
         "../src/react/index.ts"
       ],
-      "@honua/sdk-js/generated-app": [
-        "../src/_deprecated/generated-app.ts"
+      "@honua/app-platform/generated-app": [
+        "../src/generated-app/index.ts"
       ],
-      "@honua/sdk-js/studio": [
-        "../src/_deprecated/studio.ts"
+      "@honua/app-platform/studio": [
+        "../src/studio/index.ts"
       ],
       "@honua/sdk-js/agent-tools": [
         "../src/agent-tools/index.ts"
@@ -147,23 +147,23 @@
       "@honua/sdk-js/studio-agent": [
         "../src/studio-agent/index.ts"
       ],
-      "@honua/sdk-js/operator": [
-        "../src/_deprecated/operator.ts"
+      "@honua/app-platform/operator": [
+        "../src/operator/index.ts"
       ],
-      "@honua/sdk-js/operator/controllers": [
-        "../src/_deprecated/operator/controllers.ts"
+      "@honua/app-platform/operator/controllers": [
+        "../src/operator/controllers/index.ts"
       ],
-      "@honua/sdk-js/operator/workspace": [
-        "../src/_deprecated/operator/workspace.ts"
+      "@honua/app-platform/operator/workspace": [
+        "../src/operator/workspace/index.ts"
       ],
-      "@honua/sdk-js/operator/theming": [
-        "../src/_deprecated/operator/theming.ts"
+      "@honua/app-platform/operator/theming": [
+        "../src/operator/theming/index.ts"
       ],
-      "@honua/sdk-js/operator/i18n": [
-        "../src/_deprecated/operator/i18n.ts"
+      "@honua/app-platform/operator/i18n": [
+        "../src/operator/i18n/index.ts"
       ],
-      "@honua/sdk-js/operate": [
-        "../src/_deprecated/operate.ts"
+      "@honua/app-platform/operate": [
+        "../src/operate/index.ts"
       ],
       "@honua/sdk-js/cli": [
         "../src/cli/main.ts"

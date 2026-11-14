@@ -78,7 +78,7 @@ describe("missing widget-kit diagnostic", () => {
     expect(message).toContain("registerComponent");
     expect(message).toContain("@honua/app-platform/controls");
     expect(message).toContain("defineHonuaWebComponents");
-    expect(message).not.toContain('import("@honua/sdk-js/web-components")');
+    expect(message).not.toContain('import("@honua/app-platform/web-components")');
     expect(message).toContain(DOCS_URL);
 
     expect(events).toHaveLength(1);

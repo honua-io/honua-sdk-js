@@ -144,8 +144,8 @@
     },
     {
       "path": "config/sdk-coverage.v1.json",
-      "bytes": 21446,
-      "sha256": "sha256:c1aa37a584284bcb00df4f5d64db077987b2e6fe8f2b0f4a338d8d9ce1d2719a",
+      "bytes": 21439,
+      "sha256": "sha256:ee91bd4e9ce56c2a9e41d4c6df72e11cbce18b37d187d5d70a41b9cf69a102e7",
       "releaseManagedFields": [
         "sdk.version"
       ]
@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83709,
-      "sha256": "sha256:812480eedcae08bacc4bc0e192200b50f77b96eedc5b59da27beafe0cf958f46"
+      "bytes": 81091,
+      "sha256": "sha256:c632b44d7e99463d024fd88125e01530f61ba74c037ac46d9c19d33320e75f27"
     }
   ],
   "profiles": {
@@ -533,10 +533,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:3263902def875a2c183cf4b25a35b2165027bf64aa572da25acb298ed4e6f730",
+    "inputs": "sha256:9be102d2105ca766f2eed5d4039540ce9554cfe4e76532af3f56091e2d447217",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
     "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
-    "rows": "sha256:1c51040522ec9cee19c0591af40ad421d755092e076b58c7bb8ff35097244a01"
+    "rows": "sha256:d33972b2e3ef19e46d1993e25327281ffc1175b2c83d15d4843894f3c4819e67"
   },
   "summary": {
     "rows": 295,
@@ -4290,7 +4290,7 @@
       "id": "sdk-operation:collaboration-deprecated:collaboration",
       "family": "sdk-operation",
       "subject": "collaboration-deprecated",
-      "label": "Collaboration and saved maps compatibility shim",
+      "label": "Collaboration and saved maps (moved to @honua/app-platform)",
       "operation": "collaboration",
       "tier": "deprecated",
       "tierSource": "config/support-manifest.v1.json#/supportClaims/34/status",

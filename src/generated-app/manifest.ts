@@ -1,5 +1,5 @@
 /**
- * Versioned manifest/profile consumed by `@honua/sdk-js/generated-app`.
+ * Versioned manifest/profile consumed by `@honua/app-platform/generated-app`.
  *
  * The manifest is the browser-safe projection of the canonical builder
  * package: it does not define a new wire contract, it names the SDK widget

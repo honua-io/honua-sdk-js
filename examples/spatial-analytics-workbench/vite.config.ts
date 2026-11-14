@@ -10,7 +10,7 @@ export default defineConfig({
   root: exampleRoot,
   resolve: {
     alias: [
-      { find: "@honua/sdk-js/app-workspace", replacement: path.resolve(repoRoot, "src/app-workspace/index.ts") },
+      { find: "@honua/app-platform/app-workspace", replacement: path.resolve(repoRoot, "src/app-workspace/index.ts") },
       { find: "@honua/sdk-js/contract", replacement: path.resolve(repoRoot, "src/contract/index.ts") },
       { find: "@honua/sdk-js/exploration", replacement: path.resolve(repoRoot, "src/exploration/index.ts") },
       { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },

@@ -6,8 +6,8 @@ import type { TemporalPlayback, TemporalPlaybackTick } from "@honua/sdk-js/map";
 import { classBreaksRenderer } from "@honua/sdk-js/style";
 // Side-effect import registers <honua-time-slider> (issue #959) along with the
 // rest of the component kit.
-import "@honua/sdk-js/web-components";
-import type { HonuaTimeSliderElement } from "@honua/sdk-js/web-components";
+import "@honua/app-platform/web-components";
+import type { HonuaTimeSliderElement } from "@honua/app-platform/web-components";
 import * as maplibregl from "maplibre-gl";
 
 import "./styles.css";

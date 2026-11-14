@@ -4,20 +4,20 @@ import "../../../../examples/shared/maplibre-vite-worker.js";
 // Side-effect import registers <honua-basemap-switcher> and
 // <honua-swipe-control>. <honua-legend> also has a controller-driven
 // implementation in the web-components kit below, and that implementation is
-// the tag's canonical/default registrant (@honua/sdk-js/controls' `catalog.ts`,
+// the tag's canonical/default registrant (@honua/app-platform/controls' `catalog.ts`,
 // issue #679) — so claiming this demo's map-driven, derive-mode legend
 // instead is the explicit, ordered `./register-controls-legend.js` import
 // just below, not an import-order accident.
-import "@honua/sdk-js/controls";
-import { defineHonuaCatalogPicker, defineHonuaDataExport } from "@honua/sdk-js/controls";
+import "@honua/app-platform/controls";
+import { defineHonuaCatalogPicker, defineHonuaDataExport } from "@honua/app-platform/controls";
 import "./register-controls-legend.js";
 import type {
   HonuaBasemapDefinition,
   HonuaBasemapSwitcherChangeDetail,
   HonuaBasemapSwitcherElement,
-} from "@honua/sdk-js/controls";
-import { HonuaLayerListElement, HonuaLegendElement } from "@honua/sdk-js/controls";
-import { defineHonuaFilterBuilder } from "@honua/sdk-js/controls";
+} from "@honua/app-platform/controls";
+import { HonuaLayerListElement, HonuaLegendElement } from "@honua/app-platform/controls";
+import { defineHonuaFilterBuilder } from "@honua/app-platform/controls";
 defineHonuaFilterBuilder();
 import { createTemporalPlayback } from "@honua/sdk-js/map";
 import {
@@ -29,7 +29,7 @@ import {
   type HonuaSearchGeocoderLike,
   type HonuaTimeSliderElement,
   createHonuaWebComponentController,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 import "./styles.css";
 
@@ -411,7 +411,7 @@ document.addEventListener("honua-filter-change", (event) => {
 // stays offline, so the composite "Terrain" base pairs a background with an
 // inline GeoJSON contour layer; against a live Honua deployment the same
 // definition shape carries a pmtiles:// vector base plus a raster-dem
-// hillshade (see @honua/sdk-js/controls docs).
+// hillshade (see @honua/app-platform/controls docs).
 const demoBasemaps: HonuaBasemapDefinition[] = [
   {
     id: "light",

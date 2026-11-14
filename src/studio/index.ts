@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/studio` — browser-safe TypeScript projections, validation and
+ * `@honua/app-platform/studio` — browser-safe TypeScript projections, validation and
  * preview envelopes, capability-manifest types, publish/share/embed
  * contracts, and a full typed package-lifecycle client for the Studio
  * package families.
@@ -155,7 +155,7 @@ export type {
   StudioPublishResponse,
 } from "./publish.js";
 
-// Re-exported established families so `@honua/sdk-js/studio` is the single
+// Re-exported established families so `@honua/app-platform/studio` is the single
 // import path for every Studio package projection. These leaf modules carry
 // no MapLibre/DOM runtime imports (their cross-module imports are type-only).
 export { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "../runtime/map-package.js";

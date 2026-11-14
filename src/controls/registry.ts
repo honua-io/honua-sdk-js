@@ -10,7 +10,7 @@
  *
  * `web-components`-sourced entries are registered through a **dynamic**
  * `import("../web-components/elements.js")`, so merely importing this module
- * (or `@honua/sdk-js/controls`, which re-exports it) never pulls the
+ * (or `@honua/app-platform/controls`, which re-exports it) never pulls the
  * `web-components` kit's `src/core` / `src/runtime` dependency into a
  * `controls`-only bundle. That dependency is only paid the first time a
  * caller actually registers a `web-components`-sourced tag.
@@ -19,15 +19,15 @@
  * import — it defines the element classes, the tag→constructor lookup, and
  * `defineHonuaWebComponent(tag)` / `defineHonuaWebComponents()`, but does not
  * call either. (The blanket auto-registration existing
- * `@honua/sdk-js/web-components` consumers rely on lives in
+ * `@honua/app-platform/web-components` consumers rely on lives in
  * `web-components/index.js`, which calls `defineHonuaWebComponents()`
  * explicitly.) Without that separation, this module's dynamic import would
  * evaluate `elements.js` and its auto-run would claim every tag the kit
  * owns — including contested tags — as a side effect of registering just
  * one, which a Rollup/Vite production build can also reorder *earlier* than
  * intended when the dynamic import target is merged into the same chunk as a
- * sibling static import of `@honua/sdk-js/web-components` (issue #679 PR
- * review; this combination was the root cause of a real ordering bug in the
+ * sibling static import of `@honua/app-platform/web-components` (this
+ * combination was the root cause of a real ordering bug in the
  * `web-components-basic` sample before this module existed).
  *
  * Because both the synchronous and dynamic paths funnel through the exact
@@ -134,7 +134,7 @@ export async function registerComponents(
 
 /**
  * Registers every canonical catalog entry — i.e. everything
- * `@honua/sdk-js/controls` + `@honua/sdk-js/web-components` would
+ * `@honua/app-platform/controls` + `@honua/app-platform/web-components` would
  * auto-register between them, from one call. Equivalent to importing both
  * kits, without needing to import either as a side effect (useful for
  * lazy-loading the whole component set, or for scoped-registry setups where

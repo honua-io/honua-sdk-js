@@ -8,8 +8,7 @@ resource: "honua://capability/fieldops.offline-sync"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync`
-shim remains through 0.3.x and is removed in 0.4.0) ships one product-level contract for disconnected
+`@honua/app-platform/replica-sync` ships one product-level contract for disconnected
 replica metadata and sync-conflict review — `ReplicaSyncTransport` — plus two
 implementations of it:
 

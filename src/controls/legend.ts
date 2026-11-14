@@ -51,8 +51,8 @@
  *
  * Note: the `web-components` entry also registers a (controller-driven)
  * `honua-legend` element, and is that tag's canonical/default registrant
- * (see `./catalog.js`) — importing `@honua/sdk-js/controls` alone or
- * alongside `@honua/sdk-js/web-components`, in either order, never registers
+ * (see `./catalog.js`) — importing `@honua/app-platform/controls` alone or
+ * alongside `@honua/app-platform/web-components`, in either order, never registers
  * this implementation automatically. Call {@link defineHonuaLegend} (or
  * `registerComponent("controls.legend")` from `./registry.js`) explicitly,
  * before anything else claims the tag, to use this map-style-derived element
@@ -358,7 +358,7 @@ export class HonuaLegendElement extends HTMLElementBase {
  * implementation instead claims the tag explicitly:
  *
  * ```ts
- * import { defineHonuaLegend } from "@honua/sdk-js/controls";
+ * import { defineHonuaLegend } from "@honua/app-platform/controls";
  * defineHonuaLegend();
  * ```
  */

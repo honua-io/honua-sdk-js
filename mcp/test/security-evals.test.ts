@@ -22,8 +22,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { HONUA_COMMAND_IDS, createHonuaCommandRuntime } from "@honua/app-platform/control-plane";
 import { HonuaClient } from "@honua/sdk-js";
-import { HONUA_COMMAND_IDS, createHonuaCommandRuntime } from "@honua/sdk-js/control-plane";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";

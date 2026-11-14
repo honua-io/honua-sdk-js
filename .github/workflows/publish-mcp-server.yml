@@ -95,6 +95,7 @@ jobs:
         run: |
           npm ci --prefix ..
           npm run build --prefix ..
+          npm run build:split-packages:prepared --prefix ..
 
       - name: Install dependencies
         run: npm ci

@@ -19,7 +19,7 @@ npm run demo:temporal-playback:typecheck
 ```
 
 Transport is the app-platform `<honua-time-slider>` element from
-`@honua/sdk-js/web-components` (issue #959) bound to the same controller: play
+`@honua/app-platform/web-components` (issue #959) bound to the same controller: play
 /pause, a WAI-ARIA scrubber over the 30-day extent (arrow keys step one window,
 Page Up/Down move ten, Home/End jump to the ends), step buttons, and a speed
 selector. The window *length* selector (1/3/7 days) stays a sample control

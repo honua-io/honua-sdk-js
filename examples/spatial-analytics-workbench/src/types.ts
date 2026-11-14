@@ -1,4 +1,4 @@
-import type { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+import type { HonuaAppWorkspace } from "@honua/app-platform/app-workspace";
 import type {
   SpatialAggregationCell,
   SpatialAggregationRequest,

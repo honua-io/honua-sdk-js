@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/app-controller` — renderer-neutral application controller.
+ * `@honua/app-platform/app-controller` — renderer-neutral application controller.
  *
  * HonuaController composes map document runtime, generated-app runtime, and
  * ExplorationContext primitives into one typed API for viewport, selection,

@@ -8,7 +8,7 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/sdk-js/share` is a browser-safe projection of the canonical honua-server
+`@honua/app-platform/share` is a browser-safe projection of the canonical honua-server
 Console Share contracts and the `honua-sdk-dotnet` console clients. The long-term
 Console runtime is .NET/Blazor, but generated apps and embeddable map surfaces
 need browser-safe types and helpers so they consume Share, embed-token,
@@ -16,7 +16,7 @@ public-link, and open-data state without inventing a second vocabulary.
 
 This subpath owns **no transport**: it consumes server responses that are
 already available. Admin/write share operations (mint links, enable embedding)
-live on [`@honua/sdk-js/control-plane`](./split-packages.md).
+live on [`@honua/app-platform/control-plane`](./split-packages.md).
 
 ```ts doc-test=compile
 import {
@@ -24,11 +24,11 @@ import {
   grantShareAccess,
   parseEmbedTokenFromFragment,
   toSchemaOrgDataset,
-} from "@honua/sdk-js/share";
+} from "@honua/app-platform/share";
 import type {
   HonuaEmbedRedemption,
   HonuaShareProjection,
-} from "@honua/sdk-js/share";
+} from "@honua/app-platform/share";
 ```
 
 ## Contract vocabulary

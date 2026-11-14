@@ -8,13 +8,13 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
+`@honua/app-platform/scene-workspace` exposes an experimental accepted-plan workflow
 for projecting a canonical `Source` query into a Cesium `EntityCollection`:
 
 ```ts doc-test=compile
 import type { Source } from "@honua/sdk-js/contract";
 import { explainQuery } from "@honua/sdk-js/query-planner";
-import { type CesiumEntityCollectionTarget, mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
+import { type CesiumEntityCollectionTarget, mountSourceToCesium } from "@honua/app-platform/scene-workspace";
 
 declare const source: Source<Record<string, unknown>>;
 /** A live Cesium `viewer.entities` satisfies this structurally. */
@@ -147,7 +147,7 @@ own refresh diff and rollback — and adds ordering, admission, and a single
 ```ts doc-test=compile
 import type { Source } from "@honua/sdk-js/contract";
 import { explainQuery } from "@honua/sdk-js/query-planner";
-import { type CesiumSceneOwnerTarget, mountCesiumScene } from "@honua/sdk-js/scene-workspace";
+import { type CesiumSceneOwnerTarget, mountCesiumScene } from "@honua/app-platform/scene-workspace";
 
 declare const source: Source<Record<string, unknown>>;
 /** A live Cesium `Viewer` satisfies this structurally: camera, scene, clock, entities. */

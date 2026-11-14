@@ -11,7 +11,7 @@ and the protocol-neutral contract are all reachable from this one install.
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
 It projects 22 supported (documented below as stable), 28 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+and 0 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
@@ -107,33 +107,9 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 ## Deprecated compatibility entrypoints
 
-The application-platform shims were introduced in `0.1.0-beta.0` when
-the application platform moved. They remain available throughout `0.3.x` and
-are removed in `0.4.0`; new code must import the replacement directly. A
-replacement's own support status is independent of the shim: promoting
-`@honua/app-platform/scene-workspace` to `beta` did not move the
-`@honua/sdk-js/scene-workspace` removal window.
-
-| Deprecated subpath | Replacement | Remove in |
-|--------------------|-------------|-----------|
-| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.4.0` |
-| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.4.0` |
-| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.4.0` |
-| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.4.0` |
-| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.4.0` |
-| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.4.0` |
-| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.4.0` |
-| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.4.0` |
-| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.4.0` |
-| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.4.0` |
-| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.4.0` |
-| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.4.0` |
-| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.4.0` |
-| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.4.0` |
-| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.4.0` |
-| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.4.0` |
-| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.4.0` |
-| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.4.0` |
+None. `0.4.0` removed the eighteen `@honua/sdk-js` application-platform
+forwarders (`/app`, `/app-workspace`, `/control-plane`, `/web-components` and
+the rest); import each surface from `@honua/app-platform/<subpath>`, listed below.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -163,11 +139,9 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/theming` | Operator design-system theme provider + tokens |
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
-During the transition, the deprecated imports listed above keep working through
-`0.3.x`; they are removed in `0.4.0`. Update imports to
-`@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
-entrypoint was removed outright (its projection helpers are owned by the
-`@honua/console` application) and has no shim.
+`@honua/sdk-js` does not re-export these surfaces. The `@honua/sdk-js/console`
+entrypoint was removed earlier (its projection helpers are owned by the
+`@honua/console` application).
 
 ## Prerequisites
 

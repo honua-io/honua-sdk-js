@@ -60,7 +60,7 @@ WebGL context attributes belong under `canvasContextAttributes` on both
 supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
 `failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
 `preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
-`@honua/sdk-js/web-components` requires the nested form:
+`@honua/app-platform/web-components` requires the nested form:
 
 ```ts doc-test=skip reason="requires a live MapLibre map"
 const map = new maplibregl.Map({

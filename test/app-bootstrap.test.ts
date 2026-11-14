@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import { type HonuaAppLifecycleEvent, createHonuaApp, normalizeHonuaAppOptions } from "../src/app/index.js";
@@ -374,19 +371,5 @@ describe("createHonuaApp", () => {
 
     expect(map.calls.some((call) => call.method === "removeLayer" && call.args[0] === "incident-points")).toBe(true);
     expect(map.calls.some((call) => call.method === "removeSource" && call.args[0] === "incidents")).toBe(true);
-  });
-
-  it("exports the app package subpath via the one-minor deprecation shim", () => {
-    // Moved to `@honua/app-platform/app` in the 1.0 scope split; the old
-    // `@honua/sdk-js/app` subpath resolves through a `@deprecated` re-export
-    // shim for one minor (docs/decisions/scope-split-and-1.0.md).
-    const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
-      exports?: Record<string, { types?: string; default?: string }>;
-    };
-
-    expect(packageJson.exports?.["./app"]).toEqual({
-      types: "./dist/src/_deprecated/app.d.ts",
-      default: "./dist/src/_deprecated/app.js",
-    });
   });
 });

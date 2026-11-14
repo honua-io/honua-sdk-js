@@ -17,7 +17,7 @@
  *
  * @example
  * ```ts
- * import { SceneView } from "@honua/sdk-js/scene-workspace";
+ * import { SceneView } from "@honua/app-platform/scene-workspace";
  *
  * const view = new SceneView({ client, target: { camera: viewer.camera, scene: viewer.scene } });
  * await view.loadScene("downtown");

@@ -1094,6 +1094,10 @@ jobs:
         working-directory: .
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
+      - name: Build the @honua/app-platform package the MCP server imports
+        working-directory: .
+        run: npm run build:split-packages:prepared
+
       - name: Install dependencies
         run: npm ci
 

@@ -102,15 +102,6 @@ describe("HONUA_COMPONENT_CATALOG", () => {
 });
 
 describe("deprecated component import diagnostics", () => {
-  test("names a canonical replacement for the deprecated subpaths", () => {
-    expect(describeDeprecatedComponentImport("@honua/sdk-js/controls")?.canonicalReplacement).toBe(
-      "@honua/app-platform/controls",
-    );
-    expect(describeDeprecatedComponentImport("@honua/sdk-js/web-components")?.canonicalReplacement).toBe(
-      "@honua/app-platform/web-components",
-    );
-  });
-
   test("names the canonical registrant for both contested-tag catalog ids", () => {
     expect(describeDeprecatedComponentImport("controls.legend")?.canonicalReplacement).toBe("web-components.legend");
     expect(describeDeprecatedComponentImport("controls.layer-list")?.canonicalReplacement).toBe(
@@ -119,18 +110,11 @@ describe("deprecated component import diagnostics", () => {
   });
 
   test("returns undefined for an unrecorded specifier", () => {
-    expect(describeDeprecatedComponentImport("@honua/sdk-js/not-a-real-subpath")).toBeUndefined();
+    expect(describeDeprecatedComponentImport("@honua/app-platform/controls")).toBeUndefined();
   });
 
   test("listDeprecatedComponentImports enumerates every recorded alias", () => {
     const specifiers = listDeprecatedComponentImports().map((alias) => alias.specifier);
-    expect(specifiers).toEqual(
-      expect.arrayContaining([
-        "@honua/sdk-js/controls",
-        "@honua/sdk-js/web-components",
-        "controls.legend",
-        "controls.layer-list",
-      ]),
-    );
+    expect(specifiers).toEqual(["controls.legend", "controls.layer-list"]);
   });
 });

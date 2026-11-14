@@ -12,11 +12,11 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@honua/sdk-js/web-components",
+        find: "@honua/app-platform/web-components",
         replacement: path.resolve(repoRoot, "src/web-components/index.ts"),
       },
       {
-        find: "@honua/sdk-js/controls",
+        find: "@honua/app-platform/controls",
         replacement: path.resolve(repoRoot, "src/controls/index.ts"),
       },
       {

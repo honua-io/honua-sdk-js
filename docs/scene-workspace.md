@@ -14,9 +14,8 @@ tray, and realtime status. It does not import Cesium, MapLibre, or a UI
 framework. Renderers translate their native events into typed workspace intents
 and subscribe to narrow slices or selectors.
 
-The former `@honua/sdk-js/scene-workspace` subpath remains a deprecated forwarder
-through `0.3.x`, with removal scheduled for npm `0.4.0`. New applications should
-install `@honua/app-platform` plus only the optional renderer peers they use.
+`@honua/sdk-js` no longer exports `/scene-workspace` (removed in `0.4.0`). Install
+`@honua/app-platform` plus only the optional renderer peers you use.
 
 ## Support status: beta
 
@@ -467,16 +466,12 @@ Three properties hold by construction:
   or transformed to make a declaration fit, and no fidelity is inferred from an
   identifier the normalizer could not resolve.
 
-This example imports through the deprecated `@honua/sdk-js/scene-workspace`
-forwarder so it stays compile-checked in this repository; the identical symbols
-are exported from `@honua/app-platform/scene-workspace`.
-
 ```ts doc-test=compile
 import {
   CESIUM_SCENE_CAPABILITIES,
   diagnoseScenePrimitives,
   type SceneRuntimePrimitive,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 const primitives: SceneRuntimePrimitive[] = [
   {
@@ -586,7 +581,7 @@ import {
   CESIUM_SCENE_CAPABILITIES,
   diagnoseScenePrimitives,
   type SceneRuntimePrimitive,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 const primitives: SceneRuntimePrimitive[] = [
   {
@@ -743,7 +738,7 @@ import {
   type CesiumSceneRuntimeTarget,
   type SceneRuntimePrimitive,
   mountScenePrimitivesToCesium,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 declare const target: CesiumSceneRuntimeTarget;
 declare const acceptedPlan: readonly SceneRuntimePrimitive[];
@@ -839,7 +834,7 @@ import {
   type SceneRuntimePrimitive,
   type SceneWorkspaceState,
   mountScenePrimitivesToCesium,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 declare const viewer: {
   camera: CesiumSceneRuntimeTarget["camera"];
@@ -894,7 +889,7 @@ data-to-map bridge `where` clause, a slider view, and a globe at once:
 
 ```ts doc-test=compile
 import { createTemporalPlayback } from "@honua/sdk-js/map";
-import { type CesiumSceneRuntimeTarget, bindTemporalPlaybackToCesium } from "@honua/sdk-js/scene-workspace";
+import { type CesiumSceneRuntimeTarget, bindTemporalPlaybackToCesium } from "@honua/app-platform/scene-workspace";
 
 declare const target: CesiumSceneRuntimeTarget;
 
