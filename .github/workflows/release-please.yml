@@ -119,6 +119,63 @@ jobs:
           npm ci --ignore-scripts
           node scripts/release-seal.mjs check --expect-version "$RECOVERY_VERSION"
 
+      # Release Please's node-workspace plugin opens a dependency-only companion
+      # release pull request without the `autorelease: pending` label, and the
+      # release iterator tags only merged pull requests that carry it, so such a
+      # merge is never tagged or published (mcp-server 0.3.4 and 0.5.1). Label
+      # the merged pull request for the companion's current manifest version
+      # while its tag is missing, so the iterator below tags it in this run. An
+      # older untagged version is superseded by the manifest and stays skipped.
+      # A labeled pull request the iterator cannot build a release from stays
+      # `autorelease: pending` and stops all release PR generation until the
+      # label is removed. Best effort: an API failure here must not block a release.
+      - name: Label merged companion release pull requests Release Please left unlabeled
+        if: ${{ github.event_name == 'push' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          read_at() {
+            gh api "repos/${GITHUB_REPOSITORY}/contents/$1?ref=$2" -H "Accept: application/vnd.github.raw"
+          }
+          manifest="$(read_at .release-please-manifest.json "${GITHUB_SHA}")"
+          for companion in "mcp:mcp-server" "packages/create-honua-app:create-honua-app"; do
+            path="${companion%%:*}"
+            component="${companion#*:}"
+            version="$(jq -er --arg path "${path}" '.[$path]' <<<"${manifest}")"
+            tag="${component}-v${version}"
+            tag_count="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" \
+              --jq "[.[] | select(.ref == \"refs/tags/${tag}\")] | length")"
+            if [[ "${tag_count}" != "0" ]]; then
+              continue
+            fi
+            candidates="$(gh pr list --repo "${GITHUB_REPOSITORY}" --state merged --base trunk \
+              --head "release-please--branches--trunk--components--${component}" --limit 20 \
+              --json number,title,author,isCrossRepository,labels,mergeCommit \
+              --jq "[.[] | select(.title == \"chore(trunk): release ${component} ${version}\"
+                and .author.login == \"app/honua-io-bot\"
+                and (.isCrossRepository | not)
+                and ([.labels[].name | select(startswith(\"autorelease:\"))] | length == 0))
+                | \"\(.number) \(.mergeCommit.oid)\"] | .[]")"
+            if [[ -z "${candidates}" ]]; then
+              continue
+            fi
+            if [[ "$(wc -l <<<"${candidates}")" != "1" ]]; then
+              echo "::warning::More than one unlabeled merged release pull request names ${tag}; none was labeled."
+              continue
+            fi
+            read -r number merge_sha <<<"${candidates}"
+            merged_version="$(read_at "${path}/package.json" "${merge_sha}" | jq -er .version)"
+            if [[ "${merged_version}" != "${version}" ]]; then
+              echo "::warning::#${number} merged ${path}/package.json at ${merged_version}, not ${version}; it was not labeled."
+              continue
+            fi
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${number}/labels" \
+              -f "labels[]=autorelease: pending" >/dev/null
+            echo "::notice::Labeled #${number} 'autorelease: pending' so Release Please tags ${tag}."
+          done
+
       # Never run the release iterator during a draft recovery (#1337). A
       # stranded draft is by definition inside the draft-no-tag window this
       # job's concurrency comment describes: Release Please's release iterator
