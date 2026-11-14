@@ -33,8 +33,13 @@ const FieldType = {
   JSON: 11,
   BINARY: 12,
   UUID: 13,
+  TIMESTAMP_OFFSET: 14,
+  DECIMAL: 15,
 } as const satisfies { [K in keyof typeof ProtoFieldType]: (typeof ProtoFieldType)[K] };
 const GeometryType = { NONE: 8 } as const satisfies Pick<typeof ProtoGeometryType, "NONE">;
+
+/** Field role marking the layer's declared global-ID (stable UUID) field. */
+export const GLOBAL_ID_ROLE = "honua.global-id" as const;
 
 export function grpcSourceSchemaV2(layer: LayerDescriptor, context: { source: string; observedAt?: string }) {
   const fields = layer.fields.map((field) => projectField(field, layer));
@@ -68,6 +73,7 @@ function projectField(field: LayerDescriptor["fields"][number], layer: LayerDesc
   const name = definition.name;
   const roles: LogicalField["roles"][number][] = [];
   if (name === layer.objectIdField) roles.push("primary-key", "feature-id");
+  if (layer.globalIdField && name === layer.globalIdField) roles.push(GLOBAL_ID_ROLE);
   if (definition.fieldType === FieldType.GEOMETRY) roles.push("geometry");
   if (name === layer.timeInfo?.startField) roles.push(layer.timeInfo.endField ? "time-start" : "time-instant");
   if (name === layer.timeInfo?.endField) roles.push("time-end");
@@ -77,7 +83,7 @@ function projectField(field: LayerDescriptor["fields"][number], layer: LayerDesc
     name,
     path: [name],
     ...(definition.alias ? { title: definition.alias } : {}),
-    type: logicalType(definition.fieldType, definition.length),
+    type: logicalType(definition.fieldType, definition.length, field),
     nullability: definition.nullable ? "nullable" : "non-nullable",
     mutability: field.editable === undefined ? "unknown" : field.editable ? "read-write" : "read-only",
     roles,
@@ -88,7 +94,7 @@ function projectField(field: LayerDescriptor["fields"][number], layer: LayerDesc
   };
 }
 
-function logicalType(type: number, length: number): LogicalType {
+function logicalType(type: number, length: number, numeric: { precision?: number; scale?: number } = {}): LogicalType {
   switch (type) {
     case FieldType.STRING:
       return { kind: "string", ...(length > 0 ? { maxLength: length } : {}) };
@@ -116,9 +122,25 @@ function logicalType(type: number, length: number): LogicalType {
       return { kind: "binary", encoding: "base64" };
     case FieldType.UUID:
       return { kind: "uuid" };
+    // Offset timestamps keep up to 7 fractional digits (100 ns); exact decimals travel as text.
+    case FieldType.TIMESTAMP_OFFSET:
+      return { kind: "timestamp", unit: "nanosecond", timezone: "offset" };
+    case FieldType.DECIMAL:
+      return decimalType(numeric);
     default:
       return { kind: "unknown", reason: type === FieldType.UNSPECIFIED ? "missing" : "unrecognized" };
   }
+}
+
+function decimalType({ precision, scale }: { precision?: number; scale?: number }): LogicalType {
+  const p = precision !== undefined && precision > 0 ? precision : undefined;
+  const q = scale !== undefined && scale >= 0 && (p === undefined || scale <= p) ? scale : undefined;
+  return {
+    kind: "decimal",
+    ...(p === undefined ? {} : { precision: p }),
+    ...(q === undefined ? {} : { scale: q }),
+    jsonEncoding: "string",
+  };
 }
 
 function attributeJson(attribute: AttributeValue, fieldType: ProtoFieldType): JsonValue {

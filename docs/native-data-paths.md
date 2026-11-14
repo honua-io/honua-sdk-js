@@ -44,6 +44,26 @@ values, `Date`, `Uint8Array` and explicit `null`; unsupported values fail before
 sending a request. Writes are never automatically retried. For an explicit
 retry, reuse an `idempotencyKey` only for the same logical edit.
 
+Date-only, time-only, offset-timestamp and exact-decimal columns (geospatial-grpc
+1.2) are read as exact strings: `"2026-11-14"`, `"08:30:00.5"`,
+`"2026-11-14T08:30:00-08:00"` and `"12.10"`. Write them as the same strings. A
+canonical gRPC `Source` reads the layer's offset-timestamp and decimal columns from
+`DescribeLayer` once and sends those strings on their exact wire cases; date and
+time strings travel as plain strings, which servers also accept. With
+`HonuaClient.applyEdits`, declare columns in `attributeTypes` (for example
+`{ signed_at: "timestamp-offset", fee: "decimal" }`); declare `date` or `time`
+only for a geospatial-grpc 1.2 server, since older servers ignore those cases.
+
+Set `useGlobalIds: true` to address updates and deletes by global ID; `deletes`
+then lists UUIDs. On gRPC each update carries `globalId` (or the UUID in the
+`globalIdField` attribute), adds may carry a client-generated `globalId`, and
+queries accept `globalIds` instead of `objectIds`. Edit results report
+`globalId` alongside `objectId` when known. On REST, global-ID deletes are
+forwarded, updates keep the GlobalID in the server's own attribute, and
+feature-level `globalId` and `globalIds` queries are refused rather than sent
+unfiltered. A server older than geospatial-grpc 1.2 ignores these fields; the SDK
+refuses such responses instead of reporting them as success.
+
 ## Browser setup: gRPC-Web
 
 Browsers use gRPC-Web rather than a native HTTP/2 gRPC channel. The JavaScript

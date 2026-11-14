@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import {
+  type ApplyEditsRequest as ApplyEditsMessage,
   ApplyEditsRequestSchema,
   type ApplyEditsResponse,
   type AttributeValue,
@@ -11,46 +12,114 @@ import {
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { toProtoGeometry } from "./grpc-geometry-input.js";
 import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
-import type { ApplyEditsRequest, HonuaApplyEditsResponse, HonuaEditResult, HonuaFeature } from "./types.js";
+import type {
+  ApplyEditsRequest,
+  GrpcPreciseAttributeType,
+  HonuaApplyEditsResponse,
+  HonuaEditResult,
+  HonuaFeature,
+} from "./types.js";
 
 /** Encode native edits without metadata requests or a REST fallback. */
 export function toProtoApplyEditsRequest(request: ApplyEditsRequest) {
-  const feature = (input: HonuaFeature): ProtoFeature => {
-    if (input.geometry?.spatialReference != null) {
-      throw new Error(
-        "gRPC edit geometry must use layer coordinates without spatialReference; reprojection is unavailable.",
-      );
-    }
-    const attributes = Object.fromEntries(
-      Object.entries(input.attributes).map(([key, value]) => [key, toEditAttribute(value)]),
-    );
-    return create(FeatureSchema, {
-      attributes,
-      ...(input.geometry == null ? {} : { geometry: toProtoGeometry({ ...input.geometry }).geometry }),
-    });
-  };
-  const deletes = typeof request.deletes === "string" ? request.deletes.split(",") : (request.deletes ?? []);
+  const useGlobalIds = request.useGlobalIds === true;
+  const deletes = typeof request.deletes === "string" ? request.deletes.split(",") : [...(request.deletes ?? [])];
   return create(ApplyEditsRequestSchema, {
     serviceId: request.serviceId,
     layerId: request.layerId,
-    adds: (request.adds ?? []).map(feature),
-    updates: (request.updates ?? []).map((input) => {
-      if (input.geometry === null) {
-        throw new HonuaCapabilityNotSupportedError("clearGeometry", "grpc", `${request.serviceId}/${request.layerId}`);
-      }
-      const encoded = feature(input);
-      const idField =
-        (request.objectIdField && request.objectIdField in input.attributes ? request.objectIdField : undefined) ??
-        Object.keys(input.attributes).find((key) => key.toLowerCase() === "objectid") ??
-        Object.keys(input.attributes).find((key) => key.toLowerCase() === "id");
-      const id = idField === undefined ? undefined : input.attributes[idField];
-      encoded.id = id === undefined || id === null ? 0n : editObjectId(id);
-      return encoded;
-    }),
-    deletes: deletes.map(editObjectId),
+    adds: (request.adds ?? []).map((input) => encodeAdd(input, request)),
+    updates: (request.updates ?? []).map((input) => encodeUpdate(input, request)),
+    ...(useGlobalIds
+      ? { useGlobalIds: true, deleteGlobalIds: deletes.map((id) => toWireGlobalId(String(id).trim())) }
+      : { deletes: deletes.map(editObjectId) }),
     rollbackOnFailure: request.rollbackOnFailure ?? true,
     idempotencyKey: request.idempotencyKey ?? "",
   });
+}
+
+function encodeFeature(input: HonuaFeature, request: ApplyEditsRequest): ProtoFeature {
+  if (input.geometry?.spatialReference != null) {
+    throw new Error(
+      "gRPC edit geometry must use layer coordinates without spatialReference; reprojection is unavailable.",
+    );
+  }
+  const attributes = Object.fromEntries(
+    Object.entries(input.attributes).map(([key, value]) => [
+      key,
+      toEditAttribute(value, preciseType(request.attributeTypes, key)),
+    ]),
+  );
+  return create(FeatureSchema, {
+    attributes,
+    ...(input.geometry == null ? {} : { geometry: toProtoGeometry({ ...input.geometry }).geometry }),
+  });
+}
+
+/**
+ * Adds send an explicit `globalId` as `Feature.global_id`. In integer mode a global ID that is
+ * only an attribute stays an attribute, which servers before geospatial-grpc 1.2 also store.
+ */
+function encodeAdd(input: HonuaFeature, request: ApplyEditsRequest): ProtoFeature {
+  if (input.globalId === undefined && request.useGlobalIds !== true) return encodeFeature(input, request);
+  const { feature, globalId } = liftGlobalId(input, request.globalIdField);
+  const encoded = encodeFeature(feature, request);
+  if (globalId !== undefined) encoded.globalId = globalId;
+  return encoded;
+}
+
+function encodeUpdate(input: HonuaFeature, request: ApplyEditsRequest): ProtoFeature {
+  if (input.geometry === null) {
+    throw new HonuaCapabilityNotSupportedError("clearGeometry", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
+  if (request.useGlobalIds === true) {
+    const encoded = encodeAdd(input, request);
+    if (!encoded.globalId) {
+      throw new Error("gRPC global-ID updates need globalId or a global ID in the globalIdField attribute.");
+    }
+    return encoded;
+  }
+  // Integer mode never sends Feature.global_id: it is a selector only with useGlobalIds.
+  const encoded = encodeFeature(input, request);
+  const idField =
+    (request.objectIdField && request.objectIdField in input.attributes ? request.objectIdField : undefined) ??
+    Object.keys(input.attributes).find((key) => key.toLowerCase() === "objectid") ??
+    Object.keys(input.attributes).find((key) => key.toLowerCase() === "id");
+  const id = idField === undefined ? undefined : input.attributes[idField];
+  encoded.id = id === undefined || id === null ? 0n : editObjectId(id);
+  return encoded;
+}
+
+const UUID_PATTERN = /^\{?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}?$/i;
+
+/** Normalise a global ID to the wire form: lowercase, hyphenated, no braces. */
+export function toWireGlobalId(value: string): string {
+  const match = UUID_PATTERN.exec(value);
+  if (!match?.[1]) throw new Error(`gRPC global IDs must be UUIDs; received "${value}".`);
+  return match[1].toLowerCase();
+}
+
+/** Take the global ID from `globalId` or the global-ID attribute, removing that attribute. */
+function liftGlobalId(input: HonuaFeature, field: string | undefined): { feature: HonuaFeature; globalId?: string } {
+  const key = field
+    ? Object.keys(input.attributes).find((name) => name.toLowerCase() === field.toLowerCase())
+    : undefined;
+  const raw = input.globalId ?? (key === undefined ? undefined : input.attributes[key]);
+  const attributes =
+    key === undefined
+      ? input.attributes
+      : Object.fromEntries(Object.entries(input.attributes).filter(([name]) => name !== key));
+  const feature = { ...input, attributes };
+  if (raw === undefined || raw === null || raw === "") return { feature };
+  if (typeof raw !== "string") throw new Error("gRPC global IDs must be UUID strings.");
+  return { feature, globalId: toWireGlobalId(raw.trim()) };
+}
+
+function preciseType(types: ApplyEditsRequest["attributeTypes"], key: string): GrpcPreciseAttributeType | undefined {
+  if (!types) return undefined;
+  if (Object.hasOwn(types, key)) return types[key];
+  const lowered = key.toLowerCase();
+  const match = Object.keys(types).find((name) => name.toLowerCase() === lowered);
+  return match === undefined ? undefined : types[match];
 }
 
 function editObjectId(value: unknown): bigint {
@@ -59,9 +128,45 @@ function editObjectId(value: unknown): bigint {
   throw new Error("gRPC edit object IDs must be safe integers or int64 decimal strings.");
 }
 
-function toEditAttribute(value: unknown): AttributeValue {
+const PRECISE_PATTERNS: Record<GrpcPreciseAttributeType, RegExp> = {
+  date: /^\d{4}-\d{2}-\d{2}$/,
+  time: /^\d{2}:\d{2}:\d{2}(\.\d{1,7})?$/,
+  "timestamp-offset": /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$/,
+  decimal: /^-?(0|[1-9]\d*)(\.\d+)?$/,
+};
+
+const PRECISE_CASES = {
+  date: "dateValue",
+  time: "timeValue",
+  "timestamp-offset": "timestampOffsetValue",
+  decimal: "decimalValue",
+} as const;
+
+/** Encode a declared date, time, offset timestamp or decimal without losing precision. */
+function toPreciseAttribute(value: unknown, type: GrpcPreciseAttributeType): AttributeValue["value"] | undefined {
+  let text: string;
+  if (typeof value === "string") text = value;
+  else if (type === "decimal" && (typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value)))) {
+    text = String(value);
+  } else if (type === "timestamp-offset" && value instanceof Date && Number.isFinite(value.getTime())) {
+    text = value.toISOString();
+  } else {
+    // Null and other non-string values keep their ordinary encoding.
+    return undefined;
+  }
+  if (!PRECISE_PATTERNS[type].test(text)) {
+    // A JS number String() writes in exponent form keeps its ordinary double encoding.
+    if (typeof value === "number") return undefined;
+    throw new Error(`Invalid gRPC ${type} edit attribute "${text}".`);
+  }
+  return { case: PRECISE_CASES[type], value: text };
+}
+
+function toEditAttribute(value: unknown, type?: GrpcPreciseAttributeType): AttributeValue {
   const attribute = create(AttributeValueSchema);
-  if (value === null) attribute.value = { case: "nullValue", value: 0 };
+  const precise = type === undefined ? undefined : toPreciseAttribute(value, type);
+  if (precise !== undefined) attribute.value = precise;
+  else if (value === null) attribute.value = { case: "nullValue", value: 0 };
   else if (typeof value === "string") attribute.value = { case: "stringValue", value };
   else if (typeof value === "boolean") attribute.value = { case: "boolValue", value };
   else if (typeof value === "bigint") attribute.value = { case: "int64Value", value: toProtoObjectId(String(value)) };
@@ -81,19 +186,63 @@ function toEditAttribute(value: unknown): AttributeValue {
   return attribute;
 }
 
-export function fromProtoApplyEditsResponse(response: ApplyEditsResponse): HonuaApplyEditsResponse {
-  const result = (entry: EditResult): HonuaEditResult => ({
-    objectId: toSafeNumberOrString(entry.objectId),
-    success: entry.success,
-    ...(entry.error ? { error: { code: entry.error.code, description: entry.error.message } } : {}),
-  });
-  const outcomes = {
-    addResults: response.addResults.map(result),
-    updateResults: response.updateResults.map(result),
-    deleteResults: response.deleteResults.map(result),
-  };
+/** gRPC status FAILED_PRECONDITION. */
+const FAILED_PRECONDITION = 9;
+
+/**
+ * Decode an ApplyEdits response. With `sent`, a global-ID batch whose delete results do not
+ * match its `delete_global_ids` is refused: a server older than geospatial-grpc 1.2 ignores the
+ * unknown selectors and would otherwise report an empty success.
+ */
+export function fromProtoApplyEditsResponse(
+  response: ApplyEditsResponse,
+  sent?: Pick<ApplyEditsMessage, "useGlobalIds" | "deleteGlobalIds" | "adds" | "updates">,
+): HonuaApplyEditsResponse {
+  if (sent && !response.error && globalIdsIgnored(sent, response)) {
+    throw new HonuaGrpcError(
+      FAILED_PRECONDITION,
+      "The server ignored global IDs in this batch (global-ID edits need a geospatial-grpc 1.2 server); " +
+        "other edits in this batch may have been committed, see details.",
+      decodeOutcomes(response),
+    );
+  }
+  const outcomes = decodeOutcomes(response);
   if (response.error) {
     throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...outcomes });
   }
   return outcomes;
+}
+
+/**
+ * Servers before geospatial-grpc 1.2 drop the unknown global-ID fields: delete selectors yield
+ * no results, and successful rows sent with `Feature.global_id` come back without one.
+ */
+function globalIdsIgnored(
+  sent: Pick<ApplyEditsMessage, "useGlobalIds" | "deleteGlobalIds" | "adds" | "updates">,
+  response: ApplyEditsResponse,
+): boolean {
+  const unechoed = (features: readonly ProtoFeature[], results: readonly EditResult[]) =>
+    features.some((feature, index) => {
+      const result = results[index];
+      return feature.globalId.length > 0 && result?.success === true && result.globalId.length === 0;
+    });
+  return (
+    (sent.useGlobalIds && response.deleteResults.length !== sent.deleteGlobalIds.length) ||
+    unechoed(sent.adds, response.addResults) ||
+    unechoed(sent.updates, response.updateResults)
+  );
+}
+
+function decodeOutcomes(response: ApplyEditsResponse) {
+  const result = (entry: EditResult): HonuaEditResult => ({
+    objectId: toSafeNumberOrString(entry.objectId),
+    ...(entry.globalId ? { globalId: entry.globalId } : {}),
+    success: entry.success,
+    ...(entry.error ? { error: { code: entry.error.code, description: entry.error.message } } : {}),
+  });
+  return {
+    addResults: response.addResults.map(result),
+    updateResults: response.updateResults.map(result),
+    deleteResults: response.deleteResults.map(result),
+  };
 }

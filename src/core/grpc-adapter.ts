@@ -10,6 +10,7 @@ import {
   GeometryType,
   type Feature as ProtoFeature,
   type FieldDefinition as ProtoFieldDefinition,
+  type QueryFeaturesRequest as ProtoQueryFeaturesRequest,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
   SpatialFilterSchema,
@@ -17,6 +18,7 @@ import {
 } from "../gen/geospatial/v1/index.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
+import { toWireGlobalId } from "./grpc-edits.js";
 import type {
   HonuaCountResponse,
   HonuaExtentResponse,
@@ -48,8 +50,14 @@ const FIELD_TYPE_MAP: Record<number, string> = {
   // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
   [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
   [FieldType.DATE_TIME]: "esriFieldTypeDate",
-  [FieldType.DATE]: "esriFieldTypeDate",
-  [FieldType.TIME]: "esriFieldTypeDate",
+  // DATE, TIME and TIMESTAMP_OFFSET values arrive as ISO strings
+  // (geospatial-grpc 1.2), not epoch milliseconds, so they report the
+  // matching GeoServices temporal types rather than esriFieldTypeDate.
+  [FieldType.DATE]: "esriFieldTypeDateOnly",
+  [FieldType.TIME]: "esriFieldTypeTimeOnly",
+  [FieldType.TIMESTAMP_OFFSET]: "esriFieldTypeTimestampOffset",
+  // GeoServices has no exact decimal type; values arrive as exact strings.
+  [FieldType.DECIMAL]: "esriFieldTypeString",
   [FieldType.GEOMETRY]: "esriFieldTypeGeometry",
   [FieldType.JSON]: "esriFieldTypeString",
   [FieldType.BINARY]: "esriFieldTypeBlob",
@@ -108,6 +116,17 @@ function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: nu
   return BigInt(value);
 }
 
+/** Validate and normalise UUID selectors; an empty list would silently mean "no selector". */
+function toProtoGlobalIds(request: QueryFeaturesRequest): string[] {
+  if (request.objectIds !== undefined) {
+    throw new Error("objectIds and globalIds cannot be combined in one gRPC query");
+  }
+  if (!request.globalIds?.length) {
+    throw new Error("globalIds must name at least one global ID; omit it to query without a selector");
+  }
+  return request.globalIds.map((id) => toWireGlobalId(id.trim()));
+}
+
 /**
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
@@ -156,6 +175,10 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
             return BigInt(id);
           });
     msg.objectIds = ids;
+  }
+
+  if (request.globalIds !== undefined) {
+    msg.globalIds = toProtoGlobalIds(request);
   }
 
   if (request.resultOffset !== undefined) {
@@ -257,7 +280,9 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
  */
 export function fromProtoQueryResponse(
   response: QueryFeaturesResponse,
+  sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): HonuaQueryResponse | HonuaCountResponse | HonuaObjectIdsResponse | HonuaExtentResponse {
+  ensureGlobalIdSelectorHonored(sent, response.globalIdFieldName);
   const hasFeatureMetadata =
     response.fields.length > 0 ||
     response.objectIdFieldName.length > 0 ||
@@ -299,12 +324,14 @@ export function fromProtoQueryResponse(
   }
 
   // Standard feature response
+  const identity = { objectIdFieldName: response.objectIdFieldName, globalIdFieldName: response.globalIdFieldName };
   return {
     objectIdFieldName: response.objectIdFieldName,
+    ...(response.globalIdFieldName ? { globalIdFieldName: response.globalIdFieldName } : {}),
     geometryType: GEOMETRY_TYPE_MAP[response.geometryType] ?? "esriGeometryPoint",
     spatialReference: response.spatialReference ? convertSpatialReference(response.spatialReference) : undefined,
     fields: response.fields.map(convertField),
-    features: response.features.map((feature) => convertFeature(feature, response.objectIdFieldName)),
+    features: response.features.map((feature) => convertFeature(feature, identity)),
     exceededTransferLimit: response.exceededTransferLimit || undefined,
   };
 }
@@ -374,18 +401,20 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
  */
 export async function* streamProtoPages(
   stream: AsyncIterable<FeaturePage>,
+  sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): AsyncGenerator<HonuaFeature[], void, undefined> {
+  let first = true;
   // Metadata is populated on the first page only; later pages reuse it.
-  let objectIdFieldName = "";
+  const identity = { objectIdFieldName: "", globalIdFieldName: "" };
   try {
     for await (const page of stream) {
-      if (page.objectIdFieldName) {
-        objectIdFieldName = page.objectIdFieldName;
-      }
+      ensureGlobalIdSelectorHonored(first ? sent : undefined, page.globalIdFieldName);
+      first = false;
+      adoptPageIdentity(identity, page);
       if (page.features.length === 0 && page.isLastPage) {
         break;
       }
-      const features = page.features.map((feature) => convertFeature(feature, objectIdFieldName));
+      const features = page.features.map((feature) => convertFeature(feature, identity));
       if (features.length > 0) {
         yield features;
       }
@@ -396,6 +425,29 @@ export async function* streamProtoPages(
   } catch (error) {
     throw wrapConnectError(error);
   }
+}
+
+/**
+ * A server older than geospatial-grpc 1.2 ignores `global_ids` and answers with an unfiltered
+ * page. A 1.2 server always names the layer's global-ID field when it honours the selector, so
+ * a response without one is refused rather than returned as the selected rows.
+ */
+function ensureGlobalIdSelectorHonored(
+  sent: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId"> | undefined,
+  globalIdFieldName: string,
+): void {
+  if (sent && sent.globalIds.length > 0 && globalIdFieldName.length === 0) {
+    throw new HonuaCapabilityNotSupportedError("globalIds", "grpc", `${sent.serviceId}/${sent.layerId}`);
+  }
+}
+
+/** Metadata arrives on the first page; later pages keep the identity fields already seen. */
+function adoptPageIdentity(
+  identity: { objectIdFieldName: string; globalIdFieldName: string },
+  page: FeaturePage,
+): void {
+  identity.objectIdFieldName = page.objectIdFieldName || identity.objectIdFieldName;
+  identity.globalIdFieldName = page.globalIdFieldName || identity.globalIdFieldName;
 }
 
 /**
@@ -453,8 +505,13 @@ function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
  * An `id` of 0 means no object ID (for example distinct projections), and an
  * attribute already present under that name in any casing (a legacy server
  * repeating it, or a differing custom public ID) is kept as sent.
+ * `Feature.global_id` (geospatial-grpc 1.2) is restored the same way under
+ * `globalIdFieldName`.
  */
-function convertFeature(feature: ProtoFeature, objectIdFieldName: string): HonuaFeature {
+function convertFeature(
+  feature: ProtoFeature,
+  { objectIdFieldName, globalIdFieldName }: { objectIdFieldName: string; globalIdFieldName: string },
+): HonuaFeature {
   const attributes: Record<string, unknown> = {};
   for (const [key, attrValue] of Object.entries(feature.attributes)) {
     attributes[key] = convertAttributeValue(attrValue);
@@ -462,6 +519,9 @@ function convertFeature(feature: ProtoFeature, objectIdFieldName: string): Honua
 
   if (objectIdFieldName.length > 0 && feature.id !== 0n && !hasAttributeIgnoreCase(attributes, objectIdFieldName)) {
     attributes[objectIdFieldName] = toSafeNumberOrString(feature.id);
+  }
+  if (globalIdFieldName.length > 0 && feature.globalId && !hasAttributeIgnoreCase(attributes, globalIdFieldName)) {
+    attributes[globalIdFieldName] = feature.globalId;
   }
 
   const result: HonuaFeature = { attributes };
@@ -498,6 +558,13 @@ function convertAttributeValue(attr: AttributeValue): unknown {
       return attr.value.value;
     case "nullValue":
       return null;
+    // Exact ISO date/time/offset text and exact decimal text: never coerced to
+    // epoch milliseconds or binary floating point.
+    case "dateValue":
+    case "timeValue":
+    case "timestampOffsetValue":
+    case "decimalValue":
+      return attr.value.value;
     default:
       return null;
   }

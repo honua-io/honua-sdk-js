@@ -76,7 +76,7 @@ Check the deployment and the linked work before removing a compatibility path.
 | Find | `findSources([{ source, fields }], options)` | Typed equality or explicit LIKE pattern over chosen fields; no service-wide discovery. |
 | Legend | `legendFromStyle(style, options)` | Style-derived colors plus the full symbol definition; complex expressions need a renderer. No server legend call. |
 | Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Uses unary gRPC-Web `ApplyEdits` with no REST fallback when configured for gRPC-Web. Per-row errors remain in the result; whole-call failures reject. Set the source schema primary key for custom object IDs. |
-| Edits keyed by global ID | Global-ID-aware canonical edit API | Additive scalar/identity contract and transport support are pending. Preserve global IDs when copying data. |
+| Edits keyed by global ID | `source.applyEdits({ useGlobalIds: true, updates: [{ globalId, attributes }], deletes: [globalId] })` | Outcomes carry `globalId` with `id`. On gRPC this requires a geospatial-grpc 1.2 server and a declared global-ID field; on REST only global-ID deletes are forwarded. Adds may supply client-generated global IDs. |
 | Parent and child transaction | Service edit session | Multi-layer native transaction support is pending; independent calls are not atomic. |
 | Query attachment metadata | `source.attachments.list(id)` / `.query()` | Canonical API exists; native attachment transport is pending. |
 | Add/update/delete attachment | `source.attachments.add/update/delete` | Native small unary and large chunked-session upload support is pending. Browser client streaming is unsuitable. |
