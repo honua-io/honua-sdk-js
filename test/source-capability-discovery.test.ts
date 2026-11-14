@@ -36,6 +36,14 @@ const WFS_CAPABILITIES = readFileSync(
 );
 const PMTILES_ASSET_URL = "https://assets.example.test/maps/basemap.pmtiles";
 const PMTILES_ETAG = '"pmtiles-fixture-v1"';
+const GRPC_DESCRIPTOR = {
+  layer: {
+    serviceId: "parcels",
+    layerId: 0,
+    name: "Parcels",
+    capabilities: { query: true, queryPagination: true, queryStream: true, create: true },
+  },
+};
 const PARCELS_IMAGE_METADATA = {
   name: "Imagery",
   capabilities: "Image,Query",
@@ -438,16 +446,7 @@ describe("connectWithSourceCapabilities", () => {
       transport: "grpc-web",
       fetchFn: grpcFetchHandler(),
     });
-    vi.spyOn(grpcClient, "describeLayer").mockResolvedValue(
-      create(DescribeLayerResponseSchema, {
-        layer: {
-          serviceId: "parcels",
-          layerId: 0,
-          name: "Parcels",
-          capabilities: { query: true, queryPagination: true, queryStream: true, create: true },
-        },
-      }),
-    );
+    vi.spyOn(grpcClient, "describeLayer").mockResolvedValue(create(DescribeLayerResponseSchema, GRPC_DESCRIPTOR));
     vi.spyOn(grpcClient, "queryFeatures").mockResolvedValue({
       objectIdFieldName: "OBJECTID",
       geometryType: "esriGeometryPolygon",
