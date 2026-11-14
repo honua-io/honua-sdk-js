@@ -26,13 +26,16 @@ function enclosingScope(node) {
   }
 }
 
-function nextOrdinal(counts, node, signature) {
-  const container = enclosingScope(node);
-  if (!counts.has(container)) counts.set(container, new Map());
-  const siblings = counts.get(container);
-  const ordinal = siblings.get(signature) ?? 0;
-  siblings.set(signature, ordinal + 1);
-  return ordinal;
+function ordinalCounter() {
+  const counts = new Map();
+  return (node, signature) => {
+    const container = enclosingScope(node);
+    if (!counts.has(container)) counts.set(container, new Map());
+    const siblings = counts.get(container);
+    const ordinal = siblings.get(signature) ?? 0;
+    siblings.set(signature, ordinal + 1);
+    return ordinal;
+  };
 }
 
 const callSites = new WeakMap();
@@ -40,7 +43,7 @@ const callSites = new WeakMap();
 function callSite(call, source) {
   if (!callSites.has(source)) {
     const sites = new Map();
-    const counts = new Map();
+    const nextOrdinal = ordinalCounter();
     const printer = ts.createPrinter({ removeComments: true });
     function visit(node) {
       if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
@@ -48,7 +51,7 @@ function callSite(call, source) {
           ...(node.arguments ?? []).map(argument =>
             ts.isArrowFunction(argument) || ts.isFunctionExpression(argument) ? '<callback>' :
               printer.printNode(ts.EmitHint.Expression, argument, source))]);
-        const ordinal = nextOrdinal(counts, node, signature);
+        const ordinal = nextOrdinal(node, signature);
         sites.set(node, signature + ':occurrence' + ordinal);
       }
       ts.forEachChild(node, visit);
@@ -83,11 +86,11 @@ function bindingName(node, source) {
 function anonymousContext(node, source) {
   if (!anonymousSites.has(source)) {
     const sites = new Map();
-    const counts = new Map();
+    const nextOrdinal = ordinalCounter();
     function visit(candidate) {
       if (ts.isObjectLiteralExpression(candidate) || ts.isFunctionLike(candidate) || ts.isClassLike(candidate)) {
         const context = candidate.kind + ':' + (bindingName(candidate, source) ?? contextName(candidate, source));
-        const ordinal = nextOrdinal(counts, candidate, context);
+        const ordinal = nextOrdinal(candidate, context);
         sites.set(candidate, context + ':occurrence' + ordinal);
       }
       ts.forEachChild(candidate, visit);
