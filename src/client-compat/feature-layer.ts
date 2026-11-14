@@ -770,6 +770,7 @@ export class FeatureLayerCompat {
       await this.client.applyEdits({
         serviceId: this.serviceId,
         layerId: this.layerId,
+        objectIdField: this.objectIdField,
         adds: adds as ApplyEditsRequest["adds"],
         updates: updates as ApplyEditsRequest["updates"],
         deletes,

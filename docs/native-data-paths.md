@@ -13,14 +13,36 @@ This follows the founder direction recorded in [ADR-0087](https://github.com/hon
 
 ## Live queries and edits
 
-Use `HonuaClient` with `transport: "grpc-web"` for native feature queries in a
-browser or JavaScript service. The complete setup is below. The public SDK
-currently supports gRPC feature queries and query streaming, but **does not yet
-route `applyEdits()` through gRPC**: that method still calls GeoServices REST,
-even on a client configured for gRPC-Web. Do not treat it as a native edit path.
-Track native edit support in [#2490](https://github.com/honua-io/honua-sdk-js/issues/2490).
-Until it ships, keep existing edit integrations explicitly in the
-compatibility phase of the migration.
+Use `HonuaClient` with `transport: "grpc-web"` for native feature queries,
+query streaming and `applyEdits()`. Edits use the unary `ApplyEdits` RPC;
+transport or server errors propagate without a REST fallback. Per-row errors
+remain in the result arrays. `rollbackOnFailure` defaults to `true`.
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({
+  baseUrl: "https://your-honua-server.example",
+  transport: "grpc-web",
+  bearerToken: "<short-lived-user-access-token>",
+});
+const edits = await client.applyEdits({
+  serviceId: "parcels",
+  layerId: 0,
+  adds: [{ attributes: { name: "New parcel" }, geometry: { x: -122.4, y: 37.8 } }],
+  rollbackOnFailure: true,
+});
+console.log(edits.addResults);
+```
+
+Supply coordinates in the layer's coordinate system and omit `spatialReference`; explicit edit reprojection is unavailable and rejected. Updates use the
+`objectid` or `id` attribute (case insensitive); set `objectIdField` for another
+primary-key name. Integer values must be safe JavaScript integers, or use
+`bigint` for exact int64 attributes and decimal strings for large object IDs.
+Large result IDs are returned as decimal strings. Attributes support scalar
+values, `Date`, `Uint8Array` and explicit `null`; unsupported values fail before
+sending a request. Writes are never automatically retried. For an explicit
+retry, reuse an `idempotencyKey` only for the same logical edit.
 
 ## Browser setup: gRPC-Web
 
@@ -120,5 +142,10 @@ existing Esri clients that cannot yet migrate. Their examples demonstrate
 Keep them during coexistence, then move application data access to gRPC and
 cloud-native files. Control-plane administration and capabilities outside the
 feature data path retain their own documented contracts.
+
+The native edit integration test is separately gated by
+`HONUA_GRPC_EDIT_INTEGRATION=1`. Use a disposable writable point layer with a
+`name` field and the standard integration service, layer and credential settings.
+It adds, queries, updates and deletes its own fixture through gRPC-Web only.
 
 For a call-by-call application migration, use the [native conversion guide](native-app-conversion.md), including identify, find and style legends.

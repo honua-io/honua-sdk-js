@@ -208,7 +208,9 @@ describe("support manifest contract parity", () => {
       const manifestedNativeOperations = protocol.operationClaims
         .filter((claim) => claim.executionMode === "native")
         .flatMap((claim) => claim.operations);
-      expect(manifestedNativeOperations, protocol.id).toEqual([...PROTOCOL_DEFAULT_CAPABILITIES[protocol.id]]);
+      expect(manifestedNativeOperations.sort(), protocol.id).toEqual(
+        [...PROTOCOL_DEFAULT_CAPABILITIES[protocol.id]].sort(),
+      );
     }
   });
 });
