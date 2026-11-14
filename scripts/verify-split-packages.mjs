@@ -1263,6 +1263,10 @@ export const acceptsSceneSpatialReference = (
     path.join(PROJECT_ROOT, "test", "fixtures", "packed-app-platform-reference-workbench.mjs"),
     path.join(tempRoot, "packed-app-platform-reference-workbench.mjs"),
   );
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "test", "fixtures", "packed-react-shell-qualification.mjs"),
+    path.join(tempRoot, "packed-react-shell-qualification.mjs"),
+  );
   const referenceWorkbenchResult = runCommand(
     "node",
     ["packed-app-platform-reference-workbench.mjs"],

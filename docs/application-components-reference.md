@@ -76,6 +76,14 @@ budget. WeakRef collectibility does not measure retained bytes per cycle.
 Accessibility qualification and the live-service lane have no new observations;
 coverage remains the two named components and Chromium.
 
+The packed React lane also hydrates server-rendered custom elements under
+development StrictMode. It checks server-node reuse, recoverable hydration
+errors, effect replay, a single active application mount, locale propagation,
+and cleanup on unmount. The same packed verification command above runs these
+checks; static server markup alone does not satisfy them. These lifecycle
+checks do not qualify automated accessibility, screen-reader behavior, or
+retained heap bytes.
+
 <!-- app-platform-reference-qualification:start -->
 
 | Supported component | Maturity | Unit / contract | Browser artifact | Packed journey | Open gates |

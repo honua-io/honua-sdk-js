@@ -38,12 +38,12 @@ for (const name of [
   }
 }
 
-const [{ HonuaClient }, { createDataset }, webComponents, React, reactDomServer] = await Promise.all([
+const { qualifyPackedReactShell } = await import("./packed-react-shell-qualification.mjs");
+
+const [{ HonuaClient }, { createDataset }, webComponents] = await Promise.all([
   import("@honua/sdk"),
   import("@honua/sdk/contract"),
   import("@honua/app-platform/web-components"),
-  import("react"),
-  import("react-dom/server"),
 ]);
 
 const {
@@ -209,19 +209,18 @@ const context = createHonuaApplicationContext({
 const host = document.querySelector("#workbench");
 assert.ok(host);
 
-const reactMarkup = reactDomServer.renderToStaticMarkup(
-  React.createElement("section", { id: "react-host", "aria-label": "React hosted component lane" },
-    React.createElement("honua-feature-inspection", { id: "react-inspection" }),
-  ),
-);
+const reactQualification = await qualifyPackedReactShell({ context, mountHonuaApplication });
+context.update({
+  status: "ready",
+  locale: { locale: "ar", direction: "rtl", status: { ready: "جاهز", offline: "غير متصل" } },
+});
 host.insertAdjacentHTML(
   "beforeend",
-  `${reactMarkup}<honua-feature-inspection id="direct-inspection"></honua-feature-inspection><honua-feature-table id="table"></honua-feature-table><honua-feature-editor id="editor"></honua-feature-editor><honua-print-export id="export"></honua-print-export>`,
+  '<honua-feature-inspection id="direct-inspection"></honua-feature-inspection><honua-feature-table id="table"></honua-feature-table><honua-feature-editor id="editor"></honua-feature-editor><honua-print-export id="export"></honua-print-export>',
 );
 const mounted = await mountHonuaApplication({ host, context, register: false });
 assert.equal(host.getAttribute("dir"), "rtl", "locale: mount must project RTL without global state");
 assert.equal(host.getAttribute("lang"), "ar", "locale: mount must project the context locale");
-assert.ok(document.querySelector("#react-inspection"), "React: server markup must host the supported custom element");
 
 const inspection = createHonuaFeatureInspectionFromApplicationContext(context, {
   presentation: { titleField: "name", fields: ["status", "priority", "version"] },
@@ -381,6 +380,7 @@ console.log(
     packedAppPlatformReferenceWorkbench: "ok",
     journey: ["connect", "map", "inspect", "filter", "edit", "table", "export"],
     lanes: ["direct-custom-element", "react-host"],
+    reactQualification,
     states: ["locale-rtl", "auth-change", "stale", "degraded", "offline", "failed", "realtime"],
     budgets: { firstUseMs: Math.ceil(firstUseMs), interactionMs: Math.ceil(interactionMs), domNodes },
     egressAttempts,
