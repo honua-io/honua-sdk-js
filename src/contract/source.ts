@@ -432,7 +432,10 @@ export function geoServicesFeatureSource<T>(
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
-      const response = await layer.applyEdits(toApplyEditsRequest(envelope));
+      const response = await layer.applyEdits({
+        ...toApplyEditsRequest(envelope),
+        ...(descriptor.schema?.primaryKey ? { objectIdField: descriptor.schema.primaryKey } : {}),
+      });
       return canonicalEditResult(response);
     },
     async queryRelated<R>(request: RelatedQuery) {
@@ -4994,7 +4997,7 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
     let allNumeric = true;
     for (const id of envelope.deletes) {
       const parsed = Number(id);
-      if (Number.isFinite(parsed)) {
+      if (Number.isSafeInteger(parsed)) {
         numericIds.push(parsed);
       } else {
         allNumeric = false;
@@ -5043,7 +5046,10 @@ function canonicalEditResult(response: import("../core/types.js").HonuaApplyEdit
 
 function toEditOutcome(result: import("../core/types.js").HonuaEditResult): EditOutcome {
   const out: EditOutcome = { success: result.success };
-  if (typeof result.objectId === "number" && Number.isFinite(result.objectId)) {
+  if (
+    typeof result.objectId === "string" ||
+    (typeof result.objectId === "number" && Number.isFinite(result.objectId))
+  ) {
     out.id = result.objectId;
   }
   if (result.error) {
