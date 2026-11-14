@@ -1,37 +1,24 @@
+import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
+import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+export { toProtoApplyEditsRequest, fromProtoApplyEditsResponse } from "./grpc-edits.js";
 import { create } from "@bufbuild/protobuf";
 import {
-  ApplyEditsRequestSchema,
-  type ApplyEditsResponse,
   type AttributeValue,
-  AttributeValueSchema,
-  CoordinateSchema,
-  CoordinateSequenceSchema,
   DistanceUnit,
-  type EditResult,
   type FeaturePage,
-  FeatureSchema,
   FieldType,
-  GeometrySchema,
   GeometryType,
-  MultiPointGeometrySchema,
-  PointGeometrySchema,
-  PolygonGeometrySchema,
-  PolylineGeometrySchema,
   type Feature as ProtoFeature,
   type FieldDefinition as ProtoFieldDefinition,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
   SpatialFilterSchema,
-  SpatialReferenceSchema,
   SpatialRelationship,
 } from "../gen/geospatial/v1/index.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import type {
-  ApplyEditsRequest,
-  HonuaApplyEditsResponse,
   HonuaCountResponse,
-  HonuaEditResult,
   HonuaExtentResponse,
   HonuaFeature,
   HonuaFieldInfo,
@@ -113,23 +100,6 @@ const GEOSERVICES_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   miles: DistanceUnit.MILES,
   mi: DistanceUnit.MILES,
 };
-
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
-const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
-const MIN_PROTO_INT64 = -(1n << 63n);
-const MAX_PROTO_INT64 = (1n << 63n) - 1n;
-
-function toProtoObjectId(value: string): bigint {
-  const token = value.trim();
-  if (!/^(?:0|-?[1-9][0-9]*)$/.test(token)) {
-    throw new RangeError("string objectIds must contain canonical decimal int64 values");
-  }
-  const parsed = BigInt(token);
-  if (parsed < MIN_PROTO_INT64 || parsed > MAX_PROTO_INT64) {
-    throw new RangeError("string objectIds must remain within the signed int64 range");
-  }
-  return parsed;
-}
 
 function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -397,225 +367,6 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
   return String(value);
 }
 
-function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
-  geometry: ReturnType<typeof create<typeof GeometrySchema>>;
-  spatialReference?: ReturnType<typeof create<typeof SpatialReferenceSchema>>;
-} {
-  const source = parseGeometryValue(geometryValue);
-  const dimensions = { hasZ: source.hasZ, hasM: source.hasM };
-  const geometry = create(GeometrySchema);
-
-  if (isPoint(source)) {
-    const point = create(PointGeometrySchema);
-    point.x = source.x;
-    point.y = source.y;
-    if (typeof source.z === "number" && Number.isFinite(source.z)) {
-      point.z = source.z;
-    }
-    if (typeof source.m === "number" && Number.isFinite(source.m)) {
-      point.m = source.m;
-    }
-    geometry.shape = { case: "point", value: point };
-  } else if (isEnvelope(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = [
-      toCoordinateSequence([
-        [source.xmin, source.ymin],
-        [source.xmax, source.ymin],
-        [source.xmax, source.ymax],
-        [source.xmin, source.ymax],
-        [source.xmin, source.ymin],
-      ]),
-    ];
-    geometry.shape = { case: "polygon", value: polygon };
-  } else if (isMultipoint(source)) {
-    const multipoint = create(MultiPointGeometrySchema);
-    multipoint.points = source.points.map((point, index) =>
-      toPointGeometryFromArray(point, `points[${index}]`, dimensions),
-    );
-    geometry.shape = { case: "multiPoint", value: multipoint };
-  } else if (isPolyline(source)) {
-    const polyline = create(PolylineGeometrySchema);
-    polyline.paths = source.paths.map((path, index) => toCoordinateSequence(path, `paths[${index}]`, dimensions));
-    geometry.shape = { case: "polyline", value: polyline };
-  } else if (isPolygon(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = source.rings.map((ring, index) => toCoordinateSequence(ring, `rings[${index}]`, dimensions));
-    geometry.shape = { case: "polygon", value: polygon };
-  } else {
-    throw new Error("Unsupported geometry shape for gRPC transport.");
-  }
-
-  return {
-    geometry,
-    spatialReference: toProtoSpatialReference((source as Record<string, unknown>).spatialReference),
-  };
-}
-
-function parseGeometryValue(value: string | Record<string, unknown>): Record<string, unknown> {
-  if (typeof value === "string") {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      throw new Error("Geometry must be a JSON object for gRPC transport.");
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("Geometry JSON must parse to an object for gRPC transport.");
-    }
-    return parsed as Record<string, unknown>;
-  }
-  return value;
-}
-
-function toProtoSpatialReference(value: unknown): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkid = value;
-    return spatialReference;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const asNumber = Number(trimmed);
-    if (Number.isFinite(asNumber)) {
-      const spatialReference = create(SpatialReferenceSchema);
-      spatialReference.wkid = asNumber;
-      return spatialReference;
-    }
-
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed) as unknown;
-        return toProtoSpatialReference(parsed);
-      } catch {
-        throw new Error("Invalid outSr JSON for gRPC transport.");
-      }
-    }
-
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkt = trimmed;
-    return spatialReference;
-  }
-
-  if (typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const spatialReference = create(SpatialReferenceSchema);
-  const source = value as Record<string, unknown>;
-  const wkid = source.wkid;
-  if (typeof wkid === "number" && Number.isFinite(wkid)) {
-    spatialReference.wkid = wkid;
-  }
-  const latestWkid = source.latestWkid;
-  if (typeof latestWkid === "number" && Number.isFinite(latestWkid)) {
-    spatialReference.latestWkid = latestWkid;
-  }
-  const wkt = source.wkt;
-  if (typeof wkt === "string" && wkt.length > 0) {
-    spatialReference.wkt = wkt;
-  }
-
-  if (spatialReference.wkid === 0 && spatialReference.latestWkid === 0 && !spatialReference.wkt) {
-    return undefined;
-  }
-  return spatialReference;
-}
-
-interface GeometryDimensions {
-  hasZ?: unknown;
-  hasM?: unknown;
-}
-
-function coordinateDimensions(value: unknown[], dimensions: GeometryDimensions): { z?: number; m?: number } {
-  const result: { z?: number; m?: number } = {};
-  const mOnly = dimensions.hasM === true && dimensions.hasZ !== true;
-  const z = mOnly || dimensions.hasZ === false ? undefined : value[2];
-  const m = dimensions.hasM === false ? undefined : value[mOnly ? 2 : 3];
-  if (typeof z === "number" && Number.isFinite(z)) result.z = z;
-  if (typeof m === "number" && Number.isFinite(m)) result.m = m;
-  return result;
-}
-
-function toPointGeometryFromArray(
-  value: unknown,
-  context: string,
-  dimensions: GeometryDimensions = {},
-): ReturnType<typeof create<typeof PointGeometrySchema>> {
-  const { x, y, z, m } = toCoordinate(value, context, dimensions);
-  return create(PointGeometrySchema, { x, y, z, m });
-}
-
-function toCoordinateSequence(
-  value: unknown,
-  context = "coords",
-  dimensions: GeometryDimensions = {},
-): ReturnType<typeof create<typeof CoordinateSequenceSchema>> {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid coordinate sequence at ${context}`);
-  }
-  const sequence = create(CoordinateSequenceSchema);
-  sequence.coords = value.map((coord, index) => toCoordinate(coord, `${context}[${index}]`, dimensions));
-  return sequence;
-}
-
-function toCoordinate(
-  value: unknown,
-  context: string,
-  dimensions: GeometryDimensions = {},
-): ReturnType<typeof create<typeof CoordinateSchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const coordinate = create(CoordinateSchema);
-  coordinate.x = x;
-  coordinate.y = y;
-  Object.assign(coordinate, coordinateDimensions(value, dimensions));
-  return coordinate;
-}
-
-function isPoint(value: Record<string, unknown>): value is { x: number; y: number; z?: number; m?: number } {
-  return typeof value.x === "number" && typeof value.y === "number";
-}
-
-function isEnvelope(
-  value: Record<string, unknown>,
-): value is { xmin: number; ymin: number; xmax: number; ymax: number } {
-  return (
-    typeof value.xmin === "number" &&
-    typeof value.ymin === "number" &&
-    typeof value.xmax === "number" &&
-    typeof value.ymax === "number"
-  );
-}
-
-function isMultipoint(value: Record<string, unknown>): value is { points: unknown[] } {
-  return Array.isArray(value.points);
-}
-
-function isPolyline(value: Record<string, unknown>): value is { paths: unknown[] } {
-  return Array.isArray(value.paths);
-}
-
-function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] } {
-  return Array.isArray(value.rings);
-}
-
 /**
  * Converts a stream of proto FeaturePages into an async generator
  * that yields arrays of JSON-compatible features, matching the
@@ -752,13 +503,6 @@ function convertAttributeValue(attr: AttributeValue): unknown {
   }
 }
 
-function toSafeNumberOrString(value: bigint): number | string {
-  if (value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT) {
-    return Number(value);
-  }
-  return value.toString();
-}
-
 /** Keep absent ordinates in their geometry-wide positions for lossless edit roundtrips. */
 function coordToArray(
   coordinate: { x: number; y: number; z?: number; m?: number },
@@ -810,107 +554,27 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
       };
     }
     case "multiPolygon": {
-      const mpg = geometry.shape.value;
-      const dimensions = coordinateDimensionFlags(
-        mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords)),
-      );
-      const rings: (number | null)[][][] = [];
-      for (const poly of mpg.polygons) {
-        for (const ring of poly.rings) {
-          rings.push(ring.coords.map((c) => coordToArray(c, dimensions)));
-        }
-      }
-      return {
-        rings,
-        ...dimensions,
-      };
+      return convertMultiPolygon(geometry.shape.value);
     }
     default:
       return null;
   }
 }
 
-/** Encode native edits without metadata requests or a REST fallback. */
-export function toProtoApplyEditsRequest(request: ApplyEditsRequest) {
-  const feature = (input: HonuaFeature): ProtoFeature => {
-    if (input.geometry?.spatialReference != null) {
-      throw new Error(
-        "gRPC edit geometry must use layer coordinates without spatialReference; reprojection is unavailable.",
-      );
+function convertMultiPolygon(mpg: {
+  polygons: { rings: { coords: { x: number; y: number; z?: number; m?: number }[] }[] }[];
+}) {
+  const dimensions = coordinateDimensionFlags(
+    mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords)),
+  );
+  const rings: (number | null)[][][] = [];
+  for (const poly of mpg.polygons) {
+    for (const ring of poly.rings) {
+      rings.push(ring.coords.map((c) => coordToArray(c, dimensions)));
     }
-    const attributes = Object.fromEntries(
-      Object.entries(input.attributes).map(([key, value]) => [key, toEditAttribute(value)]),
-    );
-    return create(FeatureSchema, {
-      attributes,
-      ...(input.geometry == null ? {} : { geometry: toProtoGeometry({ ...input.geometry }).geometry }),
-    });
-  };
-  const deletes = typeof request.deletes === "string" ? request.deletes.split(",") : (request.deletes ?? []);
-  return create(ApplyEditsRequestSchema, {
-    serviceId: request.serviceId,
-    layerId: request.layerId,
-    adds: (request.adds ?? []).map(feature),
-    updates: (request.updates ?? []).map((input) => {
-      if (input.geometry === null) {
-        throw new HonuaCapabilityNotSupportedError("clearGeometry", "grpc", `${request.serviceId}/${request.layerId}`);
-      }
-      const encoded = feature(input);
-      const idField =
-        (request.objectIdField && request.objectIdField in input.attributes ? request.objectIdField : undefined) ??
-        Object.keys(input.attributes).find((key) => key.toLowerCase() === "objectid") ??
-        Object.keys(input.attributes).find((key) => key.toLowerCase() === "id");
-      const id = idField === undefined ? undefined : input.attributes[idField];
-      encoded.id = id === undefined || id === null ? 0n : editObjectId(id);
-      return encoded;
-    }),
-    deletes: deletes.map(editObjectId),
-    rollbackOnFailure: request.rollbackOnFailure ?? true,
-    idempotencyKey: request.idempotencyKey ?? "",
-  });
-}
-
-function editObjectId(value: unknown): bigint {
-  if (typeof value === "number" && Number.isSafeInteger(value)) return toProtoObjectId(String(value));
-  if (typeof value === "string" || typeof value === "bigint") return toProtoObjectId(String(value));
-  throw new Error("gRPC edit object IDs must be safe integers or int64 decimal strings.");
-}
-
-function toEditAttribute(value: unknown): AttributeValue {
-  const attribute = create(AttributeValueSchema);
-  if (value === null) attribute.value = { case: "nullValue", value: 0 };
-  else if (typeof value === "string") attribute.value = { case: "stringValue", value };
-  else if (typeof value === "boolean") attribute.value = { case: "boolValue", value };
-  else if (typeof value === "bigint") attribute.value = { case: "int64Value", value: toProtoObjectId(String(value)) };
-  else if (value instanceof Uint8Array) attribute.value = { case: "bytesValue", value };
-  else if (value instanceof Date && Number.isFinite(value.getTime())) {
-    attribute.value = { case: "datetimeValue", value: BigInt(value.getTime()) };
-  } else if (typeof value === "number" && Number.isFinite(value)) {
-    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
-      throw new Error("Unsafe integer edit attribute; use bigint for exact int64 values.");
-    }
-    attribute.value = Number.isInteger(value)
-      ? { case: "int64Value", value: BigInt(value) }
-      : { case: "doubleValue", value };
-  } else {
-    throw new Error("Unsupported gRPC edit attribute; use a scalar, Date, Uint8Array or null.");
   }
-  return attribute;
-}
-
-export function fromProtoApplyEditsResponse(response: ApplyEditsResponse): HonuaApplyEditsResponse {
-  const result = (entry: EditResult): HonuaEditResult => ({
-    objectId: toSafeNumberOrString(entry.objectId),
-    success: entry.success,
-    ...(entry.error ? { error: { code: entry.error.code, description: entry.error.message } } : {}),
-  });
-  const outcomes = {
-    addResults: response.addResults.map(result),
-    updateResults: response.updateResults.map(result),
-    deleteResults: response.deleteResults.map(result),
+  return {
+    rings,
+    ...dimensions,
   };
-  if (response.error) {
-    throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...outcomes });
-  }
-  return outcomes;
 }
