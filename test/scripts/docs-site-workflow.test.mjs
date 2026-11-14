@@ -126,7 +126,9 @@ test("publication gates stay present and strict", () => {
 test("required SDK, MCP, and disposition checks stay named", () => {
   assert.equal(ci.includes("\n    name: JS SDK\n"), true);
   assert.equal(ci.includes("\n    name: MCP SDK\n"), true);
-  assert.equal(disposition.includes("\n    name: PR Issue Disposition\n"), true);
+  assert.match(disposition, /'Validate PR issue footer' \|\| 'PR Issue Disposition'/u);
+  assert.match(disposition, /ref: \$\{\{ github\.event\.pull_request\.base\.ref \|\| github\.event\.repository\.default_branch \}\}/u);
+  assert.match(disposition, /\[\[ -f \.github\/workflows\/release-window-refresh\.yml \]\]/u);
   assert.equal(ci.split("node --test test/scripts/docs-site-workflow.test.mjs").length - 1, 2);
   const verification = readFileSync(new URL("../../.github/workflows/sdk-verification.yml", import.meta.url), "utf8");
   assert.equal(verification.split("node --test test/scripts/docs-site-workflow.test.mjs").length - 1, 1);

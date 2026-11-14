@@ -23,8 +23,31 @@ permissions:
 # completes and the newest one reflects the current state.
 
 jobs:
+  policy:
+    name: Select installed merge policy
+    runs-on: ubuntu-latest
+    outputs:
+      combined: ${{ steps.installed.outputs.combined }}
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Detect installed combined publisher
+        id: installed
+        run: |
+          if [[ -f .github/workflows/release-window-refresh.yml ]]; then
+            echo 'combined=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'combined=false' >> "$GITHUB_OUTPUT"
+          fi
+
   issue-disposition:
-    name: Validate PR issue footer
+    needs: policy
+    # Keep the existing required context for the installation PR. Once trunk
+    # contains the publisher, only that publisher emits the combined context.
+    name: ${{ needs.policy.outputs.combined == 'true' && 'Validate PR issue footer' || 'PR Issue Disposition' }}
     runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 2
     steps:

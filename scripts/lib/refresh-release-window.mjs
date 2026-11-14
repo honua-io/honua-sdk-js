@@ -3,8 +3,8 @@ import { validatePullRequestDisposition } from "./pr-issue-disposition.mjs";
 import { REQUIRED_DISPOSITION_CHECK } from "./release-please-disposition-check.mjs";
 import { evaluateReleaseWindow, readAllPages, repositoryApi } from "./release-window.mjs";
 
-async function completeCheck(root, check, result, request) {
-  await request(`${root}/check-runs/${check.id}`, {
+async function completeCheck(checkUrl, result, request) {
+  await request(checkUrl, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status: "completed", conclusion: result.allowed ? "success" : "failure",
@@ -32,7 +32,7 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   } catch (error) {
     result = { allowed: false, summary: `Merge policy validation failed: ${error.message}` };
   }
-  await completeCheck(root, check, result, request);
+  await completeCheck(`${root}/check-runs/${check.id}`, result, request);
   return result;
 }
 
