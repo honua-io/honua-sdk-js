@@ -735,7 +735,9 @@
     "demo:coverages-wcs:typecheck": "tsc -p examples/coverages-wcs-basic/tsconfig.json --noEmit",
     "verify:runtime-tarball": "node scripts/verify-runtime-tarball.mjs",
     "samples:contract:pack": "node scripts/pack-sample-contract.mjs",
-    "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs"
+    "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs",
+    "lint:review": "node scripts/check-review-baseline.mjs",
+    "test:review-baseline": "node --test scripts/check-review-baseline.test.mjs"
   },
   "dependencies": {
     "@honua/honua-migrate": "0.3.0-beta.0",
@@ -784,6 +786,7 @@
     "apache-arrow": "^17.0.0",
     "cesium": "^1.139.1",
     "esbuild": "^0.28.1",
+    "eslint": "10.14.0",
     "fast-check": "^4.9.0",
     "geotiff": "3.0.5",
     "jsdom": "^25.0.1",
@@ -797,6 +800,7 @@
     "terra-draw": "^1.32.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "typescript": "^5.9.2",
+    "typescript-eslint": "8.72.2",
     "uplot": "^1.6.32",
     "vega-lite": "^6.4.3",
     "vite": "^8.0.16",
