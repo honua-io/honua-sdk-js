@@ -818,6 +818,7 @@ export class HonuaClient {
     const protoRequest = grpcAdapter.toProtoQueryRequest(request);
     yield* grpcAdapter.streamProtoPages(
       client.queryFeaturesStream(protoRequest, request.signal ? { signal: request.signal } : undefined),
+      protoRequest,
     );
   }
 
@@ -1882,7 +1883,7 @@ export class HonuaClient {
           protoRequest,
           request.signal ? { signal: request.signal } : undefined,
         );
-        return grpcAdapter.fromProtoQueryResponse(response) as HonuaQueryResponse;
+        return grpcAdapter.fromProtoQueryResponse(response, protoRequest) as HonuaQueryResponse;
       } catch (error) {
         throw grpcAdapter.wrapConnectError(error);
       }
@@ -1902,7 +1903,7 @@ export class HonuaClient {
       const client = await this.ensureConnectClient();
       try {
         const response = await client.applyEdits(protoRequest, request.signal ? { signal: request.signal } : undefined);
-        return grpcAdapter.fromProtoApplyEditsResponse(response);
+        return grpcAdapter.fromProtoApplyEditsResponse(response, protoRequest);
       } catch (error) {
         throw grpcAdapter.wrapConnectError(error);
       }

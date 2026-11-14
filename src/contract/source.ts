@@ -16,6 +16,7 @@
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
 import { geoServicesGeometryToGeoJSON } from "../core/geoservices-geojson.js";
+import { memoizedGrpcEditSchema } from "../core/grpc-edit-schema.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -84,6 +85,7 @@ import {
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
 import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { toApplyEditsRequest } from "./feature-layer-edits.js";
 import { nativeAttachmentApi } from "./native-attachments.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
@@ -352,6 +354,7 @@ export function geoServicesFeatureSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireFeatureServiceLocator(descriptor);
   const layer = new HonuaFeatureLayer<T>({ client, serviceId, layerId });
+  const editSchema = memoizedGrpcEditSchema(client, serviceId, layerId);
   // Indexed by the descriptor's own protocol (not hardcoded to
   // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
   // without explicit capabilities falls back to the narrower gRPC default
@@ -443,9 +446,15 @@ export function geoServicesFeatureSource<T>(
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
+      // Translate (and validate) locally before the one-time DescribeLayer read.
+      const edits = toApplyEditsRequest(envelope, descriptor.schema?.primaryKey);
+      const native = client.isGrpcWeb ? await editSchema(envelope.signal) : undefined;
+      const globalIdField = native?.globalIdField;
       const response = await layer.applyEdits({
-        ...toApplyEditsRequest(envelope, descriptor.schema?.primaryKey),
+        ...edits,
         objectIdField: descriptor.schema?.primaryKey,
+        ...(globalIdField ? { globalIdField } : {}),
+        ...(native && Object.keys(native.attributeTypes).length > 0 ? { attributeTypes: native.attributeTypes } : {}),
       });
       return canonicalEditResult(response);
     },
@@ -4985,77 +4994,6 @@ function readField(attributes: unknown, field: string): unknown {
 
 // ── Edit / related / attachment translators ───────────────────
 
-function toApplyEditsRequest<T>(
-  envelope: EditEnvelope<T>,
-  objectIdField?: string,
-): {
-  adds?: HonuaFeature[];
-  updates?: HonuaFeature[];
-  deletes?: number[] | string;
-  rollbackOnFailure?: boolean;
-  signal?: AbortSignal;
-} {
-  const out: {
-    adds?: HonuaFeature[];
-    updates?: HonuaFeature[];
-    deletes?: number[] | string;
-    rollbackOnFailure?: boolean;
-    signal?: AbortSignal;
-  } = {};
-  if (envelope.adds && envelope.adds.length > 0) {
-    out.adds = envelope.adds.map((feature) => canonicalToHonuaFeature(feature, objectIdField));
-  }
-  if (envelope.updates && envelope.updates.length > 0) {
-    out.updates = envelope.updates.map((feature) => canonicalToHonuaFeature(feature, objectIdField));
-  }
-  if (envelope.deletes && envelope.deletes.length > 0) {
-    out.deletes = canonicalDeleteIds(envelope.deletes);
-  }
-  if (envelope.rollbackOnFailure !== undefined) {
-    out.rollbackOnFailure = envelope.rollbackOnFailure;
-  }
-  if (envelope.signal) {
-    out.signal = envelope.signal;
-  }
-  return out;
-}
-
-function canonicalDeleteIds(ids: readonly FeatureId[]): number[] | string {
-  const numericIds: number[] = [];
-  let allNumeric = true;
-  for (const id of ids) {
-    if (typeof id === "number" && !Number.isSafeInteger(id)) {
-      throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
-    }
-    const parsed = Number(id);
-    if (Number.isSafeInteger(parsed)) {
-      numericIds.push(parsed);
-    } else {
-      allNumeric = false;
-    }
-  }
-  return allNumeric ? numericIds : ids.map(String).join(",");
-}
-
-function canonicalToHonuaFeature<T>(
-  feature: {
-    id?: FeatureId;
-    attributes: T;
-    geometry?: Record<string, unknown> | null;
-  },
-  objectIdField = "OBJECTID",
-): HonuaFeature {
-  const attributes = { ...(feature.attributes as Record<string, unknown>) };
-  if (feature.id !== undefined && feature.id !== null && attributes[objectIdField] === undefined) {
-    attributes[objectIdField] = feature.id;
-  }
-  const out: HonuaFeature = { attributes };
-  if (feature.geometry !== undefined) {
-    out.geometry = feature.geometry;
-  }
-  return out;
-}
-
 function canonicalEditResult(response: import("../core/types.js").HonuaApplyEditsResponse): EditResult {
   return {
     added: (response.addResults ?? []).map(toEditOutcome),
@@ -5066,6 +5004,9 @@ function canonicalEditResult(response: import("../core/types.js").HonuaApplyEdit
 
 function toEditOutcome(result: import("../core/types.js").HonuaEditResult): EditOutcome {
   const out: EditOutcome = { success: result.success };
+  if (typeof result.globalId === "string" && result.globalId.length > 0) {
+    out.globalId = result.globalId;
+  }
   if (
     typeof result.objectId === "string" ||
     (typeof result.objectId === "number" && Number.isFinite(result.objectId))

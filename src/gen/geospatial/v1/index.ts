@@ -3,7 +3,7 @@
 
 // Internal barrel for the canonical geospatial-grpc FeatureService dependency
 // graph. Individual files remain generated directly from the pinned upstream
-// v0.2.0-alpha.1 schema.
+// v1.4.0 schema.
 export * from "./common_pb.js";
 export * from "./execution_types_pb.js";
 export * from "./feature_service_pb.js";

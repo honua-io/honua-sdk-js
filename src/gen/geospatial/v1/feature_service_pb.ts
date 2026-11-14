@@ -23,7 +23,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file geospatial/v1/feature_service.proto.
  */
 export const file_geospatial_v1_feature_service: GenFile = /*@__PURE__*/
-  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSJTChZEZXNjcmliZVNlcnZpY2VSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkikgEKF0Rlc2NyaWJlU2VydmljZVJlc3BvbnNlEjEKB3NlcnZpY2UYASABKAsyIC5nZW9zcGF0aWFsLnYxLlNlcnZpY2VEZXNjcmlwdG9yEisKBmxheWVycxgCIAMoCzIbLmdlb3NwYXRpYWwudjEuTGF5ZXJTdW1tYXJ5EhcKD25leHRfcGFnZV90b2tlbhgDIAEoCSI8ChREZXNjcmliZUxheWVyUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFIkYKFURlc2NyaWJlTGF5ZXJSZXNwb25zZRItCgVsYXllchgBIAEoCzIeLmdlb3NwYXRpYWwudjEuTGF5ZXJEZXNjcmlwdG9yIvgEChRRdWVyeUZlYXR1cmVzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEg0KBXdoZXJlGAMgASgJEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYBiABKAgSLwoGb3V0X3NyGAcgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhAKCG9yZGVyX2J5GAogASgJEhcKD3JldHVybl9kaXN0aW5jdBgLIAEoCBIZChFyZXR1cm5fY291bnRfb25seRgMIAEoCBIXCg9yZXR1cm5faWRzX29ubHkYDSABKAgSGgoScmV0dXJuX2V4dGVudF9vbmx5GA4gASgIEjoKDm91dF9zdGF0aXN0aWNzGA8gAygLMiIuZ2Vvc3BhdGlhbC52MS5TdGF0aXN0aWNEZWZpbml0aW9uEhAKCGdyb3VwX2J5GBAgAygJEhoKEmdlb21ldHJ5X3ByZWNpc2lvbhgRIAEoBRIcChRtYXhfYWxsb3dhYmxlX29mZnNldBgSIAEoARI0Cg5zcGF0aWFsX2ZpbHRlchgTIAEoCzIcLmdlb3NwYXRpYWwudjEuU3BhdGlhbEZpbHRlchIaChJyZXN1bHRfb2Zmc2V0X2xvbmcYFCABKAMSIAoYcmVzdWx0X3JlY29yZF9jb3VudF9sb25nGBUgASgDEhIKCmdsb2JhbF9pZHMYFiADKAlKBAgIEAlKBAgJEApSDXJlc3VsdF9vZmZzZXRSE3Jlc3VsdF9yZWNvcmRfY291bnQiiAMKFVF1ZXJ5RmVhdHVyZXNSZXNwb25zZRIcChRvYmplY3RfaWRfZmllbGRfbmFtZRgBIAEoCRIyCg1nZW9tZXRyeV90eXBlGAIgASgOMhsuZ2Vvc3BhdGlhbC52MS5HZW9tZXRyeVR5cGUSOgoRc3BhdGlhbF9yZWZlcmVuY2UYAyABKAsyHy5nZW9zcGF0aWFsLnYxLlNwYXRpYWxSZWZlcmVuY2USLgoGZmllbGRzGAQgAygLMh4uZ2Vvc3BhdGlhbC52MS5GaWVsZERlZmluaXRpb24SKAoIZmVhdHVyZXMYBSADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSHwoXZXhjZWVkZWRfdHJhbnNmZXJfbGltaXQYBiABKAgSDQoFY291bnQYByABKAMSEgoKb2JqZWN0X2lkcxgIIAMoAxIlCgZleHRlbnQYCSABKAsyFS5nZW9zcGF0aWFsLnYxLkV4dGVudBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgKIAEoCSKpAgoLRmVhdHVyZVBhZ2USHAoUb2JqZWN0X2lkX2ZpZWxkX25hbWUYASABKAkSMgoNZ2VvbWV0cnlfdHlwZRgCIAEoDjIbLmdlb3NwYXRpYWwudjEuR2VvbWV0cnlUeXBlEjoKEXNwYXRpYWxfcmVmZXJlbmNlGAMgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEi4KBmZpZWxkcxgEIAMoCzIeLmdlb3NwYXRpYWwudjEuRmllbGREZWZpbml0aW9uEigKCGZlYXR1cmVzGAUgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEhQKDGlzX2xhc3RfcGFnZRgGIAEoCBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgHIAEoCSKXAgoRQXBwbHlFZGl0c1JlcXVlc3QSEgoKc2VydmljZV9pZBgBIAEoCRIQCghsYXllcl9pZBgCIAEoBRIkCgRhZGRzGAMgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEicKB3VwZGF0ZXMYBCADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSDwoHZGVsZXRlcxgFIAMoAxIbChNyb2xsYmFja19vbl9mYWlsdXJlGAYgASgIEhMKC2ZvcmNlX3dyaXRlGAcgASgIEhcKD2lkZW1wb3RlbmN5X2tleRgIIAEoCRIWCg51c2VfZ2xvYmFsX2lkcxgJIAEoCBIZChFkZWxldGVfZ2xvYmFsX2lkcxgKIAMoCSLVAQoSQXBwbHlFZGl0c1Jlc3BvbnNlEi4KC2FkZF9yZXN1bHRzGAEgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDnVwZGF0ZV9yZXN1bHRzGAIgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDmRlbGV0ZV9yZXN1bHRzGAMgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EikKBWVycm9yGAQgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbCJuCgpFZGl0UmVzdWx0EhEKCW9iamVjdF9pZBgBIAEoAxIPCgdzdWNjZXNzGAIgASgIEikKBWVycm9yGAMgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbBIRCglnbG9iYWxfaWQYBCABKAkyuwoKDkZlYXR1cmVTZXJ2aWNlEmAKD0Rlc2NyaWJlU2VydmljZRIlLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVxdWVzdBomLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVzcG9uc2USWgoNRGVzY3JpYmVMYXllchIjLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVMYXllclJlcXVlc3QaJC5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlTGF5ZXJSZXNwb25zZRJaCg1RdWVyeUZlYXR1cmVzEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBokLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1Jlc3BvbnNlElgKE1F1ZXJ5RmVhdHVyZXNTdHJlYW0SIy5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXF1ZXN0GhouZ2Vvc3BhdGlhbC52MS5GZWF0dXJlUGFnZTABElEKCkFwcGx5RWRpdHMSIC5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXF1ZXN0GiEuZ2Vvc3BhdGlhbC52MS5BcHBseUVkaXRzUmVzcG9uc2USYAoPTGlzdEF0dGFjaG1lbnRzEiUuZ2Vvc3BhdGlhbC52MS5MaXN0QXR0YWNobWVudHNSZXF1ZXN0GiYuZ2Vvc3BhdGlhbC52MS5MaXN0QXR0YWNobWVudHNSZXNwb25zZRJjChBHZXRBdHRhY2htZW50VXJsEiYuZ2Vvc3BhdGlhbC52MS5HZXRBdHRhY2htZW50VXJsUmVxdWVzdBonLmdlb3NwYXRpYWwudjEuR2V0QXR0YWNobWVudFVybFJlc3BvbnNlEmMKEFVwbG9hZEF0dGFjaG1lbnQSJi5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRSZXF1ZXN0GicuZ2Vvc3BhdGlhbC52MS5VcGxvYWRBdHRhY2htZW50UmVzcG9uc2UScgoVQmVnaW5BdHRhY2htZW50VXBsb2FkEisuZ2Vvc3BhdGlhbC52MS5CZWdpbkF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0GiwuZ2Vvc3BhdGlhbC52MS5CZWdpbkF0dGFjaG1lbnRVcGxvYWRSZXNwb25zZRJyChVVcGxvYWRBdHRhY2htZW50Q2h1bmsSKy5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRDaHVua1JlcXVlc3QaLC5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRDaHVua1Jlc3BvbnNlEnUKFkNvbW1pdEF0dGFjaG1lbnRVcGxvYWQSLC5nZW9zcGF0aWFsLnYxLkNvbW1pdEF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0Gi0uZ2Vvc3BhdGlhbC52MS5Db21taXRBdHRhY2htZW50VXBsb2FkUmVzcG9uc2UScgoVQWJvcnRBdHRhY2htZW50VXBsb2FkEisuZ2Vvc3BhdGlhbC52MS5BYm9ydEF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0GiwuZ2Vvc3BhdGlhbC52MS5BYm9ydEF0dGFjaG1lbnRVcGxvYWRSZXNwb25zZRJjChBEZWxldGVBdHRhY2htZW50EiYuZ2Vvc3BhdGlhbC52MS5EZWxldGVBdHRhY2htZW50UmVxdWVzdBonLmdlb3NwYXRpYWwudjEuRGVsZXRlQXR0YWNobWVudFJlc3BvbnNlYgZwcm90bzM", [file_geospatial_v1_attachment_types, file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_metadata_types, file_geospatial_v1_spatial_types]);
+  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSJTChZEZXNjcmliZVNlcnZpY2VSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkikgEKF0Rlc2NyaWJlU2VydmljZVJlc3BvbnNlEjEKB3NlcnZpY2UYASABKAsyIC5nZW9zcGF0aWFsLnYxLlNlcnZpY2VEZXNjcmlwdG9yEisKBmxheWVycxgCIAMoCzIbLmdlb3NwYXRpYWwudjEuTGF5ZXJTdW1tYXJ5EhcKD25leHRfcGFnZV90b2tlbhgDIAEoCSI8ChREZXNjcmliZUxheWVyUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFIkYKFURlc2NyaWJlTGF5ZXJSZXNwb25zZRItCgVsYXllchgBIAEoCzIeLmdlb3NwYXRpYWwudjEuTGF5ZXJEZXNjcmlwdG9yIvgEChRRdWVyeUZlYXR1cmVzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEg0KBXdoZXJlGAMgASgJEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYBiABKAgSLwoGb3V0X3NyGAcgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhAKCG9yZGVyX2J5GAogASgJEhcKD3JldHVybl9kaXN0aW5jdBgLIAEoCBIZChFyZXR1cm5fY291bnRfb25seRgMIAEoCBIXCg9yZXR1cm5faWRzX29ubHkYDSABKAgSGgoScmV0dXJuX2V4dGVudF9vbmx5GA4gASgIEjoKDm91dF9zdGF0aXN0aWNzGA8gAygLMiIuZ2Vvc3BhdGlhbC52MS5TdGF0aXN0aWNEZWZpbml0aW9uEhAKCGdyb3VwX2J5GBAgAygJEhoKEmdlb21ldHJ5X3ByZWNpc2lvbhgRIAEoBRIcChRtYXhfYWxsb3dhYmxlX29mZnNldBgSIAEoARI0Cg5zcGF0aWFsX2ZpbHRlchgTIAEoCzIcLmdlb3NwYXRpYWwudjEuU3BhdGlhbEZpbHRlchIaChJyZXN1bHRfb2Zmc2V0X2xvbmcYFCABKAMSIAoYcmVzdWx0X3JlY29yZF9jb3VudF9sb25nGBUgASgDEhIKCmdsb2JhbF9pZHMYFiADKAlKBAgIEAlKBAgJEApSDXJlc3VsdF9vZmZzZXRSE3Jlc3VsdF9yZWNvcmRfY291bnQiiAMKFVF1ZXJ5RmVhdHVyZXNSZXNwb25zZRIcChRvYmplY3RfaWRfZmllbGRfbmFtZRgBIAEoCRIyCg1nZW9tZXRyeV90eXBlGAIgASgOMhsuZ2Vvc3BhdGlhbC52MS5HZW9tZXRyeVR5cGUSOgoRc3BhdGlhbF9yZWZlcmVuY2UYAyABKAsyHy5nZW9zcGF0aWFsLnYxLlNwYXRpYWxSZWZlcmVuY2USLgoGZmllbGRzGAQgAygLMh4uZ2Vvc3BhdGlhbC52MS5GaWVsZERlZmluaXRpb24SKAoIZmVhdHVyZXMYBSADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSHwoXZXhjZWVkZWRfdHJhbnNmZXJfbGltaXQYBiABKAgSDQoFY291bnQYByABKAMSEgoKb2JqZWN0X2lkcxgIIAMoAxIlCgZleHRlbnQYCSABKAsyFS5nZW9zcGF0aWFsLnYxLkV4dGVudBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgKIAEoCSKpAgoLRmVhdHVyZVBhZ2USHAoUb2JqZWN0X2lkX2ZpZWxkX25hbWUYASABKAkSMgoNZ2VvbWV0cnlfdHlwZRgCIAEoDjIbLmdlb3NwYXRpYWwudjEuR2VvbWV0cnlUeXBlEjoKEXNwYXRpYWxfcmVmZXJlbmNlGAMgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEi4KBmZpZWxkcxgEIAMoCzIeLmdlb3NwYXRpYWwudjEuRmllbGREZWZpbml0aW9uEigKCGZlYXR1cmVzGAUgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEhQKDGlzX2xhc3RfcGFnZRgGIAEoCBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgHIAEoCSKXAgoRQXBwbHlFZGl0c1JlcXVlc3QSEgoKc2VydmljZV9pZBgBIAEoCRIQCghsYXllcl9pZBgCIAEoBRIkCgRhZGRzGAMgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEicKB3VwZGF0ZXMYBCADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSDwoHZGVsZXRlcxgFIAMoAxIbChNyb2xsYmFja19vbl9mYWlsdXJlGAYgASgIEhMKC2ZvcmNlX3dyaXRlGAcgASgIEhcKD2lkZW1wb3RlbmN5X2tleRgIIAEoCRIWCg51c2VfZ2xvYmFsX2lkcxgJIAEoCBIZChFkZWxldGVfZ2xvYmFsX2lkcxgKIAMoCSLVAQoSQXBwbHlFZGl0c1Jlc3BvbnNlEi4KC2FkZF9yZXN1bHRzGAEgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDnVwZGF0ZV9yZXN1bHRzGAIgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDmRlbGV0ZV9yZXN1bHRzGAMgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EikKBWVycm9yGAQgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbCJuCgpFZGl0UmVzdWx0EhEKCW9iamVjdF9pZBgBIAEoAxIPCgdzdWNjZXNzGAIgASgIEikKBWVycm9yGAMgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbBIRCglnbG9iYWxfaWQYBCABKAkigwIKGlF1ZXJ5UmVsYXRlZFJlY29yZHNSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEAoIbGF5ZXJfaWQYAiABKAUSFwoPcmVsYXRpb25zaGlwX2lkGAMgASgFEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRINCgV3aGVyZRgGIAEoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYByABKAgSLwoGb3V0X3NyGAggASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhEKCXBhZ2Vfc2l6ZRgJIAEoBRISCgpwYWdlX3Rva2VuGAogASgJIlEKElJlbGF0ZWRSZWNvcmRHcm91cBIRCglvYmplY3RfaWQYASABKAMSKAoIZmVhdHVyZXMYAiADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUi3wIKG1F1ZXJ5UmVsYXRlZFJlY29yZHNSZXNwb25zZRIYChByZWxhdGVkX2xheWVyX2lkGAEgASgFEhwKFG9iamVjdF9pZF9maWVsZF9uYW1lGAIgASgJEjIKDWdlb21ldHJ5X3R5cGUYAyABKA4yGy5nZW9zcGF0aWFsLnYxLkdlb21ldHJ5VHlwZRI6ChFzcGF0aWFsX3JlZmVyZW5jZRgEIAEoCzIfLmdlb3NwYXRpYWwudjEuU3BhdGlhbFJlZmVyZW5jZRIuCgZmaWVsZHMYBSADKAsyHi5nZW9zcGF0aWFsLnYxLkZpZWxkRGVmaW5pdGlvbhIxCgZncm91cHMYBiADKAsyIS5nZW9zcGF0aWFsLnYxLlJlbGF0ZWRSZWNvcmRHcm91cBIXCg9uZXh0X3BhZ2VfdG9rZW4YByABKAkSHAoUZ2xvYmFsX2lkX2ZpZWxkX25hbWUYCCABKAkizQEKEVNlcnZpY2VMYXllckVkaXRzEhAKCGxheWVyX2lkGAEgASgFEiQKBGFkZHMYAiADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSJwoHdXBkYXRlcxgDIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRIPCgdkZWxldGVzGAQgAygDEhMKC2ZvcmNlX3dyaXRlGAUgASgIEhYKDnVzZV9nbG9iYWxfaWRzGAYgASgIEhkKEWRlbGV0ZV9nbG9iYWxfaWRzGAcgAygJIpUBChhBcHBseVNlcnZpY2VFZGl0c1JlcXVlc3QSEgoKc2VydmljZV9pZBgBIAEoCRIvCgVlZGl0cxgCIAMoCzIgLmdlb3NwYXRpYWwudjEuU2VydmljZUxheWVyRWRpdHMSGwoTcm9sbGJhY2tfb25fZmFpbHVyZRgDIAEoCBIXCg9pZGVtcG90ZW5jeV9rZXkYBCABKAkiXwoXU2VydmljZUxheWVyRWRpdFJlc3VsdHMSEAoIbGF5ZXJfaWQYASABKAUSMgoHcmVzdWx0cxgCIAEoCzIhLmdlb3NwYXRpYWwudjEuQXBwbHlFZGl0c1Jlc3BvbnNlIn8KGUFwcGx5U2VydmljZUVkaXRzUmVzcG9uc2USNwoHcmVzdWx0cxgBIAMoCzImLmdlb3NwYXRpYWwudjEuU2VydmljZUxheWVyRWRpdFJlc3VsdHMSKQoFZXJyb3IYAiABKAsyGi5nZW9zcGF0aWFsLnYxLkVycm9yRGV0YWlsMpEMCg5GZWF0dXJlU2VydmljZRJgCg9EZXNjcmliZVNlcnZpY2USJS5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlU2VydmljZVJlcXVlc3QaJi5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlU2VydmljZVJlc3BvbnNlEloKDURlc2NyaWJlTGF5ZXISIy5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlTGF5ZXJSZXF1ZXN0GiQuZ2Vvc3BhdGlhbC52MS5EZXNjcmliZUxheWVyUmVzcG9uc2USWgoNUXVlcnlGZWF0dXJlcxIjLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1JlcXVlc3QaJC5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXNwb25zZRJYChNRdWVyeUZlYXR1cmVzU3RyZWFtEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBoaLmdlb3NwYXRpYWwudjEuRmVhdHVyZVBhZ2UwARJsChNRdWVyeVJlbGF0ZWRSZWNvcmRzEikuZ2Vvc3BhdGlhbC52MS5RdWVyeVJlbGF0ZWRSZWNvcmRzUmVxdWVzdBoqLmdlb3NwYXRpYWwudjEuUXVlcnlSZWxhdGVkUmVjb3Jkc1Jlc3BvbnNlEmYKEUFwcGx5U2VydmljZUVkaXRzEicuZ2Vvc3BhdGlhbC52MS5BcHBseVNlcnZpY2VFZGl0c1JlcXVlc3QaKC5nZW9zcGF0aWFsLnYxLkFwcGx5U2VydmljZUVkaXRzUmVzcG9uc2USUQoKQXBwbHlFZGl0cxIgLmdlb3NwYXRpYWwudjEuQXBwbHlFZGl0c1JlcXVlc3QaIS5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXNwb25zZRJgCg9MaXN0QXR0YWNobWVudHMSJS5nZW9zcGF0aWFsLnYxLkxpc3RBdHRhY2htZW50c1JlcXVlc3QaJi5nZW9zcGF0aWFsLnYxLkxpc3RBdHRhY2htZW50c1Jlc3BvbnNlEmMKEEdldEF0dGFjaG1lbnRVcmwSJi5nZW9zcGF0aWFsLnYxLkdldEF0dGFjaG1lbnRVcmxSZXF1ZXN0GicuZ2Vvc3BhdGlhbC52MS5HZXRBdHRhY2htZW50VXJsUmVzcG9uc2USYwoQVXBsb2FkQXR0YWNobWVudBImLmdlb3NwYXRpYWwudjEuVXBsb2FkQXR0YWNobWVudFJlcXVlc3QaJy5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRSZXNwb25zZRJyChVCZWdpbkF0dGFjaG1lbnRVcGxvYWQSKy5nZW9zcGF0aWFsLnYxLkJlZ2luQXR0YWNobWVudFVwbG9hZFJlcXVlc3QaLC5nZW9zcGF0aWFsLnYxLkJlZ2luQXR0YWNobWVudFVwbG9hZFJlc3BvbnNlEnIKFVVwbG9hZEF0dGFjaG1lbnRDaHVuaxIrLmdlb3NwYXRpYWwudjEuVXBsb2FkQXR0YWNobWVudENodW5rUmVxdWVzdBosLmdlb3NwYXRpYWwudjEuVXBsb2FkQXR0YWNobWVudENodW5rUmVzcG9uc2USdQoWQ29tbWl0QXR0YWNobWVudFVwbG9hZBIsLmdlb3NwYXRpYWwudjEuQ29tbWl0QXR0YWNobWVudFVwbG9hZFJlcXVlc3QaLS5nZW9zcGF0aWFsLnYxLkNvbW1pdEF0dGFjaG1lbnRVcGxvYWRSZXNwb25zZRJyChVBYm9ydEF0dGFjaG1lbnRVcGxvYWQSKy5nZW9zcGF0aWFsLnYxLkFib3J0QXR0YWNobWVudFVwbG9hZFJlcXVlc3QaLC5nZW9zcGF0aWFsLnYxLkFib3J0QXR0YWNobWVudFVwbG9hZFJlc3BvbnNlEmMKEERlbGV0ZUF0dGFjaG1lbnQSJi5nZW9zcGF0aWFsLnYxLkRlbGV0ZUF0dGFjaG1lbnRSZXF1ZXN0GicuZ2Vvc3BhdGlhbC52MS5EZWxldGVBdHRhY2htZW50UmVzcG9uc2ViBnByb3RvMw", [file_geospatial_v1_attachment_types, file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_metadata_types, file_geospatial_v1_spatial_types]);
 
 /**
  * DescribeServiceRequest pages through layers accessible to the current caller.
@@ -596,6 +596,305 @@ export const EditResultSchema: GenMessage<EditResult> = /*@__PURE__*/
   messageDesc(file_geospatial_v1_feature_service, 9);
 
 /**
+ * QueryRelatedRecordsRequest follows a relationship declared on the origin layer.
+ *
+ * @generated from message geospatial.v1.QueryRelatedRecordsRequest
+ */
+export type QueryRelatedRecordsRequest = Message<"geospatial.v1.QueryRelatedRecordsRequest"> & {
+  /**
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * Origin layer, not the related destination layer
+   *
+   * @generated from field: int32 layer_id = 2;
+   */
+  layerId: number;
+
+  /**
+   * @generated from field: int32 relationship_id = 3;
+   */
+  relationshipId: number;
+
+  /**
+   * Bounded, distinct origin feature identities
+   *
+   * @generated from field: repeated int64 object_ids = 4;
+   */
+  objectIds: bigint[];
+
+  /**
+   * Destination layer fields
+   *
+   * @generated from field: repeated string out_fields = 5;
+   */
+  outFields: string[];
+
+  /**
+   * Additional destination filter, combined with authorization
+   *
+   * @generated from field: string where = 6;
+   */
+  where: string;
+
+  /**
+   * @generated from field: bool return_geometry = 7;
+   */
+  returnGeometry: boolean;
+
+  /**
+   * @generated from field: geospatial.v1.SpatialReference out_sr = 8;
+   */
+  outSr?: SpatialReference | undefined;
+
+  /**
+   * Maximum total destination rows; zero uses the server default
+   *
+   * @generated from field: int32 page_size = 9;
+   */
+  pageSize: number;
+
+  /**
+   * Opaque continuation bound to this query and caller
+   *
+   * @generated from field: string page_token = 10;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message geospatial.v1.QueryRelatedRecordsRequest.
+ * Use `create(QueryRelatedRecordsRequestSchema)` to create a new message.
+ */
+export const QueryRelatedRecordsRequestSchema: GenMessage<QueryRelatedRecordsRequest> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 10);
+
+/**
+ * RelatedRecordGroup attributes destination rows to an origin without exposing join keys.
+ *
+ * @generated from message geospatial.v1.RelatedRecordGroup
+ */
+export type RelatedRecordGroup = Message<"geospatial.v1.RelatedRecordGroup"> & {
+  /**
+   * Origin feature identity
+   *
+   * @generated from field: int64 object_id = 1;
+   */
+  objectId: bigint;
+
+  /**
+   * @generated from field: repeated geospatial.v1.Feature features = 2;
+   */
+  features: Feature[];
+};
+
+/**
+ * Describes the message geospatial.v1.RelatedRecordGroup.
+ * Use `create(RelatedRecordGroupSchema)` to create a new message.
+ */
+export const RelatedRecordGroupSchema: GenMessage<RelatedRecordGroup> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 11);
+
+/**
+ * QueryRelatedRecordsResponse repeats destination metadata on every bounded page.
+ *
+ * @generated from message geospatial.v1.QueryRelatedRecordsResponse
+ */
+export type QueryRelatedRecordsResponse = Message<"geospatial.v1.QueryRelatedRecordsResponse"> & {
+  /**
+   * @generated from field: int32 related_layer_id = 1;
+   */
+  relatedLayerId: number;
+
+  /**
+   * @generated from field: string object_id_field_name = 2;
+   */
+  objectIdFieldName: string;
+
+  /**
+   * @generated from field: geospatial.v1.GeometryType geometry_type = 3;
+   */
+  geometryType: GeometryType;
+
+  /**
+   * @generated from field: geospatial.v1.SpatialReference spatial_reference = 4;
+   */
+  spatialReference?: SpatialReference | undefined;
+
+  /**
+   * @generated from field: repeated geospatial.v1.FieldDefinition fields = 5;
+   */
+  fields: FieldDefinition[];
+
+  /**
+   * @generated from field: repeated geospatial.v1.RelatedRecordGroup groups = 6;
+   */
+  groups: RelatedRecordGroup[];
+
+  /**
+   * Empty only when all requested origins are exhausted
+   *
+   * @generated from field: string next_page_token = 7;
+   */
+  nextPageToken: string;
+
+  /**
+   * Empty when unavailable or hidden
+   *
+   * @generated from field: string global_id_field_name = 8;
+   */
+  globalIdFieldName: string;
+};
+
+/**
+ * Describes the message geospatial.v1.QueryRelatedRecordsResponse.
+ * Use `create(QueryRelatedRecordsResponseSchema)` to create a new message.
+ */
+export const QueryRelatedRecordsResponseSchema: GenMessage<QueryRelatedRecordsResponse> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 12);
+
+/**
+ * ServiceLayerEdits contains mutations for exactly one layer in the service.
+ *
+ * @generated from message geospatial.v1.ServiceLayerEdits
+ */
+export type ServiceLayerEdits = Message<"geospatial.v1.ServiceLayerEdits"> & {
+  /**
+   * @generated from field: int32 layer_id = 1;
+   */
+  layerId: number;
+
+  /**
+   * @generated from field: repeated geospatial.v1.Feature adds = 2;
+   */
+  adds: Feature[];
+
+  /**
+   * @generated from field: repeated geospatial.v1.Feature updates = 3;
+   */
+  updates: Feature[];
+
+  /**
+   * @generated from field: repeated int64 deletes = 4;
+   */
+  deletes: bigint[];
+
+  /**
+   * @generated from field: bool force_write = 5;
+   */
+  forceWrite: boolean;
+
+  /**
+   * @generated from field: bool use_global_ids = 6;
+   */
+  useGlobalIds: boolean;
+
+  /**
+   * @generated from field: repeated string delete_global_ids = 7;
+   */
+  deleteGlobalIds: string[];
+};
+
+/**
+ * Describes the message geospatial.v1.ServiceLayerEdits.
+ * Use `create(ServiceLayerEditsSchema)` to create a new message.
+ */
+export const ServiceLayerEditsSchema: GenMessage<ServiceLayerEdits> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 13);
+
+/**
+ * ApplyServiceEditsRequest uses one transaction policy and retry identity for all layers.
+ *
+ * @generated from message geospatial.v1.ApplyServiceEditsRequest
+ */
+export type ApplyServiceEditsRequest = Message<"geospatial.v1.ApplyServiceEditsRequest"> & {
+  /**
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * Distinct layers, executed in request order
+   *
+   * @generated from field: repeated geospatial.v1.ServiceLayerEdits edits = 2;
+   */
+  edits: ServiceLayerEdits[];
+
+  /**
+   * True requires atomic rollback across every layer
+   *
+   * @generated from field: bool rollback_on_failure = 3;
+   */
+  rollbackOnFailure: boolean;
+
+  /**
+   * Deduplicates the complete request, not individual layers
+   *
+   * @generated from field: string idempotency_key = 4;
+   */
+  idempotencyKey: string;
+};
+
+/**
+ * Describes the message geospatial.v1.ApplyServiceEditsRequest.
+ * Use `create(ApplyServiceEditsRequestSchema)` to create a new message.
+ */
+export const ApplyServiceEditsRequestSchema: GenMessage<ApplyServiceEditsRequest> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 14);
+
+/**
+ * ServiceLayerEditResults preserves the single-layer operation ordering and errors.
+ *
+ * @generated from message geospatial.v1.ServiceLayerEditResults
+ */
+export type ServiceLayerEditResults = Message<"geospatial.v1.ServiceLayerEditResults"> & {
+  /**
+   * @generated from field: int32 layer_id = 1;
+   */
+  layerId: number;
+
+  /**
+   * @generated from field: geospatial.v1.ApplyEditsResponse results = 2;
+   */
+  results?: ApplyEditsResponse | undefined;
+};
+
+/**
+ * Describes the message geospatial.v1.ServiceLayerEditResults.
+ * Use `create(ServiceLayerEditResultsSchema)` to create a new message.
+ */
+export const ServiceLayerEditResultsSchema: GenMessage<ServiceLayerEditResults> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 15);
+
+/**
+ * ApplyServiceEditsResponse preserves request layer order, including failed layers.
+ *
+ * @generated from message geospatial.v1.ApplyServiceEditsResponse
+ */
+export type ApplyServiceEditsResponse = Message<"geospatial.v1.ApplyServiceEditsResponse"> & {
+  /**
+   * @generated from field: repeated geospatial.v1.ServiceLayerEditResults results = 1;
+   */
+  results: ServiceLayerEditResults[];
+
+  /**
+   * Global transaction failure; no edit committed when rollback is true
+   *
+   * @generated from field: geospatial.v1.ErrorDetail error = 2;
+   */
+  error?: ErrorDetail | undefined;
+};
+
+/**
+ * Describes the message geospatial.v1.ApplyServiceEditsResponse.
+ * Use `create(ApplyServiceEditsResponseSchema)` to create a new message.
+ */
+export const ApplyServiceEditsResponseSchema: GenMessage<ApplyServiceEditsResponse> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 16);
+
+/**
  * FeatureService provides typed RPC access to geospatial feature queries and editing.
  * This service defines the core geospatial operations for feature data access.
  *
@@ -641,6 +940,26 @@ export const FeatureService: GenService<{
     methodKind: "server_streaming";
     input: typeof QueryFeaturesRequestSchema;
     output: typeof FeaturePageSchema;
+  },
+  /**
+   * QueryRelatedRecords returns a bounded page grouped by origin feature identity.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.QueryRelatedRecords
+   */
+  queryRelatedRecords: {
+    methodKind: "unary";
+    input: typeof QueryRelatedRecordsRequestSchema;
+    output: typeof QueryRelatedRecordsResponseSchema;
+  },
+  /**
+   * ApplyServiceEdits applies ordered layer batches within one service.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.ApplyServiceEdits
+   */
+  applyServiceEdits: {
+    methodKind: "unary";
+    input: typeof ApplyServiceEditsRequestSchema;
+    output: typeof ApplyServiceEditsResponseSchema;
   },
   /**
    * ApplyEdits applies add/update/delete mutations and returns per-operation results.

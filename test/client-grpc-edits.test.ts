@@ -89,11 +89,12 @@ it("preserves IDs through the canonical Source edit facade", async () => {
   });
   expect(result.updated[0].id).toBe("9223372036854775807");
   expect(result.deleted[0].id).toBe("9223372036854775807");
-  expect(fetchFn).toHaveBeenCalledTimes(1);
+  // One DescribeLayer read (UNIMPLEMENTED here: untyped encoding), then the edit.
+  expect(fetchFn).toHaveBeenCalledTimes(2);
   for (const deletes of [[Number.MAX_SAFE_INTEGER + 1], ["9223372036854775807", Number.MAX_SAFE_INTEGER + 1]]) {
     await expect(source.applyEdits({ deletes })).rejects.toThrow("safe integers");
   }
-  expect(fetchFn).toHaveBeenCalledTimes(1);
+  expect(fetchFn).toHaveBeenCalledTimes(2);
 });
 
 it("rejects explicit geometry clearing before sending an update", async () => {
@@ -275,7 +276,12 @@ it("forwards a compatibility layer's custom primary key through native edits", a
 });
 
 function canonicalEditFetch() {
-  return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith("/DescribeLayer")) {
+      return new Response(null, {
+        headers: { "content-type": "application/grpc-web+proto", "grpc-status": "12", "grpc-message": "unimplemented" },
+      });
+    }
     const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
     expect(wire.updates.map((feature) => feature.id)).toEqual([7n, 9223372036854775807n]);
     expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([["parcel_id"], ["parcel_id"]]);

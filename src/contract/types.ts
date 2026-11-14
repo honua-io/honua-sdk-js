@@ -765,6 +765,12 @@ export interface Result<T = Record<string, unknown>> {
 export interface CanonicalFeature<T = Record<string, unknown>> {
   /** Optional row identity. Required for updates and deletes. */
   id?: FeatureId;
+  /**
+   * Stable global ID (UUID), when the layer declares a global-ID field. On
+   * adds it is a client-generated identity; with `useGlobalIds` it addresses
+   * the updated row.
+   */
+  globalId?: string;
   attributes: T;
   geometry?: Record<string, unknown> | null;
 }
@@ -776,7 +782,13 @@ export interface CanonicalFeature<T = Record<string, unknown>> {
 export interface EditEnvelope<T = Record<string, unknown>> {
   adds?: ReadonlyArray<CanonicalFeature<T>>;
   updates?: ReadonlyArray<CanonicalFeature<T>>;
+  /** Object IDs, or global IDs when `useGlobalIds` is true. */
   deletes?: ReadonlyArray<FeatureId>;
+  /**
+   * Address updates (by `globalId`) and deletes by global ID instead of object
+   * ID. Integer and global-ID selectors cannot be mixed in one envelope.
+   */
+  useGlobalIds?: boolean;
   /** When true (and the protocol honors it) the edit batch is atomic. */
   rollbackOnFailure?: boolean;
   /** Caller-supplied cancellation. */
@@ -786,6 +798,8 @@ export interface EditEnvelope<T = Record<string, unknown>> {
 /** Per-feature edit outcome. */
 export interface EditOutcome {
   id?: FeatureId;
+  /** Stable global ID of the affected row, when the layer has one. */
+  globalId?: string;
   success: boolean;
   error?: { code: number; description: string };
 }
