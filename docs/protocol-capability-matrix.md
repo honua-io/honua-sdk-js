@@ -57,7 +57,8 @@ policy in the manifest.
 
 | Protocol | Operations | Status | Environment | Execution mode | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `grpc` | `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
+| `grpc` | `query`, `queryExtent`, `queryObjectIds`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
+| `grpc` | `applyEdits` | `supported` | `honua-facade` | `native` | [fixture: grpc-edit-fixtures](../test/client-grpc-edits.test.ts) |
 | `geoservices-feature-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
 | `geoservices-feature-service` | `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |
 | `geoservices-feature-service` | `sql` | `supported` | `protocol-adapter` | `native` | [fixture: core-client-fixtures](../test/core-client.test.ts) |
@@ -215,7 +216,7 @@ Canonical transport shared across the SDKs and generated from the
 `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
 adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
 descriptor onto the same `HonuaFeatureLayer` used by
-`geoservices-feature-service`, which transparently routes `queryFeatures`
+`geoservices-feature-service`, which transparently routes `queryFeatures` and `applyEdits`
 over gRPC-Web when the client's transport is configured that way.
 
 `connect({ endpoint, protocol: "grpc" })` discovers a canonical FeatureServer

@@ -13,7 +13,7 @@ metadata. They never fetch GeoServices REST metadata or query a sample feature t
 infer a layer schema. A server without descriptor RPCs reports an error; update
 the server before converting discovery.
 
-```ts
+```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
 
 const connection = await connect({

@@ -254,7 +254,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ client, config }) => {
         const cleanup = await client.applyEdits({
           serviceId: config.serviceId,
           layerId: config.layerId,
-          deletes: [addedId],
+          deletes: String(addedId),
         });
         expect(cleanup.deleteResults?.[0]?.success).toBe(true);
       } catch (error) {
