@@ -91,6 +91,7 @@ async function projectLayer(
     advertised.push("queryExtent", "queryObjectIds");
   }
   if (layer.capabilities?.queryStream) advertised.push("stream");
+  if (layer.capabilities?.query && layer.relationships.length > 0) advertised.push("queryRelated");
   if (layer.capabilities?.create || layer.capabilities?.update || layer.capabilities?.delete)
     advertised.push("applyEdits");
   const provenance = Object.freeze([{ source, retrievedAt }]);

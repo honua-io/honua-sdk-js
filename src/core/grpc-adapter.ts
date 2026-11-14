@@ -1,6 +1,11 @@
 import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
 import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
-export { toProtoApplyEditsRequest, fromProtoApplyEditsResponse } from "./grpc-edits.js";
+export {
+  fromProtoApplyEditsResponse,
+  fromProtoApplyServiceEditsResponse,
+  toProtoApplyEditsRequest,
+  toProtoApplyServiceEditsRequest,
+} from "./grpc-edits.js";
 import { create } from "@bufbuild/protobuf";
 import {
   type AttributeValue,
@@ -13,6 +18,8 @@ import {
   type QueryFeaturesRequest as ProtoQueryFeaturesRequest,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
+  QueryRelatedRecordsRequestSchema,
+  type QueryRelatedRecordsResponse,
   SpatialFilterSchema,
   SpatialRelationship,
 } from "../gen/geospatial/v1/index.js";
@@ -26,8 +33,11 @@ import type {
   HonuaFieldInfo,
   HonuaObjectIdsResponse,
   HonuaQueryResponse,
+  HonuaRelatedRecordGroup,
+  HonuaRelatedRecordsResponse,
   HonuaSpatialReference,
   QueryFeaturesRequest,
+  QueryRelatedRecordsRequest,
 } from "./types.js";
 
 /**
@@ -405,12 +415,12 @@ export async function* streamProtoPages(
 ): AsyncGenerator<HonuaFeature[], void, undefined> {
   let first = true;
   // Metadata is populated on the first page only; later pages reuse it.
-  const identity = { objectIdFieldName: "", globalIdFieldName: "" };
+  let identity = { objectIdFieldName: "", globalIdFieldName: "" };
   try {
     for await (const page of stream) {
       ensureGlobalIdSelectorHonored(first ? sent : undefined, page.globalIdFieldName);
       first = false;
-      adoptPageIdentity(identity, page);
+      identity = pageIdentity(identity, page);
       if (page.features.length === 0 && page.isLastPage) {
         break;
       }
@@ -442,12 +452,14 @@ function ensureGlobalIdSelectorHonored(
 }
 
 /** Metadata arrives on the first page; later pages keep the identity fields already seen. */
-function adoptPageIdentity(
+function pageIdentity(
   identity: { objectIdFieldName: string; globalIdFieldName: string },
   page: FeaturePage,
-): void {
-  identity.objectIdFieldName = page.objectIdFieldName || identity.objectIdFieldName;
-  identity.globalIdFieldName = page.globalIdFieldName || identity.globalIdFieldName;
+): { objectIdFieldName: string; globalIdFieldName: string } {
+  return {
+    objectIdFieldName: page.objectIdFieldName || identity.objectIdFieldName,
+    globalIdFieldName: page.globalIdFieldName || identity.globalIdFieldName,
+  };
 }
 
 /**
@@ -643,5 +655,75 @@ function convertMultiPolygon(mpg: {
   return {
     rings,
     ...dimensions,
+  };
+}
+
+function relatedOriginIds(objectIds: QueryRelatedRecordsRequest["objectIds"]): bigint[] {
+  if (objectIds === undefined) return [];
+  if (typeof objectIds === "string") return objectIds.split(",").map(toProtoObjectId);
+  return objectIds.map((id) => {
+    if (!Number.isSafeInteger(id)) {
+      throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
+    }
+    return BigInt(id);
+  });
+}
+
+/** Encode one QueryRelatedRecords page request; `objectIds` name origin-layer features. */
+export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageToken = "") {
+  const { outSR, outSr, ...unsupported } = request.extraParams ?? {};
+  const unknown = Object.keys(unsupported);
+  if (unknown.length > 0) {
+    // QueryRelatedRecords has no equivalent; never drop a constraint silently.
+    throw new HonuaCapabilityNotSupportedError(
+      `queryRelated.${unknown[0]}`,
+      "grpc",
+      `${request.serviceId}/${request.layerId}`,
+    );
+  }
+  const outSpatialReference = toProtoSpatialReference(outSR ?? outSr);
+  const ids = relatedOriginIds(request.objectIds);
+  const outFields =
+    typeof request.outFields === "string"
+      ? request.outFields
+          .split(",")
+          .map((field) => field.trim())
+          .filter(Boolean)
+      : [...(request.outFields ?? [])];
+  return create(QueryRelatedRecordsRequestSchema, {
+    serviceId: request.serviceId,
+    layerId: request.layerId,
+    relationshipId: request.relationshipId,
+    objectIds: ids,
+    outFields,
+    where: request.where ?? "",
+    returnGeometry: request.returnGeometry ?? true,
+    ...(outSpatialReference ? { outSr: outSpatialReference } : {}),
+    pageToken,
+  });
+}
+
+/**
+ * Merge QueryRelatedRecords pages into the `queryRelatedRecords` shape, keeping origin order.
+ * Pages repeat destination metadata, so the first page supplies it.
+ */
+export function fromProtoRelatedPages(pages: readonly QueryRelatedRecordsResponse[]): HonuaRelatedRecordsResponse {
+  const first = pages[0];
+  if (!first) return { relatedRecordGroups: [] };
+  const identity = { objectIdFieldName: first.objectIdFieldName, globalIdFieldName: first.globalIdFieldName };
+  const groups = new Map<string, HonuaRelatedRecordGroup>();
+  for (const page of pages) {
+    for (const group of page.groups) {
+      const key = group.objectId.toString();
+      const target = groups.get(key) ?? { objectId: toSafeNumberOrString(group.objectId), relatedRecords: [] };
+      target.relatedRecords?.push(...group.features.map((feature) => convertFeature(feature, identity)));
+      groups.set(key, target);
+    }
+  }
+  return {
+    relatedRecordGroups: [...groups.values()],
+    fields: first.fields.map(convertField),
+    geometryType: GEOMETRY_TYPE_MAP[first.geometryType] ?? "esriGeometryPoint",
+    ...(first.spatialReference ? { spatialReference: convertSpatialReference(first.spatialReference) } : {}),
   };
 }

@@ -3,6 +3,8 @@ import {
   type ApplyEditsRequest as ApplyEditsMessage,
   ApplyEditsRequestSchema,
   type ApplyEditsResponse,
+  ApplyServiceEditsRequestSchema,
+  type ApplyServiceEditsResponse,
   type AttributeValue,
   AttributeValueSchema,
   type EditResult,
@@ -14,8 +16,10 @@ import { toProtoGeometry } from "./grpc-geometry-input.js";
 import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
 import type {
   ApplyEditsRequest,
+  ApplyServiceEditsRequest,
   GrpcPreciseAttributeType,
   HonuaApplyEditsResponse,
+  HonuaApplyServiceEditsResponse,
   HonuaEditResult,
   HonuaFeature,
 } from "./types.js";
@@ -199,12 +203,7 @@ export function fromProtoApplyEditsResponse(
   sent?: Pick<ApplyEditsMessage, "useGlobalIds" | "deleteGlobalIds" | "adds" | "updates">,
 ): HonuaApplyEditsResponse {
   if (sent && !response.error && globalIdsIgnored(sent, response)) {
-    throw new HonuaGrpcError(
-      FAILED_PRECONDITION,
-      "The server ignored global IDs in this batch (global-ID edits need a geospatial-grpc 1.2 server); " +
-        "other edits in this batch may have been committed, see details.",
-      decodeOutcomes(response),
-    );
+    throw globalIdsIgnoredError(decodeOutcomes(response));
   }
   const outcomes = decodeOutcomes(response);
   if (response.error) {
@@ -233,6 +232,16 @@ function globalIdsIgnored(
   );
 }
 
+/** Older servers drop unknown global-ID fields; other rows in the batch may have committed. */
+function globalIdsIgnoredError(details: unknown): HonuaGrpcError {
+  return new HonuaGrpcError(
+    FAILED_PRECONDITION,
+    "The server ignored global IDs in this batch (it predates geospatial-grpc 1.2); " +
+      "other edits in this batch may have been committed, see details.",
+    details,
+  );
+}
+
 function decodeOutcomes(response: ApplyEditsResponse) {
   const result = (entry: EditResult): HonuaEditResult => ({
     objectId: toSafeNumberOrString(entry.objectId),
@@ -245,4 +254,69 @@ function decodeOutcomes(response: ApplyEditsResponse) {
     updateResults: response.updateResults.map(result),
     deleteResults: response.deleteResults.map(result),
   };
+}
+
+/** Encode multi-layer edits with the same per-layer rules as `toProtoApplyEditsRequest`. */
+export function toProtoApplyServiceEditsRequest(request: ApplyServiceEditsRequest) {
+  const layers = new Set<number>();
+  return create(ApplyServiceEditsRequestSchema, {
+    serviceId: request.serviceId,
+    edits: request.edits.map((layer) => {
+      if (layers.has(layer.layerId)) throw new Error(`ApplyServiceEdits names layer ${layer.layerId} twice.`);
+      layers.add(layer.layerId);
+      const encoded = toProtoApplyEditsRequest({ ...layer, serviceId: request.serviceId });
+      return {
+        layerId: layer.layerId,
+        adds: encoded.adds,
+        updates: encoded.updates,
+        deletes: encoded.deletes,
+        useGlobalIds: encoded.useGlobalIds,
+        deleteGlobalIds: encoded.deleteGlobalIds,
+      };
+    }),
+    rollbackOnFailure: request.rollbackOnFailure ?? true,
+    idempotencyKey: request.idempotencyKey ?? "",
+  });
+}
+
+/**
+ * Decode per-layer results. A layer's own error stays on that layer; a global error (the
+ * transaction failed, and with rollback nothing committed) throws with every layer attached.
+ */
+export function fromProtoApplyServiceEditsResponse(
+  response: ApplyServiceEditsResponse,
+  sent: Pick<ReturnType<typeof toProtoApplyServiceEditsRequest>, "edits">,
+): HonuaApplyServiceEditsResponse {
+  const decoded = {
+    layers: response.results.map((entry) => ({
+      layerId: entry.layerId,
+      ...(entry.results ? decodeOutcomes(entry.results) : { addResults: [], updateResults: [], deleteResults: [] }),
+      ...(entry.results?.error
+        ? { error: { code: entry.results.error.code, description: entry.results.error.message } }
+        : {}),
+    })),
+  };
+  if (response.error) {
+    throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...decoded });
+  }
+  const order = response.results.map((entry) => entry.layerId).join(",");
+  if (order !== sent.edits.map((layer) => layer.layerId).join(",")) {
+    // The contract returns every request layer in request order; anything else is a protocol violation.
+    throw new HonuaGrpcError(13, `ApplyServiceEdits returned layers [${order}] for a request of different layers.`, {
+      results: response.results.map((entry) => entry.layerId),
+    });
+  }
+  const ignored = response.results.some((entry, index) => {
+    const layer = sent.edits[index];
+    return (
+      layer !== undefined &&
+      entry.results !== undefined &&
+      !entry.results.error &&
+      globalIdsIgnored(layer, entry.results)
+    );
+  });
+  if (ignored) {
+    throw globalIdsIgnoredError(decoded);
+  }
+  return decoded;
 }

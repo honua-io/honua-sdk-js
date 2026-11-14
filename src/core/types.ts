@@ -553,6 +553,12 @@ export interface ApplyEditsRequest {
   signal?: AbortSignal;
 }
 
+export type {
+  ApplyServiceEditsRequest,
+  HonuaApplyServiceEditsResponse,
+  ServiceLayerEditsRequest,
+} from "./service-edit-types.js";
+
 /** Precise attribute value kinds carried by geospatial-grpc 1.2 `AttributeValue`. */
 export type GrpcPreciseAttributeType = "date" | "time" | "timestamp-offset" | "decimal";
 
@@ -1108,7 +1114,8 @@ export interface HonuaApplyEditsResponse {
 
 /** A group of related records for a single source object ID. */
 export interface HonuaRelatedRecordGroup {
-  objectId: number;
+  /** gRPC int64 IDs outside the safe integer range are returned as decimal strings. */
+  objectId: number | string;
   relatedRecords?: HonuaFeature[];
 }
 

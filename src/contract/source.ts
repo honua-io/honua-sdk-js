@@ -358,8 +358,8 @@ export function geoServicesFeatureSource<T>(
   // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
   // without explicit capabilities falls back to the narrower gRPC default
   // set rather than silently inheriting REST-only capabilities (`pbf`,
-  // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
-  // surface does not support.
+  // `sql`, `attachments`) the gRPC FeatureService RPC surface does not
+  // support. `queryRelated` is native on gRPC (QueryRelatedRecords).
   const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
   const caps = client.isGrpcWeb
     ? new Set([...declaredCaps].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability)))
@@ -5033,17 +5033,9 @@ function toRelatedRecordsRequest(request: RelatedQuery): {
     signal?: AbortSignal;
   } = { relationshipId: request.relationshipId };
   if (request.sourceIds.length > 0) {
-    const numeric: number[] = [];
-    let allNumeric = true;
-    for (const id of request.sourceIds) {
-      const parsed = Number(id);
-      if (Number.isFinite(parsed)) numeric.push(parsed);
-      else {
-        allNumeric = false;
-        break;
-      }
-    }
-    out.objectIds = allNumeric ? numeric : request.sourceIds.map(String).join(",");
+    // Unsafe int64 IDs stay exact decimal strings rather than rounding through Number.
+    const numeric = request.sourceIds.map(Number);
+    out.objectIds = numeric.every(Number.isSafeInteger) ? numeric : request.sourceIds.map(String).join(",");
   }
   if (request.where !== undefined) out.where = request.where;
   if (request.outFields && request.outFields.length > 0) out.outFields = [...request.outFields];
