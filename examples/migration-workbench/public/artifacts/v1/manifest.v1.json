@@ -6,10 +6,10 @@
     "fixture": "examples/geoservices-source-app",
     "scenario": "examples/geoservices-source-app/src/workbench-scenario.js",
     "sourceSnapshot": {
-      "fixtureTreeSha256": "ee4459c316f76d4cb9406975f1bc55e2ee48833252155c6503d97cfec9995dfa",
+      "fixtureTreeSha256": "da73bbed10826fd4346855699b570c2839a631777817eb4e862b5c881f6ad81e",
       "expectedBehaviorPath": "examples/migration-workbench/fixtures/expected-behavior.v1.json",
       "expectedBehaviorSha256": "5dda40ab412f3c28785d486e3f6eb57a7f6f13006f21510e58c4e4a72e1e289d",
-      "combinedSha256": "d89e9b6ea931ac39ecdc8bb5df04e479ee904c34526816d72e15f3256529b0b7"
+      "combinedSha256": "ab3d79422f3802d5ccdee8de73ac3a62264e268f59c1eaa565c34357108c9e98"
     },
     "authorship": "Original Honua-authored repository fixture",
     "licenseScope": "Apache-2.0 repository license; no third-party sample source is reproduced in these artifacts",
@@ -20,8 +20,8 @@
     "transformationEngine": {
       "path": "dist/src/migration/cli.js",
       "preparedArtifactFormat": "honua.prepared-sdk-artifact.v1",
-      "buildInputsSha256": "92bd954d35737e6b51523432af2fccb5231f56e2e2f06bad467b07382d308fb9",
-      "buildInputFileCount": 2761,
+      "buildInputsSha256": "582e9b031a03a108e33f546e86cb7f74007b00fd549e9c4f5b4ddeb1aac49af4",
+      "buildInputFileCount": 2762,
       "distSrcSha256": "ee03c43dda0dc6e04788c58d92ae7b191f16f5e1a2400be29853eef23b5ebdb9",
       "distSrcFileCount": 2274,
       "digestScope": "Complete prepared SDK build inputs plus verified canonical dist/src transformation entries; adopted outputs outside dist/src are excluded."
@@ -123,7 +123,7 @@
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration-report.v1.json",
       "mediaType": "application/json",
       "bytes": 63200,
-      "sha256": "5b3c2ee0cb6846c021f71145a8c5189c2c6ec5eb883b9113e79c6eee50118ef4"
+      "sha256": "394ad9b7241dbe3edeca4b4e79f52cfeb5959c83dbaaf555c74ac3a3b1ccd729"
     },
     {
       "repositoryPath": "examples/migration-workbench/public/artifacts/v1/migration.v1.patch",
