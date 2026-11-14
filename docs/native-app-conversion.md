@@ -15,8 +15,9 @@ CORS, signed URLs and snapshot freshness.
 ## Bind a source
 
 This example supplies a known source explicitly. It does not perform metadata
-discovery or prove that the deployment permits editing. Use capabilities observed
-for your deployment when available; protocol defaults describe the SDK surface.
+discovery or prove that the deployment permits editing. Use [native discovery](grpc-discovery.md) to observe descriptors and caller
+capabilities when the deployment supports DescribeService and DescribeLayer.
+Protocol defaults describe the SDK surface.
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
@@ -63,7 +64,7 @@ Check the deployment and the linked work before removing a compatibility path.
 | --- | --- | --- |
 | MapServer tiles or export | PMTiles source and MapLibre style | No gRPC needed; port export options into the style/camera. |
 | FeatureLayer renderer and labels | Style JSON; PMTiles for public data, `Source.stream()` into a GeoJSON source for live data | Use style expressions; streams yield pages of canonical features. |
-| Service/layer metadata | Descriptor discovered with `DescribeService` / `DescribeLayer` | Additive [proto #187](https://github.com/honua-io/geospatial-grpc/pull/187) is merged; server and SDK discovery wiring are pending. Current gRPC discovery still reads REST metadata. |
+| Service/layer metadata | Descriptor discovered with `DescribeService` / `DescribeLayer` | SDK discovery and the typed native handle use descriptor RPCs without REST metadata; deploy a server implementing the additive 1.1.0 contract. See [native discovery](grpc-discovery.md). |
 | Query by attributes/geometry/fields/output CRS/sort/page | `source.query({ filter, spatialFilter, outFields, outSr, orderBy, pagination })` | gRPC reads available. Prefer typed filters; `where` is source-native migration text. |
 | Count, IDs or extent only | `source.queryExtent()` and its optional `count`; `source.queryObjectIds()` | gRPC available; exact count may require additional reads. Do not interpret an absent count as zero. |
 | Distinct values | Explicit bounded query and client deduplication, or a published analytical file | Canonical `Query` has no `distinct` property. Do not deduplicate one page and claim a complete distinct set. |
@@ -81,7 +82,7 @@ Check the deployment and the linked work before removing a compatibility path.
 | Add/update/delete attachment | `source.attachments.add/update/delete` | Native small unary and large chunked-session upload support is pending. Browser client streaming is unsuitable. |
 | Attachment popup URL | Short-lived signed download URL | Native signed-URL support is pending. Refresh after expiry; do not persist/log signed URLs. |
 | Related records | `source.queryRelated({ relationshipId, sourceIds })` | Canonical API exists; native relationship transport is pending. |
-| Domains/subtypes/templates | Native layer descriptor | Contract merged with metadata; server/client projection pending. Store domain codes, display labels. |
+| Domains/subtypes/templates | Native layer descriptor | Use `source.protocol("grpc").describe()` for complete metadata; source schema projects field defaults and domains. Server descriptor support is required. Store domain codes, display labels. |
 | Replicas/extractChanges | GeoParquet snapshot, change-feed cursor, idempotent edits | Full native sync lifecycle is pending; a query stream is not a durable change feed. |
 | generateToken / token parameter | `auth`, `bearerToken` or `apiKey` client options | Supported; use user-scoped credentials in browsers. |
 | REST error numbers | `HonuaGrpcError` and gRPC status | Handle authentication, permission, precondition, quota and retry status explicitly; see [errors](errors.md). |
