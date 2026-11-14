@@ -78,3 +78,6 @@ export type {
 } from "./renderers.js";
 // Feature Service and Map Service URL parsers are exported from
 // client-compat/url.ts via the main index.ts barrel — no re-export needed here.
+
+export { legendFromStyle } from "./legend.js";
+export type { StyleLegendLayer, StyleLegendOptions } from "./legend.js";
