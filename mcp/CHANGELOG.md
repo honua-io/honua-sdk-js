@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.5.0...mcp-server-v0.5.1) (2026-11-14)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.4.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.3.0 || ^0.4.0 to ^0.4.0
+
 ## [0.5.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.4.0...mcp-server-v0.5.0) (2026-11-14)
 
 
