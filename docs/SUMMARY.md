@@ -28,6 +28,7 @@
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
 * [Start with gRPC and cloud-native files](native-data-paths.md)
+* [Convert an application to the native data path](native-app-conversion.md)
 * [Zero-install playgrounds](playgrounds.md)
 * [Source schema v2 migration](source-schema-v2-migration.md)
 * [Unified agent workflows](unified-agent-workflows.md)

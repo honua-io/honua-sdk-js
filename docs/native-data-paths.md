@@ -18,8 +18,8 @@ browser or JavaScript service. The complete setup is below. The public SDK
 currently supports gRPC feature queries and query streaming, but **does not yet
 route `applyEdits()` through gRPC**: that method still calls GeoServices REST,
 even on a client configured for gRPC-Web. Do not treat it as a native edit path.
-Track native edit support in [#2490](https://github.com/honua-io/honua-sdk-js/issues/2490)
-(rc.3). Until it ships, keep existing edit integrations explicitly in the
+Track native edit support in [#2490](https://github.com/honua-io/honua-sdk-js/issues/2490).
+Until it ships, keep existing edit integrations explicitly in the
 compatibility phase of the migration.
 
 ## Browser setup: gRPC-Web
@@ -120,3 +120,5 @@ existing Esri clients that cannot yet migrate. Their examples demonstrate
 Keep them during coexistence, then move application data access to gRPC and
 cloud-native files. Control-plane administration and capabilities outside the
 feature data path retain their own documented contracts.
+
+For a call-by-call application migration, use the [native conversion guide](native-app-conversion.md), including identify, find and style legends.
