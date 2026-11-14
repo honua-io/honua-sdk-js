@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "5a6ca882e2edb3eba93b1d47d57906d9b4e7b5188b7ddae91f94ccccc4422ddc",
+      "signatureSha256": "977a7eefccd70298dcb9dff436c19b5ab88f4d020d07461a9537c785efc5e99b",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -191,7 +191,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 178,
-      "signatureSha256": "5a6ca882e2edb3eba93b1d47d57906d9b4e7b5188b7ddae91f94ccccc4422ddc",
+      "signatureSha256": "977a7eefccd70298dcb9dff436c19b5ab88f4d020d07461a9537c785efc5e99b",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -376,8 +376,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1201,
-      "signatureSha256": "72ee126babb13ce1742cc623e1c50d1846738782f594db0c84d199ab6669995b",
+      "exportCount": 1203,
+      "signatureSha256": "edc1824904fb59ce3a32af041e4a2d20b113ea219735d4ae9cc9b158b1489909",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -419,6 +419,7 @@
         "AttachmentAdd — interface",
         "AttachmentApi — interface",
         "AttachmentDelete — interface",
+        "AttachmentDownloadUrl — interface",
         "AttachmentEditOutcome — interface",
         "AttachmentGroup — interface",
         "AttachmentInfo — interface",
@@ -789,6 +790,7 @@
         "HonuaMapServiceRequest — type",
         "HonuaMapServiceSourceSpecification — interface",
         "HonuaMetadataRequestOptions — interface",
+        "HonuaNativeAttachments — type",
         "HonuaNetworkError — class",
         "HonuaObjectIdsResponse — interface",
         "HonuaOdataAdvertisedCapabilities — interface",
@@ -1614,8 +1616,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 486,
-      "signatureSha256": "68d483c6f1ee0c6d5af262aa542040f0fe31827eb9ef41b51e1d6767d9078639",
+      "exportCount": 487,
+      "signatureSha256": "fe61a3faa599ccc98a2391889a3f2bb36ef5b5a647c478121631cdf5f4714556",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1655,6 +1657,7 @@
         "AttachmentAdd — interface",
         "AttachmentApi — interface",
         "AttachmentDelete — interface",
+        "AttachmentDownloadUrl — interface",
         "AttachmentEditOutcome — interface",
         "AttachmentGroup — interface",
         "AttachmentInfo — interface",
