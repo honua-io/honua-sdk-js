@@ -2,6 +2,7 @@ import { refreshReleasePleaseBase } from "./release-please-base-refresh.mjs";
 import { RELEASE_PLEASE_HEAD, RELEASE_PLEASE_HEADS } from "./release-please-disposition-check.mjs";
 import { normalizeReleasePleaseLockfiles } from "./release-please-lockfiles.mjs";
 import { normalizeMcpComponentReleaseNotes, normalizeReleasePleaseWorkspaceNotes } from "./release-please-workspace-notes.mjs";
+import { ReleasePleaseRefreshRecoveryRequired } from "./release-please-refresh-recovery.mjs";
 
 // Pinned action v5 emits `prs` only for created/updated PRs. With
 // `always-update`, every open release PR is rebuilt and reported.
@@ -31,6 +32,12 @@ export async function prepareReleasePleaseCandidates(input, dependencies = {}) {
       releasePleaseReportedUpdate: updates.has(headRefName),
       reportedPullRequestNumber: updates.get(headRefName) });
     candidates.push({ ...result, headRefName });
+  }
+  const closed = candidates.filter((candidate) => candidate.closedPullRequestNumber);
+  if (closed.length) {
+    throw new ReleasePleaseRefreshRecoveryRequired(
+      `Closed conflicting Release Please candidates: ${closed.map((candidate) => `#${candidate.closedPullRequestNumber}`).join(", ")}.`,
+    );
   }
   const refreshedCandidates = structuredClone(candidates);
   // Every stale base must be repaired before either normalizer can enforce

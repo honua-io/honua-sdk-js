@@ -9,6 +9,11 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      retry_release_pr_refresh:
+        description: Regenerate release PRs once on current trunk without publishing packages.
+        type: boolean
+        required: false
+        default: false
       finish_stranded_draft:
         description: >-
           The js-sdk-* tag name of an existing DRAFT release stranded by a prior
@@ -55,6 +60,12 @@ jobs:
       release_pr_outcome: ${{ steps.release-pr.outcome }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - name: Validate refresh-only recovery inputs
+        if: ${{ inputs.retry_release_pr_refresh && (inputs.finish_stranded_draft != '' || inputs.recover_sealed_source != '') }}
+        run: |
+          echo 'Refresh-only recovery cannot be combined with release publication recovery.' >&2
+          exit 1
+
       # App-authored release PRs and branch updates trigger required CI.
       - name: Mint release automation token
         id: app-token
@@ -119,8 +130,8 @@ jobs:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         if: >-
-          ${{ github.event_name != 'workflow_dispatch' ||
-              inputs.finish_stranded_draft == '' }}
+          ${{ !inputs.retry_release_pr_refresh &&
+              (github.event_name != 'workflow_dispatch' || inputs.finish_stranded_draft == '') }}
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
@@ -779,6 +790,7 @@ jobs:
       release_head_sha: ${{ steps.refresh.outputs.release_head_sha }}
       refresh_status: ${{ steps.refresh.outputs.refresh_status }}
       candidates: ${{ steps.refresh.outputs.candidates }}
+      recovery_required: ${{ steps.refresh.outputs.recovery_required }}
     steps:
       - name: Check out trusted base-refresh policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -811,9 +823,25 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           RELEASE_PLEASE_PRS: ${{ needs.release-please.outputs.prs || '[]' }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
+          RELEASE_PLEASE_REFRESH_RETRY: ${{ inputs.retry_release_pr_refresh || false }}
         run: |
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
           node scripts/refresh-release-please-base.mjs
+
+  release-please-refresh-retry:
+    needs: release-please-refresh
+    if: ${{ needs.release-please-refresh.outputs.recovery_required == 'true' && !inputs.retry_release_pr_refresh }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Retry release PR generation once on current trusted trunk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh workflow run release-please.yml --ref trunk
+          -f retry_release_pr_refresh=true
 
   release-please-ci:
     needs: [release-please, release-please-refresh]
@@ -863,6 +891,7 @@ jobs:
       ${{ always() &&
           needs.release-please.result == 'success' &&
           needs.release-please-refresh.result == 'success' &&
+          needs.release-please-refresh.outputs.recovery_required != 'true' &&
           (needs.release-please-refresh.outputs.release_pr_present != 'true' ||
            (needs.release-please-ci.result == 'success' &&
             needs.release-please-ci.outputs.canonical_ci_success == 'true')) }}
