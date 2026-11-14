@@ -20,6 +20,7 @@
  * @packageDocumentation
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
+export type { HonuaNativeAttachments } from "./core/native-attachments.js";
 export {
   HONUA_CONNECT_ADAPTER_VERSION,
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
@@ -1028,6 +1029,7 @@ export type {
   AttachmentEditOutcome,
   AttachmentGroup,
   AttachmentInfo,
+  AttachmentDownloadUrl,
   AttachmentQuery,
   AttachmentUpdate,
   CanonicalFeature,

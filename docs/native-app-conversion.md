@@ -78,9 +78,9 @@ Check the deployment and the linked work before removing a compatibility path.
 | Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Uses unary gRPC-Web `ApplyEdits` with no REST fallback when configured for gRPC-Web. Per-row errors remain in the result; whole-call failures reject. Set the source schema primary key for custom object IDs. |
 | Edits keyed by global ID | `source.applyEdits({ useGlobalIds: true, updates: [{ globalId, attributes }], deletes: [globalId] })` | Outcomes carry `globalId` with `id`. On gRPC this requires a geospatial-grpc 1.2 server and a declared global-ID field; on REST only global-ID deletes are forwarded. Adds may supply client-generated global IDs. |
 | Parent and child transaction | `client.applyServiceEdits({ serviceId, edits: [{ layerId, adds, ... }, ...], rollbackOnFailure })` | One gRPC `ApplyServiceEdits` call (or REST service-level applyEdits); with rollback, all layers commit or none. Key children to parents with client-generated global IDs. A canonical multi-source edit session over it is pending. |
-| Query attachment metadata | `source.attachments.list(id)` / `.query()` | Canonical API exists; native attachment transport is pending. |
-| Add/update/delete attachment | `source.attachments.add/update/delete` | Native small unary and large chunked-session upload support is pending. Browser client streaming is unsuitable. |
-| Attachment popup URL | Short-lived signed download URL | Native signed-URL support is pending. Refresh after expiry; do not persist/log signed URLs. |
+| Query attachment metadata | `source.attachments.list(parentId)` or `.query({ parentIds })` | Unary `ListAttachments` with attachment page tokens; explicit parent IDs, no filter text. Low level: `client.attachments.list`. |
+| Add/update/delete attachment | `source.attachments.add/update/delete` with a `Blob` or `File` | The SDK picks unary upload or a chunked upload session from the layer's advertised limits. Retry a failed upload with the same `idempotencyKey` to resume its session; deletes return one outcome per row. Requires a server implementing the additive 1.3.0 contract. |
+| Attachment popup URL | `source.attachments.downloadUrl(parentId, attachmentId)` | Short-lived signed URL for `<img src>`; descriptors contain no URLs. Refresh after `expiresAt`; do not persist or log signed URLs. |
 | Related records | `source.queryRelated({ relationshipId, sourceIds })` | Uses gRPC `QueryRelatedRecords` on gRPC-Web, following page tokens; no REST fallback. Relationship IDs come from the layer descriptor. |
 | Domains/subtypes/templates | Native layer descriptor | Use `source.protocol("grpc").describe()` for complete metadata; source schema projects field defaults and domains. Server descriptor support is required. Store domain codes, display labels. |
 | Replicas/extractChanges | GeoParquet snapshot, change-feed cursor, idempotent edits | Full native sync lifecycle is pending; a query stream is not a durable change feed. |
@@ -155,3 +155,121 @@ still change offset pages. Use idempotency keys where the native edit API suppor
 them; after an uncertain transport outcome, reconcile before retrying a write.
 Inspect per-row outcomes as well as the call status, and request rollback explicitly
 when the operation requires all-or-nothing behavior.
+
+
+## Attachments over browser gRPC-Web
+
+Use the native attachment resource on the same authenticated client. It accepts
+canonical protobuf request objects and preserves bigint IDs, sizes and offsets.
+It never converts them through JavaScript numbers or sends a FeatureServer
+request. The deployment must implement the additive 1.3.0 attachment contract;
+older servers reject the calls. Most applications should call
+`source.attachments` (end of this section); `client.attachments` is the low-level
+resource for custom chunking and incremental hashing.
+
+```ts doc-test=compile
+import { HonuaClient } from "@honua/sdk-js/honua";
+
+const client = new HonuaClient({
+  baseUrl: "https://your-honua-server.example",
+  transport: "grpc-web",
+  bearerToken: "<short-lived-user-access-token>",
+});
+const parent = {
+  serviceId: "inspections", layerId: 0,
+  identity: { case: "objectId" as const, value: 9007199254740993n },
+};
+const page = await client.attachments.list({ parent, pageSize: 50 });
+const attachment = page.attachments[0];
+if (attachment) {
+  const grant = await client.attachments.downloadUrl({ parent, attachmentId: attachment.attachmentId });
+  // Pass grant.url directly to the display element; do not log or persist it.
+  if (BigInt(Date.now()) >= grant.expiresAtUtcMs) throw new Error("Download grant expired");
+}
+```
+
+A global-ID selector uses `identity: { case: "globalId", value: uuid }` instead.
+The server resolves the public selector to the authorized physical feature; the
+application must not substitute a storage layer or internal row ID.
+
+For a small upload, provide the complete SHA-256 digest and exact byte length.
+With the low-level resource the caller selects unary versus chunked upload; it
+does not buffer a large File or choose a mode for you (`source.attachments`,
+below, does). Read the deployment's advertised attachment
+limits before selecting a mode. New uploads and deletes use an explicit idempotency key; chunk, commit and abort calls use the bound session ID.
+Use a new key for different content, metadata, parent or operation.
+
+```ts doc-test=skip reason="uses the authenticated client and parent above and an application File within the advertised unary limit"
+const content = new Uint8Array(await file.arrayBuffer());
+const sha256 = new Uint8Array(await crypto.subtle.digest("SHA-256", content));
+const upload = {
+  parent, name: file.name, contentType: file.type || "application/octet-stream",
+  keywords: ["inspection"], sizeBytes: BigInt(content.byteLength), sha256,
+  idempotencyKey: crypto.randomUUID(),
+};
+const committed = await client.attachments.upload({ upload, content });
+// To replace an attachment atomically, set upload.replaceAttachmentId to its bigint ID.
+```
+
+For a large file, calculate its complete SHA-256 with a bounded incremental hasher
+or trusted precomputed digest. Web Crypto's digest method alone requires the
+complete input buffer; hashing each chunk separately does not produce the file
+digest. Begin with the same metadata as a small upload, then send bounded chunks:
+
+```ts doc-test=skip reason="uses file, upload with an independently computed whole-file digest, and the authenticated client above"
+let { session } = await client.attachments.beginUpload({ upload });
+if (!session) throw new Error("Missing upload session");
+while (session.nextOffsetBytes < upload.sizeBytes) {
+  const offset = session.nextOffsetBytes;
+  // File slicing uses numbers; this conversion is safe only within the exact range.
+  if (!Number.isSafeInteger(file.size)) throw new Error("File size exceeds browser precision");
+  if (offset < 0n || offset > BigInt(file.size)) throw new Error("Invalid upload offset");
+  const length = Number(session.maxChunkBytes > 1048576n ? 1048576n : session.maxChunkBytes);
+  if (length <= 0) throw new Error("Invalid upload chunk limit");
+  const content = new Uint8Array(await file.slice(Number(offset), Math.min(file.size, Number(offset) + length)).arrayBuffer());
+  if (content.length === 0) throw new Error("File changed or upload metadata is inconsistent");
+  const sha256 = new Uint8Array(await crypto.subtle.digest("SHA-256", content));
+  const next = await client.attachments.uploadChunk({ sessionId: session.sessionId, offsetBytes: offset, content, sha256 });
+  if (!next.session || next.session.nextOffsetBytes <= offset) throw new Error("Upload did not advance");
+  session = next.session;
+}
+const committed = await client.attachments.commitUpload({ sessionId: session.sessionId });
+```
+
+After an uncertain begin response, repeat begin with the identical upload and key
+to recover the accepted offset. After an uncertain chunk response, replay the
+identical offset, bytes and digest, or repeat begin to observe progress. A gap or
+conflicting replay fails without changing content. Commit publishes verified
+content atomically and returns the same receipt on a retry within the session
+lifetime. Expiry requires a new session; its old ID never grants authorization.
+Use `.abortUpload({ sessionId })` to discard staging; abort does not remove a
+committed attachment. Cancellation through the optional second argument
+`{ signal }` cancels the request; with the low-level resource it does not abort the
+session (`source.attachments` aborts it when you cancel).
+
+Delete with `.delete({ parent, attachmentId, idempotencyKey })`. Check gRPC status
+for permission, precondition, quota and expiry failures; a rejected call is not a
+successful empty result. Download URLs are bearer credentials: request one close
+to display time, keep it out of logs and persistent caches, and request a new
+grant after expiry. Never construct a storage URL from attachment IDs or names.
+
+`Source.attachments` uses these native calls when the client uses `grpc-web`.
+`list` follows attachment page tokens independently of feature pages, and `add`
+and `update` accept a `Blob` or `File`. Uploads use the layer's advertised unary
+limit, then durable chunk sessions for larger content. Pass `idempotencyKey` again
+when retrying the same add, update or delete. Attachment IDs remain decimal
+strings when returned through the canonical source interface. Native `query`
+requires explicit `parentIds`; filter text and string upload bodies are rejected.
+The adapter hashes the complete Blob in memory, so applications handling very
+large files should use `client.attachments` directly with their own incremental
+hashing and chunk lifecycle. A transient chunk failure leaves the session open:
+retry the same call with the same `idempotencyKey` and the upload resumes at the
+server's committed offset. Cancelling through `signal`, including `AbortSignal.timeout`, aborts the session, so
+retry a cancelled upload with a new key. The adapter never aborts after commit is
+sent, because the commit may have landed; list the parent to check. A zero
+advertised unary limit sends every upload through a session, and a zero file
+limit leaves the size check to the server. `delete` returns one outcome per
+attachment with `success` and the gRPC status `code`, as the REST adapter does.
+Signed downloads use `source.attachments.downloadUrl(parentId, attachmentId)`,
+which returns `url`, `expiresAt` and the attachment descriptor. Parent IDs are
+object IDs or global ID UUIDs, with or without braces.

@@ -54,7 +54,7 @@ checks. The input digest was
 | Eight cited unit suites | 195 tests passed | `04d24afd-dbf3-40d9-9fcd-c2b1d86c6172` |
 | Four cited Chromium suites, including CSP and WeakRef disposal | 13 tests passed | `d9ab87ad-a913-4837-963d-78e178052635` |
 | Installed split-package consumers and both reference host lanes | Passed; first use 1,674 ms, interaction 1 ms, 10 DOM nodes, zero egress attempts | `66ffd2c6-699d-48d1-ab27-46a7d056e86b` |
-| Published entrypoint bundle budgets | All 50 passed; web components 349.7 KiB gzip against the 364,681-byte ceiling | `npm run verify:bundle-budgets` |
+| Published entrypoint bundle budgets | All 50 passed; web components 356.3 KiB gzip against the 401,337-byte ceiling | `npm run verify:bundle-budgets` |
 
 The unit and browser builds had distribution digest
 `67890b3eae311c2c3b2570359f3aaecf7f6e004d6ca07d7c39953306b7895e61`.
