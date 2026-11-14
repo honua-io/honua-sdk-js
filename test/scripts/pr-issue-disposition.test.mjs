@@ -322,7 +322,7 @@ describe("pull request issue disposition policy", () => {
     // trunk-only.
     assert.match(
       workflow,
-      /^  release-please:\n    if: \$\{\{ github\.event_name != 'workflow_run' && github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.event_name != 'workflow_run' && github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      checks: write\n      issues: read\n      contents: write\n      pull-requests: write$/mu,
     );
     assert.match(
       workflow,
