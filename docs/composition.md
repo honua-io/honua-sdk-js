@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "Mixed-Source Composition"
-description: "Rules for a heterogeneous multi-protocol MapPackage on one MapLibre map: weakest-capability intersection and per-source partial failure."
+description: "Rules for a heterogeneous multi-protocol map document on one MapLibre map: weakest-capability intersection and per-source partial failure."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Mixed-Source Composition
@@ -10,9 +10,9 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 
 Composition rides on the existing
 `@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,
-`Result.degraded[]`) and `@honua/sdk-js/runtime` (`loadMapPackage`)
+`Result.degraded[]`) and `@honua/sdk-js/runtime` (`loadMapDocument`)
 surfaces; this guide collects the rules that make a heterogeneous
-(multi-protocol) `MapPackage` rendered through one MapLibre map honest
+(multi-protocol) `HonuaMapDocument` rendered through one MapLibre map honest
 about what it can and cannot do.
 
 ## Why composition, not a new vocabulary
@@ -21,7 +21,7 @@ Operators routinely need a parcels FeatureServer + a WMS basemap + a
 STAC overlay + an OData operational layer in one runtime map. The 13
 first-party adapters already work in isolation. What was missing was
 the rule set that lets `createDataset({ sources: [...] })` accept a
-heterogeneous list and `loadMapPackage` project it onto one MapLibre
+heterogeneous list and `loadMapDocument` project it onto one MapLibre
 map without per-protocol app glue, with two non-negotiables:
 
   - **weakest-capability honesty**: the composition supports a capability
@@ -51,7 +51,7 @@ import {
   type SourceDescriptor,
 } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example/api" });
 
@@ -96,7 +96,7 @@ console.log([...weakest]); // ["query"]
 console.log(weakest.has("applyEdits")); // false — WMS and STAC lack it
 
 // Bind to a MapLibre map through the existing runtime path:
-const runtime = await loadMapPackage(mapPackage, map, { client });
+const runtime = await loadMapDocument(mapPackage, map, { client });
 ```
 
 ## The weakest-capability rule
@@ -191,9 +191,9 @@ The OGC Features and OData adapters populate `sourceId` from
 sources see attribution out of the box. Other adapters that begin to
 emit `degraded[]` should follow the same pattern.
 
-### Bind-time failure: `loadMapPackage` `sourceErrorPolicy`
+### Bind-time failure: `loadMapDocument` `sourceErrorPolicy`
 
-`loadMapPackage` accepts an additional option:
+`loadMapDocument` accepts an additional option:
 
 ```ts doc-test=compile
 interface LoadOptions {
@@ -204,7 +204,7 @@ interface LoadOptions {
 | Policy        | Behaviour |
 | ------------- | --------- |
 | `"tolerant"`  | A per-source binding failure (resolver throws, `toHonuaSourceSpec` throws, eager materialization throws) does not abort the load. The failed source is dropped from the composed style along with any layer whose `source` references it; the runtime emits one `source-error` event per failed source after `source-ready` and before `package-loaded`; `HonuaRuntimeTelemetry.error` receives a `source-bind` span. Remaining sources continue to render. |
-| `"fail-fast"` | Any per-source binding failure rejects the load with `HonuaMapPackageError({ stage: "source-bind" })`. The historical (single-source) behaviour. |
+| `"fail-fast"` | Any per-source binding failure rejects the load with `HonuaMapDocumentError({ stage: "source-bind" })`. The historical (single-source) behaviour. |
 
 Configuration-level binding errors (unknown protocol, missing
 `locator.url`, duplicate `sourceId`, deferred `workspace_artifact`)
@@ -212,7 +212,7 @@ raised by `projectSourceBindings` always fail-fast under either policy
 — those are operator errors that must be fixed.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-const runtime = await loadMapPackage(pkg, map, {
+const runtime = await loadMapDocument(pkg, map, {
   client,
   // default tolerant — explicit for documentation:
   sourceErrorPolicy: "tolerant",
@@ -312,7 +312,7 @@ queryable.has("query"); // true
 The composed style still renders both: the WMTS source provides the
 basemap, the OGC overlay provides the queryable layer.
 
-### 4. Partial failure under `loadMapPackage`
+### 4. Partial failure under `loadMapDocument`
 
 A four-source mixed package where one source's binding throws (in the
 test, an OGC Features descriptor whose URL does not include the
@@ -348,7 +348,7 @@ Anything outside the first-party set goes through
 `CreateDatasetOptions.resolveSource`. Custom adapters return a
 `Source` that implements the canonical envelope; the composition
 surface treats them identically to first-party sources for
-`intersectCapabilities` and `loadMapPackage`. Examples: an internal
+`intersectCapabilities` and `loadMapDocument`. Examples: an internal
 proprietary REST protocol; an experimental adapter under development;
 a server flavor of an OGC API endpoint that needs a non-default
 content negotiator.
@@ -374,13 +374,13 @@ implementation, the composition surface only requires that you:
    you emit a `degraded` entry — fan-out consumers attribute through
    that field.
 4. Make construction side-effect free (no HTTP at `new Adapter(...)`)
-   so eager materialization in `loadMapPackage` stays cheap. Lazy
+   so eager materialization in `loadMapDocument` stays cheap. Lazy
    metadata negotiation (the OData pattern) is the right model when
    you need server-side capability flags.
 
 ## Operational gotchas
 
-- **Default behaviour change**: `loadMapPackage` now defaults to
+- **Default behaviour change**: `loadMapDocument` now defaults to
   `sourceErrorPolicy: "tolerant"`. A single-source app whose only
   source fails sees no behavioural change — one-of-one failing means
   the map is empty either way — but the failure is non-silent
@@ -410,7 +410,7 @@ implementation, the composition surface only requires that you:
   `Dataset` / `Capabilities` vocabulary.
 - `docs/protocol-capability-matrix.md` — per-protocol default
   capability sets.
-- `docs/maplibre-runtime.md` — `loadMapPackage`,
+- `docs/maplibre-runtime.md` — `loadMapDocument`,
   `HonuaRuntimeEvent`, telemetry surface.
 - `docs/source-binding-alignment.md` — server-side `SourceBinding` to
   SDK descriptor projection.

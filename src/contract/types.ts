@@ -266,7 +266,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   geoparquet: capabilities(["query", "queryAggregate", "stream"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
-  // Reserved/recognized protocol token only: inline MapPackage GeoJSON is supported,
+  // Reserved/recognized protocol token only: inline map document GeoJSON is supported,
   // but descriptor-to-runtime support for maplibre-geojson is not implemented.
   "maplibre-geojson": capabilities([]),
   "ogc-coverages": capabilities(["render"]),

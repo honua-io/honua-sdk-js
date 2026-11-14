@@ -13,11 +13,11 @@
  */
 
 import type { IJobRun } from "../contract/index.js";
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 import type {
   AnalysisIntent,
   AnalysisPlan,
-  AppPackage,
+  AppVersion,
   ApprovalDecision,
   BuilderIntent,
   BuilderPlan,
@@ -64,8 +64,8 @@ export interface OperatorClientApi {
     plan: AnalysisPlan | PublishingPlan | BuilderPlan | DeploymentPlan,
     signal?: AbortSignal,
   ): Promise<IJobRun<ExecutionResult>>;
-  refineMap(intentId: string, prompt: string, signal?: AbortSignal): Promise<HonuaMapPackage>;
-  refineApp(intentId: string, prompt: string, signal?: AbortSignal): Promise<AppPackage>;
+  refineMap(intentId: string, prompt: string, signal?: AbortSignal): Promise<HonuaMapDocument>;
+  refineApp(intentId: string, prompt: string, signal?: AbortSignal): Promise<AppVersion>;
   getApproval(operationId: string, signal?: AbortSignal): Promise<ApprovalDecision>;
   confirmApproval(operationId: string, signal?: AbortSignal): Promise<ApprovalDecision>;
 }

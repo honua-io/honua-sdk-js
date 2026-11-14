@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.5.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.5.0...mcp-server-v0.5.1) (2026-11-14)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.3.0 || ^0.4.0
+
+## [0.5.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.4.0...mcp-server-v0.5.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** exported SDK names that carried MapPackage, ApiToken, HostedMap or AppPackage are renamed to MapDocument, ApiKey, SavedMap and AppVersion. The full old -> new list and the affected entry points are in docs/vocabulary-renames.md.
+
+### refactor
+
+* **sdk:** adopt the Honua vocabulary in public names ([#2409](https://github.com/honua-io/honua-sdk-js/issues/2409)) ([abe969c](https://github.com/honua-io/honua-sdk-js/commit/abe969cfa99284c100b8c0d6f5017968fafa8d74)), closes [#2348](https://github.com/honua-io/honua-sdk-js/issues/2348)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated or retained
+  * devDependencies
+    * @honua/sdk-js retained at file:..
+  * peerDependencies
+    * @honua/sdk-js retained at ^0.3.0 || ^0.4.0
+
 ## [0.4.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.3.4...mcp-server-v0.4.0) (2026-11-14)
 
 

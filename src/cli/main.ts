@@ -204,7 +204,7 @@ MAPS
   honua tiles <service> <z>/<x>/<y> [-o tile.png]
 
   honua map publish [<mapId>] --package <json|@file> [options]
-      Publish a map package through the shared control-plane command layer.
+      Publish a map document through the shared control-plane command layer.
       --package <json|@file>     honua_map_package.v1 document (required)
       --intent <json|@file>      Requested publication route and visibility; server approval still required
       --workspace <id>           Owning workspace

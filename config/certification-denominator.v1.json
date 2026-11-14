@@ -116,8 +116,8 @@
     },
     {
       "path": "schemas/honua-map-package.v1.json",
-      "bytes": 20862,
-      "sha256": "sha256:d25f1ecd7240e71bd606fa10b75ad0b03510afdf6b59a49d77be1e3e048b1465"
+      "bytes": 20869,
+      "sha256": "sha256:7d34a2b27b25135ad09795a66959596ce3b8593298d3a7e28bb5142bea597ec9"
     },
     {
       "path": "config/protocol-certification.v1.json",
@@ -152,13 +152,13 @@
     },
     {
       "path": "src/runtime/source-bridge.ts",
-      "bytes": 16162,
-      "sha256": "sha256:1031db7b175e4ba0f12704638d7031892745d7e2fee510a3c2b698f508e7fd00"
+      "bytes": 16194,
+      "sha256": "sha256:71e8e673c1add3d7c1fee355216cbcedebcd13dda3a02f2a3f25f20fe20c4e1d"
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83703,
-      "sha256": "sha256:15679f9fbfb4f234fa90a85c8d24ba3b18a30863da9e159095ecf21b48a6e38a"
+      "bytes": 83709,
+      "sha256": "sha256:812480eedcae08bacc4bc0e192200b50f77b96eedc5b59da27beafe0cf958f46"
     }
   ],
   "profiles": {
@@ -533,10 +533,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:3e92a3dabc94295efc840f0dcf124b90f45af48a5beaf686a7b30d64c396d493",
+    "inputs": "sha256:3263902def875a2c183cf4b25a35b2165027bf64aa572da25acb298ed4e6f730",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
     "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
-    "rows": "sha256:113d25ca9149f7bf522c7a6095deff8c2b2807cf457d30ac294366e20e151efb"
+    "rows": "sha256:1c51040522ec9cee19c0591af40ad421d755092e076b58c7bb8ff35097244a01"
   },
   "summary": {
     "rows": 295,
@@ -5110,7 +5110,7 @@
       "id": "sdk-operation:map-package-facade:render",
       "family": "sdk-operation",
       "subject": "map-package-facade",
-      "label": "Authored MapPackage runtime",
+      "label": "Authored map-document runtime",
       "operation": "render",
       "tier": "facade-required",
       "tierSource": "config/support-manifest.v1.json#/supportClaims/31/status",

@@ -4,7 +4,7 @@
  * Compiles `schemas/honua-map-package.v1.json` into a zero-dependency
  * standalone Ajv validator at `src/runtime/generated/map-package-schema-validator.ts`.
  *
- * `validateMapPackage` calls that validator, so the JSON Schema is the single
+ * `validateMapDocument` calls that validator, so the JSON Schema is the single
  * structural source of truth for the canonical map artifact rather than a
  * parallel prose description of one (honua-sdk-js#1426). Ajv is a
  * devDependency; the SDK ships only the generated, precompiled function, which

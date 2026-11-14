@@ -4,8 +4,8 @@
 
 This example composes the current SDK application runtime pieces in one deterministic app:
 
-- `fetchMapPackage` loads a hosted fixture `MapPackage` from the local mock server.
-- `loadMapPackage` binds the fetched package to a MapLibre map.
+- `fetchMapDocument` loads a hosted fixture `HonuaMapDocument` from the local mock server.
+- `loadMapDocument` binds the fetched map document to a MapLibre map.
 - `HonuaController` owns viewport, selection, layer visibility, and snapshot state.
 - Honua web components render the layer list, legend, search, feature table, chart, and component map surface.
 - `createWidgetSource` evaluates count, category, and range widgets against linked-view projection state.

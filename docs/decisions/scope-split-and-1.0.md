@@ -66,9 +66,9 @@ imports of app-platform directories):
 - **One stable → app-platform back-edge exists and blocks a clean split.** The
   stable `/runtime` entrypoint re-exports Studio symbols:
   `src/runtime/map-package-validation.ts` ends with
-  `export { fromMapPackageValidation, toStudioValidationResponse } from "../studio/validation.js"`
+  `export { fromMapDocumentValidation, toStudioValidationResponse } from "../studio/validation.js"`
   plus three `StudioPackage*` type re-exports. Studio in turn imports *types*
-  from `runtime` (`ValidateMapPackageResult`, `HonuaMapPackage`), so the
+  from `runtime` (`ValidateMapDocumentResult`, `HonuaMapDocument`), so the
   coupling is bidirectional. These re-exports are already annotated
   `@experimental`. **Resolution (execution PR):** delete the Studio re-exports
   from the stable `/runtime` entrypoint; consumers reach them via
@@ -160,7 +160,7 @@ The current Node 22 release is tracked by
 | `./contract` | stable-1.0 | Protocol-neutral `Dataset`/`Source`/`Query`/`Result` — the cross-language contract the whole SDK identity rests on. |
 | `./client-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
 | `./migration` | stable-1.0 | Codemod/scanner behind `honua-migrate`; headline adoption driver, own split package. |
-| `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
+| `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapDocument`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
 | `./expr` | stable-1.0 | Typed expression builder; low-level primitive used across map/style/filter. |
 | `./webmap` | stable-1.0 | Esri WebMap JSON load/save; core interop primitive. |
 | `./geocoding` | stable-1.0 | `HonuaGeocodingClient`; a first-class client capability. |

@@ -16,8 +16,8 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { DataToMapLibreMap } from "../map/data-to-map-bridge.js";
-import type { HonuaMapPackage, HonuaMapRuntime, LoadMapPackageOptions, MaplibreMap } from "../runtime/index.js";
-import { loadMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument, HonuaMapRuntime, LoadMapDocumentOptions, MaplibreMap } from "../runtime/index.js";
+import { loadMapDocument } from "../runtime/index.js";
 import type { PopupFactory } from "../runtime/index.js";
 import { HonuaMapContext, type HonuaMapContextValue } from "./context.js";
 import { HonuaExternalMapContext } from "./external-map.js";
@@ -59,8 +59,8 @@ const EMPTY_STYLE = { version: 8 as const, sources: {}, layers: [] };
 
 /** Props for {@link HonuaMap}. */
 export interface HonuaMapProps {
-  /** The `MapPackage` to compose onto the map. */
-  package: HonuaMapPackage;
+  /** The `HonuaMapDocument` to compose onto the map. */
+  package: HonuaMapDocument;
   /**
    * Attach to an existing, externally-owned map instead of creating one. When
    * set, `HonuaMap` never removes the map on unmount (the owner is responsible)
@@ -80,11 +80,11 @@ export interface HonuaMapProps {
    */
   mapOptions?: Partial<Omit<MapLibreMapOptions, "container">>;
   /**
-   * Extra options forwarded to `loadMapPackage`. `client` is taken from the
+   * Extra options forwarded to `loadMapDocument`. `client` is taken from the
    * provider; a `popupFactory` is defaulted from the maplibre module when one
    * is available so {@link HonuaPopup} works out of the box.
    */
-  loadOptions?: Omit<LoadMapPackageOptions, "client">;
+  loadOptions?: Omit<LoadMapDocumentOptions, "client">;
   /** Called once the runtime is ready. */
   onRuntime?: (runtime: HonuaMapRuntime) => void;
   /** Called if map creation or package loading fails. */
@@ -123,9 +123,9 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
   const client = useHonuaClient();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [contextValue, setContextValue] = useState<HonuaMapContextValue>({ runtime: null, map: null });
-  // The package reference last handed to load/updatePackage — lets us route
-  // subsequent package changes through `updatePackage` instead of reloading.
-  const appliedPackageRef = useRef<HonuaMapPackage | null>(null);
+  // The package reference last handed to load/updateMapDocument — lets us route
+  // subsequent package changes through `updateMapDocument` instead of reloading.
+  const appliedPackageRef = useRef<HonuaMapDocument | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +154,7 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
       const popupFactory: PopupFactory | undefined =
         loadOptions?.popupFactory ?? (glModule ? (() => new glModule.Popup() as never) : undefined);
 
-      const loaded = await loadMapPackage(mapPackage, map, {
+      const loaded = await loadMapDocument(mapPackage, map, {
         ...loadOptions,
         client,
         popupFactory,
@@ -183,17 +183,17 @@ export function HonuaMap(props: HonuaMapProps): ReactNode {
       setContextValue({ runtime: null, map: null });
     };
     // Recreate only when the client, external map, or maplibre module changes.
-    // Package-content changes are handled by the effect below via updatePackage.
+    // Package-content changes are handled by the effect below via updateMapDocument.
     // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally excludes mapPackage/options to avoid map re-creation.
   }, [client, externalMap, mapLibre]);
 
-  // Route package changes to updatePackage without tearing down the map.
+  // Route package changes to updateMapDocument without tearing down the map.
   useEffect(() => {
     const runtime = contextValue.runtime;
     if (!runtime) return;
     if (appliedPackageRef.current === mapPackage) return;
     appliedPackageRef.current = mapPackage;
-    runtime.updatePackage(mapPackage).catch((error) => onError?.(error));
+    runtime.updateMapDocument(mapPackage).catch((error) => onError?.(error));
     // biome-ignore lint/correctness/useExhaustiveDependencies: onError is a callback prop; re-running on its identity is undesirable.
   }, [contextValue.runtime, mapPackage]);
 

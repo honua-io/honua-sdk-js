@@ -1,12 +1,12 @@
 /**
  * PMTiles runtime tests: `pmtiles://` protocol auto-registration (lazy,
  * idempotent across maps), MapPackage source-type projection, and
- * `loadMapPackage` wiring the protocol before `map.setStyle`.
+ * `loadMapDocument` wiring the protocol before `map.setStyle`.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type MaplibreMap, loadMapPackage } from "../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type MaplibreMap, loadMapDocument } from "../src/runtime/index.js";
 import {
   type EnsurePmtilesProtocolDeps,
   ensurePmtilesProtocol,
@@ -176,9 +176,9 @@ function makeMockMap(): MaplibreMap & { _calls: MockCall[]; _style: unknown } {
   return map;
 }
 
-describe("runtime / loadMapPackage registers pmtiles before setStyle", () => {
+describe("runtime / loadMapDocument registers pmtiles before setStyle", () => {
   it("renders a PMTiles source with no manual addProtocol wiring", async () => {
-    // Pre-register with fakes so loadMapPackage's lazy ensurePmtilesProtocol()
+    // Pre-register with fakes so loadMapDocument's lazy ensurePmtilesProtocol()
     // resolves without importing the real maplibre-gl / pmtiles packages.
     const f = fakeDeps();
     await ensurePmtilesProtocol(f.deps);
@@ -186,7 +186,7 @@ describe("runtime / loadMapPackage registers pmtiles before setStyle", () => {
 
     const map = makeMockMap();
     const pkg = {
-      format: HONUA_MAP_PACKAGE_FORMAT_V1,
+      format: HONUA_MAP_DOCUMENT_FORMAT_V1,
       mapPackageId: "pm-static",
       sourceBindings: [
         { sourceId: "basemap", protocol: "pmtiles" as const, locator: { url: "https://cdn.example/base.pmtiles" } },
@@ -198,7 +198,7 @@ describe("runtime / loadMapPackage registers pmtiles before setStyle", () => {
       },
     };
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
     });

@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HonuaClient } from "../src/index.js";
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import type { HonuaWebComponentController } from "../src/web-components/index.js";
 import { createHonuaWebComponentController } from "../src/web-components/index.js";
 import { HonuaMapLibreRenderer } from "../src/web-components/maplibre-renderer.js";
@@ -82,7 +82,7 @@ vi.mock("maplibre-gl", () => {
   return { Map: FakeMap, default: undefined };
 });
 
-function makeMapPackage(): HonuaMapPackage {
+function makeMapPackage(): HonuaMapDocument {
   return {
     mapPackageId: "order-test",
     format: "honua_map_package.v1",
@@ -99,7 +99,7 @@ function makeMapPackage(): HonuaMapPackage {
         { id: "top", type: "background", paint: { "background-color": "#aaa" } },
       ],
     },
-  } as unknown as HonuaMapPackage;
+  } as unknown as HonuaMapDocument;
 }
 
 function makeRenderer(controller: HonuaWebComponentController): HonuaMapLibreRenderer {

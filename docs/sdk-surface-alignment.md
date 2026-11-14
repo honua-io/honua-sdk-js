@@ -23,7 +23,7 @@ Use the `@honua/sdk-js/contract` vocabulary as the current source of truth:
 | `Query` | Protocol-neutral request intent. |
 | `Result` | Protocol-neutral result envelope. |
 | `EditEnvelope` / `EditResult` | Protocol-neutral write envelope and result. |
-| `MapBinding` | Source → renderer-layer binding (used by `MapPackage` round-trips). |
+| `MapBinding` | Source → renderer-layer binding (used by `HonuaMapDocument` round-trips). |
 | `protocol(...)` | Explicit native protocol escape hatch. |
 
 These are the canonical nouns pinned in

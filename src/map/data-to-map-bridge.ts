@@ -1,6 +1,6 @@
 /**
  * Standalone data-to-map bridge: mount any contract `Source` as a live,
- * styled MapLibre layer set — no MapPackage, no Honua server, no
+ * styled MapLibre layer set — no map document, no Honua server, no
  * app-platform import. This is the `connection.mount(target)` slice of the
  * kernel ADR (`docs/decisions/north-star-sdk-application-kernel.md`) scoped
  * to a caller-owned MapLibre host.

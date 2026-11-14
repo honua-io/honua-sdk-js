@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { type HonuaAppLifecycleEvent, createHonuaApp, normalizeHonuaAppOptions } from "../src/app/index.js";
 import { PROTOCOL_DEFAULT_CAPABILITIES, type Protocol, type SourceDescriptor } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, type MaplibreMap } from "../src/runtime/index.js";
 import type { HonuaWebComponentController, HonuaWebComponentState } from "../src/web-components/types.js";
 
 interface MockMap extends MaplibreMap {
@@ -95,10 +95,10 @@ function makeClient(fetchFn: typeof fetch = async () => new Response("not used",
   return new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
 }
 
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "app-test",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [],
     initialView: { center: [-157.86, 21.3], zoom: 11 },
     legend: [{ label: "Incidents", color: "#dc2626" }],

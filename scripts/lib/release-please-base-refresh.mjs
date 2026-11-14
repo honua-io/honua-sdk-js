@@ -2,6 +2,7 @@ import process from "node:process";
 
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
 import { automationExemption } from "./pr-issue-disposition.mjs";
+import { ReleasePleaseRefreshRecoveryRequired } from "./release-please-refresh-recovery.mjs";
 import {
   assertMatchingReleasePleaseSnapshots,
   findCurrentReleasePleasePullRequest,
@@ -113,13 +114,54 @@ async function readCandidate({ repository, trustedPolicySha, headRefName, report
   if (!current) return { current };
   const trustedBranchHead = await branchHead(repository, RELEASE_PLEASE_BASE, request);
   if (trustedBranchHead !== trustedPolicySha) {
-    throw new Error("The trusted trunk branch moved before Release Please base refresh.");
+    throw new ReleasePleaseRefreshRecoveryRequired("The trusted trunk branch moved before Release Please base refresh.");
   }
   return { current, currentBranchHead: await branchHead(repository, headRefName, request) };
 }
 
 function isSettled({ current, currentBranchHead }, trustedPolicySha) {
   return !current || (currentBranchHead === current.headSha && current.baseSha === trustedPolicySha);
+}
+
+async function closeConflictingCandidate(target, expected, request) {
+  const url = `${apiRoot()}/repos/${target.repository}/pulls/${expected.pullRequestNumber}`;
+  const detail = await request(url);
+  if (detail?.mergeable !== false || detail?.number !== expected.pullRequestNumber ||
+      detail?.state !== "open" || detail?.head?.sha !== expected.headSha ||
+      detail?.base?.sha !== expected.baseSha) return false;
+  const { current, currentBranchHead } = await readCandidate(target, request);
+  if (current?.pullRequestNumber !== expected.pullRequestNumber || current?.headSha !== expected.headSha ||
+      current?.baseSha !== expected.baseSha || currentBranchHead !== expected.headSha) {
+    throw new Error("Release Please candidate changed before conflict recovery.");
+  }
+  const closed = await request(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state: "closed" }),
+  });
+  if (closed?.number !== expected.pullRequestNumber || closed?.state !== "closed" ||
+      closed?.head?.sha !== expected.headSha) {
+    throw new Error("GitHub did not confirm closing the exact conflicting Release Please candidate.");
+  }
+  return true;
+}
+
+async function updateCandidateBranch(target, current, request) {
+  try {
+    const response = await request(
+      `${apiRoot()}/repos/${target.repository}/pulls/${current.pullRequestNumber}/update-branch`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_head_sha: current.headSha }),
+      },
+    );
+    validateUpdateResponse(response, target.repository, current.pullRequestNumber);
+    return false;
+  } catch (error) {
+    if (error.status !== 422 || !await closeConflictingCandidate(target, current, request)) throw error;
+    return true;
+  }
 }
 
 /**
@@ -171,15 +213,9 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   if (input.requireCurrent === true) throw new Error("Release Please candidate base moved during normalization.");
 
   await assertRefreshAncestry(repository, current.baseSha, trustedPolicySha, request);
-  const response = await request(
-    `${apiRoot()}/repos/${repository}/pulls/${current.pullRequestNumber}/update-branch`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expected_head_sha: current.headSha }),
-    },
-  );
-  validateUpdateResponse(response, repository, current.pullRequestNumber);
+  if (await updateCandidateBranch(target, current, request)) {
+    return { status: "not-found", repository, trustedPolicySha, closedPullRequestNumber: current.pullRequestNumber };
+  }
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const refreshed = await loadExactReleasePleasePullRequest(repository, request, headRefName);

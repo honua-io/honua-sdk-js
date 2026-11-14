@@ -17,28 +17,28 @@ import type { SourceDescriptor } from "../contract/index.js";
 import { HonuaClient } from "../core/client.js";
 import type { HonuaClientOptions } from "../core/types.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  HonuaMapPackageError,
-  fetchMapPackage,
-  loadMapPackage,
-  watchMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  HonuaMapDocumentError,
+  fetchMapDocument,
+  loadMapDocument,
+  watchMapDocument,
 } from "../runtime/index.js";
 import type {
-  FetchMapPackageOptions,
-  FetchMapPackageResult,
-  HonuaMapPackage,
-  HonuaMapPackageProtocol,
-  HonuaMapPackageSourceBinding,
+  FetchMapDocumentOptions,
+  FetchMapDocumentResult,
+  HonuaMapDocument,
+  HonuaMapDocumentProtocol,
+  HonuaMapDocumentSourceBinding,
   HonuaMapRuntime,
-  LoadMapPackageOptions,
-  MapPackageFetchCache,
-  MapPackageFetchCacheState,
-  MapPackageLocator,
-  MapPackagePathResolver,
-  MapPackageWatchEvent,
-  MapPackageWatchHandle,
+  LoadMapDocumentOptions,
+  MapDocumentFetchCache,
+  MapDocumentFetchCacheState,
+  MapDocumentLocator,
+  MapDocumentPathResolver,
+  MapDocumentWatchEvent,
+  MapDocumentWatchHandle,
   MaplibreMap,
-  WatchMapPackageOptions,
+  WatchMapDocumentOptions,
 } from "../runtime/index.js";
 import type { CreateHonuaWebComponentControllerOptions, HonuaWebComponentController } from "../web-components/types.js";
 
@@ -57,11 +57,11 @@ export type HonuaAppStatus = "idle" | "loading" | "ready" | "degraded" | "error"
 export type HonuaAppLifecycleEvent<T = Record<string, unknown>> =
   | { readonly type: "status"; readonly status: HonuaAppStatus; readonly stage: HonuaAppLifecycleStage }
   | { readonly type: "client-ready"; readonly client: HonuaClient }
-  | { readonly type: "package-loading"; readonly locator: MapPackageLocator }
+  | { readonly type: "package-loading"; readonly locator: MapDocumentLocator }
   | {
       readonly type: "package-ready";
-      readonly mapPackage: HonuaMapPackage;
-      readonly fetch?: FetchMapPackageResult;
+      readonly mapPackage: HonuaMapDocument;
+      readonly fetch?: FetchMapDocumentResult;
     }
   | { readonly type: "runtime-ready"; readonly runtime: HonuaMapRuntime; readonly map: MaplibreMap }
   | {
@@ -82,7 +82,7 @@ export type HonuaAppLifecycleEvent<T = Record<string, unknown>> =
       readonly error: unknown;
       readonly message: string;
     }
-  | { readonly type: "watch"; readonly event: MapPackageWatchEvent }
+  | { readonly type: "watch"; readonly event: MapDocumentWatchEvent }
   | { readonly type: "disposed" };
 
 export type HonuaAppLifecycleListener<T = Record<string, unknown>> = (event: HonuaAppLifecycleEvent<T>) => void;
@@ -101,19 +101,19 @@ export interface HonuaAppSourceInput {
         readonly metadata?: Record<string, unknown>;
       }
     | false;
-  readonly initialView?: HonuaMapPackage["initialView"];
+  readonly initialView?: HonuaMapDocument["initialView"];
 }
 
 export interface HonuaAppMapFactoryContext {
   readonly container?: HTMLElement;
-  readonly mapPackage: HonuaMapPackage;
+  readonly mapPackage: HonuaMapDocument;
 }
 
 export type HonuaAppMapFactory = (context: HonuaAppMapFactoryContext) => MaplibreMap | Promise<MaplibreMap>;
 
 export interface HonuaAppWebComponentControllerFactoryContext<T = Record<string, unknown>> {
   readonly runtime?: HonuaMapRuntime;
-  readonly mapPackage: HonuaMapPackage;
+  readonly mapPackage: HonuaMapDocument;
   readonly options: Omit<CreateHonuaWebComponentControllerOptions<T>, "mapPackage">;
   readonly status: "ready" | "error";
 }
@@ -123,19 +123,19 @@ export type HonuaAppWebComponentControllerFactory<T = Record<string, unknown>> =
 ) => HonuaWebComponentController<T> | Promise<HonuaWebComponentController<T>>;
 
 export interface HonuaAppWatchOptions
-  extends Omit<WatchMapPackageOptions, "client" | "runtime" | "initialPackage" | "onEvent" | "onError" | "onUpdate"> {
-  readonly onEvent?: (event: MapPackageWatchEvent) => void | Promise<void>;
+  extends Omit<WatchMapDocumentOptions, "client" | "runtime" | "initialPackage" | "onEvent" | "onError" | "onUpdate"> {
+  readonly onEvent?: (event: MapDocumentWatchEvent) => void | Promise<void>;
 }
 
 export interface CreateHonuaAppOptions<T = Record<string, unknown>> {
   readonly client?: HonuaClient;
   readonly clientOptions?: HonuaClientOptions;
   readonly baseUrl?: string;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly packageId?: string;
   readonly packageUrl?: string;
   readonly src?: string;
-  readonly locator?: MapPackageLocator;
+  readonly locator?: MapDocumentLocator;
   readonly source?: HonuaAppSourceInput;
   readonly map?: MaplibreMap;
   readonly mapFactory?: HonuaAppMapFactory;
@@ -145,8 +145,8 @@ export interface CreateHonuaAppOptions<T = Record<string, unknown>> {
   readonly controller?: HonuaController;
   readonly webComponentController?: HonuaWebComponentController<T>;
   readonly webComponentControllerFactory?: HonuaAppWebComponentControllerFactory<T>;
-  readonly fetch?: Omit<FetchMapPackageOptions, "client">;
-  readonly load?: Omit<LoadMapPackageOptions, "client" | "onEvent">;
+  readonly fetch?: Omit<FetchMapDocumentOptions, "client">;
+  readonly load?: Omit<LoadMapDocumentOptions, "client" | "onEvent">;
   readonly controllerOptions?: Omit<HonuaControllerOptions, "runtime">;
   readonly webComponents?: Omit<CreateHonuaWebComponentControllerOptions<T>, "mapPackage">;
   readonly watch?: boolean | HonuaAppWatchOptions;
@@ -156,8 +156,8 @@ export interface CreateHonuaAppOptions<T = Record<string, unknown>> {
 export interface NormalizedHonuaAppOptions<T = Record<string, unknown>> {
   readonly client: HonuaClient;
   readonly packageSource:
-    | { readonly kind: "inline"; readonly mapPackage: HonuaMapPackage }
-    | { readonly kind: "locator"; readonly locator: MapPackageLocator }
+    | { readonly kind: "inline"; readonly mapPackage: HonuaMapDocument }
+    | { readonly kind: "locator"; readonly locator: MapDocumentLocator }
     | { readonly kind: "source"; readonly source: HonuaAppSourceInput }
     | { readonly kind: "runtime" };
   readonly map?: MaplibreMap;
@@ -167,8 +167,8 @@ export interface NormalizedHonuaAppOptions<T = Record<string, unknown>> {
   readonly controller?: HonuaController;
   readonly webComponentController?: HonuaWebComponentController<T>;
   readonly webComponentControllerFactory: HonuaAppWebComponentControllerFactory<T>;
-  readonly fetch: Omit<FetchMapPackageOptions, "client">;
-  readonly load: Omit<LoadMapPackageOptions, "client" | "onEvent">;
+  readonly fetch: Omit<FetchMapDocumentOptions, "client">;
+  readonly load: Omit<LoadMapDocumentOptions, "client" | "onEvent">;
   readonly controllerOptions: Omit<HonuaControllerOptions, "runtime">;
   readonly webComponents: Omit<CreateHonuaWebComponentControllerOptions<T>, "mapPackage">;
   readonly watch: false | HonuaAppWatchOptions;
@@ -176,9 +176,9 @@ export interface NormalizedHonuaAppOptions<T = Record<string, unknown>> {
 
 export interface HonuaAppHandle<T = Record<string, unknown>> {
   readonly client: HonuaClient;
-  readonly mapPackage?: HonuaMapPackage;
-  readonly fetch?: FetchMapPackageResult;
-  readonly cache?: MapPackageFetchCacheState;
+  readonly mapPackage?: HonuaMapDocument;
+  readonly fetch?: FetchMapDocumentResult;
+  readonly cache?: MapDocumentFetchCacheState;
   readonly runtime?: HonuaMapRuntime;
   readonly controller: HonuaController;
   readonly webComponentController: HonuaWebComponentController<T>;
@@ -187,7 +187,7 @@ export interface HonuaAppHandle<T = Record<string, unknown>> {
   readonly status: HonuaAppStatus;
   readonly degraded: boolean;
   readonly errors: readonly HonuaAppLifecycleEvent<T>[];
-  readonly watcher?: MapPackageWatchHandle;
+  readonly watcher?: MapDocumentWatchHandle;
   on(listener: HonuaAppLifecycleListener<T>): { remove(): void };
   dispose(): void;
 }
@@ -201,7 +201,7 @@ export async function createHonuaApp<T = Record<string, unknown>>(
   let status: HonuaAppStatus = "idle";
   let disposed = false;
   let degraded = false;
-  let watcher: MapPackageWatchHandle | undefined;
+  let watcher: MapDocumentWatchHandle | undefined;
   let ownedRuntime: HonuaMapRuntime | undefined;
   let ownedController: HonuaController | undefined;
   let ownedWebComponentController: HonuaWebComponentController<T> | undefined;
@@ -234,7 +234,7 @@ export async function createHonuaApp<T = Record<string, unknown>>(
     let runtime = normalized.runtime;
     if (!runtime && map) {
       emit({ type: "status", status: "loading", stage: "render" });
-      runtime = await loadMapPackage(mapPackage, map, {
+      runtime = await loadMapDocument(mapPackage, map, {
         ...normalized.load,
         client: normalized.client,
         onEvent: (event) => {
@@ -274,7 +274,7 @@ export async function createHonuaApp<T = Record<string, unknown>>(
 
     const activeWatch = normalized.watch;
     if (activeWatch !== false && runtime && packageResult.locator) {
-      watcher = watchMapPackage(packageResult.locator, {
+      watcher = watchMapDocument(packageResult.locator, {
         ...activeWatch,
         client: normalized.client,
         runtime,
@@ -286,7 +286,7 @@ export async function createHonuaApp<T = Record<string, unknown>>(
             emit({
               type: "degraded",
               stage: "watch",
-              reason: "MapPackage watch reported an error.",
+              reason: "Map document watch reported an error.",
               error: event.error,
             });
           }
@@ -378,9 +378,9 @@ function normalizeClientOptions<T>(options: CreateHonuaAppOptions<T>): HonuaClie
 }
 
 interface PackageResolution {
-  readonly mapPackage: HonuaMapPackage;
-  readonly fetch?: FetchMapPackageResult;
-  readonly locator?: MapPackageLocator;
+  readonly mapPackage: HonuaMapDocument;
+  readonly fetch?: FetchMapDocumentResult;
+  readonly locator?: MapDocumentLocator;
 }
 
 async function resolvePackage<T>(
@@ -390,7 +390,7 @@ async function resolvePackage<T>(
   switch (options.packageSource.kind) {
     case "runtime": {
       if (!options.runtime) {
-        throw new HonuaMapPackageError("runtime package source requires a runtime handle", { stage: "load" });
+        throw new HonuaMapDocumentError("runtime package source requires a runtime handle", { stage: "load" });
       }
       const mapPackage = options.runtime.mapPackage;
       emit({ type: "package-ready", mapPackage });
@@ -406,7 +406,7 @@ async function resolvePackage<T>(
     }
     case "locator": {
       emit({ type: "package-loading", locator: options.packageSource.locator });
-      const fetch = await fetchMapPackage(options.packageSource.locator, {
+      const fetch = await fetchMapDocument(options.packageSource.locator, {
         ...options.fetch,
         client: options.client,
       });
@@ -422,7 +422,7 @@ function normalizePackageSource<T>(options: CreateHonuaAppOptions<T>): Normalize
   if (options.source) return { kind: "source", source: options.source };
   const locator = options.locator ?? options.packageUrl ?? options.src ?? options.packageId;
   if (locator) return { kind: "locator", locator };
-  throw new HonuaMapPackageError(
+  throw new HonuaMapDocumentError(
     "createHonuaApp requires mapPackage, packageId, packageUrl, locator, source, or runtime",
     {
       stage: "load",
@@ -437,7 +437,7 @@ function normalizeWatchOptions(watch: CreateHonuaAppOptions["watch"]): false | H
 }
 
 function disposeBootstrapResources<T>(resources: {
-  readonly watcher?: MapPackageWatchHandle;
+  readonly watcher?: MapDocumentWatchHandle;
   readonly webComponentController?: HonuaWebComponentController<T>;
   readonly controller?: HonuaController;
   readonly runtime?: HonuaMapRuntime;
@@ -482,12 +482,12 @@ type HonuaAppSourceLayer = Exclude<HonuaAppSourceInput["layer"], false | undefin
   readonly type: NonNullable<Exclude<HonuaAppSourceInput["layer"], false | undefined>["type"]>;
 };
 
-function mapPackageFromSource(source: HonuaAppSourceInput): HonuaMapPackage {
+function mapPackageFromSource(source: HonuaAppSourceInput): HonuaMapDocument {
   const layer = normalizeSourceLayer(source);
   const layerId = layer?.id ?? `${source.id}-layer`;
   return {
     mapPackageId: source.id,
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [sourceBindingFromDescriptor(source.descriptor)],
     ...(source.initialView ? { initialView: source.initialView } : {}),
     legend: [{ label: source.title ?? source.id }],
@@ -516,7 +516,7 @@ function normalizeSourceLayer(source: HonuaAppSourceInput): HonuaAppSourceLayer 
   const layer = source.layer ?? {};
   const type = layer.type ?? defaultLayerTypeForProtocol(source.descriptor.protocol);
   if (!type) {
-    throw new HonuaMapPackageError(
+    throw new HonuaMapDocumentError(
       `createHonuaApp source "${source.id}" (${source.descriptor.protocol}) requires source.layer.type`,
       {
         stage: "source-bind",
@@ -525,7 +525,7 @@ function normalizeSourceLayer(source: HonuaAppSourceInput): HonuaAppSourceLayer 
     );
   }
   if (requiresSourceLayer(source.descriptor.protocol) && !layer.sourceLayer) {
-    throw new HonuaMapPackageError(
+    throw new HonuaMapDocumentError(
       `createHonuaApp source "${source.id}" (${source.descriptor.protocol}) requires source.layer.sourceLayer`,
       {
         stage: "source-bind",
@@ -570,7 +570,7 @@ function requiresSourceLayer(protocol: SourceDescriptor["protocol"]): boolean {
   return protocol === "maplibre-vector" || protocol === "ogc-tiles";
 }
 
-function sourceBindingFromDescriptor(descriptor: SourceDescriptor): HonuaMapPackageSourceBinding {
+function sourceBindingFromDescriptor(descriptor: SourceDescriptor): HonuaMapDocumentSourceBinding {
   return {
     sourceId: descriptor.id,
     protocol: mapDescriptorProtocol(descriptor.protocol),
@@ -579,7 +579,7 @@ function sourceBindingFromDescriptor(descriptor: SourceDescriptor): HonuaMapPack
   };
 }
 
-function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMapPackageProtocol {
+function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMapDocumentProtocol {
   switch (protocol) {
     case "geoservices-feature-service":
       return "geoservices_feature_service";
@@ -611,14 +611,14 @@ function mapDescriptorProtocol(protocol: SourceDescriptor["protocol"]): HonuaMap
     case "maplibre-geojson":
     case "ogc-coverages":
     case "wcs":
-      throw new HonuaMapPackageError(`SourceDescriptor protocol "${protocol}" cannot be projected to a MapPackage`, {
+      throw new HonuaMapDocumentError(`SourceDescriptor protocol "${protocol}" cannot be projected to a map document`, {
         stage: "source-bind",
       });
   }
 }
 
 function stageFromError(error: unknown): HonuaAppLifecycleStage {
-  if (error instanceof HonuaMapPackageError) {
+  if (error instanceof HonuaMapDocumentError) {
     if (error.stage === "fetch") return "fetch";
     if (error.stage === "validate") return "validate";
     if (error.stage === "source-bind") return "source-bind";
@@ -649,10 +649,10 @@ function messageFromError(error: unknown): string {
 
 export type {
   HonuaClientOptions,
-  MapPackageFetchCache,
-  MapPackageLocator,
-  MapPackagePathResolver,
-  MapPackageWatchEvent,
-  MapPackageWatchHandle,
+  MapDocumentFetchCache,
+  MapDocumentLocator,
+  MapDocumentPathResolver,
+  MapDocumentWatchEvent,
+  MapDocumentWatchHandle,
   MaplibreMap,
 };
