@@ -9,8 +9,32 @@ import type {
   LogicalType,
   SourceGeometrySchema,
 } from "./contract/schema.js";
-import { type AttributeValue, FieldType, GeometryType } from "./gen/geospatial/v1/common_pb.js";
+import type {
+  AttributeValue,
+  FieldType as ProtoFieldType,
+  GeometryType as ProtoGeometryType,
+} from "./gen/geospatial/v1/common_pb.js";
 import type { FieldDomain, LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
+
+// Frozen wire enum values, checked against the generated enum member types. Keeping
+// these constants local lets REST-only bundles project schemas without protobuf peers.
+const FieldType = {
+  UNSPECIFIED: 0,
+  STRING: 1,
+  INTEGER: 2,
+  BIG_INTEGER: 3,
+  DOUBLE: 4,
+  FLOAT: 5,
+  BOOLEAN: 6,
+  DATE_TIME: 7,
+  DATE: 8,
+  TIME: 9,
+  GEOMETRY: 10,
+  JSON: 11,
+  BINARY: 12,
+  UUID: 13,
+} as const satisfies { [K in keyof typeof ProtoFieldType]: (typeof ProtoFieldType)[K] };
+const GeometryType = { NONE: 8 } as const satisfies Pick<typeof ProtoGeometryType, "NONE">;
 
 export function grpcSourceSchemaV2(layer: LayerDescriptor, context: { source: string; observedAt?: string }) {
   const fields = layer.fields.map((field) => projectField(field, layer));
@@ -97,7 +121,7 @@ function logicalType(type: number, length: number): LogicalType {
   }
 }
 
-function attributeJson(attribute: AttributeValue, fieldType: FieldType): JsonValue {
+function attributeJson(attribute: AttributeValue, fieldType: ProtoFieldType): JsonValue {
   const value = attribute.value;
   switch (value.case) {
     case "int64Value":
@@ -122,7 +146,7 @@ function attributeJson(attribute: AttributeValue, fieldType: FieldType): JsonVal
   }
 }
 
-function domain(value: FieldDomain | undefined, fieldType: FieldType): FieldValueDomain {
+function domain(value: FieldDomain | undefined, fieldType: ProtoFieldType): FieldValueDomain {
   if (!value) return { state: "none", reason: "unconstrained" };
   const constraint = value.constraint;
   if (constraint.case === "codedValues") {
