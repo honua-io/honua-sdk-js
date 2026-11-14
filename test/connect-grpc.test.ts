@@ -21,7 +21,12 @@ function fixture() {
   );
   const layer = vi.spyOn(client, "describeLayer").mockResolvedValue(
     create(DescribeLayerResponseSchema, {
-      layer: { serviceId: "parcels", layerId: 0, name: "Parcels", capabilities: { query: true, queryPagination: true, queryStream: true } },
+      layer: {
+        serviceId: "parcels",
+        layerId: 0,
+        name: "Parcels",
+        capabilities: { query: true, queryPagination: true, queryStream: true },
+      },
     }),
   );
   return { client, service, layer, fetchFn };
@@ -128,12 +133,15 @@ it.each(["duplicate", "loop", "mismatch", "empty"])("rejects malformed %s pagina
 });
 it("withholds queryAll when the descriptor does not affirm pagination", async () => {
   const f = fixture();
-  f.layer.mockResolvedValue(create(DescribeLayerResponseSchema, {
-    layer: { serviceId: "parcels", name: "Parcels", capabilities: { query: true } },
-  }));
+  f.layer.mockResolvedValue(
+    create(DescribeLayerResponseSchema, {
+      layer: { serviceId: "parcels", name: "Parcels", capabilities: { query: true } },
+    }),
+  );
   const result = await discoverGrpcSources(f.client, target, {});
   expect(result.sources[0]!.evidence?.[0]).toMatchObject({
-    kind: "metadata", capabilities: ["queryExtent", "queryObjectIds"],
+    kind: "metadata",
+    capabilities: ["queryExtent", "queryObjectIds"],
   });
 });
 it("does not infer write capabilities from missing or false metadata", async () => {

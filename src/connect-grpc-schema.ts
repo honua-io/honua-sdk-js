@@ -57,8 +57,8 @@ function projectField(field: LayerDescriptor["fields"][number], layer: LayerDesc
     nullability: definition.nullable ? "nullable" : "non-nullable",
     mutability: field.editable === undefined ? "unknown" : field.editable ? "read-write" : "read-only",
     roles,
-    ...(field.defaultValue ? { defaultValue: attributeJson(field.defaultValue) } : {}),
-    domain: domain(field.domain),
+    ...(field.defaultValue ? { defaultValue: attributeJson(field.defaultValue, definition.fieldType) } : {}),
+    domain: domain(field.domain, definition.fieldType),
     constraints: { state: "unknown", reason: "not-reported" },
     native: [{ protocol: "grpc", name: String(definition.fieldType), namespace: "geospatial.v1.FieldType" }],
   };
@@ -97,12 +97,17 @@ function logicalType(type: number, length: number): LogicalType {
   }
 }
 
-function attributeJson(attribute: AttributeValue): JsonValue {
+function attributeJson(attribute: AttributeValue, fieldType: FieldType): JsonValue {
   const value = attribute.value;
   switch (value.case) {
     case "int64Value":
+      return fieldType === FieldType.INTEGER || fieldType === FieldType.DOUBLE || fieldType === FieldType.FLOAT
+        ? Number(value.value)
+        : value.value.toString();
+    case "int32Value":
+      return fieldType === FieldType.BIG_INTEGER ? value.value.toString() : value.value;
     case "datetimeValue":
-      return value.value.toString();
+      return new Date(Number(value.value)).toISOString();
     case "nullValue":
       return null;
     case "bytesValue": {
@@ -117,13 +122,13 @@ function attributeJson(attribute: AttributeValue): JsonValue {
   }
 }
 
-function domain(value: FieldDomain | undefined): FieldValueDomain {
+function domain(value: FieldDomain | undefined, fieldType: FieldType): FieldValueDomain {
   if (!value) return { state: "none", reason: "unconstrained" };
   const constraint = value.constraint;
   if (constraint.case === "codedValues") {
     const values = constraint.value.values.map((entry) => {
       if (!entry.code) throw new Error("Descriptor coded domain has no code.");
-      const code = attributeJson(entry.code);
+      const code = attributeJson(entry.code, fieldType);
       if (code === null || typeof code === "object") throw new Error("Descriptor coded domain has an invalid code.");
       return { value: code, label: entry.name, ...(entry.description ? { description: entry.description } : {}) };
     });
@@ -131,8 +136,8 @@ function domain(value: FieldDomain | undefined): FieldValueDomain {
     return { state: "coded", openness: "closed", values: [values[0]!, ...values.slice(1)] };
   }
   if (constraint.case === "range") {
-    const minimum = constraint.value.minimum ? attributeJson(constraint.value.minimum) : undefined;
-    const maximum = constraint.value.maximum ? attributeJson(constraint.value.maximum) : undefined;
+    const minimum = constraint.value.minimum ? attributeJson(constraint.value.minimum, fieldType) : undefined;
+    const maximum = constraint.value.maximum ? attributeJson(constraint.value.maximum, fieldType) : undefined;
     if (
       (typeof minimum === "number" || typeof minimum === "string") &&
       (typeof maximum === "number" || typeof maximum === "string")

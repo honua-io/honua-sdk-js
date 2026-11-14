@@ -4,6 +4,85 @@ import { grpcSourceSchemaV2 } from "../src/connect-grpc-schema.js";
 import { LayerDescriptorSchema } from "../src/gen/geospatial/v1/metadata_types_pb.js";
 
 const context = { source: "https://example.test/geospatial.v1.FeatureService/DescribeLayer#parcels/0" };
+it("projects epoch timestamp defaults and range bounds into UTC timestamps", () => {
+  const schema = grpcSourceSchemaV2(
+    create(LayerDescriptorSchema, {
+      fields: [
+        {
+          definition: { name: "created", fieldType: 7 },
+          defaultValue: { value: { case: "datetimeValue", value: 0n } },
+          domain: {
+            constraint: {
+              case: "range",
+              value: {
+                minimum: { value: { case: "datetimeValue", value: 0n } },
+                maximum: { value: { case: "datetimeValue", value: 86400000n } },
+              },
+            },
+          },
+        },
+      ],
+    }),
+    context,
+  );
+  expect(schema.fields[0]).toMatchObject({
+    defaultValue: "1970-01-01T00:00:00.000Z",
+    domain: {
+      state: "range",
+      minimum: { value: "1970-01-01T00:00:00.000Z" },
+      maximum: { value: "1970-01-02T00:00:00.000Z" },
+    },
+  });
+});
+it("normalizes small int32 wire values on int64 fields to decimal strings", () => {
+  const schema = grpcSourceSchemaV2(
+    create(LayerDescriptorSchema, {
+      fields: [
+        {
+          definition: { name: "count", fieldType: 3 },
+          defaultValue: { value: { case: "int32Value", value: 0 } },
+          domain: {
+            constraint: {
+              case: "codedValues",
+              value: { values: [{ name: "Zero", code: { value: { case: "int32Value", value: 0 } } }] },
+            },
+          },
+        },
+      ],
+    }),
+    context,
+  );
+  expect(schema.fields[0]).toMatchObject({
+    defaultValue: "0",
+    domain: { state: "coded", values: [{ value: "0", label: "Zero" }] },
+  });
+});
+it("normalizes int64 wire values on floating fields to numeric defaults and bounds", () => {
+  const schema = grpcSourceSchemaV2(
+    create(LayerDescriptorSchema, {
+      fields: [
+        {
+          definition: { name: "area", fieldType: 4 },
+          defaultValue: { value: { case: "int64Value", value: 2147483648n } },
+          domain: {
+            constraint: {
+              case: "range",
+              value: {
+                minimum: { value: { case: "int32Value", value: 0 } },
+                maximum: { value: { case: "int64Value", value: 4294967296n } },
+              },
+            },
+          },
+        },
+      ],
+    }),
+    context,
+  );
+  expect(schema.fields[0]).toMatchObject({
+    defaultValue: 2147483648,
+    domain: { state: "range", minimum: { value: 0 }, maximum: { value: 4294967296 } },
+  });
+});
 it("preserves int64 defaults and domains without narrowing to JavaScript numbers", () => {
   const descriptor = create(LayerDescriptorSchema, {
     objectIdField: "id",

@@ -45,8 +45,8 @@ A caller capability descriptor determines query, streaming and editing access.
 Missing capability metadata remains unknown; false flags grant no capability.
 The vendor-neutral source schema contains typed fields, nullability, editability,
 defaults, coded or range domains, key and temporal roles, and geometry dimensions.
-64-bit integers and timestamps retain their exact values as strings in the JSON
-schema. Explicit null defaults remain distinct from absent defaults. Axis and
+64-bit integers use exact decimal strings in the JSON schema. Timestamp defaults
+and domain bounds use UTC ISO strings; numeric defaults follow the declared field type. Explicit null defaults remain distinct from absent defaults. Axis and
 coordinate order remain unknown unless the contract supplies them.
 
 Use the typed native handle for complete metadata: subtypes, templates,

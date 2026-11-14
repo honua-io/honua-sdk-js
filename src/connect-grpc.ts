@@ -70,16 +70,8 @@ async function discoverIds(client: HonuaClient, serviceId: string, signal?: Abor
 function withLayerIds(current: ReadonlySet<number>, layers: LayerSummary[]): Set<number> {
   const ids = new Set(current);
   for (const layer of layers) {
-    if (
-      !Number.isInteger(layer.layerId) ||
-      layer.layerId < 0 ||
-      layer.layerId > 2147483647 ||
-      ids.has(layer.layerId)
-    ) {
-      throw new HonuaDiscoveryError(
-        "protocol-mismatch",
-        "DescribeService returned an invalid or duplicate layer id.",
-      );
+    if (!Number.isInteger(layer.layerId) || layer.layerId < 0 || layer.layerId > 2147483647 || ids.has(layer.layerId)) {
+      throw new HonuaDiscoveryError("protocol-mismatch", "DescribeService returned an invalid or duplicate layer id.");
     }
     ids.add(layer.layerId);
   }
