@@ -30,7 +30,7 @@ function graphqlSnapshot(current) {
 }
 
 function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", status: "modified" }], releases = [draft], tagged = false,
-  rest = restSnapshot(current, files), releaseError } = {}) {
+  rest = restSnapshot(current, files), releaseError, runs = [] } = {}) {
   const calls = [];
   const request = async (url, options = {}) => {
     const endpoint = new URL(url);
@@ -42,6 +42,7 @@ function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", sta
       }
       return graphqlSnapshot(current);
     }
+    if (endpoint.pathname.endsWith("/release-please.yml/runs")) return { workflow_runs: runs };
     if (endpoint.pathname.endsWith("/releases")) { if (releaseError) throw releaseError; return releases; }
     if (endpoint.pathname.includes("/git/ref/tags/")) return tagged ? { object: { sha: "a".repeat(40) } } : missingTag();
     if (endpoint.pathname.endsWith("/files")) return files;
@@ -57,7 +58,7 @@ it("holds source changes, reports draft tag and age, then clears after publicati
   const active = fakeGitHub();
   const held = await evaluateReleaseWindow(input, { now }, active.request);
   assert.equal(held.allowed, false);
-  assert.match(held.summary, /js-sdk-v0.4.0 \(draft age 60 minutes\)/);
+  assert.match(held.summary, /js-sdk-v0.4.0 \(window age 60 minutes\)/);
   for (const options of [{ releases: [] }, { releases: [{ ...draft, draft: false }] }, { tagged: true }]) {
     assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub(options).request)).allowed, true);
   }
@@ -171,4 +172,18 @@ it("publishes combined checks only from trusted trunk code with draft visibility
   assert.match(workflow, /node scripts\/check-release-window\.mjs --refresh/);
   assert.match(workflow, /types: \[published, deleted\]/);
   assert.match(workflow, /cron: '\*\/10 \* \* \* \*'/);
+});
+
+it("holds old source checks before draft creation while allowing regeneration during the release run", async () => {
+  const runs = [{ id: 42, head_branch: "trunk", event: "push", created_at: draft.created_at }];
+  const active = fakeGitHub({ releases: [], runs });
+  const result = await evaluateReleaseWindow(input, { now }, active.request);
+  assert.equal(result.allowed, false);
+  assert.match(result.summary, /Release Please run 42/);
+  const files = [{ filename: "api-report/client.md", status: "modified" }];
+  assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ releases: [], runs, files }).request)).allowed, true);
+  assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ releases: [] }).request)).allowed, true);
+  const workflow = fs.readFileSync(new URL("../../.github/workflows/release-please.yml", import.meta.url), "utf8");
+  assert.ok(workflow.indexOf("node scripts/check-release-window.mjs --refresh --allow-held") <
+    workflow.indexOf("- uses: googleapis/release-please-action@"));
 });

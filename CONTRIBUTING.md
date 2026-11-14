@@ -336,3 +336,5 @@ tag creation without requiring a new commit. The manual dispatch accepts an
 optional PR number; leave it blank to refresh all open trunk PRs. The trusted
 refresh job checks out only trunk. Its contents permission makes drafts visible;
 it only writes checks and never merges, approves, or edits a PR.
+
+Release Please refreshes the hold before cutting a draft. Active trunk release runs also hold source PRs so concurrent refreshes cannot reopen the window before draft creation; generated-only PRs stay eligible.

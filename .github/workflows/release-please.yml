@@ -52,6 +52,8 @@ jobs:
       cancel-in-progress: false
     permissions:
       actions: write
+      checks: write
+      issues: read
       contents: write
       pull-requests: write
     outputs:
@@ -77,15 +79,13 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
-      - name: Checkout recovery policy
-        if: inputs.recover_sealed_source != ''
+      - name: Checkout release policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup recovery policy runtime
-        if: inputs.recover_sealed_source != ''
+      - name: Setup release policy runtime
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "22.23.3"
@@ -184,6 +184,14 @@ jobs:
       # request from far too much history. Recovery must touch nothing but the
       # finish path, so the iterator is skipped outright rather than serialized
       # against.
+      # Invalidate old green source checks before creating an untagged draft.
+      # Concurrent PR refreshes also see this active run and retain the hold.
+      - name: Hold source PRs before cutting a draft
+        if: ${{ !inputs.retry_release_pr_refresh }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-release-window.mjs --refresh --allow-held
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         if: >-

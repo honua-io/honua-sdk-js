@@ -37,13 +37,20 @@ export async function loadReleaseWindows(repository, request = githubRequest) {
       windows.push(release);
     }
   }
+  const runs = await request(`${root}/actions/workflows/release-please.yml/runs?status=in_progress&per_page=100`);
+  if (!Array.isArray(runs.workflow_runs)) throw new Error("GitHub returned malformed Release Please runs.");
+  for (const run of runs.workflow_runs) {
+    if (run.head_branch !== "trunk" || run.event === "workflow_run") continue;
+    if (!Number.isFinite(Date.parse(run.created_at))) throw new Error("Release Please run has no valid creation time.");
+    windows.push({ tag_name: `Release Please run ${run.id}`, created_at: run.created_at });
+  }
   return windows;
 }
 
 function describeWindows(windows, now) {
   return windows.map((release) => {
     const minutes = Math.max(0, Math.floor((now - Date.parse(release.created_at)) / 60000));
-    return `${release.tag_name} (draft age ${minutes} minutes)`;
+    return `${release.tag_name} (window age ${minutes} minutes)`;
   }).join(", ");
 }
 
@@ -66,7 +73,7 @@ async function generatedOnly(input, request) {
 
 export async function evaluateReleaseWindow(input, options = {}, request = githubRequest) {
   const windows = options.windows ?? await loadReleaseWindows(input.repository, request);
-  if (windows.length === 0) return { allowed: true, summary: "Release window open: no untagged SDK draft release." };
+  if (windows.length === 0) return { allowed: true, summary: "Release window open: no untagged SDK draft or active release run." };
   if (automationExemption(input) === "Release Please automation") {
     return { allowed: true, summary: "Release window exception: authenticated Release Please automation." };
   }

@@ -22,7 +22,7 @@ async function main() {
   const summary = results.map((result) => `${result.number ? `#${result.number}: ` : ""}${result.summary}`).join("\n\n");
   process.stdout.write(`${summary}\n`);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
-  if (results.some((result) => !result.allowed)) process.exitCode = 1;
+  if (!process.argv.includes("--allow-held") && results.some((result) => !result.allowed)) process.exitCode = 1;
 }
 
 try { await main(); } catch (error) {

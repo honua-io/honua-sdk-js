@@ -25,6 +25,7 @@ permissions:
   issues: read
   pull-requests: read
   checks: write
+  actions: read
 
 concurrency:
   group: refresh-release-window-${{ github.event.pull_request.number || 'all' }}
