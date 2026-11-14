@@ -480,9 +480,9 @@ describe("connectWithSourceCapabilities", () => {
     });
     expect(capability(source, "applyEdits")).toMatchObject({
       claimed: "supported",
-      observed: "unsupported",
-      effective: "unsupported",
-      reasons: ["unsupported-by-observation"],
+      observed: "supported",
+      effective: "supported",
+      reasons: ["supported-by-claim-and-observation"],
     });
     expect(capability(source, "stream")).toMatchObject({
       claimed: "supported",
