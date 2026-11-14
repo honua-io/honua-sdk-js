@@ -19,12 +19,12 @@ import {
   honuaCommandAuditKey,
   importCreateCommand,
   isHonuaCommandId,
-  mapPackagePublishCommand,
+  mapDocumentPublishCommand,
   serializeHonuaCommandReceipt,
   studioDraftSaveVersionCommand,
 } from "../src/control-plane/index.js";
 import { HonuaClient } from "../src/index.js";
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import { HonuaStudioLifecycleClient, createHonuaStudioCommandAdapter } from "../src/studio/index.js";
 
 afterEach(() => {
@@ -39,7 +39,7 @@ interface CapturedRequest {
   readonly body: unknown;
 }
 
-const MAP_PACKAGE = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+const MAP_PACKAGE = { id: "pkg-ops", version: "1.0.0", layers: [] } as unknown as HonuaMapDocument;
 
 const PUBLICATION_INTENT = { route: "/maps/operations", visibility: "team" } as const;
 
@@ -157,7 +157,7 @@ describe("command receipts", () => {
   it("threads Idempotency-Key and If-Match onto the request and echoes identity onto the receipt", async () => {
     const { requests, fetchFn } = recorder();
     const receipt = await runtimeFor(fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE },
       { transport: "sdk", identity: { actor: "user-1", tenantId: "acme", scopes: ["maps:write"] }, ifMatch: 'W/"6"' },
     );
@@ -184,18 +184,18 @@ describe("command receipts", () => {
 
   it("derives a stable idempotency key and audit key from the command, input, and tenant", async () => {
     const first = await runtimeFor(recorder().fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: MAP_PACKAGE },
       { transport: "sdk", identity: { tenantId: "acme" } },
     );
     const second = await runtimeFor(recorder().fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       // Same logical input, different key order.
       { package: MAP_PACKAGE, mapId: "map-ops" },
       { transport: "sdk", identity: { tenantId: "acme" } },
     );
     const otherTenant = await runtimeFor(recorder().fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: MAP_PACKAGE },
       { transport: "sdk", identity: { tenantId: "globex" } },
     );
@@ -210,7 +210,7 @@ describe("command receipts", () => {
   it("previews an action without contacting the server on dry run", async () => {
     const { requests, fetchFn } = recorder();
     const receipt = await runtimeFor(fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: MAP_PACKAGE },
       { transport: "mcp", dryRun: true },
     );
@@ -219,7 +219,7 @@ describe("command receipts", () => {
     expect(receipt.plan).toEqual({
       method: "POST",
       path: "/packages",
-      summary: "Publish a package version for map map-ops",
+      summary: "Publish a map document version for map map-ops",
       resourceRef: { type: "map-package" },
     });
     expect(receipt.output).toBeUndefined();
@@ -230,7 +230,7 @@ describe("command receipts", () => {
     async (transport) => {
       const { requests, fetchFn } = recorder();
       const receipt = await runtimeFor(fetchFn).execute(
-        mapPackagePublishCommand,
+        mapDocumentPublishCommand,
         { mapId: "map-ops", package: MAP_PACKAGE },
         { transport, correlationId: "  release.2026:abc_123-xyz  ", headers: new Headers({ "X-Client-Version": "1" }) },
       );
@@ -247,7 +247,7 @@ describe("command receipts", () => {
       for (const dryRun of [false, true]) {
         await expect(
           runtimeFor(fetchFn).execute(
-            mapPackagePublishCommand,
+            mapDocumentPublishCommand,
             { mapId: "map-ops", package: MAP_PACKAGE },
             { transport: "sdk", correlationId, dryRun },
           ),
@@ -335,14 +335,14 @@ describe("command error taxonomy", () => {
       return { body: PUBLISH_RESPONSE };
     });
     const error = await runtimeFor(fetchFn)
-      .execute(mapPackagePublishCommand, { package: MAP_PACKAGE }, { transport: "sdk", signal: controller.signal })
+      .execute(mapDocumentPublishCommand, { package: MAP_PACKAGE }, { transport: "sdk", signal: controller.signal })
       .catch((thrown: unknown) => thrown);
     expect(error).toBeInstanceOf(HonuaCommandError);
     expect((error as HonuaCommandError).kind).toBe("cancelled");
 
     const preAborted = AbortSignal.abort();
     const early = await runtimeFor(recorder().fetchFn)
-      .execute(mapPackagePublishCommand, { package: MAP_PACKAGE }, { transport: "sdk", signal: preAborted })
+      .execute(mapDocumentPublishCommand, { package: MAP_PACKAGE }, { transport: "sdk", signal: preAborted })
       .catch((thrown: unknown) => thrown);
     expect((early as HonuaCommandError).kind).toBe("cancelled");
   });
@@ -460,7 +460,7 @@ describe("transports adapt input and output only", () => {
     // 2. The direct JS path: the same command, the same input, no CLI involved.
     const js = recorder();
     const jsReceipt = await runtimeFor(js.fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it", intent: PUBLICATION_INTENT },
       { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
     );
@@ -511,7 +511,7 @@ describe("no shared administrator credential and no client-side authorization by
         const { requests, fetchFn } = recorder();
         const error = await runtimeFor(fetchFn)
           .execute(
-            mapPackagePublishCommand,
+            mapDocumentPublishCommand,
             { mapId: "map-ops", package: MAP_PACKAGE },
             { transport, headers: { [header]: "forged" } },
           )
@@ -533,7 +533,7 @@ describe("no shared administrator credential and no client-side authorization by
       const { requests, fetchFn } = recorder();
       const attempt = await runtimeFor(fetchFn)
         .execute(
-          mapPackagePublishCommand,
+          mapDocumentPublishCommand,
           { mapId: "map-ops", package: MAP_PACKAGE, approvedBy: "self", approved: true } as never,
           { transport },
         )
@@ -557,13 +557,13 @@ describe("no shared administrator credential and no client-side authorization by
         header: ["X-Honua-Approver=self"],
       },
     });
-    const declared = Object.keys(mapPackagePublishCommand.inputSchema.properties ?? {});
+    const declared = Object.keys(mapDocumentPublishCommand.inputSchema.properties ?? {});
     expect(Object.keys(input).every((key) => declared.includes(key))).toBe(true);
     expect(invocation.headers).toBeUndefined();
 
     // 3. And a successful publication still records the decision as the
     //    server's, never the caller's.
-    const receipt = await runtimeFor(recorder().fetchFn).execute(mapPackagePublishCommand, input, invocation);
+    const receipt = await runtimeFor(recorder().fetchFn).execute(mapDocumentPublishCommand, input, invocation);
     expect(receipt.authorization).toBe("server-enforced");
   });
 
@@ -586,7 +586,7 @@ describe("no shared administrator credential and no client-side authorization by
         const { requests, fetchFn } = recorder();
         const error = await runtimeFor(fetchFn)
           .execute(
-            mapPackagePublishCommand,
+            mapDocumentPublishCommand,
             { mapId: "map-ops", package: MAP_PACKAGE },
             { transport, headers: { [header]: "forged" } },
           )
@@ -632,7 +632,7 @@ describe("no shared administrator credential and no client-side authorization by
   it("never places the claimed identity or a second credential on the wire", async () => {
     const { requests, fetchFn } = recorder();
     const receipt = await runtimeFor(fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", package: MAP_PACKAGE },
       { transport: "mcp", identity: { actor: "user-1", tenantId: "acme", scopes: ["maps:admin"] } },
     );
@@ -922,14 +922,14 @@ describe("map publication intent", () => {
       client: new HonuaClient({ baseUrl: "https://example.test", fetchFn: studio.fetchFn }),
     });
     const input = { package: MAP_PACKAGE, intent: PUBLICATION_INTENT };
-    const receipt = await adapter.execute(mapPackagePublishCommand, input);
+    const receipt = await adapter.execute(mapDocumentPublishCommand, input);
     const js = recorder();
-    const direct = await runtimeFor(js.fetchFn).execute(mapPackagePublishCommand, input, { transport: "sdk" });
+    const direct = await runtimeFor(js.fetchFn).execute(mapDocumentPublishCommand, input, { transport: "sdk" });
     expect(studio.requests[0].body).toEqual(js.requests[0].body);
     expect(studio.requests[0].body).toMatchObject({ intent: PUBLICATION_INTENT });
     expect(receipt.idempotencyKey).toBe(direct.idempotencyKey);
     const preview = await adapter.execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       {
         ...input,
         intent: { ...PUBLICATION_INTENT, route: "/maps/another" },
@@ -955,7 +955,7 @@ describe("map publication intent", () => {
       for (const dryRun of [false, true]) {
         const side = recorder();
         const error = await runtimeFor(side.fetchFn)
-          .execute(mapPackagePublishCommand, { package: MAP_PACKAGE, intent } as never, { dryRun, transport: "sdk" })
+          .execute(mapDocumentPublishCommand, { package: MAP_PACKAGE, intent } as never, { dryRun, transport: "sdk" })
           .catch((value: unknown) => value);
         expect(error).toBeInstanceOf(HonuaCommandError);
         expect((error as HonuaCommandError).kind).toBe("validation");

@@ -2,7 +2,7 @@
  * Agent-facing tool schemas and executors for bounded map/runtime actions.
  *
  * The executor is intentionally runtime-agnostic: apps can adapt a
- * HonuaController, generated-app runtime, MapPackage runtime, or test double
+ * HonuaController, generated-app runtime, map document runtime, or test double
  * to the small {@link HonuaAgentRuntime} interface. Tool definitions are plain
  * JSON Schema-compatible objects so they can be reused by MCP, provider-native
  * function calling, or local policy engines.

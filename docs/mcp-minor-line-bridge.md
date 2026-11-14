@@ -5,6 +5,8 @@ description: "Managed publication order and bounded peer policy for the SDK mino
 ---
 # MCP compatibility across the Node 22 transition
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The generated installer pins a published MCP package. SDK publication proves
 that its packed SDK installs beside that exact public MCP under npm's default
 peer resolver. MCP publication independently proves that its packed MCP installs
@@ -17,8 +19,8 @@ each publisher waiting for the other. The Node 22 engine-floor change remains a
 breaking change; it must not be disguised as a compatible patch.
 
 `config/mcp-sdk-peer-policy.v1.json` declares the reviewed bridge
-`^0.2.0 || ^0.3.0`. It admits stable releases on 0.2 and 0.3 and excludes 0.1,
-prereleases, and 0.4+. Release Please continues to
+`^0.3.0 || ^0.4.0`. It admits stable releases on 0.3 and 0.4 and excludes 0.2
+and earlier, prereleases, and 0.5+. Release Please continues to
 manage package versions and development dependencies, but its workspace plugin
 preserves this peer range. `verify:mcp-pin` and the unit suite refuse a changed
 package/lockfile range, automatic peer replacement, or a source SDK outside the

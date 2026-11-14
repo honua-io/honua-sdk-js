@@ -9,6 +9,11 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      retry_release_pr_refresh:
+        description: Regenerate release PRs once on current trunk without publishing packages.
+        type: boolean
+        required: false
+        default: false
       finish_stranded_draft:
         description: >-
           The js-sdk-* tag name of an existing DRAFT release stranded by a prior
@@ -55,35 +60,22 @@ jobs:
       release_pr_outcome: ${{ steps.release-pr.outcome }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      # Release identity (#1093). The release pull request must be authored by
-      # the org bot App `honua-io-bot`, because that App -- not `github-actions`
-      # -- is the bypass actor on the trunk `copilot_code_review` ruleset. Detect
-      # first, mint second: without `BOT_APP_ID` the lane degrades to today's
-      # `GITHUB_TOKEN` behaviour rather than failing, and
-      # `RELEASE_AUTOMATION_APP_SLUGS` in scripts/lib/pr-issue-disposition.mjs
-      # accepts both identities so the required disposition check passes either
-      # way.
-      - name: Detect bot App credentials
-        id: creds
-        env:
-          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
-          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+      - name: Validate refresh-only recovery inputs
+        if: ${{ inputs.retry_release_pr_refresh && (inputs.finish_stranded_draft != '' || inputs.recover_sealed_source != '') }}
         run: |
-          if [ -n "$BOT_APP_ID" ] && [ -n "$BOT_APP_PRIVATE_KEY" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the release pull request is authored by github-actions and stays subject to the ruleset."
-          fi
+          echo 'Refresh-only recovery cannot be combined with release publication recovery.' >&2
+          exit 1
 
+      # App-authored release PRs and branch updates trigger required CI.
       - name: Mint release automation token
         id: app-token
-        if: steps.creds.outputs.available == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: honua-io
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Checkout recovery policy
         if: inputs.recover_sealed_source != ''
@@ -138,10 +130,10 @@ jobs:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         id: release
         if: >-
-          ${{ github.event_name != 'workflow_dispatch' ||
-              inputs.finish_stranded_draft == '' }}
+          ${{ !inputs.retry_release_pr_refresh &&
+              (github.event_name != 'workflow_dispatch' || inputs.finish_stranded_draft == '') }}
         with:
-          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           # The SDK draft has no tag until the finish step seals it. The action
@@ -749,14 +741,15 @@ jobs:
       - name: Mint fresh release PR automation token
         id: release-pr-token
         if: >-
-          ${{ steps.creds.outputs.available == 'true' &&
-              (github.event_name != 'workflow_dispatch' ||
-               inputs.finish_stranded_draft == '') }}
+          ${{ github.event_name != 'workflow_dispatch' ||
+              inputs.finish_stranded_draft == '' }}
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: honua-io
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Generate release PR after publication handling
         id: release-pr
@@ -765,7 +758,7 @@ jobs:
               inputs.finish_stranded_draft == '' }}
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         with:
-          token: ${{ steps.release-pr-token.outputs.token || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.release-pr-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
@@ -797,6 +790,7 @@ jobs:
       release_head_sha: ${{ steps.refresh.outputs.release_head_sha }}
       refresh_status: ${{ steps.refresh.outputs.refresh_status }}
       candidates: ${{ steps.refresh.outputs.candidates }}
+      recovery_required: ${{ steps.refresh.outputs.recovery_required }}
     steps:
       - name: Check out trusted base-refresh policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -811,43 +805,43 @@ jobs:
         with:
           node-version: "22.23.3"
 
-      # The base refresh is a `PUT /pulls/{n}/update-branch`, so the merge commit
-      # it lands on `release-please--branches--trunk` carries the token's
-      # identity (#1093). Mint the same App token the release job authors with,
-      # so the branch never mixes two bot identities, and fall back to
-      # `GITHUB_TOKEN` when the secret is absent.
-      - name: Detect bot App credentials
-        id: creds
-        env:
-          BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
-          BOT_APP_PRIVATE_KEY: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-        run: |
-          if [ -n "$BOT_APP_ID" ] && [ -n "$BOT_APP_PRIVATE_KEY" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::BOT_APP_ID/BOT_APP_PRIVATE_KEY not configured; the base refresh pushes as github-actions."
-          fi
-
+      # Branch refreshes also need App identity to trigger required CI.
       - name: Mint release automation token
         id: app-token
-        if: steps.creds.outputs.available == 'true'
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: honua-io
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
 
       - name: Refresh and normalize exact Release Please candidates onto trusted trunk
         id: refresh
         working-directory: trusted-refresh-policy
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           RELEASE_PLEASE_PRS: ${{ needs.release-please.outputs.prs || '[]' }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
+          RELEASE_PLEASE_REFRESH_RETRY: ${{ inputs.retry_release_pr_refresh || false }}
         run: |
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
           node scripts/refresh-release-please-base.mjs
+
+  release-please-refresh-retry:
+    needs: release-please-refresh
+    if: ${{ needs.release-please-refresh.outputs.recovery_required == 'true' && !inputs.retry_release_pr_refresh }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Retry release PR generation once on current trusted trunk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh workflow run release-please.yml --ref trunk
+          -f retry_release_pr_refresh=true
 
   release-please-ci:
     needs: [release-please, release-please-refresh]
@@ -897,6 +891,7 @@ jobs:
       ${{ always() &&
           needs.release-please.result == 'success' &&
           needs.release-please-refresh.result == 'success' &&
+          needs.release-please-refresh.outputs.recovery_required != 'true' &&
           (needs.release-please-refresh.outputs.release_pr_present != 'true' ||
            (needs.release-please-ci.result == 'success' &&
             needs.release-please-ci.outputs.canonical_ci_success == 'true')) }}

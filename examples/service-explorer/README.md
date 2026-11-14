@@ -1,5 +1,7 @@
 # Universal GIS Service Explorer
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This maintained sample is the URL-to-working-map journey for the public
 Honua kernel. Paste an HTTP(S) service root, select an explicit protocol hint
 when needed, inspect immutable discovery evidence, and execute only operations
@@ -98,16 +100,16 @@ Hosted Honua deployments can use the experimental control-plane subpath to disco
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaClient } from "@honua/sdk-js";
 import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
-import { loadMapPackageFromId } from "@honua/sdk-js/runtime";
+import { loadMapDocumentFromId } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://cloud.honua.io", apiKey: process.env.HONUA_API_KEY });
 const controlPlane = createHonuaControlPlane({ client });
-const maps = await controlPlane.hostedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
+const maps = await controlPlane.savedMaps.list({ workspaceId: "workspace-ops", limit: 10 });
 
 if (maps.supported && maps.value.items[0]) {
-  const locator = await controlPlane.hostedMaps.getPackageLocator(maps.value.items[0].id);
+  const locator = await controlPlane.savedMaps.getMapDocumentLocator(maps.value.items[0].id);
   if (locator.supported) {
-    await loadMapPackageFromId(locator.value, maplibreMap, { client });
+    await loadMapDocumentFromId(locator.value, maplibreMap, { client });
   }
 }
 ```

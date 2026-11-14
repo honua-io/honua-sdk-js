@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/react"
 ---
 # React bindings (`@honua/react`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/react` is the idiomatic React layer over the framework-neutral
 `@honua/sdk-js` core: a context provider, data hooks, and declarative map
 components. The core SDK stays React-free — React is imported only from this
@@ -167,7 +169,7 @@ add on mount and remove on unmount.
 
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -175,7 +177,7 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 const mapPackage = {
   mapPackageId: "sites",
-  format: HONUA_MAP_PACKAGE_FORMAT_V1,
+  format: HONUA_MAP_DOCUMENT_FORMAT_V1,
   sourceBindings: [],
   mapSpec: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#0b1021" } }] },
   initialView: { center: [-157.84, 21.31], zoom: 10 },
@@ -344,7 +346,7 @@ Feature-state needs stable feature ids: give the source descriptor a
 
 ### Attaching a `HonuaMap` runtime to an external map
 
-`HonuaMap` (the `MapPackage` runtime component) also accepts an existing map
+`HonuaMap` (the `HonuaMapDocument` runtime component) also accepts an existing map
 instance via its `map` prop; it then attaches its runtime and **does not**
 remove the map on unmount — the owner keeps control; Honua only disposes its
 runtime.

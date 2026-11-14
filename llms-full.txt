@@ -10,6 +10,8 @@ This file concatenates the documents indexed in `llms.txt` for single-fetch inge
 
 # Honua JS SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/honua-io/honua-sdk-js/badge)](https://scorecard.dev/viewer/?uri=github.com/honua-io/honua-sdk-js)
 
 [![npm](https://img.shields.io/npm/v/@honua/sdk-js?color=2b6cb0&label=%40honua%2Fsdk-js)](https://www.npmjs.com/package/@honua/sdk-js)
@@ -27,9 +29,15 @@ runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatib
 layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
 surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
+## Native application data
+
+Use `HonuaClient` with explicit `transport: "grpc-web"` for live feature queries.
+Follow the [native data guide](docs/native-data-paths.md) for the complete browser
+setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
+
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
+For compatibility with existing service endpoints, a 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
@@ -38,7 +46,7 @@ compiling and running when you take the 6.0 upgrade. Run
 [widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
 widget mapped to its Honua/MapLibre disposition.
 
-## A public endpoint to a styled map
+## Compatibility: a public endpoint to a styled map
 
 Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
 public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
@@ -94,7 +102,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.3.6`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.3.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 28 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -323,13 +331,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
 | `@honua/sdk-js/map` | 56.1 KiB |
-| `@honua/sdk-js` (root) | 204.0 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 59.5 KiB |
-| `{ connect }` from the root (tree-shake guard) | 164.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 193.3 KiB |
+| `@honua/sdk-js` (root) | 204.2 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 59.6 KiB |
+| `{ connect }` from the root (tree-shake guard) | 164.5 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 193.4 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 164.4 KiB gzip and `{ createHonua }` 193.3 KiB against the 204.0 KiB root, so size-sensitive
+alone costs 164.5 KiB gzip and `{ createHonua }` 193.4 KiB against the 204.2 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -857,6 +865,8 @@ Please do not open public issues for security reports.
 
 # Installing the Honua JavaScript SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
 subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
@@ -933,7 +943,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 |---------|-------------------|
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/pmtiles` | Authenticated bounded archive inspection plus experimental Honua archive/publish jobs, status/cancellation, strict public/signed/range-proxy descriptors, and truthful cleanup dispositions ([guide](./docs/pmtiles-lifecycle.md)). |
-| `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, GeoParquet lookups, selection through the stable feature identity, CSV/GeoJSON export of public fields, and a lookup budget with live-service fallback. |
+| `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |
 | `@honua/sdk-js/stac` | Experimental dynamic STAC search, bounded pagination, signed asset refresh, and typed handoffs to the canonical COG, PMTiles, columnar, and runtime entrypoints ([walkthrough](./docs/walkthroughs/search-stac-and-open-assets.md)). |
 | `@honua/sdk-js/raster` | Experimental bounded raster sessions across dynamic-STAC/direct COG, ImageServer, OGC API Coverages, and WCS, with explicit band/range semantics and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
@@ -1169,7 +1179,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.3.6)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.3.7)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1200,7 +1210,8 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.3.6` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.6/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.5...js-sdk-v0.3.6) |
+| `0.3.7` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.6...js-sdk-v0.3.7) |
+| `0.3.6` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.6/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.5...js-sdk-v0.3.6) |
 | `0.3.5` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.5/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.4...js-sdk-v0.3.5) |
 | `0.3.4` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.4/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.3...js-sdk-v0.3.4) |
 | `0.3.3` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.3/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.2...js-sdk-v0.3.3) |
@@ -1314,7 +1325,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 
 | Sample | Last sealed run | Engines | Observed | Expires | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-11-13T15:39:25.966Z | 2026-11-20T15:39:25.966Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-11-13T20:46:26.146Z | 2026-11-20T20:46:26.146Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
 
 ## Executable samples
 
@@ -1358,11 +1369,15 @@ The catalog also carries fixture/live evidence, evidence expiry, endpoint config
 
 ---
 type: guide
-title: "Put a map on the page"
-description: "Install @honua/sdk-js, point it at a public FeatureServer or OGC API Features endpoint, and render the result on MapLibre. No Honua server and no account required."
+title: "Start native, then connect an existing map"
+description: "Start with gRPC-Web and cloud-native files; use the public FeatureServer walkthrough for compatibility during migration."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Put a map on the page
+# Start native, then connect an existing map
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
+## Compatibility walkthrough: an existing public endpoint
 
 The SDK's map workflow is five verbs in order: **connect → discover → explain →
 query → mount**. This page runs them against a public endpoint. Nothing of
@@ -1462,7 +1477,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.6 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.3.7 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1754,6 +1769,8 @@ description: "Running against public GeoServices and OGC endpoints with no Honua
 ---
 # Standalone quickstart moved to First Map
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The server-optional public-endpoint workflow is now the canonical
 [First Map quickstart](./quickstart.md). It accepts anonymous GeoServices FeatureServer layers and OGC API Features
 endpoints, then shows the discovered source, accepted query plan, bounded result, MapLibre map, popup, filter,
@@ -1779,6 +1796,8 @@ title: "When the quickstart does not render"
 description: "The failures readers hit on first run - CORS, an empty map, a fixture checksum mismatch on Windows - with the cause for each."
 ---
 # First Map troubleshooting
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Use this guide for the canonical app in
 [`examples/maplibre-quickstart`](../examples/maplibre-quickstart/README.md). Start with the deterministic lane:
@@ -1922,19 +1941,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-13 at commit `ad8d5628d`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-14 at commit `594846762`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 763.0 KiB | 204.0 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 233.5 KiB | 59.5 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.4 KiB | 15.1 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 384.1 KiB | 104.3 KiB |
-| Client compatibility layer (drop-in migration surface) | 1077.6 KiB | 271.3 KiB |
-| Geocoding client | 33.2 KiB | 9.4 KiB |
-| Routing client | 28.9 KiB | 8.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 763.3 KiB | 204.2 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 233.6 KiB | 59.6 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.5 KiB | 15.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 384.2 KiB | 104.3 KiB |
+| Client compatibility layer (drop-in migration surface) | 1077.7 KiB | 271.3 KiB |
+| Geocoding client | 33.3 KiB | 9.4 KiB |
+| Routing client | 29.0 KiB | 8.7 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
@@ -1944,8 +1963,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 763.0 KiB ≈ **2.30 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 204.0 KiB ≈ **0.62 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 763.3 KiB ≈ **2.30 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 204.2 KiB ≈ **0.62 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -2283,6 +2302,8 @@ description: "The protocol-neutral vocabulary every adapter speaks: Dataset, Sou
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Shared Client Contract
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
@@ -2763,6 +2784,8 @@ description: "The deterministic query planner: managed connection workflow, the 
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Deterministic query planner
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/sdk-js/query-planner` is the first production slice of the execution
 planner described by the [north-star application-kernel
@@ -3839,6 +3862,8 @@ resource: "honua://capability/format.geoarrow"
 ---
 # Columnar batch transfer contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
 results. It defines a dependency-free Honua batch envelope, an ownership
 transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded
@@ -4870,6 +4895,8 @@ resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Resumable realtime delivery
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The `@honua/sdk-js/realtime` subpath includes an opt-in, transport-neutral
 delivery gate for snapshot-plus-delta streams. It sits between a transport and
 the existing realtime reducer/store. The gate does not open or reconnect a
@@ -5163,6 +5190,8 @@ description: "The versioned plugin SDK: authoring a manifest, compatibility poli
 resource: "honua://capability/plugin.sdk"
 ---
 # Plugin manifest and certification contract
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK.
 It lets a third-party package describe its compatibility and authority boundary
@@ -5617,6 +5646,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # deck.gl binary adapter (experimental)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/deckgl` is a renderer-neutral boundary between Honua plan/source
 identity and deck.gl binary layer data. It is experimental.
 
@@ -5902,6 +5933,8 @@ description: "Project Honua results, columnar artifacts or remote tile sources i
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Kepler.gl analytics workspace bridge (experimental)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or
 a supported remote tile/imagery source into a [Kepler.gl](https://kepler.gl)
@@ -6189,6 +6222,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Experimental Cesium entity adapter
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
 for projecting a canonical `Source` query into a Cesium `EntityCollection`:
 
@@ -6397,6 +6432,8 @@ description: "Downloadable offline regions: manifests, the download coordinator,
 resource: "honua://capability/fieldops.offline-sync"
 ---
 # Downloadable offline regions (experimental)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/sdk-js/offline` defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
@@ -7354,6 +7391,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Safe agent plan boundary
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/agent-safety` is a deterministic trust boundary
 between untrusted plan proposals and host-owned effect execution. It is part of
 the SDK's stable tier (semver-protected; see
@@ -7580,6 +7619,8 @@ description: "The threats the agent-safety and agent-tools surfaces are designed
 ---
 # Agent-safety threat model
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/agent-safety` is the deterministic trust boundary between
 untrusted agent plan proposals and host-owned effect execution, and
 `@honua/sdk-js/agent-tools` is the bounded runtime-action surface those plans
@@ -7727,6 +7768,8 @@ description: "Turn a natural-language instruction into a typed, inspectable plan
 resource: "honua://capability/ai.agent-operations"
 ---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 > **Experimental.** Symbols on this subpath are `@experimental` and may change
 > in any minor release before `1.0.0`.
@@ -8885,6 +8928,8 @@ resource: "honua://capability/geocoding.forward"
 ---
 # Provider-pluggable geocoding and routing
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
 > minor release prior to `1.0.0`.
 
@@ -9142,6 +9187,8 @@ description: "Which operations each protocol adapter supports natively, through 
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Protocol × Capability Matrix
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 <!-- support-manifest:protocol-matrix:start -->
 Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
@@ -10091,6 +10138,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Backend-Agnostic vs Honua-Server-Enhanced Capability Matrix
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 <!-- support-manifest:standalone-matrix:start -->
 This is the generated, evidence-linked line between capabilities that work
 against raw standards-speaking endpoints and capabilities that require the Honua
@@ -10502,6 +10551,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Error reference
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
 errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
@@ -10741,6 +10792,7 @@ classification is conservatively non-retryable.
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `core.publication.invalid-descriptor` | `core` | `validation` | no | Publication descriptor is invalid or not validated |
 | `core.publication.artifact-mismatch` | `core` | `protocol` | no | Publication artifact does not match its descriptor |
+| `core.publication.artifact-unavailable` | `core` | `protocol` | no | Publication artifact could not be read from its host |
 | `core.publication.non-public-field` | `core` | `validation` | no | Field is not public in the publication |
 | `core.publication.query-budget-exceeded` | `core` | `capability` | no | Browser query would exceed the publication query budget |
 | `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |
@@ -10983,6 +11035,8 @@ description: "The small pluggable auth layer a HonuaClient accepts: static keys,
 resource: "honua://capability/identity.oidc"
 ---
 # Authentication
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/sdk-js` ships a small, pluggable authentication layer. A `HonuaClient`
 accepts an **auth provider** that resolves credentials on demand; the client
@@ -11292,6 +11346,8 @@ description: "@honua/react, the idiomatic React layer over the framework-neutral
 resource: "https://www.npmjs.com/package/@honua/react"
 ---
 # React bindings (`@honua/react`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/react` is the idiomatic React layer over the framework-neutral
 `@honua/sdk-js` core: a context provider, data hooks, and declarative map
@@ -11679,6 +11735,8 @@ resource: "https://www.npmjs.com/package/@honua/geometry"
 ---
 # `@honua/geometry` — client-side geometry operations
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as
 `@honua/geometry`) adds curated, tree-shakeable client-side geometry operations
 and reprojection to the Honua SDK, wrapping the individual [`@turf/*`](https://turfjs.org)
@@ -11857,58 +11915,58 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-13 at commit `ad8d5628d`._
+_Generated 2026-11-14 at commit `594846762`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 763.0 KiB | 829.3 KiB | 204.0 KiB | 211.8 KiB |
-| `/honua` | 937.9 KiB | 1033.4 KiB | 251.9 KiB | 278.1 KiB |
-| `/contract` | 384.1 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 827.9 KiB | 859.4 KiB | 196.1 KiB | 196.3 KiB |
+| `.` (root) | 763.3 KiB | 829.3 KiB | 204.2 KiB | 211.8 KiB |
+| `/honua` | 938.2 KiB | 1033.4 KiB | 252.1 KiB | 278.1 KiB |
+| `/contract` | 384.2 KiB | 400.6 KiB | 104.3 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 828.0 KiB | 859.4 KiB | 196.1 KiB | 196.3 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 861.9 KiB | 961.8 KiB | 205.4 KiB | 237.6 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 68.6 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 862.0 KiB | 961.8 KiB | 205.4 KiB | 237.6 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 68.7 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
 | `/agent-tools` | 46.3 KiB | 48.1 KiB | 12.7 KiB | 13.3 KiB |
-| `/agent-safety` | 69.3 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
+| `/agent-safety` | 69.4 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.8 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
 | `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.1 KiB | 20.8 KiB |
-| `/runtime` | 718.3 KiB | 752.5 KiB | 184.9 KiB | 198.6 KiB |
-| `/realtime` | 82.5 KiB | 86.2 KiB | 23.6 KiB | 25.0 KiB |
+| `/runtime` | 718.4 KiB | 752.5 KiB | 185.0 KiB | 198.6 KiB |
+| `/realtime` | 82.6 KiB | 86.2 KiB | 23.7 KiB | 25.0 KiB |
 | `/offline` | 171.8 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
-| `/query-planner` (worker runtime injected) | 707.0 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.3 KiB | 183.6 KiB | 52.6 KiB | 55.8 KiB |
-| `/client-compat` | 1077.6 KiB | 1139.7 KiB | 271.3 KiB | 309.5 KiB |
+| `/query-planner` (worker runtime injected) | 707.1 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.4 KiB | 183.6 KiB | 52.6 KiB | 55.8 KiB |
+| `/client-compat` | 1077.7 KiB | 1139.7 KiB | 271.3 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
-| `/geocoding` | 33.2 KiB | 35.9 KiB | 9.4 KiB | 10.1 KiB |
-| `/routing` | 28.9 KiB | 31.8 KiB | 8.7 KiB | 9.5 KiB |
-| `/auth` | 28.5 KiB | 30.6 KiB | 7.7 KiB | 8.7 KiB |
+| `/geocoding` | 33.3 KiB | 35.9 KiB | 9.4 KiB | 10.1 KiB |
+| `/routing` | 29.0 KiB | 31.8 KiB | 8.7 KiB | 9.5 KiB |
+| `/auth` | 28.5 KiB | 30.6 KiB | 7.8 KiB | 8.7 KiB |
 | `/style` | 65.5 KiB | 69.0 KiB | 16.4 KiB | 17.2 KiB |
 | `/map` | 197.5 KiB | 198.2 KiB | 56.1 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 148.2 KiB | 154.9 KiB | 44.3 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.9 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 326.9 KiB | 364.2 KiB | 87.4 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 327.1 KiB | 364.2 KiB | 87.5 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1215.1 KiB | 1275.0 KiB | 319.7 KiB | 344.5 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1324.8 KiB | 1395.4 KiB | 352.9 KiB | 356.1 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1215.3 KiB | 1275.0 KiB | 319.8 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1325.0 KiB | 1395.4 KiB | 353.0 KiB | 356.1 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 563.5 KiB | 619.8 KiB | 152.6 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 763.2 KiB | 832.8 KiB | 204.1 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 762.8 KiB | 828.5 KiB | 204.0 KiB | 221.7 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 233.5 KiB | 280.2 KiB | 59.5 KiB | 74.3 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 619.9 KiB | 695.1 KiB | 164.4 KiB | 186.7 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 763.5 KiB | 832.8 KiB | 204.2 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 763.0 KiB | 828.5 KiB | 204.1 KiB | 221.7 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 233.6 KiB | 280.2 KiB | 59.6 KiB | 74.3 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 620.1 KiB | 695.1 KiB | 164.5 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.2 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.9 KiB | 17.1 KiB | 4.5 KiB | 4.5 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.6 KiB | 18.5 KiB | 3.7 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 722.1 KiB | 791.3 KiB | 193.3 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 257.5 KiB | 296.3 KiB | 66.0 KiB | 77.7 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 17.0 KiB | 17.1 KiB | 4.5 KiB | 4.5 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.7 KiB | 18.5 KiB | 3.7 KiB | 3.9 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 722.2 KiB | 791.3 KiB | 193.4 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 257.7 KiB | 296.3 KiB | 66.2 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.0 KiB | 316.3 KiB | 65.2 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.4 KiB | 54.4 KiB | 15.1 KiB | 16.4 KiB |
-| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 35.0 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.5 KiB | 54.4 KiB | 15.1 KiB | 16.4 KiB |
+| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 35.1 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 33.0 KiB | 35.9 KiB | 10.6 KiB | 11.3 KiB |
 
@@ -11923,6 +11981,8 @@ description: "The long-form reference: demos, the server compatibility contract,
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # `@honua/sdk-js` reference guide
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 This long-form guide collects the runnable demos, server compatibility contract,
 subpath entrypoints, protocol-specific cookbooks, MapLibre runtime, request/auth
@@ -12964,6 +13024,8 @@ resource: "honua://capability/serve.ogc-api-features"
 ---
 # OGC API Client
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This document is the developer reference for the first-party OGC API
 adapter. It complements the design notes in
 [`shared-client-contract.md`](./shared-client-contract.md) and the
@@ -13383,6 +13445,8 @@ description: "First-party WFS 2.0 client that produces the same canonical Source
 resource: "honua://capability/serve.wfs"
 ---
 # WFS 2.0 adapter
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the
 shared JS client contract from
@@ -13821,6 +13885,8 @@ resource: "honua://capability/format.geoarrow"
 ---
 # GeoParquet / DuckDB source
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/geoparquet` adds a `Source` that runs the **same
 protocol-neutral `Query`** you use against a FeatureServer or an OGC API
 Features collection — against GeoParquet files with native DuckDB in Node or
@@ -14229,6 +14295,8 @@ resource: "honua://capability/serve.geoservices-root"
 ---
 # WebMap JSON Compatibility Contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`.
 
 Version target: ArcGIS WebMap JSON `2.x` (current AGOL output).
@@ -14312,6 +14380,8 @@ description: "Experimental renderer objects for standalone MapLibre users: class
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Renderer objects and temporal playback
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 > Status: `@experimental` — the surfaces ship on the stable `/style` and
 > `/map` entrypoints but the descriptor shapes may still change in minor
@@ -14487,6 +14557,8 @@ description: "The MapLibre GL JS runtime for a server-produced MapPackage: MapLi
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the
 root barrel does not re-export the runtime so hosts that do not need a
@@ -15365,6 +15437,8 @@ resource: "honua://capability/editing.featureserver-edits"
 ---
 # terra-draw sketch binding (`@honua/sdk-js/runtime`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Status: experimental.
 Public entrypoint: `@honua/sdk-js/runtime` — `bindTerraDrawSketch`,
 `createTerraDrawSketch`, `createTerraDrawSnapping`,
@@ -15502,6 +15576,8 @@ description: "PMTiles archives on static hosting: discovery with connect(), rend
 resource: "honua://capability/serve.vector-tiles"
 ---
 # PMTiles
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format
 for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on
@@ -15709,6 +15785,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Prebuilt browser bundle (CDN / build-less)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended
 for consumption through a bundler (Vite, webpack, esbuild, Rollup) or Node.
 For static sites, quick prototypes, and CSP-strict pages that cannot run their
@@ -15805,6 +15883,8 @@ description: "One browser-safe import path for the Studio package families, the 
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Studio Package Contracts (`@honua/sdk-js/studio`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Status: experimental.
 
@@ -16020,6 +16100,8 @@ description: "The honua-maplibre codemod target: MapLibre-native output for the 
 resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # `honua-maplibre` migration target
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 The `honua-maplibre` codemod target rewrites a curated subset of
 `@arcgis/core` constructors directly into `@honua/sdk-js/map` helpers

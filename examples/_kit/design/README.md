@@ -1,5 +1,7 @@
 # Honua sample design language
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The shared visual identity for every sample app (issue #734, REQ-001). One token
 sheet, one component layer, no per-sample palettes. Open `style-guide.html` in a
 browser (no server needed) to review every primitive in both themes.

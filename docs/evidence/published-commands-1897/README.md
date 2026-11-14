@@ -5,6 +5,8 @@ description: "Immutable command replay evidence and explicit qualification limit
 ---
 # Published documentation qualification for SDK issue 1897
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The five SDK-owned documents pass against the reviewed release inputs in
 [run 38205709419](https://github.com/honua-io/honua-release/actions/runs/38205709419),
 artifact `11727651785`. The raw [document report](corrected/sdk-publication-replay/executable-docs.json)

@@ -1,16 +1,18 @@
 ---
 type: reference
 title: "Runtime Parity Showcase"
-description: "The runtime parity showcase example: a hosted MapPackage, HonuaController, web components and widget sources over one linked-view state."
+description: "The runtime parity showcase example: a hosted map document, HonuaController, web components and widget sources over one linked-view state."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Runtime Parity Showcase
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 The runtime parity showcase lives in `examples/runtime-parity-showcase`. It is an app-first SDK demo, not a landing page.
 
 ## Architecture
 
-The app starts by fetching a hosted fixture `MapPackage` with `fetchMapPackage`, preserving the SDK cache state returned by the runtime fetch helper. It validates the package style with runtime style diagnostics, loads it into MapLibre with `loadMapPackage`, and then creates a `HonuaController` over the resulting runtime.
+The app starts by fetching a hosted fixture `HonuaMapDocument` with `fetchMapDocument`, preserving the SDK cache state returned by the runtime fetch helper. It validates the package style with runtime style diagnostics, loads it into MapLibre with `loadMapDocument`, and then creates a `HonuaController` over the resulting runtime.
 
 The controller is the application state owner for viewport, selection, layer visibility, and shareable state. Honua web components are bound with `createHonuaWebComponentControllerFromRuntime`, so the layer list, legend, search, feature table, chart, and component map surface read from the same runtime package and fixture features.
 

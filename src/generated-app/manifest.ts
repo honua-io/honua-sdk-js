@@ -11,7 +11,7 @@
 
 import type { AggregationMetric, FeatureId, WidgetTimeSeriesInterval } from "../contract/index.js";
 import type { ExplorationState, FilterClause, LinkedViewPresetName } from "../exploration/index.js";
-import type { HonuaMapPackage } from "../runtime/index.js";
+import type { HonuaMapDocument } from "../runtime/index.js";
 
 export const HONUA_GENERATED_APP_MANIFEST_FORMAT_V1 = "honua_generated_app_manifest.v1" as const;
 export const HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND = "honua.generated-app.manifest" as const;
@@ -129,7 +129,7 @@ export interface HonuaGeneratedAppManifest {
   readonly version?: string;
   readonly data: HonuaGeneratedAppDataBinding;
   readonly mapPackageId?: string;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly layout: HonuaGeneratedAppLayout;
   readonly bindings?: HonuaGeneratedAppFieldBinding;
   readonly initialState?: Partial<ExplorationState>;
@@ -156,17 +156,17 @@ export interface HonuaGeneratedAppAssetRef {
 }
 
 /**
- * Structural `AppPackage` subset the SDK generated-app projection consumes.
+ * Structural `AppVersion` subset the SDK generated-app projection consumes.
  * The canonical server object remains authoritative; this interface only names
  * the `manifest_artifact` bridge and stable package identity the browser needs.
  */
-export interface HonuaGeneratedAppPackage {
+export interface HonuaGeneratedAppVersion {
   readonly id: string;
   readonly version: string;
   readonly assets?: ReadonlyArray<HonuaGeneratedAppAssetRef>;
   readonly manifest_artifact?: HonuaGeneratedAppManifestArtifact | HonuaGeneratedAppManifest;
   readonly manifestArtifact?: HonuaGeneratedAppManifestArtifact | HonuaGeneratedAppManifest;
-  readonly mapPackage?: HonuaMapPackage;
+  readonly mapPackage?: HonuaMapDocument;
   readonly metadata?: unknown;
   readonly [extra: string]: unknown;
 }

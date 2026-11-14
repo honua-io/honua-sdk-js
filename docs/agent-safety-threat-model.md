@@ -5,6 +5,8 @@ description: "The threats the agent-safety and agent-tools surfaces are designed
 ---
 # Agent-safety threat model
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/agent-safety` is the deterministic trust boundary between
 untrusted agent plan proposals and host-owned effect execution, and
 `@honua/sdk-js/agent-tools` is the bounded runtime-action surface those plans

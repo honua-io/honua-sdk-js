@@ -59,12 +59,12 @@ export class HonuaInMemoryWebComponentController<T = Record<string, unknown>>
     const layers = options.layers
       ? options.layers.map(copyLayerModel)
       : options.mapPackage
-        ? layersFromMapPackage(options.mapPackage.mapSpec.layers)
+        ? layersFromMapDocument(options.mapPackage.mapSpec.layers)
         : [];
     const legend = options.legend
       ? options.legend.map(copyLegendItem)
       : options.mapPackage
-        ? legendFromMapPackage(options.mapPackage.legend, layers, options.mapPackage.mapSpec.layers)
+        ? legendFromMapDocument(options.mapPackage.legend, layers, options.mapPackage.mapSpec.layers)
         : [];
     const featuresBySource = normalizeFeaturesBySource(options.featuresBySource ?? {});
     this.#state = {
@@ -502,7 +502,7 @@ export function createHonuaWebComponentControllerFromRuntime<T = Record<string, 
     ...options,
     runtime,
     mapPackage: runtime.mapPackage,
-    layers: layersFromMapPackage(runtime.composedStyle.layers),
+    layers: layersFromMapDocument(runtime.composedStyle.layers),
     legend: runtime.getLegend().map((entry, index) => ({
       id: "id" in entry && typeof entry.id === "string" ? entry.id : legendId(entry.label, index),
       label: entry.label,
@@ -515,7 +515,7 @@ export function createHonuaWebComponentControllerFromRuntime<T = Record<string, 
   });
 }
 
-export function layersFromMapPackage(layers: readonly HonuaLayerSpecification[]): HonuaLayerModel[] {
+export function layersFromMapDocument(layers: readonly HonuaLayerSpecification[]): HonuaLayerModel[] {
   return layers.map((layer) => {
     const opacity = layerOpacity(layer);
     return {
@@ -530,7 +530,7 @@ export function layersFromMapPackage(layers: readonly HonuaLayerSpecification[])
   });
 }
 
-export function legendFromMapPackage(
+export function legendFromMapDocument(
   entries:
     | readonly { label: string; color?: string; iconUrl?: string; minValue?: number; maxValue?: number }[]
     | undefined,

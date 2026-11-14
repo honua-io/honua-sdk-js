@@ -5,6 +5,8 @@ description: "Browser example that runs a real MapLibre map and a real Cesium vi
 ---
 # Shared MapLibre and Cesium application state
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This deterministic browser fixture runs a real MapLibre `Map` and a real Cesium `Viewer` in one page against one renderer-neutral Honua state synchronizer. Nothing here hand-rolls a port: the two bindings are the SDK's shipped `createMapLibreStateSyncPort()` and `createCesiumStateSyncPort()`, and CesiumJS is reached through the bare `cesium` specifier the page's import map resolves — the same lazy peer path the Cesium port uses internally.
 
 Every fact the fixture reports is read back out of a renderer, not out of a dictionary it kept for itself:

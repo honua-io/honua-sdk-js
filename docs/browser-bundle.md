@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Prebuilt browser bundle (CDN / build-less)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended
 for consumption through a bundler (Vite, webpack, esbuild, Rollup) or Node.
 For static sites, quick prototypes, and CSP-strict pages that cannot run their

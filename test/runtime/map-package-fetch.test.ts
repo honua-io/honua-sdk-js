@@ -2,16 +2,16 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { HonuaClient } from "../../src/core/client.js";
 import {
-  BoundedMapPackageFetchCache,
-  DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
-  type MapPackageFetchCacheEntry,
+  BoundedMapDocumentFetchCache,
+  DEFAULT_MAP_DOCUMENT_CACHE_LIMIT,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
+  type MapDocumentFetchCacheEntry,
   type MaplibreMap,
-  fetchMapPackage,
-  loadMapPackageFromId,
-  validateMapPackage,
-  watchMapPackage,
+  fetchMapDocument,
+  loadMapDocumentFromId,
+  validateMapDocument,
+  watchMapDocument,
 } from "../../src/runtime/index.js";
 
 interface RecordedRequest {
@@ -28,7 +28,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("fetchMapPackage", () => {
+describe("fetchMapDocument", () => {
   test("fetches a hosted package and revalidates with ETag / Last-Modified", async () => {
     const requests: RecordedRequest[] = [];
     const pkg = makePackage();
@@ -45,8 +45,8 @@ describe("fetchMapPackage", () => {
       return new Response(null, { status: 304 });
     });
 
-    const first = await fetchMapPackage("pkg-001", { client });
-    const second = await fetchMapPackage("pkg-001", { client });
+    const first = await fetchMapDocument("pkg-001", { client });
+    const second = await fetchMapDocument("pkg-001", { client });
 
     expect(requests[0].url).toBe("https://mock.honua.test/api/v1/map-packages/pkg-001");
     expect(first.mapPackage.mapPackageId).toBe("pkg-001");
@@ -65,8 +65,8 @@ describe("fetchMapPackage", () => {
       }),
     );
 
-    await expect(fetchMapPackage("bad", { client })).rejects.toMatchObject({
-      name: "HonuaMapPackageError",
+    await expect(fetchMapDocument("bad", { client })).rejects.toMatchObject({
+      name: "HonuaMapDocumentError",
       stage: "validate",
       detail: {
         diagnostics: expect.arrayContaining([
@@ -85,7 +85,7 @@ describe("fetchMapPackage", () => {
       ),
     );
 
-    const resolved = await fetchMapPackage("pkg-001", {
+    const resolved = await fetchMapDocument("pkg-001", {
       client,
       resolveStyleRef: async () => ({ "parcels-fill": { paint: { "fill-color": "#ff0000" } } }),
     });
@@ -111,7 +111,7 @@ describe("fetchMapPackage", () => {
 
     let inFlight = 0;
     let maxInFlight = 0;
-    const resolved = await fetchMapPackage("pkg-001", {
+    const resolved = await fetchMapDocument("pkg-001", {
       client,
       resolveStyleRef: async (styleId) => {
         inFlight += 1;
@@ -150,7 +150,7 @@ describe("fetchMapPackage", () => {
       ),
     );
 
-    const resolved = await fetchMapPackage("pkg-001", {
+    const resolved = await fetchMapDocument("pkg-001", {
       client,
       allowInvalid: true,
       resolveStyleRef: async (styleId) => {
@@ -179,7 +179,7 @@ describe("fetchMapPackage", () => {
       return jsonResponse(makePackage({ styleRefs: [{ styleId: "style-fill", body: undefined }] }));
     });
 
-    const resolved = await fetchMapPackage("pkg-001", { client });
+    const resolved = await fetchMapDocument("pkg-001", { client });
 
     expect(requests.some((url) => url.endsWith("/ogc/styles/style-fill"))).toBe(true);
     expect(resolved.diagnostics).toEqual([]);
@@ -195,7 +195,7 @@ describe("fetchMapPackage", () => {
       return jsonResponse(makePackage({ styleRefs: [{ styleId: "style-fill", body: undefined }] }));
     });
 
-    const resolved = await fetchMapPackage("pkg-001", {
+    const resolved = await fetchMapDocument("pkg-001", {
       client,
       allowInvalid: true,
       disableDefaultStyleRefResolver: true,
@@ -214,7 +214,7 @@ describe("fetchMapPackage", () => {
       ),
     );
 
-    const result = await fetchMapPackage("pkg-001", {
+    const result = await fetchMapDocument("pkg-001", {
       client,
       allowInvalid: true,
       requireStyleRefResolution: true,
@@ -229,9 +229,9 @@ describe("fetchMapPackage", () => {
   });
 });
 
-describe("validateMapPackage", () => {
+describe("validateMapDocument", () => {
   test("reports stale, expired, missing-source, and unsupported-protocol diagnostics", () => {
-    const diagnostics = validateMapPackage(
+    const diagnostics = validateMapDocument(
       makePackage({
         status: "Expired",
         updatedAt: "2026-05-10T00:00:00.000Z",
@@ -262,12 +262,12 @@ describe("validateMapPackage", () => {
   });
 });
 
-describe("loadMapPackageFromId", () => {
-  test("fetches by package id and delegates to loadMapPackage", async () => {
+describe("loadMapDocumentFromId", () => {
+  test("fetches by package id and delegates to loadMapDocument", async () => {
     const client = makeClient(async () => jsonResponse(makePackage({ sourceBindings: [], mapSpec: emptyStyle() })));
     const map = makeMockMap();
 
-    const result = await loadMapPackageFromId("pkg-001", map, {
+    const result = await loadMapDocumentFromId("pkg-001", map, {
       client,
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -278,14 +278,14 @@ describe("loadMapPackageFromId", () => {
   });
 });
 
-describe("watchMapPackage", () => {
+describe("watchMapDocument", () => {
   test("does not poll after disposal", async () => {
     vi.useFakeTimers();
     const fetchFn = vi.fn(async () => jsonResponse(makePackage()));
     const client = makeClient(fetchFn);
     const events: string[] = [];
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client,
       immediate: false,
       intervalMs: 25,
@@ -303,10 +303,10 @@ describe("watchMapPackage", () => {
   });
 });
 
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-001",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     updatedAt: "2026-05-11T00:00:00.000Z",
     sourceBindings: [
@@ -325,7 +325,7 @@ function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
   };
 }
 
-function emptyStyle(): HonuaMapPackage["mapSpec"] {
+function emptyStyle(): HonuaMapDocument["mapSpec"] {
   return { version: 8, sources: {}, layers: [] };
 }
 
@@ -402,17 +402,17 @@ function makeMockMap(): MockMap {
   return map;
 }
 
-describe("BoundedMapPackageFetchCache", () => {
-  function entry(id: string): MapPackageFetchCacheEntry {
+describe("BoundedMapDocumentFetchCache", () => {
+  function entry(id: string): MapDocumentFetchCacheEntry {
     return {
-      mapPackage: { mapPackageId: id, format: HONUA_MAP_PACKAGE_FORMAT_V1 } as unknown as HonuaMapPackage,
+      mapPackage: { mapPackageId: id, format: HONUA_MAP_DOCUMENT_FORMAT_V1 } as unknown as HonuaMapDocument,
       cachedAtMs: 0,
       fingerprint: id,
     };
   }
 
   test("evicts the oldest entry once the size limit is exceeded", () => {
-    const cache = new BoundedMapPackageFetchCache(2);
+    const cache = new BoundedMapDocumentFetchCache(2);
     cache.set("a", entry("a"));
     cache.set("b", entry("b"));
     cache.set("c", entry("c"));
@@ -421,7 +421,7 @@ describe("BoundedMapPackageFetchCache", () => {
   });
 
   test("refreshes recency on get so the most-recently-used entry survives eviction", () => {
-    const cache = new BoundedMapPackageFetchCache(2);
+    const cache = new BoundedMapDocumentFetchCache(2);
     cache.set("a", entry("a"));
     cache.set("b", entry("b"));
     // Touch "a" so "b" becomes the least-recently-used entry.
@@ -432,13 +432,13 @@ describe("BoundedMapPackageFetchCache", () => {
   });
 
   test("defaults to the metadata-mirroring 256-entry limit", () => {
-    expect(DEFAULT_MAP_PACKAGE_CACHE_LIMIT).toBe(256);
-    const cache = new BoundedMapPackageFetchCache();
-    for (let i = 0; i < DEFAULT_MAP_PACKAGE_CACHE_LIMIT + 5; i += 1) {
+    expect(DEFAULT_MAP_DOCUMENT_CACHE_LIMIT).toBe(256);
+    const cache = new BoundedMapDocumentFetchCache();
+    for (let i = 0; i < DEFAULT_MAP_DOCUMENT_CACHE_LIMIT + 5; i += 1) {
       cache.set(`k${i}`, entry(`k${i}`));
     }
-    expect(cache.size).toBe(DEFAULT_MAP_PACKAGE_CACHE_LIMIT);
+    expect(cache.size).toBe(DEFAULT_MAP_DOCUMENT_CACHE_LIMIT);
     expect(cache.has("k0")).toBe(false);
-    expect(cache.has(`k${DEFAULT_MAP_PACKAGE_CACHE_LIMIT + 4}`)).toBe(true);
+    expect(cache.has(`k${DEFAULT_MAP_DOCUMENT_CACHE_LIMIT + 4}`)).toBe(true);
   });
 });

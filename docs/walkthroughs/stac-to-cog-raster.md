@@ -5,6 +5,8 @@ description: "Take an imagery asset returned by a STAC search through inspection
 ---
 # From a STAC asset to a bounded COG render
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Use this walkthrough when a STAC search has returned an imagery asset and you
 need to inspect, subset, style, and display it without downloading the entire
 object. The fixture is pinned at

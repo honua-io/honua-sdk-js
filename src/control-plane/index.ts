@@ -4,7 +4,7 @@
  * Runtime data operations stay on `HonuaClient` and `@honua/sdk-js/runtime`.
  * This subpath owns admin resources such as hosted maps, packages, imports,
  * tokens, workspaces, connections, and sharing, with typed handoff through
- * MapPackage locators and SourceDescriptor-compatible shapes.
+ * map document locators and SourceDescriptor-compatible shapes.
  *
  * It also owns the shared application-command layer (`./commands/index.js`):
  * one typed, idempotent command set that the CLI, MCP, Studio, and direct JS
@@ -17,13 +17,13 @@
  */
 
 export {
-  HonuaApiTokensClient,
+  HonuaApiKeysClient,
   HonuaConnectionsClient,
   HonuaControlPlaneClient,
   HonuaControlPlaneJobHandle,
-  HonuaHostedMapsClient,
+  HonuaSavedMapsClient,
   HonuaImportsClient,
-  HonuaMapPackagesClient,
+  HonuaMapDocumentsClient,
   HonuaSharingClient,
   HonuaWorkspacesClient,
   createHonuaControlPlane,
@@ -76,8 +76,8 @@ export type { components as AdminApiComponents, operations as AdminApiOperations
 export type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
 export { HONUA_CAPABILITY_MANIFEST_PATH, HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
 export type {
-  HonuaApiToken,
-  HonuaApiTokenCreateRequest,
+  HonuaApiKey,
+  HonuaApiKeyCreateRequest,
   HonuaCapabilityManifestOptions,
   HonuaConnectionSummary,
   HonuaControlPlaneCapability,
@@ -92,19 +92,19 @@ export type {
   HonuaControlPlaneSourceDescriptor,
   HonuaControlPlaneSuccess,
   HonuaControlPlaneUnsupported,
-  HonuaCreateHostedMapRequest,
+  HonuaCreateSavedMapRequest,
   HonuaEntityValidators,
-  HonuaHostedMap,
-  HonuaHostedMapSummary,
+  HonuaSavedMap,
+  HonuaSavedMapSummary,
   HonuaImportCreateRequest,
-  HonuaMapPackageSummary,
+  HonuaMapDocumentSummary,
   HonuaProblemDetails,
   HonuaMapPublicationIntent,
-  HonuaPublishMapPackageRequest,
-  HonuaPublishMapPackageResponse,
+  HonuaPublishMapDocumentRequest,
+  HonuaPublishMapDocumentResponse,
   HonuaShareRequest,
   HonuaShareResponse,
-  HonuaUpdateHostedMapRequest,
+  HonuaUpdateSavedMapRequest,
   HonuaWorkspaceSummary,
 } from "./types.js";
 

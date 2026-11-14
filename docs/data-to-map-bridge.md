@@ -6,11 +6,13 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Data-to-map bridge (`mountSource`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > Status: `@experimental` — the surface ships on the stable `/map` entrypoint
 > but the option and diagnostics shapes may still change in minor releases.
 
 `mountSource(map, source, options)` from `@honua/sdk-js/map` turns any
-contract `Source` into a live, styled MapLibre layer set — no MapPackage, no
+contract `Source` into a live, styled MapLibre layer set — no map document, no
 Honua server, no app-platform import. It is the standalone slice of the kernel
 ADR's `connection.mount(target)` contract
 ([`docs/decisions/north-star-sdk-application-kernel.md`](./decisions/north-star-sdk-application-kernel.md)):

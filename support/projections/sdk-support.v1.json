@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.3.6",
+    "version": "0.3.7",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -2454,7 +2454,7 @@
     },
     {
       "id": "map-package-facade",
-      "label": "Authored MapPackage runtime",
+      "label": "Authored map-document runtime",
       "operations": [
         "render"
       ],
@@ -2464,7 +2464,7 @@
       "backendNeeded": "Honua Server",
       "serverAttach": {
         "disposition": "inherent",
-        "rationale": "A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage."
+        "rationale": "A map document is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no map document."
       },
       "api": "@honua/sdk-js/runtime",
       "notes": "Loads server-authored styles, layer order, and metadata.",

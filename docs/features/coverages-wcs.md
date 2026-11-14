@@ -5,6 +5,8 @@ description: "Use `@honua/sdk-js/coverages` when the output is a raster value gr
 ---
 # Read multidimensional coverages with OGC API Coverages and WCS
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > **Maturity: experimental.** The standalone fixture is release-gated in a real browser, but there is no reviewed anonymous live OGC API Coverages or WCS canary. The canonical raster source registry therefore keeps both adapters experimental.
 
 Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK.

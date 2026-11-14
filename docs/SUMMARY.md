@@ -6,7 +6,7 @@
 
 ## Quickstart
 
-* [Put a map on the page](quickstart.md)
+* [Start native, then connect an existing map](quickstart.md)
 * [When the quickstart does not render](quickstart-troubleshooting.md)
 * [Server-optional quickstart](standalone-quickstart.md)
 
@@ -27,6 +27,7 @@
 * [@honua/mcp-server: the standalone MCP server](mcp-server.md)
 * [`honua-maplibre` migration target](migration-honua-maplibre.md)
 * [JavaScript migration tool transition](migration-tool-transition.md)
+* [Start with gRPC and cloud-native files](native-data-paths.md)
 * [Zero-install playgrounds](playgrounds.md)
 * [Source schema v2 migration](source-schema-v2-migration.md)
 * [Unified agent workflows](unified-agent-workflows.md)
@@ -79,7 +80,7 @@
 * [Linked analytics and chart presentation (experimental)](linked-analytics.md)
 * [Linked-View Context Sync](linked-view-context-sync.md)
 * [Local native workspace preview](local-agent-workspace-preview.md)
-* [MapPackage Realtime Watch](map-package-realtime-watch.md)
+* [Map Document Realtime Watch](map-package-realtime-watch.md)
 * [MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)](maplibre-runtime.md)
 * [Natural-language map control (`@honua/sdk-js/nl-map-control`)](nl-map-control.md)
 * [Downloadable offline regions (experimental)](offline-regions.md)
@@ -111,6 +112,7 @@
 * [Studio package parity: MCP, QGIS, and Console](studio-package-parity.md)
 * [terra-draw sketch binding (`@honua/sdk-js/runtime`)](terra-draw-sketch.md)
 * [Unified agent host configuration](unified-agent-host-configuration.md)
+* [Vocabulary renames](vocabulary-renames.md)
 * [Walkthrough: search STAC and open an asset](walkthroughs/search-stac-and-open-assets.md)
 * [Choose server pushdown or bounded browser execution](walkthroughs/server-or-browser-columnar.md)
 * [From a STAC asset to a bounded COG render](walkthroughs/stac-to-cog-raster.md)

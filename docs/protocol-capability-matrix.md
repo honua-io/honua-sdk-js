@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Protocol × Capability Matrix
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 <!-- support-manifest:protocol-matrix:start -->
 Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
 
@@ -907,7 +909,7 @@ evidence; its typed adapter reuses the reviewed description without refetching.
 The `pmtiles` package is an optional peer dependency imported lazily — a
 build that never inspects or renders a PMTiles archive pays no cost. The
 MapLibre runtime auto-registers the `pmtiles://` protocol on map attach
-(`loadMapPackage`), so a `pmtiles` MapPackage source binding renders with no
+(`loadMapDocument`), so a `pmtiles` map document source binding renders with no
 manual `addProtocol` wiring; see [`pmtiles.md`](./pmtiles.md).
 
 ## Multi-source negotiation

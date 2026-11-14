@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Error reference
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
 errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
@@ -96,7 +98,7 @@ try {
 | `HonuaMapLibreRasterStrategyError` | `@honua/sdk-js/map` | Raster strategy capability/metadata/options, identifiers, or renderer mutation fail. | Correct source truth/options or host conflicts; do not silently select a lossy fallback. |
 | `HonuaAutomaticMapLibreIntegrationError` | `@honua/sdk-js/map` | Incremental integration is disposed or receives an invalid target. | Recreate the integration or correct the target. |
 | `HonuaTemporalPlaybackError` | `@honua/sdk-js/map` | Playback options or temporal extent are invalid. | Correct input; do not retry unchanged input. |
-| `HonuaMapPackageError` | `@honua/sdk-js/runtime` | Map-package fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
+| `HonuaMapDocumentError` | `@honua/sdk-js/runtime` | Map-document fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
 | `HonuaRuntimeDiagnosticError` | `@honua/sdk-js/runtime` | Runtime style/source/layer validation produces error diagnostics. | Inspect the local `.diagnostics` and correct invalid runtime input. Serialized context carries codes/count only. |
 | `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
@@ -143,7 +145,7 @@ human-readable registry summaries remain in the explicit public registry.
 | `HonuaMapLibreRasterStrategyError` | `map.raster-strategy.*` |
 | `HonuaAutomaticMapLibreIntegrationError` | `map.automatic-integration.*` |
 | `HonuaTemporalPlaybackError` | `map.temporal-playback.invalid-option` |
-| `HonuaMapPackageError` | `runtime.map-package.*` (one code per public stage) |
+| `HonuaMapDocumentError` | `runtime.map-package.*` (one code per public stage) |
 | `HonuaRuntimeDiagnosticError` | `runtime.diagnostic` |
 | `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
 | `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
@@ -378,8 +380,8 @@ classification is conservatively non-retryable.
 | `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
 | `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
 | `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
-| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
-| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a map document |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app map document does not match its manifest |
 | `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
 | `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
 | `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |

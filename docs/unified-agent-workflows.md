@@ -6,6 +6,8 @@ description: Evaluate, publish and operate GIS resources through one persistent 
 
 # Unified agent workflows
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The connector ships semantic workflow knowledge as `honua.agent-workflow-knowledge/v1`,
 knowledge version `2026-10-19.2`, resource `honua://agent/knowledge/workflows/v1`.
 The canonical source is `src/studio-agent/workflow-knowledge.ts`; the MCP module

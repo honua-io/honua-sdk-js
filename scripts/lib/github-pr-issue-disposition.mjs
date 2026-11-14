@@ -127,7 +127,9 @@ export async function githubRequest(url, options = {}) {
     },
   });
   if (!response.ok) {
-    throw new Error(`GitHub API request failed with HTTP ${response.status} for ${new URL(url).pathname}.`);
+    const error = new Error(`GitHub API request failed with HTTP ${response.status} for ${new URL(url).pathname}.`);
+    error.status = response.status;
+    throw error;
   }
   if (response.status === 204) return null;
   return response.json();

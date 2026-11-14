@@ -1,10 +1,14 @@
 ---
 type: guide
-title: "Put a map on the page"
-description: "Install @honua/sdk-js, point it at a public FeatureServer or OGC API Features endpoint, and render the result on MapLibre. No Honua server and no account required."
+title: "Start native, then connect an existing map"
+description: "Start with gRPC-Web and cloud-native files; use the public FeatureServer walkthrough for compatibility during migration."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Put a map on the page
+# Start native, then connect an existing map
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
+## Compatibility walkthrough: an existing public endpoint
 
 The SDK's map workflow is five verbs in order: **connect → discover → explain →
 query → mount**. This page runs them against a public endpoint. Nothing of
@@ -104,7 +108,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.6 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.3.7 # x-release-please-version
 cd my-map
 npm install
 npm run dev

@@ -6,6 +6,8 @@ resource: "honua://capability/serve.wfs"
 ---
 # WFS 2.0 adapter
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js` ships a first-party WFS 2.0 client that conforms to the
 shared JS client contract from
 [`docs/shared-client-contract.md`](./shared-client-contract.md). A WFS

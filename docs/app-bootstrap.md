@@ -5,6 +5,8 @@ description: "createHonuaApp(), a framework-neutral bootstrap over the client, h
 ---
 # Honua App Bootstrap (`@honua/sdk-js/app`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Status: experimental.
 
 `createHonuaApp()` is a framework-neutral bootstrap layer over the existing
@@ -62,15 +64,15 @@ const app = await createHonuaApp({
 ```
 
 Package locators can be `packageId`, `packageUrl`, `src`, `locator`, or an
-inline `mapPackage`. Hosted loads use `fetchMapPackage`, including its
+inline `mapPackage`. Hosted loads use `fetchMapDocument`, including its
 ETag / Last-Modified validator cache. Pass `fetch.cache: false` to bypass the
-SDK cache or a shared `MapPackageFetchCache` to reuse validators across app
+SDK cache or a shared `MapDocumentFetchCache` to reuse validators across app
 instances.
 
 ## Source Descriptor
 
 For quick previews, pass a single contract `SourceDescriptor`. The helper
-synthesizes a minimal `MapPackage` with one layer and then runs the normal
+synthesizes a minimal `HonuaMapDocument` with one layer and then runs the normal
 runtime path.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
@@ -115,7 +117,7 @@ controller, and owned runtime. Caller-provided handles are not disposed.
 | `controller-ready` | App and web-component controllers are ready. |
 | `degraded` | A non-fatal source bind or watch problem occurred. |
 | `error` | Bootstrap failed. `stage` distinguishes `auth`, `fetch`, `validate`, `source-bind`, `render`, `watch`, and `dispose`. |
-| `watch` | A `watchMapPackage` event was forwarded. |
+| `watch` | A `watchMapDocument` event was forwarded. |
 | `disposed` | The handle was disposed. |
 
 Validation failures from hosted packages surface as `stage: "validate"`.

@@ -1,5 +1,7 @@
 # Examples
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Each example here is the runnable demonstration of one SDK capability. Every example runs on committed
 fixtures by default; "Fixture or live" means it can also point at a live server you configure. Each example's
 README has its run, build and test commands.
@@ -7,6 +9,17 @@ README has its run, build and test commands.
 Use-case demos built on the SDK (property and planning, 311, emergency preparedness, public works, analysis
 workbench) are at [samples.honua.io](https://samples.honua.io). Track, support tier, lifecycle and evidence for
 every example are in the generated [sample catalog](../docs/generated/sample-catalog.md).
+
+## Start with the native path
+
+Follow the [native data guide](../docs/native-data-paths.md) before selecting
+a sample: it covers live gRPC queries, current edit support, browser setup,
+public CDN files and private snapshot refresh. The protocol-specific examples
+below preserve compatibility and coexistence coverage.
+
+For public data, run [PMTiles](pmtiles-static/README.md),
+[GeoParquet](overture-geoparquet/README.md), or
+[COG imagery](imagery-cog-quickstart/README.md) first.
 
 ## Get started
 

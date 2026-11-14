@@ -13,7 +13,7 @@
  * be registered. That also keeps the offline module graph out of every map that
  * never reads from a region.
  *
- * Registration is triggered by evidence, never by import: `loadMapPackage`
+ * Registration is triggered by evidence, never by import: `loadMapDocument`
  * registers when the composed style actually references the scheme, and fails
  * closed when it does but no handler was supplied — because a missing handler
  * renders blank tiles rather than an error.
@@ -91,7 +91,7 @@ export function resetOfflineRegionProtocol(scheme: string = OFFLINE_REGION_PROTO
 
 /**
  * Whether a composed MapLibre style references at least one `offline-region://`
- * source. This is the evidence `loadMapPackage` registers on.
+ * source. This is the evidence `loadMapDocument` registers on.
  */
 export function styleUsesOfflineRegion(
   style: { sources?: Record<string, unknown> } | null | undefined,

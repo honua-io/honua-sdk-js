@@ -6,9 +6,11 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Generated App Runtime (`@honua/sdk-js/generated-app`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The generated-app subpath is the SDK browser projection for the first
 AI-generated operations dashboard proof. It consumes a versioned manifest from
-`AppPackage.manifest_artifact`, hydrates the referenced `MapPackage` through
+`AppVersion.manifest_artifact`, hydrates the referenced `HonuaMapDocument` through
 `@honua/sdk-js/runtime`, and binds map, table/list, count, chart, and filter
 widgets through one `ExplorationContext`.
 
@@ -28,12 +30,12 @@ import {
 | --- | --- | --- |
 | `HONUA_GENERATED_APP_MANIFEST_FORMAT_V1` | `honua_generated_app_manifest.v1` | Version gate for the browser manifest shape. |
 | `HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1` | `operations-dashboard.v1` | Narrow proof profile. Other generated-app profiles are rejected with `HonuaGeneratedAppError { code: "unsupported-profile" }`. |
-| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND` | `honua.generated-app.manifest` | `AppPackage.manifest_artifact.artifactKind`. |
-| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION` | `1` | `AppPackage.manifest_artifact.artifactVersion`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_KIND` | `honua.generated-app.manifest` | `AppVersion.manifest_artifact.artifactKind`. |
+| `HONUA_GENERATED_APP_MANIFEST_ARTIFACT_VERSION` | `1` | `AppVersion.manifest_artifact.artifactVersion`. |
 
 The proof profile requires these widget kinds:
 
-- `map` backed by a `MapPackage` and the MapLibre runtime.
+- `map` backed by a `HonuaMapDocument` and the MapLibre runtime.
 - `table` or `list` backed by the manifest source binding.
 - `count` over the current linked result set.
 - `chart` grouped by a categorical field.
@@ -59,13 +61,13 @@ the browser-safe projection of canonical builder/package output.
 | `BuildSpec.layout.widgets` / `BuildSpec.widgets` | `manifest.layout.widgets` | Widget ids and bindings consumed by `loadGeneratedAppRuntime`. |
 | `BuildSpec.bindings` | `manifest.bindings` | Field bindings such as `primaryKey`, `titleField`, `categoryField`, `filterField`, `tableFields`, `searchFields`, and `layerId`. |
 | `BuildSpec.initialState` | `manifest.initialState` | Optional initial `ExplorationState` seed. |
-| `AppPackage.id` / `AppPackage.version` | `manifest.appId` / `manifest.version` fallback | `projectAppPackageToGeneratedAppManifest` fills these when the artifact omits them. |
-| `AppPackage.manifest_artifact` / `AppPackage.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
+| `AppVersion.id` / `AppVersion.version` | `manifest.appId` / `manifest.version` fallback | `projectAppVersionToGeneratedAppManifest` fills these when the artifact omits them. |
+| `AppVersion.manifest_artifact` / `AppVersion.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
 | `MapPackage.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app package. |
-| `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapPackage`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
+| `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapDocument`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
 | `MapPackage.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
 
-When a `BuildSpec` or `MapPackage` projection omits widgets, the SDK creates
+When a `BuildSpec` or `HonuaMapDocument` projection omits widgets, the SDK creates
 the proof dashboard's default map, table, count, chart, and filter widgets from
 the supplied field bindings.
 
@@ -92,7 +94,7 @@ if (preview.status === "error") {
 }
 ```
 
-Manifests with a `map` widget require a `MapPackage`, `mapFactory`, and
+Manifests with a `map` widget require a `HonuaMapDocument`, `mapFactory`, and
 `mapLoadOptions`. When `manifest.mapPackageId` is present, the resolved
 `MapPackage.mapPackageId` must match before the SDK constructs the host map;
 mismatches return a `map-package-mismatch` diagnostic. `mapFactory` returns the
@@ -172,8 +174,8 @@ const diagnostic = {
   name: "HonuaGeneratedAppError",
   code: "missing-manifest-artifact",
   stage: "projection",
-  message: "AppPackage is missing manifest_artifact for generated-app preview",
-  detail: { path: "AppPackage.manifest_artifact" }
+  message: "App version is missing manifest_artifact for generated-app preview",
+  detail: { path: "AppVersion.manifest_artifact" }
 };
 ```
 

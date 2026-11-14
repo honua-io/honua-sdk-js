@@ -6,9 +6,11 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Shared Client Contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
-visual builders, and the server `SourceBinding`/`MapPackage` exporters
+visual builders, and the server `SourceBinding`/`HonuaMapDocument` exporters
 — can be written once against `Dataset` / `Source` / `Query` / `Result`
 / `MapBinding` rather than re-litigating the surface per protocol.
 
@@ -24,7 +26,7 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
 - **Goal:** stable serialization shape that survives a round-trip with
-  the server `SourceBinding` / `MapPackage` documents (see
+  the server `SourceBinding` / `HonuaMapDocument` documents (see
   [`source-binding-alignment.md`](./source-binding-alignment.md)).
 - **Non-goal:** a runtime rewrite. The contract is a typed surface plus
   thin adapter functions — one per built-in protocol
@@ -76,7 +78,7 @@ scenarios.
 | `EditWorkflowSession<T>` | Form/edit session over one `Source`: projects field metadata and domains, exposes relationship / attachment capability states, stages feature and attachment edits, runs optimistic hooks, and returns a normalized `EditWorkflowSubmitResult`. |
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
 | `AttachmentApi` | Namespace returned by `Source.attachments`. Methods: `query`, `list`, `add`, `update`, `delete`. Adapters that do not advertise `attachments` throw `HonuaCapabilityNotSupportedError` from each method so the namespace property is always present and capability negotiation stays uniform. |
-| `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `MapPackage` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
+| `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `HonuaMapDocument` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
 | `QueryTileSourceDescriptor` | Typed dynamic vector/query tile descriptor. It binds a canonical `Source` or source id to tile endpoint metadata, query/projection cache identity, fallback policy, and feature identity hooks. Runtime MapLibre helpers and the canonical `/query-tiles` server contract live in [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 
 ## Dynamic query tile server contract

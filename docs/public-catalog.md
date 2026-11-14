@@ -5,6 +5,8 @@ description: "Typed listing and detail reads of the server's access-filtered cat
 ---
 # Public catalog
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `HonuaClient.listCatalog()` and `HonuaClient.getCatalogItem()` read the server's catalog of published
 services and Layers. The server filters the catalog for the caller before it pages and counts, so an
 anonymous client sees public content and a signed-in client also sees what its credential allows.

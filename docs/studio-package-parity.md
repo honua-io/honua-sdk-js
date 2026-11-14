@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Studio package parity: MCP, QGIS, and Console
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Status: experimental. This is the parity layer on top of the
 [package contracts](studio-package-contracts.md).
 
@@ -49,7 +51,7 @@ same provenance shape as Console — there is no surface-specific variant.
 `validateStudioPackage(family, pkg, options)` validates a package of any family
 produced by an MCP client, the QGIS plugin, or the SDK, returning the unified
 `StudioPackageValidationResponse<T>`. For the `map` family it
-delegates to the established structural `validateMapPackage`; for the other
+delegates to the established structural `validateMapDocument`; for the other
 families it runs the shared base checks (identity field, `format`, lifecycle)
 plus provenance checks when an envelope is present. Pass
 `{ requireProvenance: true }` to make provenance mandatory.

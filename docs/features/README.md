@@ -5,6 +5,8 @@ description: "What the JavaScript SDK ships: the client, the protocol-neutral co
 ---
 # Honua JS SDK Feature Map
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package.
 
 ## Current Capabilities
@@ -12,7 +14,7 @@ The JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examp
 - Honua-first `HonuaClient` for GeoServices FeatureServer/MapServer, catalog operations, request/auth interceptors, and compatibility checks.
 - Protocol-neutral Dataset/Source/Query/Result contract with built-in adapters for GeoServices, OGC API Features/Tiles/Maps/Records/Processes, STAC, WMS, WMTS, WFS, and OData.
 - OGC client wrappers for Features, Tiles, Maps, Records, Processes, STAC, WMS, WMTS, WFS, and OData.
-- MapLibre runtime helpers for `MapPackage`, source/layer style validation, WMS/WMTS source specs, web-map conversion, and warning contracts.
+- MapLibre runtime helpers for `HonuaMapDocument`, source/layer style validation, WMS/WMTS source specs, web-map conversion, and warning contracts.
 - Generated-app manifest projection and operations-dashboard preview runtime under `@honua/sdk-js/generated-app`.
 - Studio package-family contract projections (query, analysis, map, dashboard, report, form, app, workflow, GP, ETL), a unified `{ valid, diagnostics, pkg? }` validation/preview envelope, capability manifest, and publish/share/embed contracts under `@honua/sdk-js/studio` (MCP/QGIS-safe).
 - Client compatibility layer for migration-critical layers, views, widgets, controls, routing helpers, search, popup, time slider, measurement, editor/sketch, graphics, groups, web maps, and basic scene-view compatibility.

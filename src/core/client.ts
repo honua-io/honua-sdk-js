@@ -114,6 +114,7 @@ import {
   toGeoServicesError,
   toHttpError,
 } from "./request-pipeline.js";
+import { readBoundedResponseBytes } from "./response-body.js";
 import {
   HonuaStacSearch,
   getStacCollection,
@@ -2491,59 +2492,6 @@ async function parseSuccessfulJsonBody(
       )
     : response;
   return parseResponseBody(prepared, maxResponseBytes, true);
-}
-
-async function readBoundedResponseBytes(
-  response: Response,
-  maximum: number,
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
-  if (signal?.aborted) {
-    void response.body?.cancel().catch(() => undefined);
-    throw new HonuaAbortError();
-  }
-  const advertised = response.headers.get("content-length");
-  if (advertised !== null) {
-    const length = Number(advertised);
-    if (Number.isFinite(length) && length > maximum) {
-      void response.body?.cancel().catch(() => undefined);
-      throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
-    }
-  }
-
-  if (!response.body) return new Uint8Array();
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  const abort = () => void reader.cancel().catch(() => undefined);
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    for (;;) {
-      if (signal?.aborted) throw new HonuaAbortError();
-      const { done, value } = await reader.read();
-      if (signal?.aborted) throw new HonuaAbortError();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maximum) {
-        void reader.cancel().catch(() => undefined);
-        throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
-      }
-      chunks.push(value);
-    }
-  } catch (error) {
-    if (signal?.aborted) throw new HonuaAbortError();
-    throw error;
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
 }
 
 function bufferedResponse(source: Response, bytes: Uint8Array): Response {

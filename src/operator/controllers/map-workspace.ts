@@ -1,6 +1,6 @@
 /**
  * `MapWorkspaceController` — orchestrates the `HonuaMapRuntime` and the
- * `ExplorationContext` for a single result `MapPackage`. The controller
+ * `ExplorationContext` for a single result `HonuaMapDocument`. The controller
  * owns no MapLibre source/style code of its own — every map mutation
  * delegates to the runtime from `src/runtime/`.
  *
@@ -14,14 +14,14 @@ import {
   createExplorationContext,
 } from "../../exploration/index.js";
 import {
-  type HonuaMapPackage,
-  type HonuaMapPackagePopupBinding,
+  type HonuaMapDocument,
+  type HonuaMapDocumentPopupBinding,
   type HonuaMapRuntime,
   type LegendEntry,
-  type LoadMapPackageOptions,
+  type LoadMapDocumentOptions,
   type MaplibreMap,
   type SetViewStateInput,
-  loadMapPackage,
+  loadMapDocument,
 } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { HonuaOperatorMapError } from "../errors.js";
@@ -29,8 +29,8 @@ import type { OperatorTelemetry } from "../telemetry.js";
 import { ListenerBag, type Unsubscribe, withTelemetrySpan } from "./base.js";
 
 export type MapWorkspaceEvent =
-  | { kind: "package-loaded"; pkg: HonuaMapPackage }
-  | { kind: "package-refined"; pkg: HonuaMapPackage }
+  | { kind: "package-loaded"; pkg: HonuaMapDocument }
+  | { kind: "package-refined"; pkg: HonuaMapDocument }
   | { kind: "package-disposed" }
   | { kind: "error"; error: HonuaOperatorMapError };
 
@@ -52,11 +52,11 @@ export interface MapWorkspaceControllerOptions {
   explorationPreset?: LinkedViewPresetName;
   telemetry?: OperatorTelemetry;
   /**
-   * Pass-through options handed to `loadMapPackage`. The controller
+   * Pass-through options handed to `loadMapDocument`. The controller
    * never instantiates a `HonuaClient` itself — the host wires the
    * runtime client through this hook.
    */
-  loadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
+  loadOptions?: Omit<LoadMapDocumentOptions, "telemetry">;
 }
 
 const MAP_VIEW_BINDING_ID = "map-primary";
@@ -66,7 +66,7 @@ export class MapWorkspaceController {
   readonly #mapFactory: MapFactory;
   readonly #preset: LinkedViewPresetName;
   readonly #telemetry: OperatorTelemetry | undefined;
-  readonly #loadOptions: Omit<LoadMapPackageOptions, "telemetry"> | undefined;
+  readonly #loadOptions: Omit<LoadMapDocumentOptions, "telemetry"> | undefined;
   readonly #bag = new ListenerBag<MapWorkspaceEvent>();
 
   #runtime: HonuaMapRuntime | undefined;
@@ -74,10 +74,10 @@ export class MapWorkspaceController {
   #viewHandle: ViewHandle | undefined;
   #disposeMap: (() => void) | undefined;
   #activeIntentId: string | undefined;
-  // Bumped on every loadPackage() / refine() / dispose() entry. The
+  // Bumped on every loadMapDocument() / refine() / dispose() entry. The
   // operation captures it before awaiting and only commits state when
   // the captured value still matches at resolution time. Parallel
-  // loads or refinements thereby cannot let an older `MapPackage`
+  // loads or refinements thereby cannot let an older `HonuaMapDocument`
   // overwrite a newer one.
   #opGeneration = 0;
 
@@ -110,17 +110,17 @@ export class MapWorkspaceController {
   }
 
   /**
-   * Load a `MapPackage` into a fresh runtime + exploration context.
+   * Load a `HonuaMapDocument` into a fresh runtime + exploration context.
    * Tears down any previously loaded package; safe to call repeatedly.
    *
    * Concurrent loads supersede each other via `#opGeneration`: an
-   * older load whose factory or `loadMapPackage` is still pending when
+   * older load whose factory or `loadMapDocument` is still pending when
    * a newer load arrives discards its locally-built runtime/context
    * instead of overwriting the newer state.
    */
-  public async loadPackage(pkg: HonuaMapPackage): Promise<HonuaMapRuntime> {
+  public async loadMapDocument(pkg: HonuaMapDocument): Promise<HonuaMapRuntime> {
     if (!this.#loadOptions) {
-      throw new HonuaOperatorMapError("loadPackage requires loadOptions on the controller", {
+      throw new HonuaOperatorMapError("loadMapDocument requires loadOptions on the controller", {
         detail: { mapPackageId: pkg.mapPackageId },
       });
     }
@@ -148,7 +148,7 @@ export class MapWorkspaceController {
               detail: { mapPackageId: pkg.mapPackageId },
             });
           }
-          runtime = await loadMapPackage(pkg, factoryResult.map, {
+          runtime = await loadMapDocument(pkg, factoryResult.map, {
             ...this.#loadOptions!,
           });
           if (gen !== this.#opGeneration) {
@@ -173,9 +173,9 @@ export class MapWorkspaceController {
             // Superseded; the newer load owns teardown. Don't re-tear or emit.
             throw error;
           }
-          // `#disposeMap` is only assigned after `loadMapPackage`
+          // `#disposeMap` is only assigned after `loadMapDocument`
           // succeeds, so a factory that returned a host map followed
-          // by a `loadMapPackage` failure leaves the map orphaned.
+          // by a `loadMapDocument` failure leaves the map orphaned.
           // Dispose the locally-captured factoryResult / runtime here
           // before #tearDown runs (it will be a no-op for those).
           if (runtime !== undefined) disposeRuntime(runtime);
@@ -186,7 +186,7 @@ export class MapWorkspaceController {
           const wrapped =
             error instanceof HonuaOperatorMapError
               ? error
-              : new HonuaOperatorMapError("map package load failed", {
+              : new HonuaOperatorMapError("map document load failed", {
                   cause: error,
                   detail: { mapPackageId: pkg.mapPackageId },
                 });
@@ -200,13 +200,13 @@ export class MapWorkspaceController {
 
   /**
    * Natural-language refinement. The server returns an updated
-   * `MapPackage`; the runtime's diff path applies it incrementally.
+   * `HonuaMapDocument`; the runtime's diff path applies it incrementally.
    * Source-binding failures inside the runtime are forwarded via
    * `runtime.reportSourceError(...)` rather than thrown.
    */
-  public async refine(prompt: string, signal?: AbortSignal): Promise<HonuaMapPackage> {
+  public async refine(prompt: string, signal?: AbortSignal): Promise<HonuaMapDocument> {
     if (!this.#runtime) {
-      throw new HonuaOperatorMapError("refine called before loadPackage");
+      throw new HonuaOperatorMapError("refine called before loadMapDocument");
     }
     if (!this.#activeIntentId) {
       throw new HonuaOperatorMapError("refine requires bindIntent before invocation");
@@ -227,7 +227,7 @@ export class MapWorkspaceController {
             // mutate a stale or replaced runtime.
             return next;
           }
-          await ownRuntime.updatePackage(next);
+          await ownRuntime.updateMapDocument(next);
           if (gen !== this.#opGeneration || this.#runtime !== ownRuntime) {
             return next;
           }
@@ -262,7 +262,7 @@ export class MapWorkspaceController {
     this.#assertRuntime().setLayerVisibility(layerId, visible);
   }
 
-  public bindPopup(layerId: string, binding?: HonuaMapPackagePopupBinding): { remove(): void } {
+  public bindPopup(layerId: string, binding?: HonuaMapDocumentPopupBinding): { remove(): void } {
     return this.#assertRuntime().bindPopup(layerId, binding);
   }
 
@@ -282,7 +282,7 @@ export class MapWorkspaceController {
 
   #assertRuntime(): HonuaMapRuntime {
     if (!this.#runtime) {
-      throw new HonuaOperatorMapError("operation requires a loaded MapPackage");
+      throw new HonuaOperatorMapError("operation requires a loaded map document");
     }
     return this.#runtime;
   }
@@ -294,7 +294,7 @@ export class MapWorkspaceController {
    * binding) on those transitions; otherwise leave it intact so
    * subscribers retain their current state.
    */
-  #syncExplorationContext(pkg: HonuaMapPackage): void {
+  #syncExplorationContext(pkg: HonuaMapDocument): void {
     const nextSourceIds = pkg.sourceBindings.map((binding) => binding.sourceId);
     if (
       this.#context &&

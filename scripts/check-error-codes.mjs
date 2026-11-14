@@ -64,7 +64,7 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaMapLibreRasterStrategyError",
   "HonuaAutomaticMapLibreIntegrationError",
   "HonuaTemporalPlaybackError",
-  "HonuaMapPackageError",
+  "HonuaMapDocumentError",
   "HonuaRuntimeDiagnosticError",
   "QueryTileServerResponseError",
   "HonuaRealtimeResumeError",

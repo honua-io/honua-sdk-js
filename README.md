@@ -1,5 +1,7 @@
 # Honua JS SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/honua-io/honua-sdk-js/badge)](https://scorecard.dev/viewer/?uri=github.com/honua-io/honua-sdk-js)
 
 [![npm](https://img.shields.io/npm/v/@honua/sdk-js?color=2b6cb0&label=%40honua%2Fsdk-js)](https://www.npmjs.com/package/@honua/sdk-js)
@@ -17,9 +19,15 @@ runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatib
 layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
 surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
+## Native application data
+
+Use `HonuaClient` with explicit `transport: "grpc-web"` for live feature queries.
+Follow the [native data guide](docs/native-data-paths.md) for the complete browser
+setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
+
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
+For compatibility with existing service endpoints, a 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
@@ -28,7 +36,7 @@ compiling and running when you take the 6.0 upgrade. Run
 [widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
 widget mapped to its Honua/MapLibre disposition.
 
-## A public endpoint to a styled map
+## Compatibility: a public endpoint to a styled map
 
 Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
 public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
@@ -84,7 +92,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.3.6`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.3.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 28 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -129,8 +137,8 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
   backpressure, worker-side aggregation —
   [`docs/columnar-data-plane.md`](./docs/columnar-data-plane.md)).
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
-  styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s; `createTemporalPlayback` and the
+  styled, interactive MapLibre layer; `loadMapDocument(...)` + `HonuaMapRuntime` render
+  server-authored map documents; `createTemporalPlayback` and the
   `<honua-time-slider>` control animate time-enabled sources. This is the stable renderer path. OGC web-map support
   follows the generated capability matrix; Cesium integration lives on the `beta`
   `@honua/app-platform/scene-workspace` path — see the
@@ -161,7 +169,7 @@ The honest comparisons are the service-client libraries, not the renderers:
   MapLibre.
 - vs **`openlayers` / `maplibre-gl` directly** — pick those when you need a renderer and are
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
-  client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
+  client, the ArcGIS migration path, or the server-authored `HonuaMapDocument` runtime.
 
 The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix and an
 operation-level behaviour table against raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and
@@ -189,7 +197,7 @@ discovery (`supported`, `standalone`) and
 typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-`MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted
+map documents, realtime, collaboration, compatibility metadata, a richer hosted
 `/mcp` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.
@@ -313,13 +321,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
 | `@honua/sdk-js/map` | 56.1 KiB |
-| `@honua/sdk-js` (root) | 204.0 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 59.5 KiB |
-| `{ connect }` from the root (tree-shake guard) | 164.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 193.3 KiB |
+| `@honua/sdk-js` (root) | 204.2 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 59.6 KiB |
+| `{ connect }` from the root (tree-shake guard) | 164.5 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 193.4 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 164.4 KiB gzip and `{ createHonua }` 193.3 KiB against the 204.0 KiB root, so size-sensitive
+alone costs 164.5 KiB gzip and `{ createHonua }` 193.4 KiB against the 204.2 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -439,7 +447,7 @@ for the committed source.
 ### Add a Honua Server
 
 A [Honua Server](https://github.com/honua-io/honua-server) unlocks
-server-authored `MapPackage`s (`loadMapPackage()`), realtime subscriptions,
+server-authored map documents (`loadMapDocument()`), realtime subscriptions,
 collaboration / saved maps, and the MCP + AI surfaces. Point the same code at a
 local server (`docker compose up` in a honua-server checkout), and gate
 production reads on the compatibility check:
@@ -628,7 +636,7 @@ tables, and backwards-compatibility policy live in:
 - [`docs/shared-client-contract.md`](./docs/shared-client-contract.md) — `Dataset` / `Source` / `Query` / `Result` design
 - [`docs/protocol-capability-matrix.md`](./docs/protocol-capability-matrix.md) — what each protocol supports
 - [`docs/sdk-surface-alignment.md`](./docs/sdk-surface-alignment.md) — cross-language naming & semver policy
-- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage()` / `HonuaMapRuntime`
+- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapDocument()` / `HonuaMapRuntime`
 - [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
@@ -789,7 +797,7 @@ Long-form reference material now lives in [`docs/guide.md`](./docs/guide.md):
 - Subpath entrypoints and the `@experimental` tier
 - Protocol cookbooks — OGC Features / Tiles / Maps / Processes / STAC, WMS / WMTS, WFS 2.0, OData v4
 - Mixed Esri + OGC composition, streaming pagination, event lifecycle
-- MapLibre `MapPackage` runtime + Generated App preview runtime
+- MapLibre `HonuaMapDocument` runtime + Generated App preview runtime
 - Request/Auth bridge (interceptors, ArcGIS token + client-request interop)
 - `honua-migrate` CLI, admin scanner, parity matrix, sample-corpus harness
 
