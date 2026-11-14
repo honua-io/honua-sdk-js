@@ -66,6 +66,26 @@ function successfulRun(run, id, source, event, path) {
   assert.equal(run.head_repository.full_name, "honua-io/honua-sdk-js");
 }
 
+function assertExactSourceCi(record, snapshot) {
+  successfulRun(snapshot.strict, record.strictRunId, record.sealedSource, "workflow_dispatch", ".github/workflows/ci.yml");
+  successfulRun(snapshot.native, record.nativeRunId, record.sealedSource, "pull_request", ".github/workflows/ci.yml");
+  assert.ok(snapshot.native.run_attempt >= record.minimumNativeAttempt);
+  // In authoritative verification mode, pull_request SDK CI skips the JS and MCP SDK
+  // jobs and the SDK Verification run on the same source carries that proof.
+  const sdkVerified = record.sdkVerificationRunId !== undefined;
+  const nativeSdkJobs = sdkVerified ? [] : ["JS SDK", "MCP SDK"];
+  const gates = [[snapshot.strictJobs, ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab"]],
+    [snapshot.nativeJobs, [...nativeSdkJobs, "Deterministic Benchmark Lab", "PR Fast (under 2 minutes)"]]];
+  for (const [jobs, names] of gates) {
+    for (const name of names) assert.ok(jobs.some((job) => job.name === name && job.conclusion === "success"), `missing successful ${name}`);
+    if (!names.includes("JS SDK")) continue;
+    const sdk = jobs.find((job) => job.name === "JS SDK");
+    for (const name of ["Unit tests with coverage", "Browser smoke suite", "Deterministic browser rendering benchmark"])
+      assert.ok(sdk.steps.some((step) => step.name === name && step.conclusion === "success"), `missing actual ${name}`);
+  }
+  if (sdkVerified) assertSdkVerification(record, snapshot);
+}
+
 export function validateRecoverySnapshot(record, snapshot) {
   assert.equal(snapshot.release.id, record.releaseId);
   assert.equal(snapshot.release.tag_name, record.tag);
@@ -91,23 +111,7 @@ export function validateRecoverySnapshot(record, snapshot) {
   assert.equal(snapshot.identities.length, 3);
   assert.deepEqual(snapshot.identities[0].manifest, snapshot.identities[1].manifest);
   assert.deepEqual(snapshot.identities[0].manifest, snapshot.identities[2].manifest);
-  successfulRun(snapshot.strict, record.strictRunId, record.sealedSource, "workflow_dispatch", ".github/workflows/ci.yml");
-  successfulRun(snapshot.native, record.nativeRunId, record.sealedSource, "pull_request", ".github/workflows/ci.yml");
-  assert.ok(snapshot.native.run_attempt >= record.minimumNativeAttempt);
-  // In authoritative verification mode, pull_request SDK CI skips the JS and MCP SDK
-  // jobs and the SDK Verification run on the same source carries that proof.
-  const sdkVerified = record.sdkVerificationRunId !== undefined;
-  const nativeSdkJobs = sdkVerified ? [] : ["JS SDK", "MCP SDK"];
-  const gates = [[snapshot.strictJobs, ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab"]],
-    [snapshot.nativeJobs, [...nativeSdkJobs, "Deterministic Benchmark Lab", "PR Fast (under 2 minutes)"]]];
-  for (const [jobs, names] of gates) {
-    for (const name of names) assert.ok(jobs.some((job) => job.name === name && job.conclusion === "success"), `missing successful ${name}`);
-    if (!names.includes("JS SDK")) continue;
-    const sdk = jobs.find((job) => job.name === "JS SDK");
-    for (const name of ["Unit tests with coverage", "Browser smoke suite", "Deterministic browser rendering benchmark"])
-      assert.ok(sdk.steps.some((step) => step.name === name && step.conclusion === "success"), `missing actual ${name}`);
-  }
-  if (sdkVerified) assertSdkVerification(record, snapshot);
+  assertExactSourceCi(record, snapshot);
   const generation = snapshot.generation;
   assert.equal(generation.id, record.generationRunId);
   assert.equal(generation.head_sha, record.generationBase);
