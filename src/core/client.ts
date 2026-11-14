@@ -42,6 +42,7 @@ import {
   queryMapRelatedRecords,
   queryRelatedRecords,
 } from "./geoservices.js";
+import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
 import {
@@ -404,6 +405,9 @@ export class HonuaClient {
   /** The minimum Honua server version this SDK is contractually tested against. */
   public static readonly minimumSupportedServerVersion = HONUA_MINIMUM_SUPPORTED_SERVER_VERSION;
   public static readonly minimumSupportedServerReleaseChannel = MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL;
+
+  /** Native unary attachment operations; requires transport: grpc-web. */
+  public readonly attachments = createNativeAttachments((call, options) => this.callAttachment(call, options));
 
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
@@ -1789,6 +1793,21 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaLayerMetadata> {
     return getMapLayerMetadata(this.protocolTransport, serviceId, layerId, options);
+  }
+
+  private async callAttachment<T>(
+    call: (client: Client<typeof FeatureService>) => Promise<T>,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<T> {
+    if (!this.isGrpcWeb) throw new Error("Native attachments require transport: grpc-web.");
+    options?.signal?.throwIfAborted();
+    const client = await this.ensureConnectClient();
+    const adapter = await HonuaClient.loadGrpcAdapter();
+    try {
+      return await call(client);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
   }
 
   /** Read the native service descriptor without a REST metadata request. */

@@ -222,7 +222,7 @@ export function unionCapabilities(participants: ReadonlyArray<{ readonly capabil
  * Update both together.
  */
 export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabilities>> = {
-  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
+  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream", "attachments"]),
   "geoservices-feature-service": capabilities([
     "query",
     "queryAggregate",
@@ -865,6 +865,8 @@ export interface AttachmentGroup {
 
 /** Add-attachment request. `attachment` accepts `Blob`, `File`, or string. */
 export interface AttachmentAdd {
+  /** Reuse for an identical native upload retry. Defaults to a fresh operation key. */
+  idempotencyKey?: string;
   parentId: FeatureId;
   attachment: Blob | File | string;
   name?: string;
@@ -879,6 +881,8 @@ export interface AttachmentUpdate extends AttachmentAdd {
 
 /** Delete one or more attachments from a parent feature. */
 export interface AttachmentDelete {
+  /** Native retry key prefix; one independent operation key is derived per attachment. */
+  idempotencyKey?: string;
   parentId: FeatureId;
   attachmentIds: ReadonlyArray<FeatureId>;
   signal?: AbortSignal;
@@ -903,6 +907,22 @@ export interface AttachmentApi {
   add(request: AttachmentAdd): Promise<AttachmentEditOutcome>;
   update(request: AttachmentUpdate): Promise<AttachmentEditOutcome>;
   delete(request: AttachmentDelete): Promise<ReadonlyArray<AttachmentEditOutcome>>;
+  /**
+   * Short-lived signed download URL for `<img src>`, links and CDN fetches.
+   * Implemented on gRPC-Web sources; absent where the protocol has no signed URLs.
+   */
+  downloadUrl?(
+    parentId: FeatureId,
+    attachmentId: FeatureId,
+    options?: { signal?: AbortSignal },
+  ): Promise<AttachmentDownloadUrl>;
+}
+
+/** Signed attachment download URL and its expiry. */
+export interface AttachmentDownloadUrl {
+  url: string;
+  expiresAt: Date;
+  attachment: AttachmentInfo;
 }
 
 // ── Map binding ───────────────────────────────────────────────

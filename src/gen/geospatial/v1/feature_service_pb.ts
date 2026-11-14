@@ -7,6 +7,8 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { AbortAttachmentUploadRequestSchema, AbortAttachmentUploadResponseSchema, BeginAttachmentUploadRequestSchema, BeginAttachmentUploadResponseSchema, CommitAttachmentUploadRequestSchema, CommitAttachmentUploadResponseSchema, DeleteAttachmentRequestSchema, DeleteAttachmentResponseSchema, GetAttachmentUrlRequestSchema, GetAttachmentUrlResponseSchema, ListAttachmentsRequestSchema, ListAttachmentsResponseSchema, UploadAttachmentChunkRequestSchema, UploadAttachmentChunkResponseSchema, UploadAttachmentRequestSchema, UploadAttachmentResponseSchema } from "./attachment_types_pb.js";
+import { file_geospatial_v1_attachment_types } from "./attachment_types_pb.js";
 import type { Extent, FieldDefinition, GeometryType, SpatialReference, StatisticDefinition } from "./common_pb.js";
 import { file_geospatial_v1_common } from "./common_pb.js";
 import type { ErrorDetail } from "./execution_types_pb.js";
@@ -21,7 +23,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file geospatial/v1/feature_service.proto.
  */
 export const file_geospatial_v1_feature_service: GenFile = /*@__PURE__*/
-  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSJTChZEZXNjcmliZVNlcnZpY2VSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkikgEKF0Rlc2NyaWJlU2VydmljZVJlc3BvbnNlEjEKB3NlcnZpY2UYASABKAsyIC5nZW9zcGF0aWFsLnYxLlNlcnZpY2VEZXNjcmlwdG9yEisKBmxheWVycxgCIAMoCzIbLmdlb3NwYXRpYWwudjEuTGF5ZXJTdW1tYXJ5EhcKD25leHRfcGFnZV90b2tlbhgDIAEoCSI8ChREZXNjcmliZUxheWVyUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFIkYKFURlc2NyaWJlTGF5ZXJSZXNwb25zZRItCgVsYXllchgBIAEoCzIeLmdlb3NwYXRpYWwudjEuTGF5ZXJEZXNjcmlwdG9yIuQEChRRdWVyeUZlYXR1cmVzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEg0KBXdoZXJlGAMgASgJEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYBiABKAgSLwoGb3V0X3NyGAcgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhAKCG9yZGVyX2J5GAogASgJEhcKD3JldHVybl9kaXN0aW5jdBgLIAEoCBIZChFyZXR1cm5fY291bnRfb25seRgMIAEoCBIXCg9yZXR1cm5faWRzX29ubHkYDSABKAgSGgoScmV0dXJuX2V4dGVudF9vbmx5GA4gASgIEjoKDm91dF9zdGF0aXN0aWNzGA8gAygLMiIuZ2Vvc3BhdGlhbC52MS5TdGF0aXN0aWNEZWZpbml0aW9uEhAKCGdyb3VwX2J5GBAgAygJEhoKEmdlb21ldHJ5X3ByZWNpc2lvbhgRIAEoBRIcChRtYXhfYWxsb3dhYmxlX29mZnNldBgSIAEoARI0Cg5zcGF0aWFsX2ZpbHRlchgTIAEoCzIcLmdlb3NwYXRpYWwudjEuU3BhdGlhbEZpbHRlchIaChJyZXN1bHRfb2Zmc2V0X2xvbmcYFCABKAMSIAoYcmVzdWx0X3JlY29yZF9jb3VudF9sb25nGBUgASgDSgQICBAJSgQICRAKUg1yZXN1bHRfb2Zmc2V0UhNyZXN1bHRfcmVjb3JkX2NvdW50IuoCChVRdWVyeUZlYXR1cmVzUmVzcG9uc2USHAoUb2JqZWN0X2lkX2ZpZWxkX25hbWUYASABKAkSMgoNZ2VvbWV0cnlfdHlwZRgCIAEoDjIbLmdlb3NwYXRpYWwudjEuR2VvbWV0cnlUeXBlEjoKEXNwYXRpYWxfcmVmZXJlbmNlGAMgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEi4KBmZpZWxkcxgEIAMoCzIeLmdlb3NwYXRpYWwudjEuRmllbGREZWZpbml0aW9uEigKCGZlYXR1cmVzGAUgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEh8KF2V4Y2VlZGVkX3RyYW5zZmVyX2xpbWl0GAYgASgIEg0KBWNvdW50GAcgASgDEhIKCm9iamVjdF9pZHMYCCADKAMSJQoGZXh0ZW50GAkgASgLMhUuZ2Vvc3BhdGlhbC52MS5FeHRlbnQiiwIKC0ZlYXR1cmVQYWdlEhwKFG9iamVjdF9pZF9maWVsZF9uYW1lGAEgASgJEjIKDWdlb21ldHJ5X3R5cGUYAiABKA4yGy5nZW9zcGF0aWFsLnYxLkdlb21ldHJ5VHlwZRI6ChFzcGF0aWFsX3JlZmVyZW5jZRgDIAEoCzIfLmdlb3NwYXRpYWwudjEuU3BhdGlhbFJlZmVyZW5jZRIuCgZmaWVsZHMYBCADKAsyHi5nZW9zcGF0aWFsLnYxLkZpZWxkRGVmaW5pdGlvbhIoCghmZWF0dXJlcxgFIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRIUCgxpc19sYXN0X3BhZ2UYBiABKAgi5AEKEUFwcGx5RWRpdHNSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEAoIbGF5ZXJfaWQYAiABKAUSJAoEYWRkcxgDIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRInCgd1cGRhdGVzGAQgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEg8KB2RlbGV0ZXMYBSADKAMSGwoTcm9sbGJhY2tfb25fZmFpbHVyZRgGIAEoCBITCgtmb3JjZV93cml0ZRgHIAEoCBIXCg9pZGVtcG90ZW5jeV9rZXkYCCABKAki1QEKEkFwcGx5RWRpdHNSZXNwb25zZRIuCgthZGRfcmVzdWx0cxgBIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIxCg51cGRhdGVfcmVzdWx0cxgCIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIxCg5kZWxldGVfcmVzdWx0cxgDIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIpCgVlcnJvchgEIAEoCzIaLmdlb3NwYXRpYWwudjEuRXJyb3JEZXRhaWwiWwoKRWRpdFJlc3VsdBIRCglvYmplY3RfaWQYASABKAMSDwoHc3VjY2VzcxgCIAEoCBIpCgVlcnJvchgDIAEoCzIaLmdlb3NwYXRpYWwudjEuRXJyb3JEZXRhaWwy1wMKDkZlYXR1cmVTZXJ2aWNlEmAKD0Rlc2NyaWJlU2VydmljZRIlLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVxdWVzdBomLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVzcG9uc2USWgoNRGVzY3JpYmVMYXllchIjLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVMYXllclJlcXVlc3QaJC5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlTGF5ZXJSZXNwb25zZRJaCg1RdWVyeUZlYXR1cmVzEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBokLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1Jlc3BvbnNlElgKE1F1ZXJ5RmVhdHVyZXNTdHJlYW0SIy5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXF1ZXN0GhouZ2Vvc3BhdGlhbC52MS5GZWF0dXJlUGFnZTABElEKCkFwcGx5RWRpdHMSIC5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXF1ZXN0GiEuZ2Vvc3BhdGlhbC52MS5BcHBseUVkaXRzUmVzcG9uc2ViBnByb3RvMw", [file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_metadata_types, file_geospatial_v1_spatial_types]);
+  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSJTChZEZXNjcmliZVNlcnZpY2VSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkikgEKF0Rlc2NyaWJlU2VydmljZVJlc3BvbnNlEjEKB3NlcnZpY2UYASABKAsyIC5nZW9zcGF0aWFsLnYxLlNlcnZpY2VEZXNjcmlwdG9yEisKBmxheWVycxgCIAMoCzIbLmdlb3NwYXRpYWwudjEuTGF5ZXJTdW1tYXJ5EhcKD25leHRfcGFnZV90b2tlbhgDIAEoCSI8ChREZXNjcmliZUxheWVyUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFIkYKFURlc2NyaWJlTGF5ZXJSZXNwb25zZRItCgVsYXllchgBIAEoCzIeLmdlb3NwYXRpYWwudjEuTGF5ZXJEZXNjcmlwdG9yIvgEChRRdWVyeUZlYXR1cmVzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEg0KBXdoZXJlGAMgASgJEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYBiABKAgSLwoGb3V0X3NyGAcgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhAKCG9yZGVyX2J5GAogASgJEhcKD3JldHVybl9kaXN0aW5jdBgLIAEoCBIZChFyZXR1cm5fY291bnRfb25seRgMIAEoCBIXCg9yZXR1cm5faWRzX29ubHkYDSABKAgSGgoScmV0dXJuX2V4dGVudF9vbmx5GA4gASgIEjoKDm91dF9zdGF0aXN0aWNzGA8gAygLMiIuZ2Vvc3BhdGlhbC52MS5TdGF0aXN0aWNEZWZpbml0aW9uEhAKCGdyb3VwX2J5GBAgAygJEhoKEmdlb21ldHJ5X3ByZWNpc2lvbhgRIAEoBRIcChRtYXhfYWxsb3dhYmxlX29mZnNldBgSIAEoARI0Cg5zcGF0aWFsX2ZpbHRlchgTIAEoCzIcLmdlb3NwYXRpYWwudjEuU3BhdGlhbEZpbHRlchIaChJyZXN1bHRfb2Zmc2V0X2xvbmcYFCABKAMSIAoYcmVzdWx0X3JlY29yZF9jb3VudF9sb25nGBUgASgDEhIKCmdsb2JhbF9pZHMYFiADKAlKBAgIEAlKBAgJEApSDXJlc3VsdF9vZmZzZXRSE3Jlc3VsdF9yZWNvcmRfY291bnQiiAMKFVF1ZXJ5RmVhdHVyZXNSZXNwb25zZRIcChRvYmplY3RfaWRfZmllbGRfbmFtZRgBIAEoCRIyCg1nZW9tZXRyeV90eXBlGAIgASgOMhsuZ2Vvc3BhdGlhbC52MS5HZW9tZXRyeVR5cGUSOgoRc3BhdGlhbF9yZWZlcmVuY2UYAyABKAsyHy5nZW9zcGF0aWFsLnYxLlNwYXRpYWxSZWZlcmVuY2USLgoGZmllbGRzGAQgAygLMh4uZ2Vvc3BhdGlhbC52MS5GaWVsZERlZmluaXRpb24SKAoIZmVhdHVyZXMYBSADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSHwoXZXhjZWVkZWRfdHJhbnNmZXJfbGltaXQYBiABKAgSDQoFY291bnQYByABKAMSEgoKb2JqZWN0X2lkcxgIIAMoAxIlCgZleHRlbnQYCSABKAsyFS5nZW9zcGF0aWFsLnYxLkV4dGVudBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgKIAEoCSKpAgoLRmVhdHVyZVBhZ2USHAoUb2JqZWN0X2lkX2ZpZWxkX25hbWUYASABKAkSMgoNZ2VvbWV0cnlfdHlwZRgCIAEoDjIbLmdlb3NwYXRpYWwudjEuR2VvbWV0cnlUeXBlEjoKEXNwYXRpYWxfcmVmZXJlbmNlGAMgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEi4KBmZpZWxkcxgEIAMoCzIeLmdlb3NwYXRpYWwudjEuRmllbGREZWZpbml0aW9uEigKCGZlYXR1cmVzGAUgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEhQKDGlzX2xhc3RfcGFnZRgGIAEoCBIcChRnbG9iYWxfaWRfZmllbGRfbmFtZRgHIAEoCSKXAgoRQXBwbHlFZGl0c1JlcXVlc3QSEgoKc2VydmljZV9pZBgBIAEoCRIQCghsYXllcl9pZBgCIAEoBRIkCgRhZGRzGAMgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEicKB3VwZGF0ZXMYBCADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSDwoHZGVsZXRlcxgFIAMoAxIbChNyb2xsYmFja19vbl9mYWlsdXJlGAYgASgIEhMKC2ZvcmNlX3dyaXRlGAcgASgIEhcKD2lkZW1wb3RlbmN5X2tleRgIIAEoCRIWCg51c2VfZ2xvYmFsX2lkcxgJIAEoCBIZChFkZWxldGVfZ2xvYmFsX2lkcxgKIAMoCSLVAQoSQXBwbHlFZGl0c1Jlc3BvbnNlEi4KC2FkZF9yZXN1bHRzGAEgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDnVwZGF0ZV9yZXN1bHRzGAIgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EjEKDmRlbGV0ZV9yZXN1bHRzGAMgAygLMhkuZ2Vvc3BhdGlhbC52MS5FZGl0UmVzdWx0EikKBWVycm9yGAQgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbCJuCgpFZGl0UmVzdWx0EhEKCW9iamVjdF9pZBgBIAEoAxIPCgdzdWNjZXNzGAIgASgIEikKBWVycm9yGAMgASgLMhouZ2Vvc3BhdGlhbC52MS5FcnJvckRldGFpbBIRCglnbG9iYWxfaWQYBCABKAkyuwoKDkZlYXR1cmVTZXJ2aWNlEmAKD0Rlc2NyaWJlU2VydmljZRIlLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVxdWVzdBomLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVzcG9uc2USWgoNRGVzY3JpYmVMYXllchIjLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVMYXllclJlcXVlc3QaJC5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlTGF5ZXJSZXNwb25zZRJaCg1RdWVyeUZlYXR1cmVzEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBokLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1Jlc3BvbnNlElgKE1F1ZXJ5RmVhdHVyZXNTdHJlYW0SIy5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXF1ZXN0GhouZ2Vvc3BhdGlhbC52MS5GZWF0dXJlUGFnZTABElEKCkFwcGx5RWRpdHMSIC5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXF1ZXN0GiEuZ2Vvc3BhdGlhbC52MS5BcHBseUVkaXRzUmVzcG9uc2USYAoPTGlzdEF0dGFjaG1lbnRzEiUuZ2Vvc3BhdGlhbC52MS5MaXN0QXR0YWNobWVudHNSZXF1ZXN0GiYuZ2Vvc3BhdGlhbC52MS5MaXN0QXR0YWNobWVudHNSZXNwb25zZRJjChBHZXRBdHRhY2htZW50VXJsEiYuZ2Vvc3BhdGlhbC52MS5HZXRBdHRhY2htZW50VXJsUmVxdWVzdBonLmdlb3NwYXRpYWwudjEuR2V0QXR0YWNobWVudFVybFJlc3BvbnNlEmMKEFVwbG9hZEF0dGFjaG1lbnQSJi5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRSZXF1ZXN0GicuZ2Vvc3BhdGlhbC52MS5VcGxvYWRBdHRhY2htZW50UmVzcG9uc2UScgoVQmVnaW5BdHRhY2htZW50VXBsb2FkEisuZ2Vvc3BhdGlhbC52MS5CZWdpbkF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0GiwuZ2Vvc3BhdGlhbC52MS5CZWdpbkF0dGFjaG1lbnRVcGxvYWRSZXNwb25zZRJyChVVcGxvYWRBdHRhY2htZW50Q2h1bmsSKy5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRDaHVua1JlcXVlc3QaLC5nZW9zcGF0aWFsLnYxLlVwbG9hZEF0dGFjaG1lbnRDaHVua1Jlc3BvbnNlEnUKFkNvbW1pdEF0dGFjaG1lbnRVcGxvYWQSLC5nZW9zcGF0aWFsLnYxLkNvbW1pdEF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0Gi0uZ2Vvc3BhdGlhbC52MS5Db21taXRBdHRhY2htZW50VXBsb2FkUmVzcG9uc2UScgoVQWJvcnRBdHRhY2htZW50VXBsb2FkEisuZ2Vvc3BhdGlhbC52MS5BYm9ydEF0dGFjaG1lbnRVcGxvYWRSZXF1ZXN0GiwuZ2Vvc3BhdGlhbC52MS5BYm9ydEF0dGFjaG1lbnRVcGxvYWRSZXNwb25zZRJjChBEZWxldGVBdHRhY2htZW50EiYuZ2Vvc3BhdGlhbC52MS5EZWxldGVBdHRhY2htZW50UmVxdWVzdBonLmdlb3NwYXRpYWwudjEuRGVsZXRlQXR0YWNobWVudFJlc3BvbnNlYgZwcm90bzM", [file_geospatial_v1_attachment_types, file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_metadata_types, file_geospatial_v1_spatial_types]);
 
 /**
  * DescribeServiceRequest pages through layers accessible to the current caller.
@@ -268,6 +270,13 @@ export type QueryFeaturesRequest = Message<"geospatial.v1.QueryFeaturesRequest">
    * @generated from field: int64 result_record_count_long = 21;
    */
   resultRecordCountLong: bigint;
+
+  /**
+   * UUID selectors; mutually exclusive with object_ids
+   *
+   * @generated from field: repeated string global_ids = 22;
+   */
+  globalIds: string[];
 };
 
 /**
@@ -345,6 +354,13 @@ export type QueryFeaturesResponse = Message<"geospatial.v1.QueryFeaturesResponse
    * @generated from field: geospatial.v1.Extent extent = 9;
    */
   extent?: Extent | undefined;
+
+  /**
+   * Empty when the layer has no global-ID field
+   *
+   * @generated from field: string global_id_field_name = 10;
+   */
+  globalIdFieldName: string;
 };
 
 /**
@@ -395,6 +411,13 @@ export type FeaturePage = Message<"geospatial.v1.FeaturePage"> & {
    * @generated from field: bool is_last_page = 6;
    */
   isLastPage: boolean;
+
+  /**
+   * First page only; empty when unavailable
+   *
+   * @generated from field: string global_id_field_name = 7;
+   */
+  globalIdFieldName: string;
 };
 
 /**
@@ -469,6 +492,21 @@ export type ApplyEditsRequest = Message<"geospatial.v1.ApplyEditsRequest"> & {
    * @generated from field: string idempotency_key = 8;
    */
   idempotencyKey: string;
+
+  /**
+   * Updates select Feature.global_id instead of Feature.id. The layer must
+   * declare a global-ID field. Integer and global-ID selectors cannot be mixed.
+   *
+   * @generated from field: bool use_global_ids = 9;
+   */
+  useGlobalIds: boolean;
+
+  /**
+   * Delete selectors when use_global_ids is true
+   *
+   * @generated from field: repeated string delete_global_ids = 10;
+   */
+  deleteGlobalIds: string[];
 };
 
 /**
@@ -541,6 +579,13 @@ export type EditResult = Message<"geospatial.v1.EditResult"> & {
    * @generated from field: geospatial.v1.ErrorDetail error = 3;
    */
   error?: ErrorDetail | undefined;
+
+  /**
+   * Stable identity of the affected feature, when available
+   *
+   * @generated from field: string global_id = 4;
+   */
+  globalId: string;
 };
 
 /**
@@ -606,6 +651,86 @@ export const FeatureService: GenService<{
     methodKind: "unary";
     input: typeof ApplyEditsRequestSchema;
     output: typeof ApplyEditsResponseSchema;
+  },
+  /**
+   * ListAttachments returns a bounded page of attachment metadata for one feature.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.ListAttachments
+   */
+  listAttachments: {
+    methodKind: "unary";
+    input: typeof ListAttachmentsRequestSchema;
+    output: typeof ListAttachmentsResponseSchema;
+  },
+  /**
+   * GetAttachmentUrl grants a short-lived signed download URL after authorization.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.GetAttachmentUrl
+   */
+  getAttachmentUrl: {
+    methodKind: "unary";
+    input: typeof GetAttachmentUrlRequestSchema;
+    output: typeof GetAttachmentUrlResponseSchema;
+  },
+  /**
+   * UploadAttachment validates and publishes a bounded unary upload.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.UploadAttachment
+   */
+  uploadAttachment: {
+    methodKind: "unary";
+    input: typeof UploadAttachmentRequestSchema;
+    output: typeof UploadAttachmentResponseSchema;
+  },
+  /**
+   * BeginAttachmentUpload starts or resumes a durable large-file upload session.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.BeginAttachmentUpload
+   */
+  beginAttachmentUpload: {
+    methodKind: "unary";
+    input: typeof BeginAttachmentUploadRequestSchema;
+    output: typeof BeginAttachmentUploadResponseSchema;
+  },
+  /**
+   * UploadAttachmentChunk appends or replays one bounded unary upload chunk.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.UploadAttachmentChunk
+   */
+  uploadAttachmentChunk: {
+    methodKind: "unary";
+    input: typeof UploadAttachmentChunkRequestSchema;
+    output: typeof UploadAttachmentChunkResponseSchema;
+  },
+  /**
+   * CommitAttachmentUpload validates and atomically publishes the completed file.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.CommitAttachmentUpload
+   */
+  commitAttachmentUpload: {
+    methodKind: "unary";
+    input: typeof CommitAttachmentUploadRequestSchema;
+    output: typeof CommitAttachmentUploadResponseSchema;
+  },
+  /**
+   * AbortAttachmentUpload discards temporary content without deleting a published file.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.AbortAttachmentUpload
+   */
+  abortAttachmentUpload: {
+    methodKind: "unary";
+    input: typeof AbortAttachmentUploadRequestSchema;
+    output: typeof AbortAttachmentUploadResponseSchema;
+  },
+  /**
+   * DeleteAttachment removes one attachment with caller-scoped retry protection.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.DeleteAttachment
+   */
+  deleteAttachment: {
+    methodKind: "unary";
+    input: typeof DeleteAttachmentRequestSchema;
+    output: typeof DeleteAttachmentResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_geospatial_v1_feature_service, 0);

@@ -59,6 +59,7 @@ export type {
   AttachmentEditOutcome,
   AttachmentGroup,
   AttachmentInfo,
+  AttachmentDownloadUrl,
   AttachmentQuery,
   AttachmentUpdate,
   CanonicalFeature,

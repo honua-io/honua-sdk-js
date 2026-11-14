@@ -84,6 +84,7 @@ import {
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
 import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { nativeAttachmentApi } from "./native-attachments.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import {
@@ -355,7 +356,7 @@ export function geoServicesFeatureSource<T>(
   // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
   // without explicit capabilities falls back to the narrower gRPC default
   // set rather than silently inheriting REST-only capabilities (`pbf`,
-  // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
+  // `sql`, `queryRelated`) the gRPC FeatureService RPC
   // surface does not support.
   const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
   const caps = client.isGrpcWeb
@@ -453,7 +454,9 @@ export function geoServicesFeatureSource<T>(
       const response = await layer.queryRelatedRecords(toRelatedRecordsRequest(request));
       return canonicalRelatedResult<R>(response);
     },
-    attachments: featureLayerAttachmentApi(descriptor, caps, layer),
+    attachments: client.isGrpcWeb
+      ? nativeAttachmentApi({ client, descriptor, caps, serviceId, layerId })
+      : featureLayerAttachmentApi(descriptor, caps, layer),
   });
 }
 

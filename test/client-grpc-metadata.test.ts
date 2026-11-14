@@ -8,21 +8,7 @@ import {
   DescribeServiceResponseSchema,
 } from "../src/gen/geospatial/v1/feature_service_pb.js";
 
-function frame(payload: Uint8Array, flags = 0): Uint8Array {
-  const result = new Uint8Array(5 + payload.length);
-  result[0] = flags;
-  new DataView(result.buffer).setUint32(1, payload.length);
-  result.set(payload, 5);
-  return result;
-}
-function response(payload: Uint8Array): Response {
-  const message = frame(payload);
-  const trailers = frame(new TextEncoder().encode("grpc-status: 0\r\n"), 128);
-  const body = new Uint8Array(message.length + trailers.length);
-  body.set(message);
-  body.set(trailers, message.length);
-  return new Response(body, { headers: { "content-type": "application/grpc-web+proto" } });
-}
+import { wireResponse as response } from "./helpers/grpc-wire.js";
 
 function layerResponse(url: string, bytes: Uint8Array): Response {
   expect(url).toBe("https://example.test/geospatial.v1.FeatureService/DescribeLayer");

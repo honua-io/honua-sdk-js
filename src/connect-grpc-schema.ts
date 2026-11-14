@@ -33,6 +33,8 @@ const FieldType = {
   JSON: 11,
   BINARY: 12,
   UUID: 13,
+  TIMESTAMP_OFFSET: 14,
+  DECIMAL: 15,
 } as const satisfies { [K in keyof typeof ProtoFieldType]: (typeof ProtoFieldType)[K] };
 const GeometryType = { NONE: 8 } as const satisfies Pick<typeof ProtoGeometryType, "NONE">;
 
