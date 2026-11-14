@@ -320,10 +320,11 @@ describe("gRPC whole-set client-side aggregation", () => {
       });
     }
   });
-  it("does not advertise REST-only native capabilities for a gRPC client", () => {
+  it("advertises only gRPC-native capabilities for a gRPC client", () => {
     const { source } = fixture();
     expect(source.capabilities.has("queryAggregate")).toBe(false);
-    expect(source.capabilities.has("queryRelated")).toBe(false);
+    // QueryRelatedRecords is native on gRPC (geospatial-grpc 1.4).
+    expect(source.capabilities.has("queryRelated")).toBe(true);
     expect(source.capabilities.has("query")).toBe(true);
   });
   it.each(["sum", "var", "stddev"] as const)("rejects nonfinite computed %s", async (fn) => {

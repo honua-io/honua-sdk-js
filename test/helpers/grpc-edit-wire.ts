@@ -14,7 +14,7 @@ function frame(bytes: Uint8Array, flags = 0): Uint8Array {
   return framed;
 }
 
-function wireResponse(bytes: Uint8Array): Response {
+export function wireResponse(bytes: Uint8Array): Response {
   const data = frame(bytes);
   const trailers = frame(new TextEncoder().encode("grpc-status: 0\r\n"), 128);
   const body = new Uint8Array(data.length + trailers.length);
