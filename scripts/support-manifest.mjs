@@ -97,7 +97,7 @@ export function readBarrelExports(relativePath, projectRoot = PROJECT_ROOT) {
   return names;
 }
 
-function validateAppPlatformSubpaths(manifest, projectRoot, checkSourceFiles, fail) {
+function validateAppPlatformSubpaths(manifest, { projectRoot, checkSourceFiles, fail }) {
   const subpaths = manifest.packageLifecycle?.appPlatformSubpaths ?? [];
   if (!unique(subpaths)) fail("app-platform subpaths must be unique");
   const sdkSubpaths = new Set((manifest.packageLifecycle?.entrypoints ?? []).map((entrypoint) => entrypoint.subpath));
@@ -475,7 +475,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   }
   for (const tier of manifest.packageLifecycle?.surfaceTiers ?? []) usedStatuses.add(tier.status);
   validateSurfaceTiers(manifest, projectRoot, checkEvidencePaths, fail);
-  validateAppPlatformSubpaths(manifest, projectRoot, checkEvidencePaths, fail);
+  validateAppPlatformSubpaths(manifest, { projectRoot, checkSourceFiles: checkEvidencePaths, fail });
   const stableCount = entrypoints.filter((entrypoint) => entrypoint.status === "supported").length;
   if (stableCount !== manifest.packageLifecycle?.ceilings?.stableEntrypoints) {
     fail(`supported entrypoint count ${stableCount} disagrees with stableEntrypoints ceiling`);
