@@ -882,6 +882,6 @@ test("the release step runs on a dispatch that only finishes a stranded draft", 
     /- name: Dispatch package publish workflows\n\s+if: >-\n[\s\S]{0,400}?inputs\.finish_stranded_draft != ''\) \}\}/u,
   );
   // And the input has to exist to be passed in.
-  assert.match(source, /workflow_dispatch:\n\s+inputs:\n\s+finish_stranded_draft:/u);
+  assert.match(source, /workflow_dispatch:\n\s+inputs:[\s\S]*?\n      finish_stranded_draft:/u);
   assert.match(source, /FINISH_STRANDED_DRAFT: \$\{\{ inputs\.finish_stranded_draft \}\}/u);
 });

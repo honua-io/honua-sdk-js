@@ -65,22 +65,38 @@ function pullListReads(calls) {
   return calls.filter(({ url }) => new URL(url).pathname.endsWith("/pulls")).length;
 }
 
-function harness(options = {}) {
-  const stale = { ...fixture, ...(options.snapshot ?? {}) };
-  const refreshed = {
+function refreshedSnapshot(stale) {
+  return {
     ...stale,
     baseSha: trustedPolicySha,
     headSha: refreshedHeadSha,
     updatedAt: "2026-08-09T04:10:00Z",
   };
+}
+
+function ancestorComparison(stale) {
+  return {
+    status: "ahead",
+    ahead_by: 2,
+    behind_by: 0,
+    base_commit: { sha: stale.baseSha },
+    merge_base_commit: { sha: stale.baseSha },
+    commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
+  };
+}
+
+function harness(options = {}) {
+  const stale = { ...fixture, ...(options.snapshot ?? {}) };
+  const refreshed = refreshedSnapshot(stale);
   const calls = [];
   let updateAccepted = false;
+  let closed = false;
   const request = async (url, requestOptions = {}) => {
     calls.push({ url, options: requestOptions });
     const pathname = new URL(url).pathname;
     const settled = pullListReads(calls) > (options.settlesAfterReads ?? Number.POSITIVE_INFINITY);
     const current = (updateAccepted && options.confirmRefresh !== false) || settled ? refreshed : stale;
-    if (pathname.endsWith("/pulls")) return options.noPullRequest ? [] : [restPull(current)];
+    if (pathname.endsWith("/pulls")) return options.noPullRequest || closed ? [] : [restPull(current)];
     if (pathname.endsWith("/graphql")) return graphqlPayload(current);
     if (pathname.endsWith("/git/ref/heads/trunk")) {
       return { ref: "refs/heads/trunk", object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha } };
@@ -95,22 +111,23 @@ function harness(options = {}) {
       };
     }
     if (pathname.includes("/compare/")) {
-      return options.comparison ?? {
-        status: "ahead",
-        ahead_by: 2,
-        behind_by: 0,
-        base_commit: { sha: stale.baseSha },
-        merge_base_commit: { sha: stale.baseSha },
-        commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
-      };
+      return options.comparison ?? ancestorComparison(stale);
     }
     if (pathname.endsWith(`/pulls/${stale.pullRequestNumber}/update-branch`)) {
       if (options.writeError) throw new Error("simulated update failure");
+      if (options.updateError) throw options.updateError;
       updateAccepted = true;
       return options.updateResponse ?? {
         message: "Updating pull request branch.",
         url: `https://api.github.com/repos/${repository}/pulls/${stale.pullRequestNumber}`,
       };
+    }
+    if (pathname.endsWith(`/pulls/${stale.pullRequestNumber}`)) {
+      if (requestOptions.method === "PATCH") {
+        closed = true;
+        return options.closeResponse ?? { ...restPull(current), state: "closed" };
+      }
+      return { ...restPull(current), mergeable: options.mergeable, ...(options.detail ?? {}) };
     }
     if (pathname.endsWith(`/git/commits/${refreshedHeadSha}`)) {
       return options.refreshCommit ?? {
@@ -124,6 +141,46 @@ function harness(options = {}) {
 }
 
 describe("trusted Release Please base refresh", () => {
+  it("closes only a revalidated conflicting candidate after HTTP 422", async () => {
+    for (const headRefName of RELEASE_PLEASE_HEADS) {
+      const component = headRefName.split("--components--")[1];
+      const snapshot = { headRefName, ...(component ? { title: `chore(trunk): release ${component} 0.2.1` } : {}) };
+      const h = harness({ snapshot, mergeable: false,
+        updateError: Object.assign(new Error("validation failed"), { status: 422 }) });
+      const result = await refreshReleasePleaseBase({ repository, trustedPolicySha, headRefName,
+        releasePleaseReportedUpdate: false }, h.request);
+      assert.equal(result.status, "not-found");
+      assert.equal(result.closedPullRequestNumber, fixture.pullRequestNumber);
+      const writes = h.calls.filter(({ options }) => options.method === "PATCH");
+      assert.equal(writes.length, 1);
+      assert.deepEqual(JSON.parse(writes[0].options.body), { state: "closed" });
+      assert.ok(pullListReads(h.calls) >= 2);
+    }
+  });
+
+  it("never closes on an unrelated error, unknown mergeability, or changed identity", async () => {
+    for (const options of [
+      { mergeable: true }, { mergeable: null }, {},
+      { mergeable: false, detail: { number: 999 } },
+      { mergeable: false, detail: { head: { sha: "f".repeat(40) } } },
+      { mergeable: false, updateError: Object.assign(new Error("validation failed"), { status: 403 }) },
+    ]) {
+      const h = harness({ updateError: Object.assign(new Error("validation failed"), { status: 422 }), ...options });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /validation failed/u);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PATCH"));
+    }
+  });
+
+  it("fails closed when the candidate races conflict recovery or close is not confirmed", async () => {
+    for (const options of [{ settlesAfterReads: 1 }, { closeResponse: { number: fixture.pullRequestNumber, state: "open" } }]) {
+      const h = harness({ updateError: Object.assign(new Error("conflict"), { status: 422 }), mergeable: false, ...options });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /changed before conflict recovery|did not confirm closing/u);
+      if (options.settlesAfterReads) assert.ok(!h.calls.some(({ options }) => options.method === "PATCH"));
+    }
+  });
+
   it("refreshes only an unchanged exact bot PR from an ancestor base", async () => {
     const testHarness = harness();
     const result = await refreshReleasePleaseBase(
