@@ -1,5 +1,9 @@
 import type { Client, Interceptor } from "@connectrpc/connect";
-import type { FeatureService } from "../gen/geospatial/v1/feature_service_pb.js";
+import type {
+  DescribeLayerResponse,
+  DescribeServiceResponse,
+  FeatureService,
+} from "../gen/geospatial/v1/feature_service_pb.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
   type HonuaCacheValidator,
@@ -1785,6 +1789,39 @@ export class HonuaClient {
     options: HonuaMetadataRequestOptions = {},
   ): Promise<HonuaLayerMetadata> {
     return getMapLayerMetadata(this.protocolTransport, serviceId, layerId, options);
+  }
+
+  /** Read the native service descriptor without a REST metadata request. */
+  public async describeService(request: {
+    readonly serviceId: string;
+    readonly pageSize?: number;
+    readonly pageToken?: string;
+    readonly signal?: AbortSignal;
+  }): Promise<DescribeServiceResponse> {
+    if (!this.isGrpcWeb) throw new Error("describeService requires transport: grpc-web.");
+    const client = await this.ensureConnectClient();
+    const adapter = await HonuaClient.loadGrpcAdapter();
+    try {
+      return await client.describeService(request, request.signal ? { signal: request.signal } : undefined);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
+  }
+
+  /** Read typed fields, domains, templates and capabilities over gRPC-Web. */
+  public async describeLayer(request: {
+    readonly serviceId: string;
+    readonly layerId: number;
+    readonly signal?: AbortSignal;
+  }): Promise<DescribeLayerResponse> {
+    if (!this.isGrpcWeb) throw new Error("describeLayer requires transport: grpc-web.");
+    const client = await this.ensureConnectClient();
+    const adapter = await HonuaClient.loadGrpcAdapter();
+    try {
+      return await client.describeLayer(request, request.signal ? { signal: request.signal } : undefined);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
   }
 
   /**

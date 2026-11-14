@@ -163,6 +163,7 @@ function createSdkPackage() {
   for (const moduleName of [
     "connect-cache-data",
     "connect-constants",
+    "connect-grpc-schema",
     "connect-ogc-vector-template",
     "connect-endpoint",
     "connect-pmtiles-cache-validation",

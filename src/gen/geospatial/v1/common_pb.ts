@@ -199,7 +199,7 @@ export const StatisticDefinitionSchema: GenMessage<StatisticDefinition> = /*@__P
 
 /**
  * Extent represents a bounding box.
- * 
+ *
  * Axis order matches PointGeometry/Coordinate: x is longitude/easting, y is
  * latitude/northing. Units follow spatial_reference (degrees for geographic CRS
  * such as EPSG:4326). When this Extent is reused as a 3D Tiles region (see

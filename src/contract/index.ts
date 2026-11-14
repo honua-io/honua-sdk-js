@@ -474,7 +474,7 @@ export {
   wmsSource,
   wmtsSource,
 } from "./source.js";
-export type { OdataSourceOptions, OdataWriteEncoding } from "./source.js";
+export type { GrpcLayerHandle, OdataSourceOptions, OdataWriteEncoding } from "./source.js";
 
 export type {
   IJobRun,

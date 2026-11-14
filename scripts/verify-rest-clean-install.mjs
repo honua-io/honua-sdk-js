@@ -27,13 +27,24 @@ import { runNpmSync } from "./lib/npm-cli.mjs";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
-const OPTIONAL_GRPC_PACKAGES = ["@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
-const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
-const ROOT_PACKAGE_LOCK = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package-lock.json"), "utf8"));
-const PLAYWRIGHT_VERSION = ROOT_PACKAGE_LOCK.packages?.["node_modules/@playwright/test"]?.version;
+const OPTIONAL_GRPC_PACKAGES = [
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+];
+const ROOT_PACKAGE_JSON = JSON.parse(
+  fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"),
+);
+const ROOT_PACKAGE_LOCK = JSON.parse(
+  fs.readFileSync(path.join(PROJECT_ROOT, "package-lock.json"), "utf8"),
+);
+const PLAYWRIGHT_VERSION =
+  ROOT_PACKAGE_LOCK.packages?.["node_modules/@playwright/test"]?.version;
 
 if (typeof PLAYWRIGHT_VERSION !== "string" || PLAYWRIGHT_VERSION.length === 0) {
-  throw new Error("Root package-lock.json does not pin @playwright/test to an exact version.");
+  throw new Error(
+    "Root package-lock.json does not pin @playwright/test to an exact version.",
+  );
 }
 
 const appDir = fs.mkdtempSync(path.join(os.tmpdir(), "honua-rest-clean-"));
@@ -42,7 +53,10 @@ let preview;
 try {
   assertOutsideRepository(appDir);
   const sdkTar = packSplit("@honua/sdk", "honua-sdk");
-  const compatTar = packSplit("@honua/sdk-client-compat", "honua-sdk-client-compat");
+  const compatTar = packSplit(
+    "@honua/sdk-client-compat",
+    "honua-sdk-client-compat",
+  );
   fs.writeFileSync(
     path.join(appDir, "package.json"),
     `${JSON.stringify(
@@ -66,13 +80,30 @@ try {
       2,
     )}\n`,
   );
-  runNpm(["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"]);
+  runNpm([
+    "install",
+    "--package-lock-only",
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+  ]);
   runNpm(["ci", "--ignore-scripts", "--no-audit", "--no-fund"]);
   assertLockedClosure();
   writeConsumerFiles();
-  assertNegativeControl("vite.negative-connect.config.js", '@connectrpc/connect');
-  assertNegativeControl("vite.negative-proto.config.js", "@bufbuild/protobuf/codegenv2");
-  runNode([path.join(appDir, "node_modules", "vite", "bin", "vite.js"), "build", "--config", "vite.config.js"]);
+  assertNegativeControl(
+    "vite.negative-connect.config.js",
+    "@connectrpc/connect",
+  );
+  assertNegativeControl(
+    "vite.negative-proto.config.js",
+    "@bufbuild/protobuf/codegenv2",
+  );
+  runNode([
+    path.join(appDir, "node_modules", "vite", "bin", "vite.js"),
+    "build",
+    "--config",
+    "vite.config.js",
+  ]);
   assertProductionGraph();
   const missingPeer = runNode(["missing-peer.mjs"]);
   process.stdout.write(missingPeer.stdout);
@@ -87,16 +118,23 @@ function assertOutsideRepository(directory) {
   const realApp = fs.realpathSync(directory);
   const realRepo = fs.realpathSync(PROJECT_ROOT);
   if (realApp === realRepo || realApp.startsWith(`${realRepo}${path.sep}`)) {
-    throw new Error(`REST proof directory is inside the repository: ${realApp}`);
+    throw new Error(
+      `REST proof directory is inside the repository: ${realApp}`,
+    );
   }
 }
 
 function packSplit(packageName, directoryName) {
   const packageDir = path.join(PACKAGES_ROOT, directoryName);
   if (!fs.existsSync(path.join(packageDir, "package.json"))) {
-    throw new Error(`Missing split package ${packageName} at ${packageDir}. Run "npm run build:split-packages" first.`);
+    throw new Error(
+      `Missing split package ${packageName} at ${packageDir}. Run "npm run build:split-packages" first.`,
+    );
   }
-  const packed = runNpm(["pack", packageDir, "--pack-destination", appDir], PROJECT_ROOT);
+  const packed = runNpm(
+    ["pack", packageDir, "--pack-destination", appDir],
+    PROJECT_ROOT,
+  );
   const filename = packed.stdout
     .trim()
     .split("\n")
@@ -104,7 +142,9 @@ function packSplit(packageName, directoryName) {
     .filter(Boolean)
     .at(-1);
   if (!filename || !filename.endsWith(".tgz")) {
-    throw new Error(`npm pack did not report a tarball for ${packageName}.\n${packed.stdout}`);
+    throw new Error(
+      `npm pack did not report a tarball for ${packageName}.\n${packed.stdout}`,
+    );
   }
   return `./${filename}`;
 }
@@ -131,6 +171,11 @@ function writeConsumerFiles() {
     path.join(appDir, "main.js"),
     `import { createHonua, HonuaClient } from "@honua/sdk";
 import { FeatureLayerCompat } from "@honua/sdk-client-compat";
+import { connectWithSourceSchemaV2 } from "@honua/sdk/source-schema";
+import { connectWithSourceCapabilities } from "@honua/sdk/source-capability-discovery";
+if (typeof connectWithSourceSchemaV2 !== "function" || typeof connectWithSourceCapabilities !== "function") {
+  throw new Error("Focused REST discovery entrypoints missing from production build");
+}
 
 const kernel = createHonua();
 if (typeof kernel.connect !== "function") throw new Error("createHonua did not return a kernel");
@@ -157,6 +202,12 @@ try {
   fs.writeFileSync(
     path.join(appDir, "missing-peer.mjs"),
     `import { HonuaClient } from "@honua/sdk";
+import { connectWithSourceSchemaV2 } from "@honua/sdk/source-schema";
+import { connectWithSourceCapabilities } from "@honua/sdk/source-capability-discovery";
+
+if (typeof connectWithSourceSchemaV2 !== "function" || typeof connectWithSourceCapabilities !== "function") {
+  throw new Error("REST discovery entrypoints failed to load without optional gRPC peers");
+}
 
 const client = new HonuaClient({
   baseUrl: "https://grpc.example.test",
@@ -246,73 +297,140 @@ function assertLockedClosure() {
   const lockPath = path.join(appDir, "package-lock.json");
   const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
   const keys = Object.keys(lock.packages ?? {});
-  if (keys.length < 3) throw new Error("consumer lock did not record the installed dependency closure");
+  if (keys.length < 3)
+    throw new Error(
+      "consumer lock did not record the installed dependency closure",
+    );
   for (const peerName of OPTIONAL_GRPC_PACKAGES) {
-    if (keys.some((key) => key === `node_modules/${peerName}` || key.endsWith(`/node_modules/${peerName}`))) {
-      throw new Error(`REST-only lock installed optional gRPC peer ${peerName}`);
+    if (
+      keys.some(
+        (key) =>
+          key === `node_modules/${peerName}` ||
+          key.endsWith(`/node_modules/${peerName}`),
+      )
+    ) {
+      throw new Error(
+        `REST-only lock installed optional gRPC peer ${peerName}`,
+      );
     }
     if (fs.existsSync(path.join(appDir, "node_modules", peerName))) {
-      throw new Error(`REST-only install materialized optional gRPC peer ${peerName}`);
+      throw new Error(
+        `REST-only install materialized optional gRPC peer ${peerName}`,
+      );
     }
   }
   for (const packageName of ["@honua/sdk", "@honua/sdk-client-compat"]) {
     const installed = path.join(appDir, "node_modules", packageName);
     const real = fs.realpathSync(installed);
     if (!real.startsWith(`${fs.realpathSync(appDir)}${path.sep}`)) {
-      throw new Error(`${packageName} resolved outside the isolated install: ${real}`);
+      throw new Error(
+        `${packageName} resolved outside the isolated install: ${real}`,
+      );
     }
     const stat = fs.lstatSync(installed);
-    if (stat.isSymbolicLink() && fs.realpathSync(installed).startsWith(`${fs.realpathSync(PROJECT_ROOT)}${path.sep}`)) {
+    if (
+      stat.isSymbolicLink() &&
+      fs
+        .realpathSync(installed)
+        .startsWith(`${fs.realpathSync(PROJECT_ROOT)}${path.sep}`)
+    ) {
       throw new Error(`${packageName} is a symlink into the repository`);
     }
   }
 }
 
 function assertNegativeControl(configFile, expectedSpecifier) {
-  const result = spawnSync(process.execPath, [path.join(appDir, "node_modules", "vite", "bin", "vite.js"), "build", "--config", configFile], {
-    cwd: appDir,
-    encoding: "utf8",
-    env: consumerEnv(),
-  });
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(appDir, "node_modules", "vite", "bin", "vite.js"),
+      "build",
+      "--config",
+      configFile,
+    ],
+    {
+      cwd: appDir,
+      encoding: "utf8",
+      env: consumerEnv(),
+    },
+  );
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error?.message ?? ""}`;
-  if (result.status === 0 || !output.includes(expectedSpecifier) || !output.includes("failed to resolve import")) {
-    throw new Error(`Negative control ${configFile} did not reproduce the unresolved optional peer.\n${output}`);
+  if (
+    result.status === 0 ||
+    !output.includes(expectedSpecifier) ||
+    !output.includes("failed to resolve import")
+  ) {
+    throw new Error(
+      `Negative control ${configFile} did not reproduce the unresolved optional peer.\n${output}`,
+    );
   }
-  process.stdout.write(`restCleanInstallNegativeControl=${expectedSpecifier}\n`);
+  process.stdout.write(
+    `restCleanInstallNegativeControl=${expectedSpecifier}\n`,
+  );
 }
 
 function assertProductionGraph() {
-  const ids = JSON.parse(fs.readFileSync(path.join(appDir, "module-ids.json"), "utf8"));
-  if (!Array.isArray(ids) || ids.length === 0) throw new Error("production build did not record a module graph");
+  const ids = JSON.parse(
+    fs.readFileSync(path.join(appDir, "module-ids.json"), "utf8"),
+  );
+  if (!Array.isArray(ids) || ids.length === 0)
+    throw new Error("production build did not record a module graph");
   const realApp = fs.realpathSync(appDir);
   const realRepo = fs.realpathSync(PROJECT_ROOT);
   for (const id of ids) {
-    if (typeof id !== "string") throw new Error(`unexpected module id ${String(id)}`);
+    if (typeof id !== "string")
+      throw new Error(`unexpected module id ${String(id)}`);
     if (id.includes("@bufbuild") || id.includes("@connectrpc")) {
-      throw new Error(`REST production graph resolved an optional gRPC module: ${id}`);
+      throw new Error(
+        `REST production graph resolved an optional gRPC module: ${id}`,
+      );
     }
     if (id.includes("\0")) continue;
     const candidate = path.isAbsolute(id) ? id : path.resolve(appDir, id);
     if (!fs.existsSync(candidate)) continue;
     const real = fs.realpathSync(candidate);
     if (real === realRepo || real.startsWith(`${realRepo}${path.sep}`)) {
-      throw new Error(`production module resolved inside the repository: ${real}`);
+      throw new Error(
+        `production module resolved inside the repository: ${real}`,
+      );
     }
     if (!real.startsWith(`${realApp}${path.sep}`)) {
-      throw new Error(`production module resolved outside the isolated install: ${real}`);
+      throw new Error(
+        `production module resolved outside the isolated install: ${real}`,
+      );
     }
   }
-  const sdkClient = ids.find((id) => id.includes("/@honua/sdk/") && id.endsWith("/core/client.js"));
-  const compatClient = ids.find((id) => id.includes("/@honua/sdk-client-compat/") && id.endsWith("/core/client.js"));
-  if (!sdkClient) throw new Error("production graph did not include the installed @honua/sdk client");
-  if (!compatClient) throw new Error("production graph did not include the installed client-compat client");
+  const sdkClient = ids.find(
+    (id) => id.includes("/@honua/sdk/") && id.endsWith("/core/client.js"),
+  );
+  const compatClient = ids.find(
+    (id) =>
+      id.includes("/@honua/sdk-client-compat/") &&
+      id.endsWith("/core/client.js"),
+  );
+  if (!sdkClient)
+    throw new Error(
+      "production graph did not include the installed @honua/sdk client",
+    );
+  if (!compatClient)
+    throw new Error(
+      "production graph did not include the installed client-compat client",
+    );
 }
 
 async function queryProductionBuild() {
   const port = await freePort();
   preview = spawn(
     process.execPath,
-    [path.join(appDir, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    [
+      path.join(appDir, "node_modules", "vite", "bin", "vite.js"),
+      "preview",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(port),
+      "--strictPort",
+    ],
     { cwd: appDir, env: consumerEnv(), stdio: ["ignore", "pipe", "pipe"] },
   );
   let log = "";
@@ -325,7 +443,9 @@ async function queryProductionBuild() {
   const url = `http://127.0.0.1:${port}/`;
   const ready = waitForPreview(preview, port, () => log);
   await ready;
-  const playwrightEntry = pathToFileURL(path.join(appDir, "node_modules/@playwright/test/index.js")).href;
+  const playwrightEntry = pathToFileURL(
+    path.join(appDir, "node_modules/@playwright/test/index.js"),
+  ).href;
   const playwright = await import(playwrightEntry);
   const chromium = playwright.chromium ?? playwright.default?.chromium;
   if (!chromium) {
@@ -342,12 +462,18 @@ async function queryProductionBuild() {
     const pageErrors = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
-    await page.waitForFunction(() => document.querySelector("#out")?.textContent !== "pending", undefined, {
-      timeout: 30_000,
-    });
+    await page.waitForFunction(
+      () => document.querySelector("#out")?.textContent !== "pending",
+      undefined,
+      {
+        timeout: 30_000,
+      },
+    );
     const text = await page.textContent("#out");
     if (text !== "Plant A") {
-      throw new Error(`production browser query returned ${JSON.stringify(text)}; page errors: ${pageErrors.join(" | ")}\n${log}`);
+      throw new Error(
+        `production browser query returned ${JSON.stringify(text)}; page errors: ${pageErrors.join(" | ")}\n${log}`,
+      );
     }
     process.stdout.write("restCleanInstallBrowserQuery=Plant A\n");
   } finally {
@@ -364,7 +490,10 @@ function waitForPreview(child, port, getLog) {
       callback();
     };
     const timeout = setTimeout(
-      () => finish(() => reject(new Error(`vite preview did not start\n${getLog()}`))),
+      () =>
+        finish(() =>
+          reject(new Error(`vite preview did not start\n${getLog()}`)),
+        ),
       60_000,
     );
     const poll = setInterval(() => {
@@ -381,7 +510,9 @@ function waitForPreview(child, port, getLog) {
       });
     }, 100);
     child.once("exit", (code) => {
-      finish(() => reject(new Error(`vite preview exited early (${code})\n${getLog()}`)));
+      finish(() =>
+        reject(new Error(`vite preview exited early (${code})\n${getLog()}`)),
+      );
     });
   });
 }
@@ -403,17 +534,29 @@ function consumerEnv() {
 }
 
 function runNpm(args, cwd = appDir) {
-  const result = runNpmSync(args, { cwd, encoding: "utf8", env: consumerEnv() });
+  const result = runNpmSync(args, {
+    cwd,
+    encoding: "utf8",
+    env: consumerEnv(),
+  });
   if (result.error || result.status !== 0) {
-    throw new Error(`npm ${args.join(" ")} failed\n${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error?.message ?? ""}`);
+    throw new Error(
+      `npm ${args.join(" ")} failed\n${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error?.message ?? ""}`,
+    );
   }
   return result;
 }
 
 function runNode(args) {
-  const result = spawnSync(process.execPath, args, { cwd: appDir, encoding: "utf8", env: consumerEnv() });
+  const result = spawnSync(process.execPath, args, {
+    cwd: appDir,
+    encoding: "utf8",
+    env: consumerEnv(),
+  });
   if (result.error || result.status !== 0) {
-    throw new Error(`node ${args.join(" ")} failed\n${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error?.message ?? ""}`);
+    throw new Error(
+      `node ${args.join(" ")} failed\n${result.stdout ?? ""}\n${result.stderr ?? ""}\n${result.error?.message ?? ""}`,
+    );
   }
   return result;
 }

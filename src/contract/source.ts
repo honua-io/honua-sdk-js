@@ -255,6 +255,13 @@ export function createDatasetWithAdapterSeeds(
   };
 }
 
+/** Native layer metadata, including domains, templates and relationships. */
+export interface GrpcLayerHandle {
+  readonly serviceId: string;
+  readonly layerId: number;
+  describe(options?: { signal?: AbortSignal }): ReturnType<HonuaClient["describeLayer"]>;
+}
+
 // ── Built-in resolver ─────────────────────────────────────────
 
 function buildBuiltInSource<T>(
@@ -267,13 +274,8 @@ function buildBuiltInSource<T>(
 ): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
     case "grpc":
-      // Honua gRPC is a transport-selectable fast path over the same
-      // canonical FeatureServer semantics, not a distinct adapter: the
-      // returned `HonuaFeatureLayer` transparently routes `queryFeatures`
-      // over gRPC-Web when `client.transport === "grpc-web"` (see
-      // `docs/protocol-capability-matrix.md`, "gRPC FeatureService"). The
-      // discovered descriptor's narrower `capabilities` (verified through a
-      // live gRPC parity probe in `connect-grpc.ts`) still gate execution.
+      // Query execution shares the canonical feature implementation. Native
+      // discovery obtains metadata and caller capabilities from descriptor RPCs.
       return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-feature-service":
       return geoServicesFeatureSource<T>(descriptor, client, policy);
@@ -360,9 +362,17 @@ export function geoServicesFeatureSource<T>(
     ? new Set([...declaredCaps].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability)))
     : declaredCaps;
 
-  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
-    "geoservices-feature-service": layer,
-  };
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> =
+    descriptor.protocol === "grpc"
+      ? {
+          grpc: Object.freeze({
+            serviceId,
+            layerId,
+            describe: (options: { signal?: AbortSignal } = {}) =>
+              client.describeLayer({ serviceId, layerId, ...options }),
+          }),
+        }
+      : { "geoservices-feature-service": layer };
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
@@ -5280,6 +5290,7 @@ function isFiniteNumberStrict(n: number): n is number {
  */
 declare module "./types.js" {
   interface AdapterTypeMap {
+    grpc: GrpcLayerHandle;
     "geoservices-feature-service": HonuaFeatureLayer;
     "geoservices-map-service": HonuaMapService;
     "geoservices-map-layer": HonuaMapLayer;

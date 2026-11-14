@@ -11,6 +11,8 @@ import type { Extent, FieldDefinition, GeometryType, SpatialReference, Statistic
 import { file_geospatial_v1_common } from "./common_pb.js";
 import type { ErrorDetail } from "./execution_types_pb.js";
 import { file_geospatial_v1_execution_types } from "./execution_types_pb.js";
+import type { LayerDescriptor, LayerSummary, ServiceDescriptor } from "./metadata_types_pb.js";
+import { file_geospatial_v1_metadata_types } from "./metadata_types_pb.js";
 import type { Feature, SpatialFilter } from "./spatial_types_pb.js";
 import { file_geospatial_v1_spatial_types } from "./spatial_types_pb.js";
 import type { Message } from "@bufbuild/protobuf";
@@ -19,7 +21,114 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file geospatial/v1/feature_service.proto.
  */
 export const file_geospatial_v1_feature_service: GenFile = /*@__PURE__*/
-  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSLkBAoUUXVlcnlGZWF0dXJlc1JlcXVlc3QSEgoKc2VydmljZV9pZBgBIAEoCRIQCghsYXllcl9pZBgCIAEoBRINCgV3aGVyZRgDIAEoCRISCgpvYmplY3RfaWRzGAQgAygDEhIKCm91dF9maWVsZHMYBSADKAkSFwoPcmV0dXJuX2dlb21ldHJ5GAYgASgIEi8KBm91dF9zchgHIAEoCzIfLmdlb3NwYXRpYWwudjEuU3BhdGlhbFJlZmVyZW5jZRIQCghvcmRlcl9ieRgKIAEoCRIXCg9yZXR1cm5fZGlzdGluY3QYCyABKAgSGQoRcmV0dXJuX2NvdW50X29ubHkYDCABKAgSFwoPcmV0dXJuX2lkc19vbmx5GA0gASgIEhoKEnJldHVybl9leHRlbnRfb25seRgOIAEoCBI6Cg5vdXRfc3RhdGlzdGljcxgPIAMoCzIiLmdlb3NwYXRpYWwudjEuU3RhdGlzdGljRGVmaW5pdGlvbhIQCghncm91cF9ieRgQIAMoCRIaChJnZW9tZXRyeV9wcmVjaXNpb24YESABKAUSHAoUbWF4X2FsbG93YWJsZV9vZmZzZXQYEiABKAESNAoOc3BhdGlhbF9maWx0ZXIYEyABKAsyHC5nZW9zcGF0aWFsLnYxLlNwYXRpYWxGaWx0ZXISGgoScmVzdWx0X29mZnNldF9sb25nGBQgASgDEiAKGHJlc3VsdF9yZWNvcmRfY291bnRfbG9uZxgVIAEoA0oECAgQCUoECAkQClINcmVzdWx0X29mZnNldFITcmVzdWx0X3JlY29yZF9jb3VudCLqAgoVUXVlcnlGZWF0dXJlc1Jlc3BvbnNlEhwKFG9iamVjdF9pZF9maWVsZF9uYW1lGAEgASgJEjIKDWdlb21ldHJ5X3R5cGUYAiABKA4yGy5nZW9zcGF0aWFsLnYxLkdlb21ldHJ5VHlwZRI6ChFzcGF0aWFsX3JlZmVyZW5jZRgDIAEoCzIfLmdlb3NwYXRpYWwudjEuU3BhdGlhbFJlZmVyZW5jZRIuCgZmaWVsZHMYBCADKAsyHi5nZW9zcGF0aWFsLnYxLkZpZWxkRGVmaW5pdGlvbhIoCghmZWF0dXJlcxgFIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRIfChdleGNlZWRlZF90cmFuc2Zlcl9saW1pdBgGIAEoCBINCgVjb3VudBgHIAEoAxISCgpvYmplY3RfaWRzGAggAygDEiUKBmV4dGVudBgJIAEoCzIVLmdlb3NwYXRpYWwudjEuRXh0ZW50IosCCgtGZWF0dXJlUGFnZRIcChRvYmplY3RfaWRfZmllbGRfbmFtZRgBIAEoCRIyCg1nZW9tZXRyeV90eXBlGAIgASgOMhsuZ2Vvc3BhdGlhbC52MS5HZW9tZXRyeVR5cGUSOgoRc3BhdGlhbF9yZWZlcmVuY2UYAyABKAsyHy5nZW9zcGF0aWFsLnYxLlNwYXRpYWxSZWZlcmVuY2USLgoGZmllbGRzGAQgAygLMh4uZ2Vvc3BhdGlhbC52MS5GaWVsZERlZmluaXRpb24SKAoIZmVhdHVyZXMYBSADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSFAoMaXNfbGFzdF9wYWdlGAYgASgIIuQBChFBcHBseUVkaXRzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEiQKBGFkZHMYAyADKAsyFi5nZW9zcGF0aWFsLnYxLkZlYXR1cmUSJwoHdXBkYXRlcxgEIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRIPCgdkZWxldGVzGAUgAygDEhsKE3JvbGxiYWNrX29uX2ZhaWx1cmUYBiABKAgSEwoLZm9yY2Vfd3JpdGUYByABKAgSFwoPaWRlbXBvdGVuY3lfa2V5GAggASgJItUBChJBcHBseUVkaXRzUmVzcG9uc2USLgoLYWRkX3Jlc3VsdHMYASADKAsyGS5nZW9zcGF0aWFsLnYxLkVkaXRSZXN1bHQSMQoOdXBkYXRlX3Jlc3VsdHMYAiADKAsyGS5nZW9zcGF0aWFsLnYxLkVkaXRSZXN1bHQSMQoOZGVsZXRlX3Jlc3VsdHMYAyADKAsyGS5nZW9zcGF0aWFsLnYxLkVkaXRSZXN1bHQSKQoFZXJyb3IYBCABKAsyGi5nZW9zcGF0aWFsLnYxLkVycm9yRGV0YWlsIlsKCkVkaXRSZXN1bHQSEQoJb2JqZWN0X2lkGAEgASgDEg8KB3N1Y2Nlc3MYAiABKAgSKQoFZXJyb3IYAyABKAsyGi5nZW9zcGF0aWFsLnYxLkVycm9yRGV0YWlsMpkCCg5GZWF0dXJlU2VydmljZRJaCg1RdWVyeUZlYXR1cmVzEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBokLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1Jlc3BvbnNlElgKE1F1ZXJ5RmVhdHVyZXNTdHJlYW0SIy5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXF1ZXN0GhouZ2Vvc3BhdGlhbC52MS5GZWF0dXJlUGFnZTABElEKCkFwcGx5RWRpdHMSIC5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXF1ZXN0GiEuZ2Vvc3BhdGlhbC52MS5BcHBseUVkaXRzUmVzcG9uc2ViBnByb3RvMw", [file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_spatial_types]);
+  fileDesc("CiNnZW9zcGF0aWFsL3YxL2ZlYXR1cmVfc2VydmljZS5wcm90bxINZ2Vvc3BhdGlhbC52MSJTChZEZXNjcmliZVNlcnZpY2VSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkikgEKF0Rlc2NyaWJlU2VydmljZVJlc3BvbnNlEjEKB3NlcnZpY2UYASABKAsyIC5nZW9zcGF0aWFsLnYxLlNlcnZpY2VEZXNjcmlwdG9yEisKBmxheWVycxgCIAMoCzIbLmdlb3NwYXRpYWwudjEuTGF5ZXJTdW1tYXJ5EhcKD25leHRfcGFnZV90b2tlbhgDIAEoCSI8ChREZXNjcmliZUxheWVyUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFIkYKFURlc2NyaWJlTGF5ZXJSZXNwb25zZRItCgVsYXllchgBIAEoCzIeLmdlb3NwYXRpYWwudjEuTGF5ZXJEZXNjcmlwdG9yIuQEChRRdWVyeUZlYXR1cmVzUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEhAKCGxheWVyX2lkGAIgASgFEg0KBXdoZXJlGAMgASgJEhIKCm9iamVjdF9pZHMYBCADKAMSEgoKb3V0X2ZpZWxkcxgFIAMoCRIXCg9yZXR1cm5fZ2VvbWV0cnkYBiABKAgSLwoGb3V0X3NyGAcgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEhAKCG9yZGVyX2J5GAogASgJEhcKD3JldHVybl9kaXN0aW5jdBgLIAEoCBIZChFyZXR1cm5fY291bnRfb25seRgMIAEoCBIXCg9yZXR1cm5faWRzX29ubHkYDSABKAgSGgoScmV0dXJuX2V4dGVudF9vbmx5GA4gASgIEjoKDm91dF9zdGF0aXN0aWNzGA8gAygLMiIuZ2Vvc3BhdGlhbC52MS5TdGF0aXN0aWNEZWZpbml0aW9uEhAKCGdyb3VwX2J5GBAgAygJEhoKEmdlb21ldHJ5X3ByZWNpc2lvbhgRIAEoBRIcChRtYXhfYWxsb3dhYmxlX29mZnNldBgSIAEoARI0Cg5zcGF0aWFsX2ZpbHRlchgTIAEoCzIcLmdlb3NwYXRpYWwudjEuU3BhdGlhbEZpbHRlchIaChJyZXN1bHRfb2Zmc2V0X2xvbmcYFCABKAMSIAoYcmVzdWx0X3JlY29yZF9jb3VudF9sb25nGBUgASgDSgQICBAJSgQICRAKUg1yZXN1bHRfb2Zmc2V0UhNyZXN1bHRfcmVjb3JkX2NvdW50IuoCChVRdWVyeUZlYXR1cmVzUmVzcG9uc2USHAoUb2JqZWN0X2lkX2ZpZWxkX25hbWUYASABKAkSMgoNZ2VvbWV0cnlfdHlwZRgCIAEoDjIbLmdlb3NwYXRpYWwudjEuR2VvbWV0cnlUeXBlEjoKEXNwYXRpYWxfcmVmZXJlbmNlGAMgASgLMh8uZ2Vvc3BhdGlhbC52MS5TcGF0aWFsUmVmZXJlbmNlEi4KBmZpZWxkcxgEIAMoCzIeLmdlb3NwYXRpYWwudjEuRmllbGREZWZpbml0aW9uEigKCGZlYXR1cmVzGAUgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEh8KF2V4Y2VlZGVkX3RyYW5zZmVyX2xpbWl0GAYgASgIEg0KBWNvdW50GAcgASgDEhIKCm9iamVjdF9pZHMYCCADKAMSJQoGZXh0ZW50GAkgASgLMhUuZ2Vvc3BhdGlhbC52MS5FeHRlbnQiiwIKC0ZlYXR1cmVQYWdlEhwKFG9iamVjdF9pZF9maWVsZF9uYW1lGAEgASgJEjIKDWdlb21ldHJ5X3R5cGUYAiABKA4yGy5nZW9zcGF0aWFsLnYxLkdlb21ldHJ5VHlwZRI6ChFzcGF0aWFsX3JlZmVyZW5jZRgDIAEoCzIfLmdlb3NwYXRpYWwudjEuU3BhdGlhbFJlZmVyZW5jZRIuCgZmaWVsZHMYBCADKAsyHi5nZW9zcGF0aWFsLnYxLkZpZWxkRGVmaW5pdGlvbhIoCghmZWF0dXJlcxgFIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRIUCgxpc19sYXN0X3BhZ2UYBiABKAgi5AEKEUFwcGx5RWRpdHNSZXF1ZXN0EhIKCnNlcnZpY2VfaWQYASABKAkSEAoIbGF5ZXJfaWQYAiABKAUSJAoEYWRkcxgDIAMoCzIWLmdlb3NwYXRpYWwudjEuRmVhdHVyZRInCgd1cGRhdGVzGAQgAygLMhYuZ2Vvc3BhdGlhbC52MS5GZWF0dXJlEg8KB2RlbGV0ZXMYBSADKAMSGwoTcm9sbGJhY2tfb25fZmFpbHVyZRgGIAEoCBITCgtmb3JjZV93cml0ZRgHIAEoCBIXCg9pZGVtcG90ZW5jeV9rZXkYCCABKAki1QEKEkFwcGx5RWRpdHNSZXNwb25zZRIuCgthZGRfcmVzdWx0cxgBIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIxCg51cGRhdGVfcmVzdWx0cxgCIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIxCg5kZWxldGVfcmVzdWx0cxgDIAMoCzIZLmdlb3NwYXRpYWwudjEuRWRpdFJlc3VsdBIpCgVlcnJvchgEIAEoCzIaLmdlb3NwYXRpYWwudjEuRXJyb3JEZXRhaWwiWwoKRWRpdFJlc3VsdBIRCglvYmplY3RfaWQYASABKAMSDwoHc3VjY2VzcxgCIAEoCBIpCgVlcnJvchgDIAEoCzIaLmdlb3NwYXRpYWwudjEuRXJyb3JEZXRhaWwy1wMKDkZlYXR1cmVTZXJ2aWNlEmAKD0Rlc2NyaWJlU2VydmljZRIlLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVxdWVzdBomLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVTZXJ2aWNlUmVzcG9uc2USWgoNRGVzY3JpYmVMYXllchIjLmdlb3NwYXRpYWwudjEuRGVzY3JpYmVMYXllclJlcXVlc3QaJC5nZW9zcGF0aWFsLnYxLkRlc2NyaWJlTGF5ZXJSZXNwb25zZRJaCg1RdWVyeUZlYXR1cmVzEiMuZ2Vvc3BhdGlhbC52MS5RdWVyeUZlYXR1cmVzUmVxdWVzdBokLmdlb3NwYXRpYWwudjEuUXVlcnlGZWF0dXJlc1Jlc3BvbnNlElgKE1F1ZXJ5RmVhdHVyZXNTdHJlYW0SIy5nZW9zcGF0aWFsLnYxLlF1ZXJ5RmVhdHVyZXNSZXF1ZXN0GhouZ2Vvc3BhdGlhbC52MS5GZWF0dXJlUGFnZTABElEKCkFwcGx5RWRpdHMSIC5nZW9zcGF0aWFsLnYxLkFwcGx5RWRpdHNSZXF1ZXN0GiEuZ2Vvc3BhdGlhbC52MS5BcHBseUVkaXRzUmVzcG9uc2ViBnByb3RvMw", [file_geospatial_v1_common, file_geospatial_v1_execution_types, file_geospatial_v1_metadata_types, file_geospatial_v1_spatial_types]);
+
+/**
+ * DescribeServiceRequest pages through layers accessible to the current caller.
+ *
+ * @generated from message geospatial.v1.DescribeServiceRequest
+ */
+export type DescribeServiceRequest = Message<"geospatial.v1.DescribeServiceRequest"> & {
+  /**
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * Zero selects the server default; negative values are invalid.
+   *
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * Opaque token from the preceding response, empty for the first page.
+   *
+   * @generated from field: string page_token = 3;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message geospatial.v1.DescribeServiceRequest.
+ * Use `create(DescribeServiceRequestSchema)` to create a new message.
+ */
+export const DescribeServiceRequestSchema: GenMessage<DescribeServiceRequest> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 0);
+
+/**
+ * DescribeServiceResponse omits inaccessible layers and contains no feature rows.
+ *
+ * @generated from message geospatial.v1.DescribeServiceResponse
+ */
+export type DescribeServiceResponse = Message<"geospatial.v1.DescribeServiceResponse"> & {
+  /**
+   * @generated from field: geospatial.v1.ServiceDescriptor service = 1;
+   */
+  service?: ServiceDescriptor | undefined;
+
+  /**
+   * @generated from field: repeated geospatial.v1.LayerSummary layers = 2;
+   */
+  layers: LayerSummary[];
+
+  /**
+   * Empty when there are no more accessible layers.
+   *
+   * @generated from field: string next_page_token = 3;
+   */
+  nextPageToken: string;
+};
+
+/**
+ * Describes the message geospatial.v1.DescribeServiceResponse.
+ * Use `create(DescribeServiceResponseSchema)` to create a new message.
+ */
+export const DescribeServiceResponseSchema: GenMessage<DescribeServiceResponse> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 1);
+
+/**
+ * DescribeLayerRequest addresses a layer or table using the same scope as QueryFeatures.
+ *
+ * @generated from message geospatial.v1.DescribeLayerRequest
+ */
+export type DescribeLayerRequest = Message<"geospatial.v1.DescribeLayerRequest"> & {
+  /**
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * @generated from field: int32 layer_id = 2;
+   */
+  layerId: number;
+};
+
+/**
+ * Describes the message geospatial.v1.DescribeLayerRequest.
+ * Use `create(DescribeLayerRequestSchema)` to create a new message.
+ */
+export const DescribeLayerRequestSchema: GenMessage<DescribeLayerRequest> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 2);
+
+/**
+ * DescribeLayerResponse contains metadata, without querying a sample feature.
+ *
+ * @generated from message geospatial.v1.DescribeLayerResponse
+ */
+export type DescribeLayerResponse = Message<"geospatial.v1.DescribeLayerResponse"> & {
+  /**
+   * @generated from field: geospatial.v1.LayerDescriptor layer = 1;
+   */
+  layer?: LayerDescriptor | undefined;
+};
+
+/**
+ * Describes the message geospatial.v1.DescribeLayerResponse.
+ * Use `create(DescribeLayerResponseSchema)` to create a new message.
+ */
+export const DescribeLayerResponseSchema: GenMessage<DescribeLayerResponse> = /*@__PURE__*/
+  messageDesc(file_geospatial_v1_feature_service, 3);
 
 /**
  * QueryFeaturesRequest specifies the full set of query parameters.
@@ -166,7 +275,7 @@ export type QueryFeaturesRequest = Message<"geospatial.v1.QueryFeaturesRequest">
  * Use `create(QueryFeaturesRequestSchema)` to create a new message.
  */
 export const QueryFeaturesRequestSchema: GenMessage<QueryFeaturesRequest> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 0);
+  messageDesc(file_geospatial_v1_feature_service, 4);
 
 /**
  * QueryFeaturesResponse contains the full result of a unary feature query.
@@ -243,7 +352,7 @@ export type QueryFeaturesResponse = Message<"geospatial.v1.QueryFeaturesResponse
  * Use `create(QueryFeaturesResponseSchema)` to create a new message.
  */
 export const QueryFeaturesResponseSchema: GenMessage<QueryFeaturesResponse> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 1);
+  messageDesc(file_geospatial_v1_feature_service, 5);
 
 /**
  * FeaturePage is a single page in a streaming query response.
@@ -293,7 +402,7 @@ export type FeaturePage = Message<"geospatial.v1.FeaturePage"> & {
  * Use `create(FeaturePageSchema)` to create a new message.
  */
 export const FeaturePageSchema: GenMessage<FeaturePage> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 2);
+  messageDesc(file_geospatial_v1_feature_service, 6);
 
 /**
  * ApplyEditsRequest specifies feature edits for a single service/layer.
@@ -333,7 +442,11 @@ export type ApplyEditsRequest = Message<"geospatial.v1.ApplyEditsRequest"> & {
   deletes: bigint[];
 
   /**
-   * Transactional behavior
+   * Transactional behavior. When true the batch is all-or-nothing: if any edit
+   * cannot be applied, the server applies none of them. A batch whose update
+   * or delete names a feature that does not exist fails as a whole with gRPC
+   * status NOT_FOUND and no response message (see docs/specification.md,
+   * "ApplyEdits batch semantics").
    *
    * @generated from field: bool rollback_on_failure = 6;
    */
@@ -363,7 +476,7 @@ export type ApplyEditsRequest = Message<"geospatial.v1.ApplyEditsRequest"> & {
  * Use `create(ApplyEditsRequestSchema)` to create a new message.
  */
 export const ApplyEditsRequestSchema: GenMessage<ApplyEditsRequest> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 3);
+  messageDesc(file_geospatial_v1_feature_service, 7);
 
 /**
  * ApplyEditsResponse contains add/update/delete results.
@@ -400,7 +513,7 @@ export type ApplyEditsResponse = Message<"geospatial.v1.ApplyEditsResponse"> & {
  * Use `create(ApplyEditsResponseSchema)` to create a new message.
  */
 export const ApplyEditsResponseSchema: GenMessage<ApplyEditsResponse> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 4);
+  messageDesc(file_geospatial_v1_feature_service, 8);
 
 /**
  * EditResult is the outcome of a single create/update/delete operation.
@@ -435,7 +548,7 @@ export type EditResult = Message<"geospatial.v1.EditResult"> & {
  * Use `create(EditResultSchema)` to create a new message.
  */
 export const EditResultSchema: GenMessage<EditResult> = /*@__PURE__*/
-  messageDesc(file_geospatial_v1_feature_service, 5);
+  messageDesc(file_geospatial_v1_feature_service, 9);
 
 /**
  * FeatureService provides typed RPC access to geospatial feature queries and editing.
@@ -444,6 +557,26 @@ export const EditResultSchema: GenMessage<EditResult> = /*@__PURE__*/
  * @generated from service geospatial.v1.FeatureService
  */
 export const FeatureService: GenService<{
+  /**
+   * DescribeService returns authorized service metadata and a bounded page of layers.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.DescribeService
+   */
+  describeService: {
+    methodKind: "unary";
+    input: typeof DescribeServiceRequestSchema;
+    output: typeof DescribeServiceResponseSchema;
+  },
+  /**
+   * DescribeLayer returns the canonical schema and effective capabilities of one layer.
+   *
+   * @generated from rpc geospatial.v1.FeatureService.DescribeLayer
+   */
+  describeLayer: {
+    methodKind: "unary";
+    input: typeof DescribeLayerRequestSchema;
+    output: typeof DescribeLayerResponseSchema;
+  },
   /**
    * QueryFeatures executes a feature query and returns all results in a single response.
    *

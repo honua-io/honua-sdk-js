@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 
+import { create } from "@bufbuild/protobuf";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GeoParquetSourceProfile, GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
@@ -7,7 +8,8 @@ import type { ConnectDiscoverySnapshot } from "../src/connect.js";
 import { schemaStateBindingFingerprint } from "../src/contract/schema.js";
 import type { Source, SourceDescriptor } from "../src/contract/types.js";
 import { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "../src/core/client.js";
-import type { HonuaLayerMetadata, HonuaQueryResponse } from "../src/core/types.js";
+import type { HonuaQueryResponse } from "../src/core/types.js";
+import { DescribeLayerResponseSchema } from "../src/gen/geospatial/v1/feature_service_pb.js";
 import { createCapabilitySourceEndpointFingerprint } from "../src/source-capabilities.js";
 import {
   type SourceCapabilityConnectOptions,
@@ -34,19 +36,13 @@ const WFS_CAPABILITIES = readFileSync(
 );
 const PMTILES_ASSET_URL = "https://assets.example.test/maps/basemap.pmtiles";
 const PMTILES_ETAG = '"pmtiles-fixture-v1"';
-const GRPC_LAYER: HonuaLayerMetadata = {
-  id: 0,
-  name: "Parcels",
-  geometryType: "esriGeometryPolygon",
-  objectIdField: "OBJECTID",
-  capabilities: "Query",
-  spatialReference: { wkid: 4326 },
-  advancedQueryCapabilities: { supportsPagination: true, supportsReturningQueryExtent: true },
-  fields: [
-    { name: "OBJECTID", type: "esriFieldTypeOID" },
-    { name: "NAME", type: "esriFieldTypeString" },
-    { name: "AREA_SQM", type: "esriFieldTypeDouble" },
-  ],
+const GRPC_DESCRIPTOR = {
+  layer: {
+    serviceId: "parcels",
+    layerId: 0,
+    name: "Parcels",
+    capabilities: { query: true, queryPagination: true, queryStream: true, create: true },
+  },
 };
 const PARCELS_IMAGE_METADATA = {
   name: "Imagery",
@@ -450,6 +446,7 @@ describe("connectWithSourceCapabilities", () => {
       transport: "grpc-web",
       fetchFn: grpcFetchHandler(),
     });
+    vi.spyOn(grpcClient, "describeLayer").mockResolvedValue(create(DescribeLayerResponseSchema, GRPC_DESCRIPTOR));
     vi.spyOn(grpcClient, "queryFeatures").mockResolvedValue({
       objectIdFieldName: "OBJECTID",
       geometryType: "esriGeometryPolygon",
@@ -483,9 +480,9 @@ describe("connectWithSourceCapabilities", () => {
     });
     expect(capability(source, "applyEdits")).toMatchObject({
       claimed: "supported",
-      observed: "unsupported",
-      effective: "unsupported",
-      reasons: ["unsupported-by-observation"],
+      observed: "supported",
+      effective: "supported",
+      reasons: ["supported-by-claim-and-observation"],
     });
     expect(capability(source, "stream")).toMatchObject({
       claimed: "supported",
@@ -1291,7 +1288,6 @@ function grpcFetchHandler(): typeof fetch {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(new Request(input, init).url);
     if (url.pathname === "/api/v1/admin/capabilities") return json(grpcCapabilitiesEnvelope());
-    if (url.pathname === "/rest/services/parcels/FeatureServer/0") return json(GRPC_LAYER);
     throw new Error(`Unexpected gRPC fetch: ${url.pathname}`);
   }) as typeof fetch;
 }

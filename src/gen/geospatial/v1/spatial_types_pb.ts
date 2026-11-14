@@ -68,7 +68,7 @@ export const GeometrySchema: GenMessage<Geometry> = /*@__PURE__*/
 
 /**
  * PointGeometry represents a single point.
- * 
+ *
  * Axis order is (x, y): x is the longitude/easting, y is the latitude/northing.
  * For geographic coordinate systems (e.g. EPSG:4326) x is longitude in degrees
  * and y is latitude in degrees. This is x/y (lon/lat) order, the opposite of the
@@ -135,7 +135,7 @@ export const MultiPointGeometrySchema: GenMessage<MultiPointGeometry> = /*@__PUR
 
 /**
  * Coordinate is a single coordinate in a path or ring.
- * 
+ *
  * Axis order is (x, y): x is longitude/easting, y is latitude/northing, matching
  * PointGeometry. For geographic CRS (e.g. EPSG:4326) x is longitude in degrees
  * and y is latitude in degrees.

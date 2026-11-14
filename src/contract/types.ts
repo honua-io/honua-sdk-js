@@ -935,6 +935,7 @@ export interface MapBinding {
  * to cast through `unknown`.
  */
 export type AdapterKind =
+  | "grpc"
   | "geoservices-feature-service"
   | "geoservices-map-service"
   | "geoservices-map-layer"
