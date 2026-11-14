@@ -95,6 +95,7 @@ export async function qualifyPackedReactShell({ context, mountHonuaApplication }
     });
     assertHydration(state, serverElement);
     await qualifyUpdates(state, tree, serverElement);
+    state.root = undefined;
     return { hydration: "reused-server-node", ...lifecycle };
   } finally {
     if (state.root) await React.act(async () => { state.root.unmount(); });
