@@ -9,8 +9,8 @@ bound to their own platform; this one is bound to none.
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
 "Beta" is a maturity label, not part of the version: releases are stable `0.x`
-versions, and the `@honua/sdk-js` peer is a caret range (for example `^0.1.12`),
-so a later `@honua/sdk-js` patch installs beside this package without a republish.
+versions, and the `@honua/sdk-js` and `@honua/app-platform` peers are caret ranges
+(for example `^0.1.12`), so a later patch of either installs beside this package without a republish.
 
 **Scores are published, not claimed.** How well different client models actually
 drive this surface — and where they fail — is in the
@@ -349,7 +349,7 @@ Embedding the server in your own Node.js host needs the packages as local
 dependencies of that host project:
 
 ```bash
-npm install @honua/mcp-server @honua/sdk-js
+npm install @honua/mcp-server @honua/sdk-js @honua/app-platform
 ```
 
 The map runtime, model callback, approval verifier, receipt signer, and
@@ -467,7 +467,7 @@ summary, and exits non-zero on any conformance/round-trip failure.
 
 The certification and eval scripts in this section and the next run from a clone
 of this repository (Node.js `>=22.12` and git). `mcp/` links to the SDK at the
-repository root, so build the SDK first:
+repository root and to the `@honua/app-platform` package built from it, so build both first:
 
 ```bash
 git clone --depth 1 https://github.com/honua-io/honua-sdk-js.git
@@ -478,6 +478,7 @@ npm ci
 <!-- doc-run: checkout -->
 ```bash
 npm run build   # the SDK that mcp/ links to; takes a few minutes
+npm run build:split-packages   # @honua/app-platform, for the control-plane command catalog
 cd mcp
 npm ci
 ```
