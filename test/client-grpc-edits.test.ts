@@ -79,6 +79,49 @@ describe("native gRPC-Web edits", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { shape: "points", hasZ: false },
+    { shape: "paths", hasZ: false },
+    { shape: "rings", hasZ: false },
+    { shape: "points", hasZ: true },
+    { shape: "paths", hasZ: true },
+    { shape: "rings", hasZ: true },
+  ])("preserves measured $shape coordinates with hasZ=$hasZ on the protobuf wire", async ({ shape, hasZ }) => {
+    const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
+      const geometry = wire.adds[0].geometry!;
+      const coordinates =
+        geometry.shape.case === "multiPoint"
+          ? geometry.shape.value.points
+          : geometry.shape.case === "polyline"
+            ? geometry.shape.value.paths[0].coords
+            : geometry.shape.case === "polygon"
+              ? geometry.shape.value.rings[0].coords
+              : [];
+      expect(coordinates).toHaveLength(2);
+      expect(coordinates.map(({ z, m }) => ({ z, m }))).toEqual([
+        { z: hasZ ? 10 : undefined, m: 100 },
+        { z: hasZ ? 11 : undefined, m: 101 },
+      ]);
+      return response(create(ApplyEditsResponseSchema, { addResults: [{ objectId: 1n, success: true }] }));
+    });
+    const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+    const coords = hasZ
+      ? [
+          [0, 0, 10, 100],
+          [1, 1, 11, 101],
+        ]
+      : [
+          [0, 0, 100],
+          [1, 1, 101],
+        ];
+    await client.applyEdits({
+      ...target,
+      adds: [{ attributes: {}, geometry: { hasZ, hasM: true, [shape]: shape === "points" ? coords : [coords] } }],
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces a whole-batch response error instead of returning empty success", async () => {
     const fetchFn = vi.fn(async () =>
       response(

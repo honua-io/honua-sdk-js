@@ -434,7 +434,7 @@ export function geoServicesFeatureSource<T>(
       ensureCapability(descriptor, caps, "applyEdits");
       const response = await layer.applyEdits({
         ...toApplyEditsRequest(envelope),
-        ...(descriptor.schema?.primaryKey ? { objectIdField: descriptor.schema.primaryKey } : {}),
+        objectIdField: descriptor.schema?.primaryKey,
       });
       return canonicalEditResult(response);
     },
@@ -4993,18 +4993,17 @@ function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
     out.updates = envelope.updates.map(canonicalToHonuaFeature);
   }
   if (envelope.deletes && envelope.deletes.length > 0) {
-    if (envelope.deletes.some((id) => typeof id === "number" && !Number.isSafeInteger(id))) {
-      throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
-    }
     const numericIds: number[] = [];
     let allNumeric = true;
     for (const id of envelope.deletes) {
+      if (typeof id === "number" && !Number.isSafeInteger(id)) {
+        throw new Error("Delete object IDs must be safe integers or exact decimal strings.");
+      }
       const parsed = Number(id);
       if (Number.isSafeInteger(parsed)) {
         numericIds.push(parsed);
       } else {
         allNumeric = false;
-        break;
       }
     }
     out.deletes = allNumeric ? numericIds : envelope.deletes.map(String).join(",");

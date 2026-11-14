@@ -1,6 +1,7 @@
 {
  "$comment": [
-  "Advertised OGC vector tileset discovery measures /source-schema at 200537 gzip bytes. Its narrow gzip ceiling is 201000 (0.5% above the prior ceiling), still below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
+  "Native gRPC edits preserve exact Source delete IDs and pass the declared object-ID field. Build-host measurement is 201020 gzip bytes; the focused /source-schema ceiling increases only 100 bytes to 201100, remaining below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
+  "Advertised OGC vector tileset discovery measures /source-schema at 200537 gzip bytes. Its narrow gzip ceiling was 201000 (0.5% above the prior ceiling), still below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
   "/analytics/uplot min was reset because splitting the chart helpers under the line budget keeps extra function boundaries in the minified entry. CI at 565ff6b5 measures 14925 minified bytes, 665 over the prior 14260 ceiling. The new ceiling is 16418, ceil(actual * 1.1). Gzip stayed inside 5868, and every other entrypoint ceiling is unchanged.",
   "Scatter selection and the optional uPlot renderer (#2367) add paired-axis ranges, point picking, rectangle selection and stable endpoint padding. Measured /analytics 42,313 minified / 12,919 gzip, /analytics/uplot 12,963 / 4,821, and tree-shake:analytics-core 33,416 / 10,517 bytes. Only these exceeded metrics are reset to measured actual plus 10% headroom.",
   "/controls gzip was reset for #2366: the filter builder adds typed field, spatial and temporal query composition, shared-registry datetime projection, and an accessible web component. The standard report:bundle-sizes command measures 320709 gzip bytes; only this exceeded metric changes to ceil(actual * 1.1), 352780 bytes.",
@@ -10,7 +11,7 @@
   "/react gzip was reset for #2067: complete-set gRPC client-side aggregation preserves exact counts, schema validation, pagination/identity checks, SQL null/sample-variance semantics, and finite-budget failures without a new dependency. Same-toolchain baseline 152646 gzip bytes versus optimized feature 153806 (+1160); shared error/evaluator reuse reduced the initial 153895-byte feature. Only the exceeded gzip ceiling changes to 169187, ceil(actual * 1.1); the minified ceiling and all other entrypoint ceilings remain unchanged.",
   "/runtime gzip was reset for configurable online basemaps (#1717) after renderer tree-shaking, private-state consolidation, and generated-validator optimization. The compiled entrypoint measures 184,885 gzip bytes, 186 above its previous ceiling; the new ceiling is 203,374 bytes, ceil(actual * 1.1). Only the exceeded runtime entrypoint metric changes. The separate installed First Map gzip ceiling is explicitly adjusted by 1,000 bytes for MapLibre 6.14.0; its evidence and unchanged raw-byte and CPU ceilings are documented in docs/installed-first-map-budget.md.",
   "Per-entrypoint bundle-size budgets for @honua/sdk-js (issue #350).",
-  "/source-schema uses narrower regression headroom for #1413: measured 833853 minified / 196387 gzip versus audited 901833 / 201663. Ceilings 880000 / 201000 preserve the achieved PROJJSON graph reduction; the prior graph fails both metrics.",
+  "/source-schema uses narrower regression headroom for #1413: measured 833853 minified / 196387 gzip versus audited 901833 / 201663. Ceilings 880000 / 201100 preserve the achieved PROJJSON graph reduction; the prior graph fails both metrics.",
   "Each budget is a hard byte ceiling for a single public entrypoint bundled the",
   "way a real consumer would build it: esbuild --bundle --minify, target es2020,",
   "runtime peers (maplibre-gl, cesium, @bufbuild/*, @connectrpc/*) kept external.",
@@ -138,7 +139,7 @@
   },
   "/source-schema": {
    "min": 880000,
-   "gzip": 201000
+   "gzip": 201100
   },
   "/source-capabilities": {
    "min": 263724,

@@ -402,6 +402,7 @@ function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
   spatialReference?: ReturnType<typeof create<typeof SpatialReferenceSchema>>;
 } {
   const source = parseGeometryValue(geometryValue);
+  const dimensions = { hasZ: source.hasZ, hasM: source.hasM };
   const geometry = create(GeometrySchema);
 
   if (isPoint(source)) {
@@ -429,15 +430,17 @@ function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
     geometry.shape = { case: "polygon", value: polygon };
   } else if (isMultipoint(source)) {
     const multipoint = create(MultiPointGeometrySchema);
-    multipoint.points = source.points.map((point, index) => toPointGeometryFromArray(point, `points[${index}]`));
+    multipoint.points = source.points.map((point, index) =>
+      toPointGeometryFromArray(point, `points[${index}]`, dimensions),
+    );
     geometry.shape = { case: "multiPoint", value: multipoint };
   } else if (isPolyline(source)) {
     const polyline = create(PolylineGeometrySchema);
-    polyline.paths = source.paths.map((path, index) => toCoordinateSequence(path, `paths[${index}]`));
+    polyline.paths = source.paths.map((path, index) => toCoordinateSequence(path, `paths[${index}]`, dimensions));
     geometry.shape = { case: "polyline", value: polyline };
   } else if (isPolygon(source)) {
     const polygon = create(PolygonGeometrySchema);
-    polygon.rings = source.rings.map((ring, index) => toCoordinateSequence(ring, `rings[${index}]`));
+    polygon.rings = source.rings.map((ring, index) => toCoordinateSequence(ring, `rings[${index}]`, dimensions));
     geometry.shape = { case: "polygon", value: polygon };
   } else {
     throw new Error("Unsupported geometry shape for gRPC transport.");
@@ -528,46 +531,48 @@ function toProtoSpatialReference(value: unknown): ReturnType<typeof create<typeo
   return spatialReference;
 }
 
+interface GeometryDimensions {
+  hasZ?: unknown;
+  hasM?: unknown;
+}
+
+function coordinateDimensions(value: unknown[], dimensions: GeometryDimensions): { z?: number; m?: number } {
+  const result: { z?: number; m?: number } = {};
+  const mOnly = dimensions.hasM === true && dimensions.hasZ !== true;
+  const z = mOnly || dimensions.hasZ === false ? undefined : value[2];
+  const m = dimensions.hasM === false ? undefined : value[mOnly ? 2 : 3];
+  if (typeof z === "number" && Number.isFinite(z)) result.z = z;
+  if (typeof m === "number" && Number.isFinite(m)) result.m = m;
+  return result;
+}
+
 function toPointGeometryFromArray(
   value: unknown,
   context: string,
+  dimensions: GeometryDimensions = {},
 ): ReturnType<typeof create<typeof PointGeometrySchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate array at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const point = create(PointGeometrySchema);
-  point.x = x;
-  point.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    point.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    point.m = m;
-  }
-  return point;
+  const { x, y, z, m } = toCoordinate(value, context, dimensions);
+  return create(PointGeometrySchema, { x, y, z, m });
 }
 
 function toCoordinateSequence(
   value: unknown,
   context = "coords",
+  dimensions: GeometryDimensions = {},
 ): ReturnType<typeof create<typeof CoordinateSequenceSchema>> {
   if (!Array.isArray(value)) {
     throw new Error(`Invalid coordinate sequence at ${context}`);
   }
   const sequence = create(CoordinateSequenceSchema);
-  sequence.coords = value.map((coord, index) => toCoordinate(coord, `${context}[${index}]`));
+  sequence.coords = value.map((coord, index) => toCoordinate(coord, `${context}[${index}]`, dimensions));
   return sequence;
 }
 
-function toCoordinate(value: unknown, context: string): ReturnType<typeof create<typeof CoordinateSchema>> {
+function toCoordinate(
+  value: unknown,
+  context: string,
+  dimensions: GeometryDimensions = {},
+): ReturnType<typeof create<typeof CoordinateSchema>> {
   if (!Array.isArray(value) || value.length < 2) {
     throw new Error(`Invalid coordinate at ${context}`);
   }
@@ -580,14 +585,7 @@ function toCoordinate(value: unknown, context: string): ReturnType<typeof create
   const coordinate = create(CoordinateSchema);
   coordinate.x = x;
   coordinate.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    coordinate.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    coordinate.m = m;
-  }
+  Object.assign(coordinate, coordinateDimensions(value, dimensions));
   return coordinate;
 }
 
