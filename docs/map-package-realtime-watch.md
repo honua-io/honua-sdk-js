@@ -9,7 +9,7 @@ resource: "honua://capability/streaming.feature-subscriptions"
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 `watchMapDocument` can follow hosted `HonuaMapDocument` changes over a realtime
-channel when one is configured by the caller or advertised by the package. The
+channel when one is configured by the caller or advertised by the document. The
 polling watcher remains the fallback path and is still used when no realtime
 channel is available.
 
