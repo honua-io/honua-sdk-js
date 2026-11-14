@@ -171,3 +171,39 @@ it("rejects native identities for other protocols and invalid layer ids", () => 
   expect(() => resolveConnectTarget(target.endpoint, "ogc-features", { serviceId: "parcels" })).toThrow();
   expect(() => resolveConnectTarget(target.endpoint, "grpc", { serviceId: "parcels", layerId: -1 })).toThrow();
 });
+
+it("preserves a custom native object-ID field for canonical updates", async () => {
+  const f = fixture();
+  f.layer.mockResolvedValue(
+    create(DescribeLayerResponseSchema, {
+      layer: {
+        serviceId: "parcels",
+        layerId: 0,
+        name: "Parcels",
+        objectIdField: "parcel_pk",
+        capabilities: { update: true },
+      },
+    }),
+  );
+  const edits = vi.spyOn(f.client, "applyEdits").mockResolvedValue({
+    updateResults: [{ objectId: 7, success: true }],
+  });
+  const connection = await connect({
+    endpoint: target.endpoint,
+    protocol: "grpc",
+    serviceId: "parcels",
+    layerId: 0,
+    authorizationScopeFingerprint: "anonymous",
+    client: f.client,
+  });
+  const source = connection.dataset.source("0")!;
+  expect(source.descriptor.schema?.primaryKey).toBe("parcel_pk");
+  await source.applyEdits({ updates: [{ id: 7, attributes: { name: "Changed" } }] });
+  expect(edits).toHaveBeenCalledWith(
+    expect.objectContaining({
+      objectIdField: "parcel_pk",
+      updates: [{ attributes: { parcel_pk: 7, name: "Changed" } }],
+    }),
+  );
+  expect(f.fetchFn).not.toHaveBeenCalled();
+});

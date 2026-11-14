@@ -163,7 +163,10 @@ export interface ConnectSourceSchemaProjectionContext {
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
   parseCached(value: unknown): SourceSchemaV2Envelope;
-  grpc(metadata: LayerDescriptor, context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
+  grpc(
+    metadata: LayerDescriptor,
+    context: ConnectSourceSchemaProjectionContext,
+  ): SourceSchemaV2Envelope | Promise<SourceSchemaV2Envelope>;
   stac(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,

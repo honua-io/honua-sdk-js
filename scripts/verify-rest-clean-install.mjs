@@ -157,6 +157,12 @@ try {
   fs.writeFileSync(
     path.join(appDir, "missing-peer.mjs"),
     `import { HonuaClient } from "@honua/sdk";
+import { connectWithSourceSchemaV2 } from "@honua/sdk/source-schema";
+import { connectWithSourceCapabilities } from "@honua/sdk/source-capability-discovery";
+
+if (typeof connectWithSourceSchemaV2 !== "function" || typeof connectWithSourceCapabilities !== "function") {
+  throw new Error("REST discovery entrypoints failed to load without optional gRPC peers");
+}
 
 const client = new HonuaClient({
   baseUrl: "https://grpc.example.test",

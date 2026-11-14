@@ -78,11 +78,11 @@ function withLayerIds(current: ReadonlySet<number>, layers: LayerSummary[]): Set
   return ids;
 }
 
-function projectLayer(
+async function projectLayer(
   target: ConnectTarget,
   layer: LayerDescriptor,
   context: { retrievedAt: string; projection: ConnectSourceSchemaProjection | undefined },
-): ConnectDiscoverySourceSnapshot {
+): Promise<ConnectDiscoverySourceSnapshot> {
   const { retrievedAt, projection } = context;
   const source = `${target.clientBaseUrl}/geospatial.v1.FeatureService/DescribeLayer#${encodeURIComponent(layer.serviceId)}/${layer.layerId}`;
   const advertised: Capability[] = [];
@@ -97,12 +97,13 @@ function projectLayer(
   const evidence: readonly DiscoveryCapabilityEvidence[] = layer.capabilities
     ? [{ kind: "metadata", scope: SCOPE, capabilities: Object.freeze(advertised), provenance }]
     : [{ kind: "unavailable", scope: SCOPE, reason: "DescribeLayer omitted caller capabilities.", provenance }];
-  const schemaV2 = projection?.grpc(layer, { source, observedAt: retrievedAt });
+  const schemaV2 = await projection?.grpc(layer, { source, observedAt: retrievedAt });
   return Object.freeze({
     id: String(layer.layerId),
     locator: Object.freeze({ url: target.clientBaseUrl, serviceId: layer.serviceId, layerId: layer.layerId }),
     title: layer.name,
     ...(layer.description ? { description: layer.description } : {}),
+    ...(layer.objectIdField ? { schema: Object.freeze({ primaryKey: layer.objectIdField }) } : {}),
     ...(schemaV2 ? { schemaV2 } : {}),
     evidence: Object.freeze(evidence),
   });
