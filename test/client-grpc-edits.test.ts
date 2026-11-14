@@ -1,5 +1,6 @@
 import { create, fromBinary } from "@bufbuild/protobuf";
 import { expect, it, vi } from "vitest";
+import { FeatureLayerCompat } from "../src/client-compat-entry.js";
 import { createDataset } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaGrpcError } from "../src/core/errors.js";
@@ -257,3 +258,25 @@ function typedEditFetch() {
   });
   return fetchFn;
 }
+
+it("forwards a compatibility layer's custom primary key through native edits", async () => {
+  const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
+    expect(wire.updates[0].id).toBe(7n);
+    expect(wire.deletes).toEqual([8n]);
+    return response(create(ApplyEditsResponseSchema, { updateResults: [{ objectId: 7n, success: true }] }));
+  });
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+  const layer = new FeatureLayerCompat({
+    url: "https://example.test/rest/services/parcels/FeatureServer/0",
+    objectIdField: "parcel_id",
+    client,
+  });
+  const result = await layer.applyEdits({
+    updates: [{ attributes: { parcel_id: 7, name: "changed" } }],
+    deleteFeatures: [{ attributes: { parcel_id: 8 } }],
+  });
+  expect(result.updateResults).toEqual([{ objectId: 7, success: true }]);
+  expect(fetchFn).toHaveBeenCalledTimes(1);
+  expect(String(fetchFn.mock.calls[0][0])).toContain("/geospatial.v1.FeatureService/ApplyEdits");
+});
