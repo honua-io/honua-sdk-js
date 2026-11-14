@@ -24,11 +24,12 @@ permissions:
 
 jobs:
   issue-disposition:
-    name: PR Issue Disposition
+    name: Validate PR issue footer
     runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && (!github.event.workflow_run || github.event.workflow_run.head_repository.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
     timeout-minutes: 2
     steps:
-      # This PR-associated job is the required merge check. It deliberately
+      # This PR-associated job validates the footer. The trusted release-window
+      # publisher emits the combined required check on the current head. It deliberately
       # executes only the protected base revision's validator, never head code.
       - name: Check out trusted policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

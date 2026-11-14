@@ -1,0 +1,52 @@
+name: Refresh release window
+
+on:
+  pull_request_target:
+    branches: [trunk]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  release:
+    types: [published, deleted]
+  workflow_run:
+    workflows: [Release Please]
+    types: [completed]
+    branches: [trunk]
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Optional PR number; blank refreshes all open trunk PRs
+        required: false
+        type: string
+
+permissions:
+  # Draft releases require push access. Only trusted trunk code uses this token.
+  contents: write
+  issues: read
+  pull-requests: read
+  checks: write
+
+concurrency:
+  group: refresh-release-window-${{ github.event.pull_request.number || 'all' }}
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh current merge policies
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ${{ vars.HONUA_LIGHT_RUNNER && (!github.event.pull_request || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON(vars.HONUA_LIGHT_RUNNER) || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: trunk
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22.23.3"
+      - name: Refresh both policies on current PR heads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-release-window.mjs --refresh

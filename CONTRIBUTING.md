@@ -317,3 +317,22 @@ a new function or increasing its count fails. Do not regenerate this file to mak
 a normal change pass. For an explicitly reviewed baseline migration, use
 `node scripts/check-review-baseline.mjs --capture` and review the complete diff.
 `npm run test:review-baseline` exercises actual typed ESLint diagnostics.
+
+### SDK release window
+
+The required `PR Issue Disposition` check also holds source changes while a draft
+`js-sdk-v*` release has no Git tag. Its summary identifies the draft and its age.
+This preserves the generated-only lineage needed to reseal the release after its
+release PR merges. All changed paths, including both sides of a rename, must match
+the generated-artifact allowlist to pass during that window. The same allowlist
+is used by sealed-ancestor verification and checked against the regeneration and
+tag-sealing workflows. Regeneration branch names alone grant no exception;
+authenticated, same-repository Release Please PRs retain their existing exception.
+
+`Refresh release window` revalidates both issue disposition and the release window
+on PR events, after Release Please completes, when a release is published
+or deleted, and every ten minutes. This clears held checks after publication or
+tag creation without requiring a new commit. The manual dispatch accepts an
+optional PR number; leave it blank to refresh all open trunk PRs. The trusted
+refresh job checks out only trunk. Its contents permission makes drafts visible;
+it only writes checks and never merges, approves, or edits a PR.

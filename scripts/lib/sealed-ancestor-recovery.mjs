@@ -1,19 +1,9 @@
 import assert from "node:assert/strict";
 
+import { isGeneratedReleasePath } from "./generated-release-paths.mjs";
+
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^\d+\.\d+\.\d+$/;
-const GENERATED_FILES = new Set([
-  "README.md", "bench/cross-sdk/corpus.json", "docs/bundle-sizes.md", "docs/comparison.md",
-  "docs/errors.md", "docs/generated/mcp-eval-scorecard.md", "docs/generated/sample-catalog.md",
-  "llms.txt", "llms-full.txt", "samples/catalog.v2.json",
-  "samples/contract/v2/migrations/catalog.v1-to-v2.json", "samples/contract/v2/release-matrix-lanes.v1.json",
-  ...[2, 3, 4].map((version) => `samples/contract/v2/consumer-fixtures/honua-site-consumer.v${version}.json`),
-]);
-const GENERATED_PREFIXES = ["api-report/", "examples/migration-workbench/public/artifacts/",
-  "examples/migration-workbench/src/generated/", "examples/ai-spatial-app-builder/evidence/",
-  "examples/realtime-incident-dashboard/evidence/", "examples/spatial-analytics-workbench/evidence/",
-  "samples/dist/", ...["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"]
-    .map((name) => `samples/evidence/${name}/`)];
 
 export function validateRecoveryRecord(record, { tag, source, repository }) {
   assert.equal(record.schemaVersion, "honua.sealed-ancestor-recovery/v1");
@@ -98,7 +88,7 @@ export function validateRecoverySnapshot(record, snapshot) {
   assert.ok(snapshot.subjects.length >= 1 && snapshot.subjects.length <= 4);
   assert.ok(snapshot.subjects.every((subject) => subject.startsWith("chore(evidence): regenerate derived artifacts")));
   assert.ok(snapshot.paths.length > 0);
-  assert.ok(snapshot.paths.every((file) => GENERATED_FILES.has(file) || GENERATED_PREFIXES.some((prefix) => file.startsWith(prefix))), "non-generated candidate change");
+  assert.ok(snapshot.paths.every(isGeneratedReleasePath), "non-generated candidate change");
   assert.ok(snapshot.existingTag === null || snapshot.existingTag === record.sealedSource, "immutable tag cannot be replaced");
   for (const identity of snapshot.identities) {
     assert.equal(identity.version, record.version);
