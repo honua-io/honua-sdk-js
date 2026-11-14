@@ -157,8 +157,8 @@
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83439,
-      "sha256": "sha256:990f0ddbc8fa543184acde584b6b594649efe2323056743617fad1a4c7549064"
+      "bytes": 83709,
+      "sha256": "sha256:812480eedcae08bacc4bc0e192200b50f77b96eedc5b59da27beafe0cf958f46"
     }
   ],
   "profiles": {
@@ -418,8 +418,8 @@
           "query": "supported",
           "queryExtent": "supported",
           "queryObjectIds": "supported",
-          "applyEdits": "supported",
-          "stream": "supported"
+          "stream": "supported",
+          "applyEdits": "supported"
         },
         "geoservices-feature-service": {
           "query": "supported",
@@ -533,10 +533,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:449f47c116d5268421fc77f3a3b2d07f3065b7b5c156ecb2c818f1a8a9d418c9",
+    "inputs": "sha256:3263902def875a2c183cf4b25a35b2165027bf64aa572da25acb298ed4e6f730",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
     "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
-    "rows": "sha256:94e1ffb0cde50403cc804d7a37c673ddf03434fc212cce1e461d257a0d02abc5"
+    "rows": "sha256:1c51040522ec9cee19c0591af40ad421d755092e076b58c7bb8ff35097244a01"
   },
   "summary": {
     "rows": 295,
@@ -3080,7 +3080,7 @@
       "label": "gRPC",
       "operation": "applyEdits",
       "tier": "supported",
-      "tierSource": "config/support-manifest.v1.json#/protocols/0/operationClaims/0/status",
+      "tierSource": "config/support-manifest.v1.json#/protocols/0/operationClaims/1/status",
       "protocol": "grpc",
       "environment": "honua-facade",
       "executionMode": "native",
@@ -3089,11 +3089,10 @@
       "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
-        "pointer": "/protocols/0/operationClaims/0"
+        "pointer": "/protocols/0/operationClaims/1"
       },
       "evidence": [
-        "contract-conformance",
-        "grpc-conformance"
+        "grpc-edit-fixtures"
       ],
       "counts": true,
       "environmentSkipAllowed": false

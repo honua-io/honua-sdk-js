@@ -543,7 +543,7 @@ export class HonuaClient {
   private buildConnectRetryInterceptor(): Interceptor {
     return (next) => async (req) => {
       // Only retry replay-safe unary calls; mirror REST idempotency scoping.
-      if (req.stream || !this.retryOptions) {
+      if (req.stream || !this.retryOptions || req.method?.name === "ApplyEdits") {
         return next(req);
       }
       const retryOptions = this.retryOptions;
@@ -1840,6 +1840,17 @@ export class HonuaClient {
   }
 
   public async applyEdits(request: ApplyEditsRequest): Promise<HonuaApplyEditsResponse> {
+    if (this.transport === "grpc-web") {
+      const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+      const protoRequest = grpcAdapter.toProtoApplyEditsRequest(request);
+      const client = await this.ensureConnectClient();
+      try {
+        const response = await client.applyEdits(protoRequest, request.signal ? { signal: request.signal } : undefined);
+        return grpcAdapter.fromProtoApplyEditsResponse(response);
+      } catch (error) {
+        throw grpcAdapter.wrapConnectError(error);
+      }
+    }
     return applyEdits(this.protocolTransport, request);
   }
 
@@ -2803,6 +2814,8 @@ function isGrpcAdapterModule(value: unknown): value is GrpcAdapterModule {
   if (!isNamespace(value)) return false;
   return (
     typeof value.toProtoQueryRequest === "function" &&
+    typeof value.toProtoApplyEditsRequest === "function" &&
+    typeof value.fromProtoApplyEditsResponse === "function" &&
     typeof value.fromProtoQueryResponse === "function" &&
     typeof value.wrapConnectError === "function" &&
     typeof value.streamProtoPages === "function"

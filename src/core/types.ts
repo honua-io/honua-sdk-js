@@ -523,6 +523,10 @@ export interface MigrationReadinessAttestationItem {
 
 /** Parameters for applying feature edits (add, update, delete) to a feature layer. */
 export interface ApplyEditsRequest {
+  /** gRPC only: primary-key attribute used for Feature.id; defaults to objectid or id (case insensitive). */
+  objectIdField?: string;
+  /** gRPC only: stable server receipt key for an explicitly retried logical edit. Writes are never automatically retried. */
+  idempotencyKey?: string;
   serviceId: string;
   layerId: number;
   adds?: HonuaFeature[];
@@ -1055,7 +1059,8 @@ export interface HonuaExtentResponse {
 
 /** Result for a single add, update, or delete operation. */
 export interface HonuaEditResult {
-  objectId: number;
+  /** gRPC int64 IDs outside the safe integer range are returned as decimal strings. */
+  objectId: number | string;
   success: boolean;
   error?: { code: number; description: string };
 }

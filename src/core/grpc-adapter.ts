@@ -1,23 +1,18 @@
+import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
+import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+export { toProtoApplyEditsRequest, fromProtoApplyEditsResponse } from "./grpc-edits.js";
 import { create } from "@bufbuild/protobuf";
 import {
   type AttributeValue,
-  CoordinateSchema,
-  CoordinateSequenceSchema,
   DistanceUnit,
   type FeaturePage,
   FieldType,
-  GeometrySchema,
   GeometryType,
-  MultiPointGeometrySchema,
-  PointGeometrySchema,
-  PolygonGeometrySchema,
-  PolylineGeometrySchema,
   type Feature as ProtoFeature,
   type FieldDefinition as ProtoFieldDefinition,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
   SpatialFilterSchema,
-  SpatialReferenceSchema,
   SpatialRelationship,
 } from "../gen/geospatial/v1/index.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
@@ -105,23 +100,6 @@ const GEOSERVICES_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   miles: DistanceUnit.MILES,
   mi: DistanceUnit.MILES,
 };
-
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
-const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
-const MIN_PROTO_INT64 = -(1n << 63n);
-const MAX_PROTO_INT64 = (1n << 63n) - 1n;
-
-function toProtoObjectId(value: string): bigint {
-  const token = value.trim();
-  if (!/^(?:0|-?[1-9][0-9]*)$/.test(token)) {
-    throw new RangeError("string objectIds must contain canonical decimal int64 values");
-  }
-  const parsed = BigInt(token);
-  if (parsed < MIN_PROTO_INT64 || parsed > MAX_PROTO_INT64) {
-    throw new RangeError("string objectIds must remain within the signed int64 range");
-  }
-  return parsed;
-}
 
 function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -389,227 +367,6 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
   return String(value);
 }
 
-function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
-  geometry: ReturnType<typeof create<typeof GeometrySchema>>;
-  spatialReference?: ReturnType<typeof create<typeof SpatialReferenceSchema>>;
-} {
-  const source = parseGeometryValue(geometryValue);
-  const geometry = create(GeometrySchema);
-
-  if (isPoint(source)) {
-    const point = create(PointGeometrySchema);
-    point.x = source.x;
-    point.y = source.y;
-    if (typeof source.z === "number" && Number.isFinite(source.z)) {
-      point.z = source.z;
-    }
-    if (typeof source.m === "number" && Number.isFinite(source.m)) {
-      point.m = source.m;
-    }
-    geometry.shape = { case: "point", value: point };
-  } else if (isEnvelope(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = [
-      toCoordinateSequence([
-        [source.xmin, source.ymin],
-        [source.xmax, source.ymin],
-        [source.xmax, source.ymax],
-        [source.xmin, source.ymax],
-        [source.xmin, source.ymin],
-      ]),
-    ];
-    geometry.shape = { case: "polygon", value: polygon };
-  } else if (isMultipoint(source)) {
-    const multipoint = create(MultiPointGeometrySchema);
-    multipoint.points = source.points.map((point, index) => toPointGeometryFromArray(point, `points[${index}]`));
-    geometry.shape = { case: "multiPoint", value: multipoint };
-  } else if (isPolyline(source)) {
-    const polyline = create(PolylineGeometrySchema);
-    polyline.paths = source.paths.map((path, index) => toCoordinateSequence(path, `paths[${index}]`));
-    geometry.shape = { case: "polyline", value: polyline };
-  } else if (isPolygon(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = source.rings.map((ring, index) => toCoordinateSequence(ring, `rings[${index}]`));
-    geometry.shape = { case: "polygon", value: polygon };
-  } else {
-    throw new Error("Unsupported geometry shape for gRPC transport.");
-  }
-
-  return {
-    geometry,
-    spatialReference: toProtoSpatialReference((source as Record<string, unknown>).spatialReference),
-  };
-}
-
-function parseGeometryValue(value: string | Record<string, unknown>): Record<string, unknown> {
-  if (typeof value === "string") {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      throw new Error("Geometry must be a JSON object for gRPC transport.");
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("Geometry JSON must parse to an object for gRPC transport.");
-    }
-    return parsed as Record<string, unknown>;
-  }
-  return value;
-}
-
-function toProtoSpatialReference(value: unknown): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkid = value;
-    return spatialReference;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const asNumber = Number(trimmed);
-    if (Number.isFinite(asNumber)) {
-      const spatialReference = create(SpatialReferenceSchema);
-      spatialReference.wkid = asNumber;
-      return spatialReference;
-    }
-
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed) as unknown;
-        return toProtoSpatialReference(parsed);
-      } catch {
-        throw new Error("Invalid outSr JSON for gRPC transport.");
-      }
-    }
-
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkt = trimmed;
-    return spatialReference;
-  }
-
-  if (typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const spatialReference = create(SpatialReferenceSchema);
-  const source = value as Record<string, unknown>;
-  const wkid = source.wkid;
-  if (typeof wkid === "number" && Number.isFinite(wkid)) {
-    spatialReference.wkid = wkid;
-  }
-  const latestWkid = source.latestWkid;
-  if (typeof latestWkid === "number" && Number.isFinite(latestWkid)) {
-    spatialReference.latestWkid = latestWkid;
-  }
-  const wkt = source.wkt;
-  if (typeof wkt === "string" && wkt.length > 0) {
-    spatialReference.wkt = wkt;
-  }
-
-  if (spatialReference.wkid === 0 && spatialReference.latestWkid === 0 && !spatialReference.wkt) {
-    return undefined;
-  }
-  return spatialReference;
-}
-
-function toPointGeometryFromArray(
-  value: unknown,
-  context: string,
-): ReturnType<typeof create<typeof PointGeometrySchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate array at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const point = create(PointGeometrySchema);
-  point.x = x;
-  point.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    point.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    point.m = m;
-  }
-  return point;
-}
-
-function toCoordinateSequence(
-  value: unknown,
-  context = "coords",
-): ReturnType<typeof create<typeof CoordinateSequenceSchema>> {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid coordinate sequence at ${context}`);
-  }
-  const sequence = create(CoordinateSequenceSchema);
-  sequence.coords = value.map((coord, index) => toCoordinate(coord, `${context}[${index}]`));
-  return sequence;
-}
-
-function toCoordinate(value: unknown, context: string): ReturnType<typeof create<typeof CoordinateSchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const coordinate = create(CoordinateSchema);
-  coordinate.x = x;
-  coordinate.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    coordinate.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    coordinate.m = m;
-  }
-  return coordinate;
-}
-
-function isPoint(value: Record<string, unknown>): value is { x: number; y: number; z?: number; m?: number } {
-  return typeof value.x === "number" && typeof value.y === "number";
-}
-
-function isEnvelope(
-  value: Record<string, unknown>,
-): value is { xmin: number; ymin: number; xmax: number; ymax: number } {
-  return (
-    typeof value.xmin === "number" &&
-    typeof value.ymin === "number" &&
-    typeof value.xmax === "number" &&
-    typeof value.ymax === "number"
-  );
-}
-
-function isMultipoint(value: Record<string, unknown>): value is { points: unknown[] } {
-  return Array.isArray(value.points);
-}
-
-function isPolyline(value: Record<string, unknown>): value is { paths: unknown[] } {
-  return Array.isArray(value.paths);
-}
-
-function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] } {
-  return Array.isArray(value.rings);
-}
-
 /**
  * Converts a stream of proto FeaturePages into an async generator
  * that yields arrays of JSON-compatible features, matching the
@@ -646,6 +403,7 @@ export async function* streamProtoPages(
  * HonuaGrpcError for consistent `instanceof` discrimination.
  */
 export function wrapConnectError(error: unknown): Error {
+  if (error instanceof HonuaGrpcError) return error;
   if (error instanceof Error && "code" in error && typeof (error as Record<string, unknown>).code === "number") {
     const candidate = error as Record<string, unknown>;
     return new HonuaGrpcError(
@@ -745,30 +503,21 @@ function convertAttributeValue(attr: AttributeValue): unknown {
   }
 }
 
-function toSafeNumberOrString(value: bigint): number | string {
-  if (value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT) {
-    return Number(value);
-  }
-  return value.toString();
+/** Keep absent ordinates in their geometry-wide positions for lossless edit roundtrips. */
+function coordToArray(
+  coordinate: { x: number; y: number; z?: number; m?: number },
+  dimensions: Record<string, boolean>,
+): (number | null)[] {
+  const coords: (number | null)[] = [coordinate.x, coordinate.y];
+  if (dimensions.hasZ) coords.push(coordinate.z ?? null);
+  if (dimensions.hasM) coords.push(coordinate.m ?? null);
+  return coords;
 }
 
-/**
- * Builds an Esri-JSON coordinate array from a proto coordinate. Z and M are
- * appended only when present, matching `f=json` / PBF output:
- *   - `[x, y]`        (2D)
- *   - `[x, y, z]`     (Z only)
- *   - `[x, y, m]`     (M only — Esri's M-without-Z convention)
- *   - `[x, y, z, m]`  (Z and M)
- *
- * A `NaN` placeholder is never emitted: `JSON.stringify` would serialize it to
- * `null`, which is invalid Esri-JSON/GeoJSON and diverges from the other
- * transports.
- */
-function coordToArray(x: number, y: number, z: number | undefined, m: number | undefined): number[] {
-  const coords: number[] = [x, y];
-  if (z !== undefined) coords.push(z);
-  if (m !== undefined) coords.push(m);
-  return coords;
+function coordinateDimensionFlags(coordinates: { z?: number; m?: number }[]): Record<string, boolean> {
+  const hasZ = coordinates.some((coordinate) => coordinate.z !== undefined);
+  const hasM = coordinates.some((coordinate) => coordinate.m !== undefined);
+  return hasZ || hasM ? { hasZ, hasM } : {};
 }
 
 function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
@@ -782,33 +531,50 @@ function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Recor
     }
     case "multiPoint": {
       const mp = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(mp.points);
       return {
-        points: mp.points.map((p) => coordToArray(p.x, p.y, p.z, p.m)),
+        points: mp.points.map((p) => coordToArray(p, dimensions)),
+        ...dimensions,
       };
     }
     case "polyline": {
       const pl = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(pl.paths.flatMap((path) => path.coords));
       return {
-        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
+        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c, dimensions))),
+        ...dimensions,
       };
     }
     case "polygon": {
       const pg = geometry.shape.value;
+      const dimensions = coordinateDimensionFlags(pg.rings.flatMap((ring) => ring.coords));
       return {
-        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
+        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c, dimensions))),
+        ...dimensions,
       };
     }
     case "multiPolygon": {
-      const mpg = geometry.shape.value;
-      const rings: number[][][] = [];
-      for (const poly of mpg.polygons) {
-        for (const ring of poly.rings) {
-          rings.push(ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m)));
-        }
-      }
-      return { rings };
+      return convertMultiPolygon(geometry.shape.value);
     }
     default:
       return null;
   }
+}
+
+function convertMultiPolygon(mpg: {
+  polygons: { rings: { coords: { x: number; y: number; z?: number; m?: number }[] }[] }[];
+}) {
+  const dimensions = coordinateDimensionFlags(
+    mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords)),
+  );
+  const rings: (number | null)[][][] = [];
+  for (const poly of mpg.polygons) {
+    for (const ring of poly.rings) {
+      rings.push(ring.coords.map((c) => coordToArray(c, dimensions)));
+    }
+  }
+  return {
+    rings,
+    ...dimensions,
+  };
 }

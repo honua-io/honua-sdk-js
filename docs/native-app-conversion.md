@@ -74,7 +74,7 @@ Check the deployment and the linked work before removing a compatibility path.
 | Identify | `identifySources(selectedSources, options)` | Queries each selected source; coordinate-space envelope tolerance, one bounded page per source. |
 | Find | `findSources([{ source, fields }], options)` | Typed equality or explicit LIKE pattern over chosen fields; no service-wide discovery. |
 | Legend | `legendFromStyle(style, options)` | Style-derived colors plus the full symbol definition; complex expressions need a renderer. No server legend call. |
-| Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Native edit routing tracked in [SDK #2490](https://github.com/honua-io/honua-sdk-js/issues/2490). Existing transport behavior must be verified before declaring an editing app native. |
+| Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Uses unary gRPC-Web `ApplyEdits` with no REST fallback when configured for gRPC-Web. Per-row errors remain in the result; whole-call failures reject. Set the source schema primary key for custom object IDs. |
 | Edits keyed by global ID | Global-ID-aware canonical edit API | Additive scalar/identity contract and transport support are pending. Preserve global IDs when copying data. |
 | Parent and child transaction | Service edit session | Multi-layer native transaction support is pending; independent calls are not atomic. |
 | Query attachment metadata | `source.attachments.list(id)` / `.query()` | Canonical API exists; native attachment transport is pending. |
