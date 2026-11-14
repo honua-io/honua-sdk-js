@@ -141,7 +141,7 @@ jobs:
         run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
-        run: node --test test/scripts/pr-issue-disposition.test.mjs
+        run: node --test test/scripts/pr-issue-disposition.test.mjs test/scripts/release-window.test.mjs
 
       - name: Test schema sync pull-request admission
         run: node --test test/scripts/schema-sync-workflow.test.mjs
@@ -347,7 +347,7 @@ jobs:
         run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
-        run: node --test test/scripts/pr-issue-disposition.test.mjs
+        run: node --test test/scripts/pr-issue-disposition.test.mjs test/scripts/release-window.test.mjs
 
       - name: Test schema sync pull-request admission
         run: node --test test/scripts/schema-sync-workflow.test.mjs
