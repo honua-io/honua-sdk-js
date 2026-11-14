@@ -6,9 +6,9 @@
   "gate": "console",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "ef5c7f6d1494338af668aa9e6894ce65cfe972cb",
-  "sourceDigest": "144ad7b195a444e3ec049237b175cf576539a51692393d5be3dd04fe11dd8f9d",
-  "runRoot": "samples/evidence/service-explorer/runs/d87492dc-f70c-4c8c-97bf-29ffa2ca3e08",
+  "sourceRevision": "4d8d618bc3a49c7ec2a724babf77735c1c8439ad",
+  "sourceDigest": "32231be9a9575684bd20758f08903b1a779131e0f586495d9288d641a5f84925",
+  "runRoot": "samples/evidence/service-explorer/runs/a45fbe36-e04c-4c4f-9067-93f142ba6705",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "d051efbc4743c0fbc0a51de15c4c92bcce537f63446b8118f628ba151c552e6f"
   },
-  "observedAt": "2026-11-14T17:49:59.245Z",
-  "expiresAt": "2026-11-21T17:49:59.245Z",
-  "durationMs": 5106.391694999999,
+  "observedAt": "2026-11-14T23:43:52.756Z",
+  "expiresAt": "2026-11-21T23:43:52.756Z",
+  "durationMs": 5305.3386740000005,
   "artifacts": [
     {
       "kind": "playwright-gate-report",
-      "path": "samples/evidence/service-explorer/runs/d87492dc-f70c-4c8c-97bf-29ffa2ca3e08/artifacts/console.json",
-      "bytes": 9161,
-      "sha256": "219f921ebbdd5bc225887df941f82c4335d965ccac78a6e1b286c6a7cefebd25"
+      "path": "samples/evidence/service-explorer/runs/a45fbe36-e04c-4c4f-9067-93f142ba6705/artifacts/console.json",
+      "bytes": 9132,
+      "sha256": "2c7cd217543b7894f6c4ef9520e271d3f2d6ff7133ba7723be35748a5b70b359"
     }
   ]
 }
