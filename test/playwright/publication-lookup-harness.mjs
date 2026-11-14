@@ -21,27 +21,28 @@ const extensionPath = `/duckdb/extensions/${PARQUET_EXTENSION_PROVENANCE.engineV
 
 const PAGE_SCRIPT = `
 import { queryFilter } from "./src/contract/query-filter.ts";
-import { GeoparquetRuntime, createBrowserDuckDbDriver } from "./src/geoparquet/index.ts";
-import { PUBLICATION_LOOKUP_BUDGET, openPublication, publicationSource } from "./src/publication/index.ts";
+import { GeoparquetRuntime } from "./src/geoparquet/index.ts";
+import {
+  PUBLICATION_LOOKUP_BUDGET,
+  openPublication,
+  publicationDriverFactory,
+  publicationSource,
+} from "./src/publication/index.ts";
 
 const status = document.querySelector("#status");
 let runtime;
 let source;
 let controller;
 
-function engine(options) {
-  return createBrowserDuckDbDriver({
-    ...options,
-    bundle: {
-      mainModule: location.origin + "/duckdb/duckdb-eh.wasm",
-      mainWorker: location.origin + "/duckdb/duckdb-browser-eh.worker.js",
-    },
-    extensionRepository: location.origin + "/duckdb/extensions",
-    preloadExtensions: ["parquet"],
-    loadSpatial: false,
-    filesystem: { reliableHeadRequests: true, allowFullHttpReads: false },
-  });
-}
+const engine = publicationDriverFactory({
+  bundle: {
+    mainModule: location.origin + "/duckdb/duckdb-eh.wasm",
+    mainWorker: location.origin + "/duckdb/duckdb-browser-eh.worker.js",
+  },
+  extensionRepository: location.origin + "/duckdb/extensions",
+  preloadExtensions: ["parquet"],
+  loadSpatial: false,
+});
 
 window.publicationHarness = {
   budget: PUBLICATION_LOOKUP_BUDGET,
@@ -87,7 +88,7 @@ window.publicationHarness = {
       const result = await source.query({ filter: queryFilter.eq(field, value), returnGeometry: false, pagination: { limit: 100 } });
       return { ok: true, ms: performance.now() - started, returnedFeatures: result.features.length };
     } catch (error) {
-      return { ok: false, message: error.message, ms: performance.now() - started };
+      return { ok: false, code: error.code ?? null, message: error.message, ms: performance.now() - started };
     }
   },
   cancel() {
@@ -118,7 +119,7 @@ async function bundlePage(directory) {
 }
 
 /**
- * @param {{ artifacts: Record<string, string>, workDirectory: string, artifactDelayMs?: number, artifactCors?: boolean, artifactCacheControl?: string }} options
+ * @param {{ artifacts: Record<string, string>, workDirectory: string, artifactDelayMs?: number, artifactCors?: boolean, artifactCacheControl?: string, artifactRangeSupport?: "full" | "get-only" | "none" }} options
  *   artifacts maps a URL path on the artifact origin to a file on disk.
  */
 export async function startPublicationHarness({
@@ -127,6 +128,7 @@ export async function startPublicationHarness({
   artifactDelayMs = 0,
   artifactCors = true,
   artifactCacheControl = "no-cache",
+  artifactRangeSupport = "full",
 }) {
   const extensionCache = resolveParquetExtensionCachePath({ repoRoot });
   await ensurePinnedParquetExtension({ cachePath: extensionCache });
@@ -147,6 +149,7 @@ export async function startPublicationHarness({
     delayMs: artifactDelayMs,
     cors: artifactCors,
     cacheControl: artifactCacheControl,
+    rangeSupport: artifactRangeSupport,
   });
   return {
     app,

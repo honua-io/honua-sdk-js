@@ -5,6 +5,8 @@ description: "An exploratory Cesium consumer of one bounded Honua FeatureServer 
 ---
 # Cesium Route Playback Spike
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This example is an exploratory 3D consumer workflow for `honua-sdk-js`. It does
 not change the public SDK runtime surface. The goal is narrower: prove that a
 current Honua `FeatureServer/query` response can drive one believable Cesium

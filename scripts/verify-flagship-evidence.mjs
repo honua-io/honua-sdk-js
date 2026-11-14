@@ -29,12 +29,22 @@ for (const sample of index.samples) {
   await access(sample.performance.definition);
   const definition = await readFile(sample.performance.definition, "utf8");
   if (sample.performance.definition.endsWith("budgets.json")) {
-    const declared = JSON.parse(definition).scenarios;
+    const parsed = JSON.parse(definition);
+    const declared = parsed.scenarios ?? parsed.absolute;
     if (!declared?.[sample.performance.scenario]) {
       throw new Error(`${sample.sampleId} references missing performance scenario ${sample.performance.scenario}`);
     }
+    if (parsed.absolute) {
+      const ceiling = declared[sample.performance.scenario].totalDurationMs;
+      if (ceiling?.direction !== "lower-is-better" || !Number.isFinite(ceiling.failure) || ceiling.failure <= 0) {
+        throw new Error(`${sample.sampleId} performance definition does not enforce a numeric ceiling`);
+      }
+    }
   } else if (!definition.includes("toBeLessThan")) {
     throw new Error(`${sample.sampleId} performance definition does not enforce a numeric ceiling`);
+  }
+  if (sample.performance.definition.endsWith("budgets.json") && !ci.includes(sample.performance.command)) {
+    throw new Error(`${sample.sampleId} performance command is not wired into CI`);
   }
   if (sample.performance.artifact) {
     const packageScripts = JSON.stringify(packageJson.scripts);

@@ -1,5 +1,7 @@
 # Installing the Honua JavaScript SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
 subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
@@ -76,7 +78,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 |---------|-------------------|
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/pmtiles` | Authenticated bounded archive inspection plus experimental Honua archive/publish jobs, status/cancellation, strict public/signed/range-proxy descriptors, and truthful cleanup dispositions ([guide](./docs/pmtiles-lifecycle.md)). |
-| `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, GeoParquet lookups, selection through the stable feature identity, CSV/GeoJSON export of public fields, and a lookup budget with live-service fallback. |
+| `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |
 | `@honua/sdk-js/stac` | Experimental dynamic STAC search, bounded pagination, signed asset refresh, and typed handoffs to the canonical COG, PMTiles, columnar, and runtime entrypoints ([walkthrough](./docs/walkthroughs/search-stac-and-open-assets.md)). |
 | `@honua/sdk-js/raster` | Experimental bounded raster sessions across dynamic-STAC/direct COG, ImageServer, OGC API Coverages, and WCS, with explicit band/range semantics and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |

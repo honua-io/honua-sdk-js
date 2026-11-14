@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Error reference
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
 errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
@@ -245,6 +247,7 @@ classification is conservatively non-retryable.
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `core.publication.invalid-descriptor` | `core` | `validation` | no | Publication descriptor is invalid or not validated |
 | `core.publication.artifact-mismatch` | `core` | `protocol` | no | Publication artifact does not match its descriptor |
+| `core.publication.artifact-unavailable` | `core` | `protocol` | no | Publication artifact could not be read from its host |
 | `core.publication.non-public-field` | `core` | `validation` | no | Field is not public in the publication |
 | `core.publication.query-budget-exceeded` | `core` | `capability` | no | Browser query would exceed the publication query budget |
 | `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |

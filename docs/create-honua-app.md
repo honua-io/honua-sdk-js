@@ -6,13 +6,15 @@ resource: "https://www.npmjs.com/package/create-honua-app"
 ---
 # create-honua-app
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `create-honua-app` scaffolds a Vite + TypeScript application that already connects to a geospatial endpoint and mounts
 a source on MapLibre. It exists so the first minute with the SDK is spent reading a working workflow instead of
 assembling peer dependencies.
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.5 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.3.7 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -55,7 +57,7 @@ ESM-only and loads its worker as a separate module, each starter ships `src/mapl
 the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
 
 ```bash
-npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.3.5 # x-release-please-version
+npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.3.7 # x-release-please-version
 create-honua-app --list-templates
 ```
 

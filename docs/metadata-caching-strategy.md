@@ -5,6 +5,8 @@ description: "The platform default for metadata caching across SDKs and MCP tool
 ---
 # Metadata Caching Strategy
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This strategy is the Honua platform default for metadata caching across SDKs,
 MCP tools, examples, and server-backed source orchestration. It separates
 metadata from spatial feature state and query results: metadata is cached by

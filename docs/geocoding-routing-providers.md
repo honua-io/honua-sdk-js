@@ -6,6 +6,8 @@ resource: "honua://capability/geocoding.forward"
 ---
 # Provider-pluggable geocoding and routing
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
 > minor release prior to `1.0.0`.
 

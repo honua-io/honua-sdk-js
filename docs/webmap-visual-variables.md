@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # WebMap visual variables
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `convertRenderer`, `parseWebMap`, `webmapJsonToMapLibreStyle`, and compatibility
 renderer projections share the visual-variable compiler. Conversion is pure:
 it reads only supplied JSON and never fetches item metadata or feature values.

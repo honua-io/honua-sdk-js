@@ -1,5 +1,7 @@
 # Honua JS SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/honua-io/honua-sdk-js/badge)](https://scorecard.dev/viewer/?uri=github.com/honua-io/honua-sdk-js)
 
 [![npm](https://img.shields.io/npm/v/@honua/sdk-js?color=2b6cb0&label=%40honua%2Fsdk-js)](https://www.npmjs.com/package/@honua/sdk-js)
@@ -17,9 +19,15 @@ runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatib
 layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
 surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
+## Native application data
+
+Use `HonuaClient` with explicit `transport: "grpc-web"` for live feature queries.
+Follow the [native data guide](docs/native-data-paths.md) for the complete browser
+setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
+
 ## Which import
 
-A new 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
+For compatibility with existing service endpoints, a 2D map imports `createHonua` from `@honua/sdk-js` and `maplibreRenderer` from `@honua/sdk-js/runtime`. Server attach uses `HonuaClient` from `@honua/sdk-js/honua`. An ArcGIS app uses `@honua/sdk-client-compat` and `@honua/honua-migrate`. Widget paint registers `@honua/app-platform/web-components`. `@honua/sdk` is `HonuaClient`, not `createHonua`. Open data sources with `createHonua().connect()`; the lower-level `connect()` export is only for code that reads its synchronous `inspection`, such as the static STAC asset candidates a COG read starts from.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
 removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
@@ -28,7 +36,7 @@ compiling and running when you take the 6.0 upgrade. Run
 [widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
 widget mapped to its Honua/MapLibre disposition.
 
-## A public endpoint to a styled map
+## Compatibility: a public endpoint to a styled map
 
 Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
 public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
@@ -84,7 +92,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.3.5`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.3.7`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 28 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -313,13 +321,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 16.4 KiB |
 | `@honua/sdk-js/map` | 56.1 KiB |
-| `@honua/sdk-js` (root) | 204.0 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 59.5 KiB |
-| `{ connect }` from the root (tree-shake guard) | 164.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 193.3 KiB |
+| `@honua/sdk-js` (root) | 204.2 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 59.6 KiB |
+| `{ connect }` from the root (tree-shake guard) | 164.5 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 193.4 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 164.4 KiB gzip and `{ createHonua }` 193.3 KiB against the 204.0 KiB root, so size-sensitive
+alone costs 164.5 KiB gzip and `{ createHonua }` 193.4 KiB against the 204.2 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.

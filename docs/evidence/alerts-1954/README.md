@@ -5,6 +5,8 @@ description: "Candidate-bound single-tenant Pro alerts off/on results with retai
 ---
 # Preview alerts fixture evidence
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This directory retains the bounded SDK #1954 integration evidence. It covers
 unpersisted alert draft validation on a dedicated single-tenant Pro fixture,
 with `alerts.geofence` explicitly off and on. It does not qualify alert workers,

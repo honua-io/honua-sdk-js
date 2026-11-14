@@ -8,6 +8,7 @@
  */
 export * from "./dataset.js";
 export * from "./descriptor.js";
+export { PUBLICATION_ENGINE_FILESYSTEM, publicationDriverFactory } from "./engine.js";
 export * from "./errors.js";
 export {
   PUBLICATION_LOOKUP_BUDGET,

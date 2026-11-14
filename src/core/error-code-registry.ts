@@ -150,6 +150,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Publication artifact does not match its descriptor",
   ),
+  "core.publication.artifact-unavailable": classification(
+    "core",
+    "protocol",
+    false,
+    "Publication artifact could not be read from its host",
+  ),
   "core.publication.non-public-field": classification(
     "core",
     "validation",

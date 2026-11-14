@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Studio package parity: MCP, QGIS, and Console
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Status: experimental. This is the parity layer on top of the
 [package contracts](studio-package-contracts.md).
 

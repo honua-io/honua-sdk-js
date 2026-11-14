@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # HonuaController Application API
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `HonuaController` is the renderer-neutral application API for common map app
 flows. It composes existing `HonuaMapRuntime`, generated-app runtime, and
 `ExplorationContext` primitives instead of owning a separate state engine.

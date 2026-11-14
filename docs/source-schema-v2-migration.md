@@ -5,6 +5,8 @@ description: "Opt in to the experimental vendor-neutral source schema v2 discove
 ---
 # Source schema v2 migration
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Source schema v2 is an experimental, vendor-neutral discovery projection. It
 is available from the focused `@honua/sdk-js/source-schema` subpath and can
 enrich GeoServices, OData 4.0, GeoParquet, WMS 1.3.0, and WMTS 1.0.0 discovery.

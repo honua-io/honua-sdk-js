@@ -5,6 +5,8 @@ description: "Server-side walkthrough that submits a durable Honua publish job, 
 ---
 # Publish a Honua layer as PMTiles
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This server-side walkthrough submits a durable Honua `publish` job, reports
 bounded progress, and converts the completed artifact into renderer-neutral and
 MapLibre source descriptors. The admin credential never enters a browser bundle.

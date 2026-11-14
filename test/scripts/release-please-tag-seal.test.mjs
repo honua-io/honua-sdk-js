@@ -567,11 +567,15 @@ test("release PR generation follows the finish path with a fresh token and separ
   assert.ok(steps.indexOf(history) < steps.indexOf(token));
   assert.ok(steps.indexOf(token) < steps.indexOf(generation));
   assert.equal(token.match(action)[1], initialToken.match(action)[1]);
-  for (const input of ["app-id", "private-key", "owner"]) {
+  for (const input of ["app-id", "private-key", "permission-contents", "permission-issues", "permission-pull-requests"]) {
     const pattern = new RegExp(`^          ${input}: (.+)$`, "mu");
     assert.equal(token.match(pattern)[1], initialToken.match(pattern)[1]);
   }
-  assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/u);
+  assert.match(generation, /token: \$\{\{ steps\.release-pr-token\.outputs\.token \}\}/u);
+  for (const mint of [token, initialToken]) {
+    assert.doesNotMatch(mint, /continue-on-error:|steps\.creds|\n\s+owner:|\n\s+repositories:/u);
+  }
+  assert.doesNotMatch(generation, /GITHUB_TOKEN/u);
   assert.match(job, /prs: \$\{\{ steps\.release-pr\.outputs\.prs \}\}/u);
   assert.match(job, /releases_created: \$\{\{ steps\.release\.outputs\.releases_created \}\}/u);
   assert.match(job, /tag_name: \$\{\{ steps\.release\.outputs\.tag_name \}\}/u);
@@ -599,7 +603,7 @@ test("PR generation admits successful cuts and no-release runs but excludes reco
     assert.equal(admitted(token, scenario), true);
     // No-release runs skip publication dispatch without failing the job.
     assert.equal(admitted(generation, { ...scenario, credentials: false }), true);
-    assert.equal(admitted(token, { ...scenario, credentials: false }), false);
+    assert.equal(admitted(token, { ...scenario, credentials: false }), true);
     // A failed seal or publication leaves the next action unexecuted.
     assert.equal(admitted(generation, { ...scenario, priorSuccess: false }), false);
     assert.equal(admitted(history, { ...scenario, priorSuccess: false }), false);

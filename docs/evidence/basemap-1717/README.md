@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Basemap development bundle evidence
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The optimized source is `97c6bb6e60c32bdf61edca6e5b77c72c7d2e083a`, measured from a clean worktree with a verified prepared SDK build. The [installed consumer receipt](pr2010-first-map-final.json) and [consumer lock](pr2010-first-map-final.consumer-lock.json) retain the complete measurement. This is packed-development evidence, not published-release certification.
 
 All 121 non-SDK dependency identities remain fixed against the historical lock, including MapLibre 6.13.0 and its integrity. Runtime, worker and stylesheet resolve inside the isolated consumer; the bundle contains one MapLibre runtime.

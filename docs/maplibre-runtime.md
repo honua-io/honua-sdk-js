@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Public entrypoint: `@honua/sdk-js/runtime` (subpath export only; the
 root barrel does not re-export the runtime so hosts that do not need a
 map can avoid pulling in the MapLibre-aware code).

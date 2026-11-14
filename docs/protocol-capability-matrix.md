@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Protocol × Capability Matrix
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 <!-- support-manifest:protocol-matrix:start -->
 Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
 

@@ -6,6 +6,8 @@ resource: "honua://capability/format.geoarrow"
 ---
 # Columnar batch transfer contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
 results. It defines a dependency-free Honua batch envelope, an ownership
 transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded

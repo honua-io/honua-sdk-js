@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/react"
 ---
 # React bindings (`@honua/react`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/react` is the idiomatic React layer over the framework-neutral
 `@honua/sdk-js` core: a context provider, data hooks, and declarative map
 components. The core SDK stays React-free — React is imported only from this

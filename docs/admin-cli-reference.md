@@ -10,6 +10,8 @@ tags: [cli, admin, reference, generated]
 
 # `honua admin` command reference
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Generated from `honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a` (396 REST operations).
 
 Every operation is available through `honua admin api <operationId>`. The grouped spelling

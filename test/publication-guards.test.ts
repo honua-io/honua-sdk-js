@@ -37,7 +37,7 @@ describe("non-public fields", () => {
   it("never returns or exports a non-public column even when the artifact carries one", async () => {
     const leaked = await rewrittenParquet("*, 123456 AS landvalue, 'Y' AS homeowner", stamp);
     track(leaked.cleanup);
-    const source = await pairedSource(await served({ parquet: leaked.file }));
+    const source = await pairedSource(await served(leaked.overrides));
     const everything = await source.queryAll({ outFields: undefined });
     const lookup = await source.lookup(MERGED_MULTIPART_PARCEL);
     const csv = await source.exportFeatures("csv");
@@ -122,7 +122,7 @@ describe("artifact consistency", () => {
   it("rejects a GeoParquet artifact from another capture", async () => {
     const other = await rewrittenParquet("*", { ...stamp, captureId: "sha256:another-capture" });
     track(other.cleanup);
-    const source = await pairedSource(await served({ parquet: other.file }));
+    const source = await pairedSource(await served(other.overrides));
     await expect(source.lookup(MERGED_MULTIPART_PARCEL)).rejects.toMatchObject({ code: "artifact-mismatch" });
     await expect(source.query({})).rejects.toThrow(/does not carry capture/);
   });

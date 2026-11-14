@@ -5,6 +5,8 @@ description: "What the JavaScript SDK ships: the client, the protocol-neutral co
 ---
 # Honua JS SDK Feature Map
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The JavaScript/TypeScript SDK, browser runtime helpers, migration tooling, examples, and MCP server package.
 
 ## Current Capabilities

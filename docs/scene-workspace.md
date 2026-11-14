@@ -6,6 +6,8 @@ resource: "honua://capability/scene.catalog"
 ---
 # Scene Workspace Interop
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for
 apps that combine a 3D scene, 2D map, table, detail panel, timeline, evidence
 tray, and realtime status. It does not import Cesium, MapLibre, or a UI

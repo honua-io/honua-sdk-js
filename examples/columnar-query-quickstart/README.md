@@ -1,5 +1,7 @@
 # Map a bounded Arrow result
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This map-first example executes a real `f=arrow` workflow without claiming a live service that does not exist. The SDK plans a canonical FeatureServer request, an in-memory fixture transport returns the byte-exact Honua Server Arrow artifact, and the built-in decoder emits one bounded GeoArrow batch for MapLibre.
 
 The fixture is the exact 4,160-byte workflow artifact produced by reviewed Honua Server head `66a9d34496c6f6a03dd571957062f773bfef7f0a`, merged as `4ef53ce7f49b78aad3572db1dfc3be88a6654a43`, with SHA-256 `da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52`. Its producer receipt and digest sidecar are retained byte-for-byte beside the canonical binary in `test/fixtures/columnar/`; `test/columnar-query-quickstart.test.ts` also checks the base64 text in `src/fixture.ts` against that binary.

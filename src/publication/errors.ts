@@ -3,6 +3,7 @@ import { HonuaSdkError, mergeHonuaErrorContext } from "../core/error-envelope.js
 export type HonuaPublicationErrorCode =
   | "invalid-descriptor"
   | "artifact-mismatch"
+  | "artifact-unavailable"
   | "non-public-field"
   | "query-budget-exceeded";
 

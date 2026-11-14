@@ -6,6 +6,8 @@ resource: "honua://capability/streaming.feature-subscriptions"
 ---
 # Realtime Feature State
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The `@honua/sdk-js/realtime` entrypoint defines the SDK-side contract for live operational layers. Apps subscribe once to a `RealtimeFeatureTransport` and consume normalized `RealtimeFeatureEvent` values through `RealtimeFeatureState`; they do not branch on SSE, WebSocket, or delta polling protocols in map, table, or detail code.
 
 The full versioned contract — including plan identity, explicit authority state, and cross-scope resume rejection — is ratified in [the snapshot/delta/cursor/resume/plan-identity contract decision](decisions/realtime-snapshot-delta-cursor-resume-plan-identity-contract.md).

@@ -1,7 +1,8 @@
 import { createDataset } from "../contract/source.js";
 import type { Dataset, Source, SourceDescriptor, SourceResolver } from "../contract/types.js";
 import type { HonuaClient } from "../core/client.js";
-import { GeoparquetRuntime } from "../geoparquet/index.js";
+import type { GeoparquetRuntime } from "../geoparquet/index.js";
+import { publicationRuntime } from "./engine.js";
 import type { Publication } from "./open.js";
 import { type PublicationSourceOptions, publicationSource } from "./source.js";
 
@@ -10,8 +11,7 @@ export function publicationResolver(
   publication: Publication,
   options: PublicationSourceOptions = {},
 ): SourceResolver & { readonly runtime: GeoparquetRuntime; dispose(): Promise<void> } {
-  const runtime =
-    options.runtime ?? new GeoparquetRuntime(options.driverFactory ? { driverFactory: options.driverFactory } : {});
+  const runtime = publicationRuntime(options);
   const resolve = (descriptor: SourceDescriptor): Source | undefined =>
     descriptor.protocol === "geoparquet" && descriptor.locator.url === publication.geoparquetUrl
       ? publicationSource(publication, { ...options, id: descriptor.id, runtime })

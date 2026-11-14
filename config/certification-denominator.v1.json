@@ -116,8 +116,8 @@
     },
     {
       "path": "schemas/honua-map-package.v1.json",
-      "bytes": 20869,
-      "sha256": "sha256:7d34a2b27b25135ad09795a66959596ce3b8593298d3a7e28bb5142bea597ec9"
+      "bytes": 20862,
+      "sha256": "sha256:d25f1ecd7240e71bd606fa10b75ad0b03510afdf6b59a49d77be1e3e048b1465"
     },
     {
       "path": "config/protocol-certification.v1.json",
@@ -134,8 +134,8 @@
     },
     {
       "path": "release-please-config.json",
-      "bytes": 4079,
-      "sha256": "sha256:9f9af00b777dabc9706444c0c765417a7260c4883298c28e2e01f72b573023a4"
+      "bytes": 4104,
+      "sha256": "sha256:58c3a72e5dd08c2cdbdab3f3de531a3f4bda2b89d539e3089edf158b6e0cac96"
     },
     {
       "path": "config/sdk-coverage-crosswalk.v1.json",
@@ -152,13 +152,13 @@
     },
     {
       "path": "src/runtime/source-bridge.ts",
-      "bytes": 16194,
-      "sha256": "sha256:71e8e673c1add3d7c1fee355216cbcedebcd13dda3a02f2a3f25f20fe20c4e1d"
+      "bytes": 16162,
+      "sha256": "sha256:1031db7b175e4ba0f12704638d7031892745d7e2fee510a3c2b698f508e7fd00"
     },
     {
       "path": "config/support-manifest.v1.json",
-      "bytes": 83439,
-      "sha256": "sha256:990f0ddbc8fa543184acde584b6b594649efe2323056743617fad1a4c7549064"
+      "bytes": 83433,
+      "sha256": "sha256:cd64067ab251d53f6e75aa7dcf21b9b181f9265eeb4a453fbf409518ac310664"
     }
   ],
   "profiles": {
@@ -533,10 +533,10 @@
     }
   },
   "digests": {
-    "inputs": "sha256:4f665ef7133090f6daeed2b65c1d1253b77d0e7ccdcc37869edb860f2cca8562",
+    "inputs": "sha256:a97ea9985ede947db45fd01f58e4996c6e5abf086231efb591916bcf5ce2f90e",
     "capabilityProfile": "sha256:d15915e7453d6f400c08ea196f5070f159c4333bb81d67bbea2be9c3b8b2d3df",
     "supportProfile": "sha256:4b5f184a8b47288bfc49fd208f239a32309f957c29233b9d1b770da302bc86ef",
-    "rows": "sha256:94e1ffb0cde50403cc804d7a37c673ddf03434fc212cce1e461d257a0d02abc5"
+    "rows": "sha256:6dce302f6687ef355c8bbc13b09f5c4600e3f150045721ea8c36ab7831287f6e"
   },
   "summary": {
     "rows": 295,
@@ -5111,7 +5111,7 @@
       "id": "sdk-operation:map-package-facade:render",
       "family": "sdk-operation",
       "subject": "map-package-facade",
-      "label": "Authored map-document runtime",
+      "label": "Authored MapPackage runtime",
       "operation": "render",
       "tier": "facade-required",
       "tierSource": "config/support-manifest.v1.json#/supportClaims/31/status",

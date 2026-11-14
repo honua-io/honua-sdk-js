@@ -25,10 +25,15 @@ import { captureLayer, sha256 } from "./capture-layer.mjs";
 import { runTippecanoe, withPublicationMetadata } from "./pmtiles-archive.mjs";
 
 const ROW_GROUP_ROWS = 2048;
+// A dictionary as large as a row group makes DuckDB write a bloom filter for
+// the unique identity; the ratio threshold 0 keeps it from refusing one.
+const IDENTITY_DICTIONARY_LIMIT = 2 * ROW_GROUP_ROWS;
+const HILBERT_ORDER = 16;
+const SORT_ORDER = "hilbert(bbox)";
 const PUBLICATION_ID = "maui-county-parcels";
 const IDENTITY_FIELD = "tmk_txt";
 const PMTILES_LAYER = "parcels";
-const PMTILES_MIN_ZOOM = 10;
+const PMTILES_MIN_ZOOM = 8;
 const PMTILES_MAX_ZOOM = 15;
 const ADDITIVE_FIELDS = new Set(["gisacres", "taxacres"]);
 const BLANK_MEANS_ABSENT = new Set(["nhoodcode"]);
@@ -58,7 +63,7 @@ const PRIVATE_FIELDS = [
   { name: "bldgvalue", type: "integer", title: "Building value" },
   { name: "homeowner", type: "string", title: "Homeowner exemption" },
 ];
-const PMTILES_FIELDS = [IDENTITY_FIELD];
+const PMTILES_FIELDS = [IDENTITY_FIELD, "pittcode", "nhoodcode", "gisacres"];
 
 const DUCKDB_COLUMN_TYPES = {
   tmk_txt: "VARCHAR",
@@ -119,9 +124,7 @@ function mergeRecordsSharingIdentity(features) {
     }
     existing.polygons.push(...polygonsOf(feature.geometry));
   }
-  return [...parcels.values()].sort((left, right) =>
-    left.attributes[IDENTITY_FIELD] < right.attributes[IDENTITY_FIELD] ? -1 : 1,
-  );
+  return [...parcels.values()];
 }
 
 function boundsOf(polygons) {
@@ -151,6 +154,40 @@ function unionBounds(parcels) {
     Math.max(...all.map((bounds) => bounds[2])),
     Math.max(...all.map((bounds) => bounds[3])),
   ];
+}
+
+// Distance of grid cell (x, y) along a Hilbert curve filling a 2^order square.
+function hilbertDistance(x, y, order) {
+  let distance = 0;
+  for (let size = 2 ** (order - 1); size >= 1; size /= 2) {
+    const right = x >= size ? 1 : 0;
+    const upper = y >= size ? 1 : 0;
+    distance += size * size * ((3 * right) ^ upper);
+    if (right) x -= size;
+    if (upper) y -= size;
+    if (!upper) {
+      if (right) [x, y] = [size - 1 - x, size - 1 - y];
+      [x, y] = [y, x];
+    }
+  }
+  return distance;
+}
+
+// Spatial order: neighbouring parcels share row groups, so each row group's
+// bbox statistics stay tight and a bounding-box read prunes most of them.
+function inHilbertOrder(parcels) {
+  const [west, south, east, north] = unionBounds(parcels);
+  const cells = 2 ** HILBERT_ORDER - 1;
+  const cell = (value, low, high) => Math.round(((value - low) / (high - low || 1)) * cells);
+  const keyed = parcels.map((parcel) => {
+    const [xmin, ymin, xmax, ymax] = parcel.bounds;
+    const x = cell((xmin + xmax) / 2, west, east);
+    const y = cell((ymin + ymax) / 2, south, north);
+    return { parcel, key: hilbertDistance(x, y, HILBERT_ORDER) };
+  });
+  return keyed
+    .sort((left, right) => left.key - right.key || (left.parcel.attributes[IDENTITY_FIELD] < right.parcel.attributes[IDENTITY_FIELD] ? -1 : 1))
+    .map(({ parcel }) => parcel);
 }
 
 function parquetRow(parcel) {
@@ -183,7 +220,8 @@ function sqlString(value) {
 
 async function writeGeoParquet(parcels, publicationStamp, directory) {
   const rowsPath = path.join(directory, "parcels.rows.ndjson");
-  fs.writeFileSync(rowsPath, `${parcels.map((parcel) => JSON.stringify(parquetRow(parcel))).join("\n")}\n`);
+  const ordered = inHilbertOrder(parcels);
+  fs.writeFileSync(rowsPath, `${ordered.map((parcel) => JSON.stringify(parquetRow(parcel))).join("\n")}\n`);
   const target = path.join(directory, "parcels.parquet");
   const columns = Object.entries(DUCKDB_COLUMN_TYPES)
     .map(([name, type]) => `${sqlString(name)}: ${sqlString(type)}`)
@@ -199,8 +237,10 @@ async function writeGeoParquet(parcels, publicationStamp, directory) {
   const connection = await instance.connect();
   try {
     await connection.run(
-      `COPY (SELECT * FROM read_json(${sqlString(rowsPath)}, format = 'newline_delimited', columns = {${columns}}) ORDER BY ${IDENTITY_FIELD})
-       TO ${sqlString(target)} (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE ${ROW_GROUP_ROWS}, KV_METADATA {${kvSql}})`,
+      `COPY (SELECT * FROM read_json(${sqlString(rowsPath)}, format = 'newline_delimited', columns = {${columns}}))
+       TO ${sqlString(target)} (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE ${ROW_GROUP_ROWS},
+         DICTIONARY_SIZE_LIMIT ${IDENTITY_DICTIONARY_LIMIT}, DICTIONARY_COMPRESSION_RATIO_THRESHOLD 0,
+         KV_METADATA {${kvSql}})`,
     );
   } finally {
     connection.closeSync();
@@ -270,7 +310,7 @@ async function descriptorFor({ record, parcels, version, subset, pmtilesPath, pa
       geoparquet: {
         ...artifactRecord(parquetPath, "application/vnd.apache.parquet", PUBLIC_FIELDS.map((field) => field.name), captureId),
         rowGroups: await rowGroupCount(parquetPath),
-        sortedBy: IDENTITY_FIELD,
+        sortedBy: SORT_ORDER,
       },
     },
     validation: {
