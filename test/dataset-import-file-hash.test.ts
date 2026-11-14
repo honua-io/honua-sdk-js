@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashDatasetImportFile } from "../src/control-plane/dataset-import/file-hash.js";
 
 const expected = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
@@ -110,4 +110,50 @@ describe("dataset import whole-file SHA-256", () => {
     } as unknown as Blob;
     await expect(hashDatasetImportFile(file, { chunkBytes: 65536 })).rejects.toThrow("File read");
   });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+// Hashing must not allocate per 64-byte block; only padding may build a DataView.
+it("allocates no DataView per block while hashing", async () => {
+  let constructed = 0;
+  vi.stubGlobal(
+    "DataView",
+    new Proxy(globalThis.DataView, {
+      construct(target, args, newTarget) {
+        constructed++;
+        return Reflect.construct(target, args, newTarget);
+      },
+    }),
+  );
+  const bytes = new Uint8Array(1024 * 1024).fill(0x61);
+  const digest = await hashDatasetImportFile(new Blob([bytes]));
+  expect(digest).toBe(expected(bytes));
+  expect(constructed).toBeLessThanOrEqual(1);
+});
+
+it("takes no per-block subarray views of aligned chunks", async () => {
+  const subarray = vi.spyOn(Uint8Array.prototype, "subarray");
+  try {
+    const bytes = new Uint8Array(1024 * 1024).fill(0x62);
+    expect(await hashDatasetImportFile(new Blob([bytes]))).toBe(expected(bytes));
+    expect(subarray.mock.calls.length).toBeLessThanOrEqual(2);
+  } finally {
+    subarray.mockRestore();
+  }
+});
+
+it("compresses blocks that start at unaligned chunk offsets", async () => {
+  const bytes = Uint8Array.from({ length: 3 * 65537 + 5 }, (_, index) => (index * 7 + 3) % 256);
+  expect(await hashDatasetImportFile(new Blob([bytes]), { chunkBytes: 65537 })).toBe(expected(bytes));
+});
+
+it("keeps concurrent hashes independent of the shared block schedule", async () => {
+  const inputs = [0x11, 0x22, 0x33].map((seed) =>
+    Uint8Array.from({ length: 200_003 }, (_, index) => (index * seed) % 256),
+  );
+  const digests = await Promise.all(
+    inputs.map((bytes) => hashDatasetImportFile(new Blob([bytes]), { chunkBytes: 65536 })),
+  );
+  expect(digests).toEqual(inputs.map((bytes) => expected(bytes)));
 });
