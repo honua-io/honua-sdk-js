@@ -147,3 +147,5 @@ The native edit integration test is separately gated by
 `HONUA_GRPC_EDIT_INTEGRATION=1`. Use a disposable writable point layer with a
 `name` field and the standard integration service, layer and credential settings.
 It adds, queries, updates and deletes its own fixture through gRPC-Web only.
+
+For a call-by-call application migration, use the [native conversion guide](native-app-conversion.md), including identify, find and style legends.
