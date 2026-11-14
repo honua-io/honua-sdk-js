@@ -16,8 +16,10 @@ import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
   ApplyEditsRequest,
+  ApplyServiceEditsRequest,
   ExportMapRequest,
   HonuaApplyEditsResponse,
+  HonuaApplyServiceEditsResponse,
   HonuaExportMapResponse,
   HonuaFindResponse,
   HonuaIdentifyResponse,
@@ -224,9 +226,7 @@ export async function applyEdits(
   if (request.updates !== undefined) {
     params.set("updates", encodeFormValue(request.updates));
   }
-  if ([...(request.adds ?? []), ...(request.updates ?? [])].some((feature) => feature.globalId !== undefined)) {
-    throw new HonuaCapabilityNotSupportedError("globalId", "geoservices-feature-service", request.serviceId);
-  }
+  refuseFeatureGlobalIds(request, request.serviceId);
   if (request.useGlobalIds === true) {
     params.set("useGlobalIds", "true");
   }
@@ -248,6 +248,43 @@ export async function applyEdits(
     },
     request.signal,
   );
+}
+
+/** GeoServices service-level applyEdits: several layers in one request. */
+export async function applyServiceEdits(
+  transport: HonuaProtocolTransport,
+  request: ApplyServiceEditsRequest,
+): Promise<HonuaApplyServiceEditsResponse> {
+  const modes = new Set(request.edits.map((layer) => layer.useGlobalIds === true));
+  if (modes.size > 1) {
+    // GeoServices takes one useGlobalIds flag per request.
+    throw new HonuaCapabilityNotSupportedError("mixedGlobalIdModes", "geoservices-feature-service", request.serviceId);
+  }
+  const useGlobalIds = modes.has(true);
+  const edits = request.edits.map((layer) => {
+    refuseFeatureGlobalIds(layer, request.serviceId);
+    return {
+      id: layer.layerId,
+      ...(layer.adds ? { adds: layer.adds } : {}),
+      ...(layer.updates ? { updates: layer.updates } : {}),
+      ...(layer.deletes === undefined
+        ? {}
+        : { deletes: useGlobalIds ? serviceGlobalIdDeletes(layer.deletes) : serviceObjectIdDeletes(layer.deletes) }),
+    };
+  });
+  const params = new URLSearchParams();
+  params.set("f", "json");
+  params.set("rollbackOnFailure", String(request.rollbackOnFailure ?? true));
+  if (useGlobalIds) params.set("useGlobalIds", "true");
+  params.set("edits", JSON.stringify(edits));
+  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/applyEdits`;
+  const response = await transport.requestJson<Array<HonuaApplyEditsResponse & { id: number }>>(
+    "POST",
+    path,
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() },
+    request.signal,
+  );
+  return { layers: response.map(({ id, ...results }) => ({ layerId: id, ...results })) };
 }
 
 export async function queryRelatedRecords(
@@ -588,6 +625,33 @@ function encodeFormValue(value: unknown): string {
     return String(value);
   }
   return JSON.stringify(value);
+}
+
+/** Feature-level `globalId` is gRPC only; REST keeps the GlobalID in the server's attribute. */
+function refuseFeatureGlobalIds(edits: Pick<ApplyEditsRequest, "adds" | "updates">, serviceId: string): void {
+  if ([...(edits.adds ?? []), ...(edits.updates ?? [])].some((feature) => feature.globalId !== undefined)) {
+    throw new HonuaCapabilityNotSupportedError("globalId", "geoservices-feature-service", serviceId);
+  }
+}
+
+/** Service-level `edits` JSON lists object-ID deletes as numbers where they are safe integers. */
+function serviceObjectIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
+  return deleteTokens(value).map((id) =>
+    typeof id === "string" && CANONICAL_INTEGER.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : id,
+  );
+}
+
+/** Service-level `edits` JSON lists global-ID deletes as GUID strings. */
+function serviceGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): string[] {
+  return deleteTokens(value).map(String);
+}
+
+const CANONICAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
+
+/** Empty tokens (for example `"".split(",")`) are not IDs; never turn them into object ID 0. */
+function deleteTokens(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
+  const tokens = typeof value === "string" ? value.split(",").map((id) => id.trim()) : [...value];
+  return tokens.filter((id) => id !== "");
 }
 
 function encodeDeletesValue(value: NonNullable<ApplyEditsRequest["deletes"]>): string {

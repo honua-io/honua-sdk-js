@@ -668,6 +668,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "grpc-related-fixtures",
+      "kind": "fixture",
+      "path": "test/client-grpc-related.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "grpc-attachment-fixtures",
       "kind": "fixture",
       "path": "test/source-grpc-attachments.test.ts",
@@ -1082,6 +1088,17 @@
           "status": "supported",
           "evidence": [
             "grpc-edit-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "queryRelated"
+          ],
+          "environment": "honua-facade",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "grpc-related-fixtures"
           ]
         },
         {

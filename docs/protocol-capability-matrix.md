@@ -37,7 +37,7 @@ already run. The per-capability line lives in the generated
 | `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
 | `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
-| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryRelated` | ✓ | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
 | `attachments` | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | ◇ | ◇ |
@@ -59,6 +59,7 @@ policy in the manifest.
 | --- | --- | --- | --- | --- | --- |
 | `grpc` | `query`, `queryExtent`, `queryObjectIds`, `stream` | `supported` | `honua-facade` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) |
 | `grpc` | `applyEdits` | `supported` | `honua-facade` | `native` | [fixture: grpc-edit-fixtures](../test/client-grpc-edits.test.ts) |
+| `grpc` | `queryRelated` | `supported` | `honua-facade` | `native` | [fixture: grpc-related-fixtures](../test/client-grpc-related.test.ts) |
 | `grpc` | `attachments` | `supported` | `honua-facade` | `native` | [fixture: grpc-attachment-fixtures](../test/source-grpc-attachments.test.ts) |
 | `geoservices-feature-service` | `query`, `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `native` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
 | `geoservices-feature-service` | `queryObjectIds`, `queryRelated`, `applyEdits`, `attachments` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts) |

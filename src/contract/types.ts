@@ -222,7 +222,7 @@ export function unionCapabilities(participants: ReadonlyArray<{ readonly capabil
  * Update both together.
  */
 export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabilities>> = {
-  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream", "attachments"]),
+  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream", "queryRelated", "attachments"]),
   "geoservices-feature-service": capabilities([
     "query",
     "queryAggregate",

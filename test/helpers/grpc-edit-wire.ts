@@ -8,6 +8,8 @@ import {
 
 import { wireResponse } from "./grpc-wire.js";
 
+export { wireResponse };
+
 export function response(message: ApplyEditsResponse): Response {
   return wireResponse(toBinary(ApplyEditsResponseSchema, message));
 }

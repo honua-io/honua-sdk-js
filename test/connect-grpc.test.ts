@@ -152,6 +152,18 @@ it("does not infer write capabilities from missing or false metadata", async () 
   const result = await discoverGrpcSources(f.client, target, {});
   expect(result.sources[0]!.evidence?.[0]).toMatchObject({ kind: "metadata", capabilities: [] });
 });
+it("advertises queryRelated only for a queryable layer that declares relationships", async () => {
+  const f = fixture();
+  const layer = { serviceId: "parcels", name: "Parcels", capabilities: { query: true } };
+  f.layer.mockResolvedValue(
+    create(DescribeLayerResponseSchema, { layer: { ...layer, relationships: [{ relationshipId: 1 }] } }),
+  );
+  const related = await discoverGrpcSources(f.client, target, {});
+  expect(related.sources[0]!.evidence?.[0]).toMatchObject({ capabilities: expect.arrayContaining(["queryRelated"]) });
+  f.layer.mockResolvedValue(create(DescribeLayerResponseSchema, { layer }));
+  const plain = await discoverGrpcSources(f.client, target, {});
+  expect(plain.sources[0]!.evidence?.[0]).toMatchObject({ capabilities: expect.not.arrayContaining(["queryRelated"]) });
+});
 it("rejects a mismatched layer without falling back", async () => {
   const f = fixture();
   f.layer.mockResolvedValue(create(DescribeLayerResponseSchema, { layer: { serviceId: "other", name: "Parcels" } }));

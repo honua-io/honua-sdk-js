@@ -28,6 +28,7 @@ import {
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import {
   applyEdits,
+  applyServiceEdits,
   exportMap,
   findMap,
   getFeatureServiceMetadata,
@@ -42,6 +43,12 @@ import {
   queryMapRelatedRecords,
   queryRelatedRecords,
 } from "./geoservices.js";
+import {
+  REPLAY_SAFE_GRPC_METHODS,
+  applyServiceEditsOverGrpc,
+  assertDistinctServiceLayers,
+  queryRelatedRecordsOverGrpc,
+} from "./grpc-native-calls.js";
 import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
@@ -141,9 +148,11 @@ import {
 import { assertSecureCredentialedBaseUrl } from "./transport-security.js";
 import type {
   ApplyEditsRequest,
+  ApplyServiceEditsRequest,
   ExportMapRequest,
   HonuaApiEnvelope,
   HonuaApplyEditsResponse,
+  HonuaApplyServiceEditsResponse,
   HonuaAuthCredentials,
   HonuaAuthCredentialsProvider,
   HonuaAuthProvider,
@@ -551,7 +560,7 @@ export class HonuaClient {
   private buildConnectRetryInterceptor(): Interceptor {
     return (next) => async (req) => {
       // Only retry replay-safe unary calls; mirror REST idempotency scoping.
-      if (req.stream || !this.retryOptions || req.method?.name === "ApplyEdits") {
+      if (req.stream || !this.retryOptions || !REPLAY_SAFE_GRPC_METHODS.has(req.method?.name ?? "")) {
         return next(req);
       }
       const retryOptions = this.retryOptions;
@@ -1911,7 +1920,26 @@ export class HonuaClient {
     return applyEdits(this.protocolTransport, request);
   }
 
+  /**
+   * Apply edits to several layers of one service in one call (parent and child rows together).
+   * gRPC-Web uses ApplyServiceEdits with no REST fallback; REST uses the service-level applyEdits.
+   */
+  public async applyServiceEdits(request: ApplyServiceEditsRequest): Promise<HonuaApplyServiceEditsResponse> {
+    assertDistinctServiceLayers(request);
+    if (this.transport !== "grpc-web") {
+      return applyServiceEdits(this.protocolTransport, request);
+    }
+    return applyServiceEditsOverGrpc(await HonuaClient.loadGrpcAdapter(), await this.ensureConnectClient(), request);
+  }
+
   public async queryRelatedRecords(request: QueryRelatedRecordsRequest): Promise<HonuaRelatedRecordsResponse> {
+    if (this.transport === "grpc-web") {
+      return queryRelatedRecordsOverGrpc(
+        await HonuaClient.loadGrpcAdapter(),
+        await this.ensureConnectClient(),
+        request,
+      );
+    }
     return queryRelatedRecords(this.protocolTransport, request);
   }
 
