@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 import { startWebComponentsFixtureServer } from "../fixtures/web-components-host/mock-server.mjs";
@@ -42,3 +43,56 @@ test("reference workbench production components register and expose their keyboa
     await server.close();
   }
 });
+
+async function populateInspection(page, presentation) {
+  await page.evaluate((mode) => {
+    const target = { sourceId: "incidents", id: 1 };
+    const pageOf = (items) => ({ items, offset: 0, limit: 1, total: 2,
+      hasPrevious: false, hasNext: true, truncated: false });
+    const state = {
+      status: "ready", origin: "map", activeIndex: 0,
+      candidates: [{ target }, { target: { sourceId: "incidents", id: 2 } }],
+      feature: { target, title: "Harbor incident", description: "Open response",
+        fields: [{ name: "status", label: "Status", value: "open", text: "open" }],
+        links: [{ label: "Incident report", href: "https://example.test/report", external: true }],
+        attributes: { status: "open" } },
+      attachments: pageOf([{ id: 1, parentId: 1, name: "Response photo", href: "https://example.test/photo" }]),
+      relationships: [{ id: 3, label: "Assigned units", fields: [],
+        page: pageOf([{ attributes: { name: "Engine 5" } }]) }],
+      diagnostics: [{ code: "unsafe-link", message: "Unsafe link withheld." }],
+      search: { status: "ready", query: "harbor", diagnostics: [], results: [
+        { id: "incidents:1", target, title: "Harbor incident", subtitle: "Incidents",
+          feature: { attributes: { name: "Harbor incident" } } },
+      ] },
+    };
+    const inspection = document.createElement("honua-feature-inspection");
+    inspection.id = "accessibility-inspection";
+    inspection.setAttribute("presentation", mode);
+    inspection.inspection = {
+      snapshot: () => state,
+      subscribe: (listener) => { listener(state); return { remove() {} }; },
+    };
+    document.body.append(inspection);
+  }, presentation);
+}
+
+for (const presentation of ["panel", "popup"]) {
+  test(`populated inspection ${presentation} passes automated accessibility checks`, async ({ page }, testInfo) => {
+    const server = await startWebComponentsFixtureServer({ build: process.env.HONUA_SKIP_FIXTURE_BUILD !== "true" });
+    try {
+      await page.goto(server.url);
+      await expect.poll(() => page.evaluate(() => customElements.get("honua-feature-inspection") !== undefined)).toBe(true);
+      await populateInspection(page, presentation);
+      const inspection = page.locator("#accessibility-inspection");
+      await expect(inspection.getByRole("heading", { name: "Harbor incident" })).toBeVisible();
+      await expect(inspection.getByRole("option")).toHaveCount(1);
+      await expect(inspection.getByRole("button", { name: "Next attachments" })).toBeEnabled();
+      await expect(inspection.getByRole("button", { name: "Next related" })).toBeEnabled();
+      const results = await new AxeBuilder({ page }).include("#accessibility-inspection").analyze();
+      await testInfo.attach("inspection-axe", { body: JSON.stringify(results, null, 2), contentType: "application/json" });
+      expect(results.violations).toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+}
