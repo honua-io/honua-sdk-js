@@ -65,6 +65,8 @@ try {
     identities: [record.managedSource, record.generationBase, source].map(identity),
     strict: api(`actions/runs/${record.strictRunId}`), strictJobs: jobs(record.strictRunId),
     native: api(`actions/runs/${record.nativeRunId}`), nativeJobs: jobs(record.nativeRunId),
+    ...(record.sdkVerificationRunId === undefined ? {} : {
+      verification: api(`actions/runs/${record.sdkVerificationRunId}`), verificationJobs: jobs(record.sdkVerificationRunId) }),
     generation: api(`actions/runs/${record.generationRunId}`), generationJobs: jobs(record.generationRunId),
     artifact, archiveDigest: createHash("sha256").update(archive).digest("hex"), bundleSource: bundleLine.split(" ")[0],
   };
