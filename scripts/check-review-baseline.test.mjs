@@ -130,7 +130,8 @@ test('same-named block-local functions cannot transfer baseline debt', async () 
 test('production config resolves SDK source imports without built declarations', async () => {
   const filename = path.resolve('examples/review-baseline-regression.ts');
   const text = "import { HonuaClient } from '@honua/sdk-js';\nnew HonuaClient({ baseUrl: 'https://example.invalid' }).queryFeatures({ serviceId: 'a', layerId: 0 });\n";
-  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs' });
+  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs',
+    overrideConfig: { languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } } } });
   await writeFile(filename, text, { flag: 'wx' });
   try {
     const results = await lint.lintFiles(filename);
@@ -144,7 +145,8 @@ test('production config resolves SDK source imports without built declarations',
 test('production config resolves imported MCP promises', async () => {
   const filename = path.resolve('mcp/src/review-baseline-regression.ts');
   const text = "import { Client } from '@modelcontextprotocol/sdk/client/index.js';\nnew Client({ name: 'regression', version: '1' }).close();\n";
-  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs' });
+  const lint = new ESLint({ overrideConfigFile: 'scripts/eslint.review.config.mjs',
+    overrideConfig: { languageOptions: { parserOptions: { disallowAutomaticSingleRunInference: true } } } });
   await writeFile(filename, text, { flag: 'wx' });
   try {
     const current = identities(await lint.lintFiles(filename), new Map([[filename, text]]));
