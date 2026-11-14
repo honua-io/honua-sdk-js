@@ -570,3 +570,14 @@ export type {
   TemporalSourceCapability,
   TemporalValidationIssue,
 } from "./temporal.js";
+
+export { findSources, identifySources } from "./query-helpers.js";
+export type {
+  FindOptions,
+  FindSearch,
+  FindTarget,
+  IdentifyOptions,
+  SearchOptions,
+  SearchSource,
+  SourceSearchResult,
+} from "./query-helpers.js";
