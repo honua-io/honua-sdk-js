@@ -148,19 +148,9 @@
   ],
   "excluded": [
     {
-      "sampleId": "edit-workflow-demo",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is rework."
-    },
-    {
       "sampleId": "geocoding-quickstart",
       "category": "binary-asset",
       "detail": "Needs committed non-source assets: public/rest/services/World/GeocodeServer/findAddressCandidates."
-    },
-    {
-      "sampleId": "geoprocessing-job-runner",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is merge."
     },
     {
       "sampleId": "geoservices-source-app",
@@ -176,11 +166,6 @@
       "sampleId": "maplibre-quickstart",
       "category": "repository-vite-kit",
       "detail": "Builds through the shared example kit rather than a plain Vite config."
-    },
-    {
-      "sampleId": "mcp-gis-assistant",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is rework."
     },
     {
       "sampleId": "migration-workbench",
@@ -218,24 +203,14 @@
       "detail": "Builds through the shared example kit rather than a plain Vite config."
     },
     {
-      "sampleId": "runtime-parity-showcase",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is replace."
-    },
-    {
       "sampleId": "service-explorer",
       "category": "requires-data-origin",
       "detail": "Audited runtimeHosting is external-live-endpoint and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "spatial-analytics-workbench",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is rework."
-    },
-    {
-      "sampleId": "storytelling-25d-map",
-      "category": "lifecycle-not-active",
-      "detail": "Catalog lifecycle is merge."
+      "category": "browser-configuration",
+      "detail": "Default lane reads browser configuration: VITE_HONUA_SPATIAL_ANALYTICS_BASE_URL, VITE_HONUA_SPATIAL_ANALYTICS_LAYER_ID, VITE_HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION, VITE_HONUA_SPATIAL_ANALYTICS_SERVICE_ID, VITE_HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION."
     }
   ]
 }

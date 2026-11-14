@@ -30,7 +30,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "edit-workflow-demo"
+      "candidateSampleId": "sketch-editing"
     },
     {
       "id": "incident-operations",
@@ -272,65 +272,6 @@
       "expectedDegradation": "Unsupported strategies and interaction operations remain explicit test failures."
     },
     {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
-      "sourceKind": "docs-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "validationProfile": "browser-lab",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "docs/examples/cesium-route-playback",
-        "docsPath": "docs/examples/cesium-route-playback/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "routing.solve",
-        "serve.3d-tiles-scene"
-      ],
-      "protocols": [
-        "geoservices"
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
-        "attribution": "Route and terrain providers remain visible in diagnostics.",
-        "freshness": "Fixture version or live query observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked."
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support."
-    },
-    {
       "id": "columnar-query-quickstart",
       "title": "Map a bounded Arrow result",
       "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
@@ -442,64 +383,6 @@
       "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors."
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "journeyId": "planning-permitting",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Keep the workflow and add an isolated resettable live dataset.",
-        "targetRelease": "0.4.0"
-      },
-      "validationProfile": "browser-recipe",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/edit-workflow-demo",
-        "docsPath": "examples/edit-workflow-demo/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "capabilityKeys": [
-        "editing.featureserver-edits"
-      ],
-      "protocols": [
-        "geoservices",
-        "honua"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed deterministic edit fixture.",
-        "attribution": "Honua synthetic operations data.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability."
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
@@ -552,66 +435,6 @@
         }
       },
       "expectedDegradation": "A missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder."
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
-      "sourceKind": "root-example",
-      "track": "recipe",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "cloud-native-analysis"
-        }
-      },
-      "validationProfile": "browser-recipe",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/geoprocessing-job-runner",
-        "docsPath": "examples/geoprocessing-job-runner/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "capabilityKeys": [
-        "process.geoprocessing"
-      ],
-      "protocols": [
-        "ogc-processes"
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
-        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
-        "freshness": "Immutable fixture contract; no public-live result claim.",
-        "configurationStatus": "not-required"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result."
     },
     {
       "id": "geoservices-source-app",
@@ -796,63 +619,6 @@
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "rework",
-        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
-      },
-      "validationProfile": "browser-lab",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/mcp-gis-assistant",
-        "docsPath": "examples/mcp-gis-assistant/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "capabilityKeys": [
-        "ai.mcp-discovery"
-      ],
-      "protocols": [
-        "honua",
-        "mcp"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed MCP response fixture.",
-        "attribution": "Tool results preserve source attribution.",
-        "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "demo-live",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Write tools are unavailable without host policy and explicit approval."
     },
     {
       "id": "migration-workbench",
@@ -1359,66 +1125,6 @@
       "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "experimental",
-      "lifecycle": {
-        "state": "replace",
-        "reason": "Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "service-explorer"
-        }
-      },
-      "validationProfile": "browser-lab",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/runtime-parity-showcase",
-        "docsPath": "examples/runtime-parity-showcase/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "capabilityKeys": [],
-      "protocols": [
-        "honua"
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "data": {
-        "mode": "fixture",
-        "authMode": "none",
-        "provenance": "Committed renderer comparison fixtures.",
-        "attribution": "Honua synthetic fixtures.",
-        "freshness": "Versioned with the repository.",
-        "configurationStatus": "not-required"
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
-        }
-      },
-      "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences."
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
@@ -1550,10 +1256,11 @@
       "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
       "sourceKind": "root-example",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+        "reason": "Candidate for the planning and permitting journey: terra-draw drawing, snapping, undo, and edit submission."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -1608,9 +1315,8 @@
       "journeyId": "cloud-native-analysis",
       "supportTier": "experimental",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0"
+        "state": "active",
+        "reason": "Joins the cloud-native analysis journey; plans show estimates until accepted and label fixture replay apart from executed live runs."
       },
       "validationProfile": "browser-lab",
       "source": {
@@ -1723,69 +1429,6 @@
         }
       },
       "expectedDegradation": "Unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancelled or failed PMTiles inspection never becomes a tile-rendering claim."
-    },
-    {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
-      "sourceKind": "root-example",
-      "track": "lab",
-      "supportTier": "supported",
-      "lifecycle": {
-        "state": "merge",
-        "reason": "Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal.",
-        "targetRelease": "0.4.0",
-        "replacement": {
-          "kind": "journey",
-          "id": "imagery-terrain"
-        }
-      },
-      "validationProfile": "browser-lab",
-      "source": {
-        "repository": "honua-io/honua-sdk-js",
-        "path": "examples/storytelling-25d-map",
-        "docsPath": "examples/storytelling-25d-map/README.md"
-      },
-      "sdk": {
-        "package": "@honua/sdk-js",
-        "version": "0.3.7"
-      },
-      "capabilities": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "capabilityKeys": [
-        "raster.terrain-rgb",
-        "serve.3d-tiles-scene"
-      ],
-      "protocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed Oahu story fixtures or configured Honua services.",
-        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
-        "freshness": "Fixture capture or live layer observation time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a Honua API-key variable."
-      },
-      "evidence": {
-        "fixture": {
-          "mode": "fixture",
-          "status": "executed"
-        },
-        "live": {
-          "mode": "authenticated",
-          "status": "planned"
-        }
-      },
-      "expectedDegradation": "Terrain and live overlays fail independently with structured status."
     },
     {
       "id": "temporal-playback",
@@ -1902,7 +1545,7 @@
       "id": "editing",
       "route": "demo-editing.html",
       "ownership": "sdk-projection",
-      "sampleId": "edit-workflow-demo"
+      "sampleId": "sketch-editing"
     },
     {
       "id": "esri-leaflet",
@@ -1926,7 +1569,7 @@
       "id": "gp-runner",
       "route": "demo-geoprocessing.html",
       "ownership": "sdk-projection",
-      "sampleId": "geoprocessing-job-runner"
+      "sampleId": "spatial-analytics-workbench"
     },
     {
       "id": "hello-webmap",
@@ -2034,6 +1677,7 @@
       "realtime-incident-dashboard",
       "service-explorer",
       "sketch-editing",
+      "spatial-analytics-workbench",
       "stac-imagery-browser",
       "temporal-playback"
     ],
@@ -2112,6 +1756,11 @@
         "hostFixtureRoutes": []
       },
       {
+        "id": "spatial-analytics-workbench",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
         "id": "stac-imagery-browser",
         "runnability": "standalone",
         "hostFixtureRoutes": []
@@ -2129,29 +1778,9 @@
         "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. docs/examples/automatic-source-workflow has no vite.config.ts; it is a documentation snippet (plain script/CDN pattern) exercised by a Playwright spec."
       },
       {
-        "id": "cesium-route-playback",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"rework\" (target 0.4.0): Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion. Not reached in this release; the 0.3.0 scope was the rename and removal."
-      },
-      {
-        "id": "edit-workflow-demo",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"rework\" (target 0.4.0): Keep the workflow and add an isolated resettable live dataset."
-      },
-      {
-        "id": "geoprocessing-job-runner",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"merge\" (target 0.4.0): Fold into the analysis journey while retaining this focused recipe. Not reached in this release; the 0.3.0 scope was the rename and removal. Replacement: journey \"cloud-native-analysis\"."
-      },
-      {
         "id": "geoservices-source-app",
         "category": "non-runtime-sample",
         "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. examples/geoservices-source-app has no vite.config.ts; it is the pre-migration ArcGIS input consumed by npm run test:migration:real-samples (catalog validationProfile internal-fixture)."
-      },
-      {
-        "id": "mcp-gis-assistant",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"rework\" (target 0.4.0): Use the same plan, provenance, approval, and evidence contracts as the agent journey. Not reached in this release; the 0.3.0 scope was the rename and removal."
       },
       {
         "id": "node-backend-quickstart",
@@ -2169,24 +1798,9 @@
         "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/offline-region-reference has no vite.config.ts; it is a bounded documentation reference exercised by test/playwright/offline-indexeddb.spec.mjs with an isolated loopback fixture origin."
       },
       {
-        "id": "runtime-parity-showcase",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"replace\" (target 0.4.0): Replace parity claims with renderer-specific execution and fidelity reports. Not reached in this release; the 0.3.0 scope was the rename and removal. Replacement: journey \"service-explorer\"."
-      },
-      {
         "id": "shared-renderer-state",
         "category": "non-runtime-sample",
         "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/shared-renderer-state has no vite.config.ts; it is a documentation snippet exercised by test/playwright/shared-renderer-state.spec.mjs."
-      },
-      {
-        "id": "spatial-analytics-workbench",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"rework\" (target 0.4.0): Join the large-data journey and distinguish fixture estimates from executed plans. Not reached in this release; the 0.3.0 scope was the rename and removal."
-      },
-      {
-        "id": "storytelling-25d-map",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"merge\" (target 0.4.0): Use its strongest interactions inside the imagery and 3D journey. Not reached in this release; the 0.3.0 scope was the rename and removal. Replacement: journey \"imagery-terrain\"."
       }
     ]
   }

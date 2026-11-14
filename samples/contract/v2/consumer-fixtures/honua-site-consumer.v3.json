@@ -13,15 +13,15 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v1",
     "schemaVersion": 1,
-    "bytes": 366920,
-    "sha256": "0ad9cb824dc7eb5be91b6aac7b72078952731a7b576578a693c42c13fb09d958",
+    "bytes": 343501,
+    "sha256": "a3a3d6c07c8dec5a69658d1701ae813983b9173eb2e9b8ebad964323d583bcd5",
     "schemaBytes": 28368,
     "schemaSha256": "669043ca11eb2913fa4ba7bf743fb1c933e5d9b174a4e9b383c241b1822eb21d"
   },
   "assertions": {
-    "cardCount": 26,
+    "cardCount": 20,
     "qualifiedJourneyCount": 4,
-    "canonicalRouteCount": 26,
+    "canonicalRouteCount": 20,
     "legacyRouteCount": 20,
     "gapCount": 472,
     "everyQualifiedTrackHandedOff": true,
@@ -40,15 +40,11 @@
       "filters": {},
       "expectedSampleIds": [
         "ai-spatial-app-builder",
-        "cesium-route-playback",
         "columnar-query-quickstart",
         "coverages-wcs-basic",
-        "edit-workflow-demo",
         "geocoding-quickstart",
-        "geoprocessing-job-runner",
         "imagery-cog-quickstart",
         "maplibre-quickstart",
-        "mcp-gis-assistant",
         "migration-workbench",
         "nl-map-control",
         "node-backend-quickstart",
@@ -57,13 +53,11 @@
         "pmtiles-static",
         "react-quickstart",
         "realtime-incident-dashboard",
-        "runtime-parity-showcase",
         "service-explorer",
         "shared-renderer-state",
         "sketch-editing",
         "spatial-analytics-workbench",
         "stac-imagery-browser",
-        "storytelling-25d-map",
         "temporal-playback"
       ]
     },
@@ -80,10 +74,13 @@
     {
       "id": "capability",
       "filters": {
-        "capability": "agent-tools-facade"
+        "capability": "compatibility-gate-facade"
       },
       "expectedSampleIds": [
-        "mcp-gis-assistant"
+        "ai-spatial-app-builder",
+        "node-backend-quickstart",
+        "react-quickstart",
+        "shared-renderer-state"
       ]
     },
     {
