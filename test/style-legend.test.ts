@@ -23,6 +23,21 @@ describe("style file legend", () => {
     expect(layer.paint?.["fill-opacity"]).toBe(0.3);
   });
 
+  it.each(["fill", "line", "background", "fill-extrusion"] as const)(
+    "preserves %s pattern symbols without inventing a color legend",
+    (type) => {
+      const layer: HonuaLayerSpecification = {
+        id: "pattern",
+        type,
+        paint: { [`${type}-color`]: "red", [`${type}-pattern`]: "road-pattern" },
+      };
+      const [legend] = legendFromStyle({ layers: [layer] });
+      expect(legend.items).toEqual([]);
+      expect(legend.unresolvedReason).toBeTruthy();
+      expect(legend.layer).toEqual(layer);
+    },
+  );
+
   it("derives match categories including grouped labels and the fallback", () => {
     const [legend] = legendFromStyle({
       layers: [

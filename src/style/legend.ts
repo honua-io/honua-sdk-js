@@ -29,7 +29,8 @@ export function legendFromStyle(
     .filter((layer) => isVisible(layer, options))
     .map((layer) => {
       const color = layer.paint?.[`${layer.type}-color`];
-      const items = colorItems(color);
+      const hasPattern = layer.paint?.[`${layer.type}-pattern`] !== undefined;
+      const items = hasPattern ? undefined : colorItems(color);
       return {
         layerId: layer.id,
         label: typeof layer.metadata?.title === "string" ? layer.metadata.title : layer.id,
