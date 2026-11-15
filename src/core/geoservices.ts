@@ -15,6 +15,7 @@ import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { GRPC_INTERNAL } from "./grpc-status.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import { assertServiceLayerOrder } from "./service-edit-layers.js";
 import type {
   ApplyEditsRequest,
   ApplyServiceEditsRequest,
@@ -674,11 +675,7 @@ function serviceEditLayers(request: ApplyServiceEditsRequest, response: unknown)
     const { id, ...results } = record;
     return { layerId: id ?? Number.NaN, ...results };
   });
-  const order = layers.map((layer) => layer.layerId).join(",");
-  const expected = request.edits.map((layer) => layer.layerId).join(",");
-  if (order !== expected) {
-    throw new HonuaGrpcError(GRPC_INTERNAL, `applyEdits returned layers [${order}] for a request of different layers.`);
-  }
+  assertServiceLayerOrder(request.edits, layers);
   return { layers };
 }
 

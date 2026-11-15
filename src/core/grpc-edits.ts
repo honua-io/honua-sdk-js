@@ -15,6 +15,7 @@ import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { toProtoGeometry } from "./grpc-geometry-input.js";
 import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
 import { GRPC_FAILED_PRECONDITION, GRPC_INTERNAL, GRPC_UNKNOWN } from "./grpc-status.js";
+import { assertServiceLayerOrder } from "./service-edit-layers.js";
 import type {
   ApplyEditsRequest,
   ApplyServiceEditsRequest,
@@ -293,17 +294,7 @@ export function fromProtoApplyServiceEditsResponse(
   if (response.error) {
     throw new HonuaGrpcError(GRPC_UNKNOWN, response.error.message, { ...response.error, ...decoded });
   }
-  const order = response.results.map((entry) => entry.layerId).join(",");
-  if (order !== sent.edits.map((layer) => layer.layerId).join(",")) {
-    // The contract returns every request layer in request order; anything else is a protocol violation.
-    throw new HonuaGrpcError(
-      GRPC_INTERNAL,
-      `ApplyServiceEdits returned layers [${order}] for a request of different layers.`,
-      {
-        results: response.results.map((entry) => entry.layerId),
-      },
-    );
-  }
+  assertServiceLayerOrder(sent.edits, response.results);
   if (response.results.some((entry, index) => resultsIncomplete(sent.edits[index], entry.results))) {
     throw new HonuaGrpcError(GRPC_INTERNAL, "ApplyServiceEdits omitted results for edits it was sent.", decoded);
   }
