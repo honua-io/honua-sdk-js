@@ -2,6 +2,7 @@ import type { FieldType as ProtoFieldType } from "../gen/geospatial/v1/common_pb
 import type { LayerDescriptor } from "../gen/geospatial/v1/metadata_types_pb.js";
 import type { HonuaClient } from "./client.js";
 import { HonuaAbortError, HonuaGrpcError, HonuaTimeoutError } from "./errors.js";
+import { GRPC_CANCELED, GRPC_UNIMPLEMENTED } from "./grpc-status.js";
 import type { GrpcPreciseAttributeType } from "./types.js";
 
 /** Edit-encoding hints read from a native layer descriptor. */
@@ -42,12 +43,6 @@ export function grpcEditSchema(layer: LayerDescriptor | undefined): GrpcEditSche
     ...(layer?.globalIdField ? { globalIdField: layer.globalIdField } : {}),
   });
 }
-
-/** gRPC status UNIMPLEMENTED: the server predates DescribeLayer, which geospatial-grpc 1.1 added. */
-const GRPC_UNIMPLEMENTED = 12;
-
-/** gRPC status CANCELED: cancellation may originate locally or at the server. */
-const GRPC_CANCELED = 1;
 
 /** A stalled DescribeLayer must not hold every later edit on the source. */
 const DESCRIBE_TIMEOUT_MS = 30_000;

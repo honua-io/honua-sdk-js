@@ -1,6 +1,7 @@
 import type { Client } from "@connectrpc/connect";
 import type { FeatureService } from "../gen/geospatial/v1/feature_service_pb.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
+import { GRPC_INTERNAL, GRPC_UNIMPLEMENTED } from "./grpc-status.js";
 import type {
   ApplyServiceEditsRequest,
   HonuaApplyServiceEditsResponse,
@@ -51,7 +52,7 @@ export async function queryRelatedRecordsOverGrpc(
     if (pages.length >= MAX_RELATED_RECORD_PAGES || seen.has(next)) {
       // A repeated or endless continuation token is a server protocol violation (INTERNAL).
       throw new HonuaGrpcError(
-        13,
+        GRPC_INTERNAL,
         `QueryRelatedRecords did not finish within ${MAX_RELATED_RECORD_PAGES} distinct pages.`,
       );
     }
@@ -80,9 +81,6 @@ export async function applyServiceEditsOverGrpc(
     throw asCapabilityGap(adapter.wrapConnectError(error), "applyServiceEdits", { serviceId: request.serviceId });
   }
 }
-
-/** gRPC status UNIMPLEMENTED: the server predates the RPC (geospatial-grpc 1.4). */
-const GRPC_UNIMPLEMENTED = 12;
 
 function asCapabilityGap(error: Error, capability: string, target: { serviceId: string; layerId?: number }): Error {
   if (!(error instanceof HonuaGrpcError) || error.code !== GRPC_UNIMPLEMENTED) return error;
