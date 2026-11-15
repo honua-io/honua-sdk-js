@@ -65,28 +65,17 @@ export function memoizedGrpcEditSchema(
   let pending: Promise<GrpcEditSchema> | undefined;
   return (signal) => {
     if (signal?.aborted) return Promise.reject(new HonuaAbortError());
-    pending ??= readEditSchema(client, serviceId, layerId, () => {
-      pending = undefined;
-    });
+    pending ??= client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
+      (response) => grpcEditSchema(response.layer),
+      (error: unknown) => {
+        if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
+        pending = undefined;
+        if (isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
+        throw error;
+      },
+    );
     return abortable(pending, signal);
   };
-}
-
-function readEditSchema(
-  client: Pick<HonuaClient, "describeLayer">,
-  serviceId: string,
-  layerId: number,
-  forget: () => void,
-): Promise<GrpcEditSchema> {
-  return client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
-    (response) => grpcEditSchema(response.layer),
-    (error: unknown) => {
-      if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
-      forget();
-      if (isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
-      throw error;
-    },
-  );
 }
 
 /** The DescribeLayer call carries only this module's timeout signal, never the caller's. */
