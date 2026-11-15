@@ -515,11 +515,11 @@ function convertFeature(
     attributes[key] = convertAttributeValue(attrValue);
   }
 
-  if (objectIdFieldName.length > 0 && feature.id !== 0n && !hasAttributeIgnoreCase(attributes, objectIdFieldName)) {
-    attributes[objectIdFieldName] = toSafeNumberOrString(feature.id);
+  if (objectIdFieldName.length > 0 && feature.id !== 0n) {
+    backfillIdentity(attributes, objectIdFieldName, toSafeNumberOrString(feature.id));
   }
-  if (globalIdFieldName.length > 0 && feature.globalId && !hasAttributeIgnoreCase(attributes, globalIdFieldName)) {
-    attributes[globalIdFieldName] = feature.globalId;
+  if (globalIdFieldName.length > 0 && feature.globalId) {
+    backfillIdentity(attributes, globalIdFieldName, feature.globalId);
   }
 
   const result: HonuaFeature = { attributes };
@@ -531,9 +531,12 @@ function convertFeature(
   return result;
 }
 
-function hasAttributeIgnoreCase(attributes: Record<string, unknown>, name: string): boolean {
+/** Fills a missing or null identity attribute; any non-null value under the name (any case) wins. */
+function backfillIdentity(attributes: Record<string, unknown>, name: string, identity: unknown): void {
   const lowered = name.toLowerCase();
-  return Object.keys(attributes).some((key) => key.toLowerCase() === lowered);
+  const matches = Object.keys(attributes).filter((key) => key.toLowerCase() === lowered);
+  if (matches.some((key) => attributes[key] !== null && attributes[key] !== undefined)) return;
+  attributes[matches[0] ?? name] = identity;
 }
 
 function convertAttributeValue(attr: AttributeValue): unknown {
