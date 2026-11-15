@@ -97,6 +97,8 @@ export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
   pageSize?: number;
   /** Maximum number of pages to request. Defaults to 100. */
   maxPages?: number;
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
 };
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
@@ -180,6 +182,8 @@ export type HonuaMapLayerQueryRequest = Omit<MapLayerQueryRequest, "serviceId" |
 export type HonuaMapLayerQueryAllRequest = HonuaMapLayerQueryRequest & {
   pageSize?: number;
   maxPages?: number;
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
 };
 export type HonuaMapLayerQueryRelatedRecordsRequest = Omit<MapRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaMapLayerQueryCountRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
@@ -351,6 +355,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
+
     const features: HonuaTypedFeature<T>[] = [];
     let offset = startingOffset;
     // Advance the page cursor through the top-level `resultOffset` /
@@ -362,6 +368,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     // page repeat page one for a full/exact-page result set (issue #663).
     let previousPageSignature: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
+      const requested = maxRecords === undefined ? pageSize : Math.min(pageSize, maxRecords - features.length);
+      if (requested <= 0) break;
       const response = await this.queryFeatures({
         ...request,
         // Strip any caller-supplied `extraParams.resultOffset` /
@@ -370,7 +378,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         // `extraParams` after the top-level fields on the REST transport).
         extraParams: withoutPagingExtraParams(request.extraParams),
         resultOffset: offset,
-        resultRecordCount: pageSize,
+        resultRecordCount: requested,
       });
 
       const pageFeatures = response.features ?? [];
@@ -401,7 +409,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
@@ -986,15 +994,19 @@ export class HonuaMapLayer {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
+
     const features: HonuaFeature[] = [];
     let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
+      const requested = maxRecords === undefined ? pageSize : Math.min(pageSize, maxRecords - features.length);
+      if (requested <= 0) break;
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
           resultOffset: offset,
-          resultRecordCount: pageSize,
+          resultRecordCount: requested,
         },
       });
 
@@ -1005,7 +1017,7 @@ export class HonuaMapLayer {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
@@ -2538,6 +2550,10 @@ function normalizeMaxPages(maxPages: number | undefined): number {
     return maxPages;
   }
   return 100;
+}
+
+function normalizeMaxRecords(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : undefined;
 }
 
 function normalizeOffset(offset: number | undefined): number {

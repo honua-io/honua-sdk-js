@@ -396,7 +396,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -523,7 +523,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -4244,6 +4244,18 @@ function withPagingBounds<R extends object>(
   const target = limit + 1;
   const maxPages = Math.max(1, Math.ceil(target / pageSize));
   return { ...params, pageSize, maxPages };
+}
+
+/**
+ * Bounded GeoServices drains need one row past the limit to report overflow.
+ * Cap the total so the last page asks for that row, not another full page.
+ */
+function withRowBudget<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number; maxPages: number; maxRecords?: number } {
+  const bounded = withPagingBounds(params, limit);
+  return typeof limit === "number" && limit >= 0 ? { ...bounded, maxRecords: limit + 1 } : bounded;
 }
 
 /**
