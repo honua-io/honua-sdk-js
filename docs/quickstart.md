@@ -26,7 +26,7 @@ at or below 6.4.0 carries [GHSA-jrc7-96c5-q579](https://github.com/advisories/GH
 a sanitizer bypass the runtime cannot protect you from. MapLibre 6 is ESM-only
 and loads its worker as a separate module; a Vite host configures it once with
 `maplibregl.setWorkerUrl(...)` before the first map is created (see
-[MapLibre 5 and 6 compatibility](maplibre-runtime.md#maplibre-5-and-6-compatibility)).
+[MapLibre runtime support](maplibre-runtime.md#maplibre-runtime-support)).
 
 ## 2. Connect, query, explain
 
