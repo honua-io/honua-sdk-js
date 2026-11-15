@@ -120,6 +120,26 @@ describe("shared task", () => {
     return { task, runs, finish: (value: string) => finish(value) };
   }
 
+  it("does not start work for an already-cancelled caller", async () => {
+    const { task, runs, finish } = deferredTask();
+    await expect(task(AbortSignal.abort())).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(runs).toHaveLength(0);
+    const next = task();
+    finish("footer");
+    await expect(next).resolves.toBe("footer");
+    expect(runs).toHaveLength(1);
+  });
+
+  it("does not disturb a shared run when an already-cancelled caller joins", async () => {
+    const { task, runs, finish } = deferredTask();
+    const first = task();
+    await expect(task(AbortSignal.abort())).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(runs[0]?.aborted).toBe(false);
+    finish("footer");
+    await expect(first).resolves.toBe("footer");
+    expect(runs).toHaveLength(1);
+  });
+
   it("runs once for concurrent callers and keeps running while one caller still waits", async () => {
     const { task, runs, finish } = deferredTask();
     const cancelled = new AbortController();
