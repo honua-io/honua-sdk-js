@@ -1,5 +1,4 @@
 import { HonuaGrpcError } from "./errors.js";
-import { GRPC_INTERNAL } from "./grpc-status.js";
 import type { ApplyServiceEditsRequest } from "./types.js";
 
 /** Service edits name each layer once, on every transport. */
@@ -22,7 +21,7 @@ export function assertServiceLayerOrder(
   const order = results.join(",");
   if (order !== expected.map((layer) => layer.layerId).join(",")) {
     throw new HonuaGrpcError(
-      GRPC_INTERNAL,
+      13,
       `ApplyServiceEdits returned layers [${order}] for a request of different layers.`,
       { results },
     );
