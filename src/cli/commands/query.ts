@@ -7,6 +7,7 @@
  * @packageDocumentation
  */
 
+import { geoServicesGeometryToGeoJSON } from "../../core/geoservices-geojson.js";
 import type { HonuaFeatureLayerQueryRequest } from "../../core/surfaces.js";
 import type { HonuaTypedFeature } from "../../core/types.js";
 import type { ParsedArgs } from "../args.js";
@@ -32,20 +33,11 @@ function bboxToEnvelope(bbox: [number, number, number, number]): {
 
 /** Convert an Esri-style typed feature into a GeoJSON Feature. */
 function toGeoJsonFeature(feature: HonuaTypedFeature<Record<string, unknown>>): Record<string, unknown> {
-  const geom = feature.geometry as Record<string, unknown> | null | undefined;
-  let geometry: Record<string, unknown> | null = null;
-  if (geom) {
-    if (typeof geom.x === "number" && typeof geom.y === "number") {
-      geometry = { type: "Point", coordinates: [geom.x, geom.y] };
-    } else if (Array.isArray(geom.rings)) {
-      geometry = { type: "Polygon", coordinates: geom.rings };
-    } else if (Array.isArray(geom.paths)) {
-      geometry = { type: "MultiLineString", coordinates: geom.paths };
-    } else if (Array.isArray(geom.points)) {
-      geometry = { type: "MultiPoint", coordinates: geom.points };
-    }
-  }
-  return { type: "Feature", geometry, properties: feature.attributes };
+  return {
+    type: "Feature",
+    geometry: geoServicesGeometryToGeoJSON(feature.geometry),
+    properties: feature.attributes,
+  };
 }
 
 export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
