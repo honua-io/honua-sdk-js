@@ -188,8 +188,12 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 50 = the 22 stable and 28 experimental entrypoints in config/public-surface.json.
-    expect(matrix.packageEntrypoints).toHaveLength(50);
+    // 51 = the 22 stable and 29 experimental entrypoints in config/public-surface.json.
+    expect(matrix.packageEntrypoints).toHaveLength(51);
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./grpc-web")).toMatchObject({
+      subpath: "./grpc-web",
+      supportStatus: "experimental",
+    });
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
