@@ -16,8 +16,11 @@ export function toProtoObjectId(value: string): bigint {
 }
 
 export function toSafeNumberOrString(value: bigint): number | string {
-  if (value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT) {
-    return Number(value);
-  }
+  if (isJsSafeInteger(value)) return Number(value);
   return value.toString();
+}
+
+/** A JavaScript `number` cannot round-trip an int64 outside this range. */
+export function isJsSafeInteger(value: bigint): boolean {
+  return value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT;
 }

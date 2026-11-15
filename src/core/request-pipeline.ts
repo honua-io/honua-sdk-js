@@ -1,4 +1,5 @@
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import { GRPC_CANCELED } from "./grpc-status.js";
 import type { HonuaRetryOptions, QueryMethod } from "./types.js";
 
 /**
@@ -164,9 +165,6 @@ export const DEFAULT_RETRYABLE_GRPC_CODES: ReadonlySet<number> = new Set([
   14, // unavailable
 ]);
 
-/** Connect/gRPC `canceled` code — caller/abort-driven, never retried. */
-const GRPC_CODE_CANCELED = 1;
-
 /**
  * Extract the numeric gRPC/Connect status code off a thrown error (a
  * `ConnectError` carries a numeric `code`). Returns `undefined` for non-Connect
@@ -208,7 +206,7 @@ export function shouldRetryGrpcCall(
     return false;
   }
   const code = connectErrorCode(error);
-  if (code === undefined || code === GRPC_CODE_CANCELED) {
+  if (code === undefined || code === GRPC_CANCELED) {
     return false;
   }
   return DEFAULT_RETRYABLE_GRPC_CODES.has(code);

@@ -1,5 +1,5 @@
 import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
-import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+import { isJsSafeInteger, toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
 export {
   fromProtoApplyEditsResponse,
   fromProtoApplyServiceEditsResponse,
@@ -678,6 +678,12 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
   }
   const outSpatialReference = toProtoSpatialReference(outSR ?? outSr);
   const ids = request.objectIds === undefined ? [] : toProtoObjectIds(request.objectIds);
+  for (const id of ids) {
+    // The response origin is a JavaScript number, so an unsafe int64 cannot come back.
+    if (!isJsSafeInteger(id)) {
+      throw new RangeError(`Related-record origin ID ${id} exceeds the JavaScript safe integer range.`);
+    }
+  }
   const outFields = request.outFields === undefined ? [] : splitOutFields(request.outFields);
   return create(QueryRelatedRecordsRequestSchema, {
     serviceId: request.serviceId,
@@ -694,11 +700,10 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
 
 /** `HonuaRelatedRecordGroup.objectId` is a number on every transport; refuse IDs it cannot hold. */
 function safeOriginId(objectId: bigint): number {
-  const id = Number(objectId);
-  if (!Number.isSafeInteger(id)) {
+  if (!isJsSafeInteger(objectId)) {
     throw new RangeError(`Related-record origin ID ${objectId} exceeds the JavaScript safe integer range.`);
   }
-  return id;
+  return Number(objectId);
 }
 
 /**

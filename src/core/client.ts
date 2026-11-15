@@ -46,7 +46,6 @@ import {
 import {
   REPLAY_SAFE_GRPC_METHODS,
   applyServiceEditsOverGrpc,
-  assertDistinctServiceLayers,
   queryRelatedRecordsOverGrpc,
 } from "./grpc-native-calls.js";
 import { createNativeAttachments } from "./native-attachments.js";
@@ -127,6 +126,7 @@ import {
   toHttpError,
 } from "./request-pipeline.js";
 import { readBoundedResponseBytes } from "./response-body.js";
+import { assertDistinctServiceLayers } from "./service-edit-layers.js";
 import {
   HonuaStacSearch,
   getStacCollection,
