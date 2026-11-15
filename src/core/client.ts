@@ -48,7 +48,7 @@ import {
   applyServiceEditsOverGrpc,
   queryRelatedRecordsOverGrpc,
 } from "./grpc-native-calls.js";
-import { assertDistinctServiceLayers } from "./service-edit-validation.js";
+import { assertDistinctServiceLayers } from "./service-edit-layers.js";
 import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";

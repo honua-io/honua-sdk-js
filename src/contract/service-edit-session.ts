@@ -2,7 +2,7 @@ import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../core/error
 import { type GrpcEditSchema, memoizedGrpcEditSchema } from "../core/grpc-edit-schema.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { ServiceLayerEditsRequest } from "../core/service-edit-types.js";
-import { assertDistinctServiceLayers } from "../core/service-edit-validation.js";
+import { assertDistinctServiceLayers } from "../core/service-edit-layers.js";
 import { canonicalEditResult } from "./edit-result.js";
 import { toApplyEditsRequest } from "./feature-layer-edits.js";
 import type { Dataset, EditEnvelope, EditResult, SourceDescriptor, SourceId } from "./types.js";
