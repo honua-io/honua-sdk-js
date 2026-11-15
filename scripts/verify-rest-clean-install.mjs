@@ -284,6 +284,10 @@ export default defineConfig({
 }
 
 function writeGrpcConsumerFiles() {
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "dist/test/helpers/grpc-wire.js"),
+    path.join(appDir, "grpc-wire.mjs"),
+  );
   fs.writeFileSync(path.join(appDir, "main.js"), `
 import { HonuaClient } from "@honua/sdk/grpc-web";
 const out = document.querySelector("#out");
@@ -302,6 +306,7 @@ try {
 `);
   fs.writeFileSync(path.join(appDir, "vite.config.js"), `
 import { defineConfig } from "vite";
+import { wireBody } from "./grpc-wire.mjs";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import {
   DescribeLayerRequestSchema, DescribeLayerResponseSchema,
@@ -315,13 +320,6 @@ const operations = {
   }],
   ApplyEdits: [ApplyEditsRequestSchema, ApplyEditsResponseSchema, { deleteResults: [{ objectId: 7n, success: true }] }],
 };
-function frame(bytes, flags = 0) {
-  const result = Buffer.alloc(bytes.length + 5);
-  result[0] = flags;
-  result.writeUInt32BE(bytes.length, 1);
-  result.set(bytes, 5);
-  return result;
-}
 export default defineConfig({ plugins: [{
   name: "grpc-web-installed-proof",
   configurePreviewServer(server) {
@@ -347,10 +345,7 @@ export default defineConfig({ plugins: [{
           throw new Error("unexpected request");
         }
         response.setHeader("content-type", "application/grpc-web+proto");
-        response.end(Buffer.concat([
-          frame(toBinary(operation[1], create(operation[1], operation[2]))),
-          frame(Buffer.from("grpc-status: 0\\r\\n"), 128),
-        ]));
+        response.end(Buffer.from(wireBody(toBinary(operation[1], create(operation[1], operation[2])))));
       } catch {
         response.statusCode = 400;
         response.end("invalid RPC request");
