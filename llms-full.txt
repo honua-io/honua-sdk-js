@@ -31,7 +31,11 @@ surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimen
 
 ## Native application data
 
-Use `HonuaClient` with explicit `transport: "grpc-web"` for live feature queries.
+Create the client with `await createHonuaClient({ baseUrl })` for live feature queries: it uses the
+native gRPC-Web transport where the server offers it and GeoServices REST otherwise
+(`transport: "grpc-web"` or `"rest"` skips the probe; `new HonuaClient` still defaults to REST).
+In a browser bundle import it from `@honua/sdk-js/grpc-web`; the root export cannot load the
+gRPC peers there and selects REST.
 Follow the [native data guide](docs/native-data-paths.md) for the complete browser
 setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
 
@@ -880,8 +884,8 @@ evidence are listed in the generated
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 46 runtime
-exports and 178 declaration exports. The exact inventory
+The reviewed package-root ceilings are 47 runtime
+exports and 181 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -9411,8 +9415,8 @@ evidence; observed evidence only ever narrows them.
 Canonical transport shared across the SDKs and generated from the
 `geospatial-grpc` FeatureService definitions. The default capability set is
 `query`, `queryExtent`, `queryObjectIds`, `applyEdits`,
-`stream`, `queryRelated`, and `attachments`. In JS, gRPC-Web is selected on `HonuaClient` with
-`transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
+`stream`, `queryRelated`, and `attachments`. In JS, `createHonuaClient` selects gRPC-Web where the
+server offers it (REST otherwise), or `HonuaClient` takes an explicit `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
 adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
 descriptor onto the same `HonuaFeatureLayer` used by
 `geoservices-feature-service`, which transparently routes `queryFeatures` and `applyEdits`
