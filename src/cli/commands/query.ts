@@ -62,6 +62,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const format = (getString(parsed, "format") ?? "table").toLowerCase();
   const asJson = getBoolean(parsed, "json") || format === "json";
   const asGeoJson = format === "geojson";
+  const spatialFilter = bboxRaw ? bboxToEnvelope(parseBbox(bboxRaw)) : {};
 
   // --count: short-circuit to a fast count. We issue the query directly with
   // `returnCountOnly` (rather than the SDK's `queryFeatureCount`, which pins
@@ -72,6 +73,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
       where: where ?? "1=1",
       outFields: "*",
       returnGeometry: false,
+      ...spatialFilter,
       extraParams: { returnCountOnly: true },
     })) as { count?: number; features?: unknown[] };
     const count = typeof countResponse.count === "number" ? countResponse.count : (countResponse.features?.length ?? 0);
@@ -91,14 +93,8 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     outFields: outFields.length > 0 ? outFields : "*",
     returnGeometry: asGeoJson,
     resultRecordCount: limit,
+    ...spatialFilter,
   };
-  if (bboxRaw) {
-    const env = bboxToEnvelope(parseBbox(bboxRaw));
-    request.geometry = env.geometry;
-    request.geometryType = env.geometryType;
-    request.spatialRel = env.spatialRel;
-    request.returnGeometry = asGeoJson;
-  }
 
   const response = await featureLayer.queryFeatures(request);
   const features = (response.features ?? []) as HonuaTypedFeature<Record<string, unknown>>[];
