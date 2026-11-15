@@ -139,7 +139,6 @@ describe("pre-aborted shared task callers", () => {
     await expect(first).resolves.toBe("footer");
     expect(runs).toHaveLength(1);
   });
-
 });
 
 describe("shared task", () => {
