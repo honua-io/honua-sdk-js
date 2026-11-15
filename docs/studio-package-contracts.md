@@ -120,7 +120,7 @@ structurally bridged:
 import { validateMapDocument } from "@honua/sdk-js/runtime";
 import { fromMapDocumentValidation } from "@honua/app-platform/studio";
 
-const response = fromMapDocumentValidation(validateMapDocument(rawMapPackage));
+const response = fromMapDocumentValidation(validateMapDocument(rawMapDocument));
 // response: StudioPackageValidationResponse<HonuaMapDocument>
 ```
 

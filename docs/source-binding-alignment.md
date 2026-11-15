@@ -36,14 +36,14 @@ locator fields until the server schema exposes them explicitly.
 
 ## MapBinding ↔ Map document
 
-| `MapBinding` (SDK) | `MapPackage.sourceBindings[i]` / `mapSpec.layers[j]` (server) |
+| `MapBinding` (SDK) | the map document `sourceBindings[i]` / `mapSpec.layers[j]` (server) |
 | --- | --- |
 | `sourceId` | Resolved against `sourceBindings[].id`; the export writer dedupes. |
 | `layerIds` | Layer ids in `mapSpec.layers[].id`. |
 | `style` | Merged into the corresponding `mapSpec.layers[].paint` / `.layout` blocks. |
 | `minzoom` / `maxzoom` | `mapSpec.layers[].minzoom` / `.maxzoom`. |
 
-The SDK does not own `MapPackage.metadata` or the canonical `AppVersion`
+The SDK does not own the server-side map document `metadata` or the canonical `AppVersion`
 wire shape — those are server-side concepts. The generated-app proof subpath
 does consume the browser-safe `AppVersion.manifest_artifact` projection; see
 [`generated-app-runtime.md`](./generated-app-runtime.md) for the
@@ -132,7 +132,7 @@ those services are not typically composed as map sources. Direct
 construction via `geoServicesImageSource(...)`,
 `geoServicesGeometryServiceSource(...)`, or
 `geoServicesGPServiceSource(...)` works without going through the
-package projection. Routing them through `MapPackage.sourceBindings[]`
+map document projection. Routing them through `HonuaMapDocument.sourceBindings[]`
 is tracked as a follow-on; until it lands the server should not emit
 those protocols on bindings consumed by `loadMapDocument`.
 
