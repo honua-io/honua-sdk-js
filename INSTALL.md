@@ -18,8 +18,8 @@ evidence are listed in the generated
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 46 runtime
-exports and 178 declaration exports. The exact inventory
+The reviewed package-root ceilings are 47 runtime
+exports and 181 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release

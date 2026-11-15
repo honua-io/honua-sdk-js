@@ -47,7 +47,6 @@
       "HONUA_ERROR_CODE_REGISTRY",
       "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
-      "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
       "HonuaAbortError",
       "HonuaAuthError",
       "HonuaCapabilityNotSupportedError",
@@ -75,7 +74,6 @@
       "QUERY_PLAN_VERSION",
       "queryFilter",
       "sanitizeHonuaErrorContext",
-      "selectHonuaTransport",
       "serializeHonuaError",
       "spatialContains",
       "spatialIntersects",
@@ -138,7 +136,6 @@
       "HONUA_ERROR_CODE_REGISTRY",
       "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
-      "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
       "HonuaAbortError",
       "HonuaAuthCredentials",
       "HonuaAuthCredentialsProvider",
@@ -245,8 +242,6 @@
       "RendererTarget",
       "Result",
       "sanitizeHonuaErrorContext",
-      "selectHonuaTransport",
-      "SelectHonuaTransportOptions",
       "SerializedHonuaError",
       "SerializedHonuaErrorCause",
       "serializeHonuaError",
@@ -666,23 +661,11 @@
       "kind": "runtime"
     },
     {
-      "symbol": "selectHonuaTransport",
-      "kind": "runtime"
-    },
-    {
       "symbol": "CreateHonuaClientOptions",
       "kind": "type"
     },
     {
       "symbol": "HonuaTransportPreference",
-      "kind": "type"
-    },
-    {
-      "symbol": "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
-      "kind": "runtime"
-    },
-    {
-      "symbol": "SelectHonuaTransportOptions",
       "kind": "type"
     }
   ],

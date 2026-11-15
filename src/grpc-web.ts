@@ -55,7 +55,7 @@ export function createHonuaClient(options: CreateHonuaClientOptions): Promise<Ba
   return createHonuaClientWith(options, clientForTransport);
 }
 
-/** Browser variant of the root `selectHonuaTransport`, probing with this entrypoint's bound runtime. */
+/** Browser variant of `selectHonuaTransport` from `@honua/sdk-js/honua`, probing with this entrypoint's bound runtime. */
 export function selectHonuaTransport(options: SelectHonuaTransportOptions): Promise<HonuaTransport> {
   return selectHonuaTransportWith(options, clientForTransport);
 }
