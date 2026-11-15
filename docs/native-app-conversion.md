@@ -17,8 +17,8 @@ CORS, signed URLs and snapshot freshness.
 For an app that should run on either transport, create the client with
 `createHonuaClient` from `@honua/sdk-js/grpc-web`. It probes once with an empty-ID
 `DescribeService` call: any gRPC-Web answer selects gRPC-Web; a non-gRPC answer,
-no answer within the probe timeout (for example a CORS policy that does not admit
-gRPC-Web) or unloadable optional peers select REST. Calls never switch transport
+or no answer within the probe timeout (for example a CORS policy that does not
+admit gRPC-Web) selects REST. Calls never switch transport
 after that choice. The examples below require gRPC-Web, so they set it explicitly.
 
 This example supplies a known source explicitly. It does not perform metadata

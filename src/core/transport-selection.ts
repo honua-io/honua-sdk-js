@@ -22,8 +22,10 @@ export interface SelectHonuaTransportOptions extends Omit<HonuaClientOptions, "t
   /** Cancels the transport probe; the returned promise rejects with the abort reason. */
   readonly signal?: AbortSignal;
   /**
-   * Milliseconds to wait for the probe's answer before selecting REST.
-   * Default {@link HONUA_TRANSPORT_PROBE_TIMEOUT_MS}.
+   * Milliseconds to wait for the probe's answer, counted from when the request is
+   * sent, before selecting REST. Default {@link HONUA_TRANSPORT_PROBE_TIMEOUT_MS};
+   * must be finite, positive and at most 2147483647, otherwise the probe throws
+   * `RangeError`.
    */
   readonly probeTimeoutMs?: number;
 }
@@ -48,9 +50,9 @@ type ClientFactory = (options: HonuaClientOptions & { readonly transport: HonuaT
  * The probe is one unary `DescribeService` call with an empty service ID. Any
  * gRPC-Web answer, including the expected `INVALID_ARGUMENT`, shows the server
  * serves the native contract. A response that is not gRPC-Web (for example an
- * HTML 404 from a REST-only server), no response within the probe timeout (an
- * unreachable host, or a CORS policy that does not admit gRPC-Web), or optional
- * peers that cannot be loaded select REST. Check `client.isGrpcWeb` to see which
+ * HTML 404 from a REST-only server), no response within the probe timeout after
+ * the request is sent (an unreachable host, or a CORS policy that does not admit
+ * gRPC-Web), or a gRPC runtime that cannot be loaded select REST. Check `client.isGrpcWeb` to see which
  * transport was chosen.
  *
  * Browser bundles: import `createHonuaClient` from `@honua/sdk-js/grpc-web`.
@@ -110,8 +112,13 @@ export async function selectHonuaTransportWith(
   makeClient: ClientFactory,
 ): Promise<HonuaTransport> {
   const { signal, probeTimeoutMs = HONUA_TRANSPORT_PROBE_TIMEOUT_MS, ...clientOptions } = options;
+  if (!Number.isFinite(probeTimeoutMs) || probeTimeoutMs <= 0 || probeTimeoutMs > MAX_TIMER_MS) {
+    throw new RangeError(`probeTimeoutMs must be a positive number of milliseconds up to ${MAX_TIMER_MS}.`);
+  }
   signal?.throwIfAborted();
   const baseFetch = (clientOptions.fetchFn ?? fetch).bind(globalThis);
+  const deadline = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   let sent = false;
   let answer: Response | undefined;
   const probe = makeClient({
@@ -120,29 +127,52 @@ export async function selectHonuaTransportWith(
     // One attempt: a retried probe only delays the decision.
     retry: { maxRetries: 0 },
     fetchFn: async (input, init) => {
+      // The deadline covers the server round trip, not local module loading or auth.
       sent = true;
+      timer = setTimeout(() => deadline.abort(new Error("transport probe timed out")), probeTimeoutMs);
       const response = await baseFetch(input, init);
       answer = response;
       return response;
     },
   });
 
-  const deadline = new AbortController();
   const forwardAbort = () => deadline.abort(signal?.reason);
   signal?.addEventListener("abort", forwardAbort, { once: true });
-  const timer = setTimeout(() => deadline.abort(new Error("transport probe timed out")), probeTimeoutMs);
   try {
     await probe.describeService({ serviceId: "", signal: deadline.signal });
     return "grpc-web";
   } catch (error) {
     signal?.throwIfAborted();
     if (answer !== undefined) return isGrpcWebAnswer(answer) ? "grpc-web" : "rest";
-    if (sent || error instanceof HonuaOptionalGrpcPeerError) return "rest";
+    if (sent || isRuntimeLoadFailure(error)) return "rest";
     throw error;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", forwardAbort);
   }
+}
+
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * Browsers word a failed dynamic import differently (Chromium: "Failed to resolve
+ * module specifier", Firefox: "bare specifier ... not remapped", Safari: "does not
+ * resolve to a valid URL" / "Importing a module script failed"), and a relative
+ * module can fail as "Failed to fetch dynamically imported module". Any of them
+ * means this build cannot run gRPC-Web, so the probe selects REST.
+ */
+const RUNTIME_LOAD_FAILURE =
+  /ERR_MODULE_NOT_FOUND|Failed to resolve module specifier|bare specifier|does not resolve to a valid URL|Importing a module script failed|dynamically imported module|Cannot find (?:module|package)/iu;
+
+function isRuntimeLoadFailure(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current instanceof Error && !seen.has(current)) {
+    if (current instanceof HonuaOptionalGrpcPeerError || RUNTIME_LOAD_FAILURE.test(current.message)) return true;
+    seen.add(current);
+    current = current.cause;
+  }
+  return false;
 }
 
 function isGrpcWebAnswer(response: Response): boolean {

@@ -5,7 +5,11 @@ import { HonuaClient } from "../src/core/client.js";
 import { HonuaOptionalGrpcPeerError } from "../src/core/optional-grpc-peer.js";
 import { createHonuaClient, selectHonuaTransport } from "../src/core/transport-selection.js";
 import { DescribeServiceRequestSchema } from "../src/gen/geospatial/v1/feature_service_pb.js";
-import { HonuaClient as GrpcWebHonuaClient, createHonuaClient as createBrowserClient } from "../src/grpc-web.js";
+import {
+  HonuaClient as GrpcWebHonuaClient,
+  createHonuaClient as createBrowserClient,
+  selectHonuaTransport as selectBrowserTransport,
+} from "../src/grpc-web.js";
 import { createHonuaClient as fromHonua } from "../src/honua.js";
 import { createHonuaClient as fromIndex } from "../src/index.js";
 
@@ -156,5 +160,45 @@ describe("createHonuaClient transport selection", () => {
       }),
     ).rejects.toThrow("token refresh failed");
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("selects REST for browser module-loader failures that name no peer", async () => {
+    const messages = [
+      'The specifier "@connectrpc/connect" was a bare specifier, but was not remapped to anything.',
+      "Module name, '@connectrpc/connect' does not resolve to a valid URL.",
+      "Failed to fetch dynamically imported module: https://app.example/assets/grpc-adapter.js",
+    ];
+    for (const message of messages) {
+      vi.spyOn(HonuaClient.prototype, "describeService").mockRejectedValueOnce(new TypeError(message));
+      const fetchFn = vi.fn<typeof fetch>();
+      await expect(selectHonuaTransport({ baseUrl, fetchFn })).resolves.toBe("rest");
+    }
+  });
+
+  it("rejects with the caller's reason when it aborts a hung probe", async () => {
+    const controller = new AbortController();
+    const reason = new Error("caller cancelled");
+    const fetchFn: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        setTimeout(() => controller.abort(reason), 10);
+      });
+    await expect(
+      selectHonuaTransport({ baseUrl, fetchFn, signal: controller.signal, probeTimeoutMs: 60_000 }),
+    ).rejects.toBe(reason);
+  });
+
+  it("refuses a probe timeout that a timer cannot represent", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    for (const probeTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31]) {
+      await expect(selectHonuaTransport({ baseUrl, fetchFn, probeTimeoutMs })).rejects.toBeInstanceOf(RangeError);
+    }
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("exposes the probe on the browser entrypoint", async () => {
+    await expect(selectBrowserTransport({ baseUrl, fetchFn: recordingFetch(() => grpcStatus(3)) })).resolves.toBe(
+      "grpc-web",
+    );
   });
 });
