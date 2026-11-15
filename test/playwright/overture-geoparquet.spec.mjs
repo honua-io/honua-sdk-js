@@ -45,6 +45,18 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#result-body tr")).toHaveCount(8);
     await expect(page.locator("#result-summary")).toContainText("GERS ids preserved");
     await expect(page.locator("#result-points circle")).toHaveCount(8);
+    const waikiki = page.locator("#result-body tr").filter({ hasText: "Waikiki Beach" });
+    await expect(waikiki.locator("td").nth(3)).toHaveText("0.96");
+    await expect(waikiki.locator("td").nth(4)).toHaveText("-157.8261, 21.2762");
+    const positions = await page.locator("#result-points circle").evaluateAll((circles) =>
+      circles.map((circle) => [Number(circle.getAttribute("cx")), Number(circle.getAttribute("cy"))]),
+    );
+    for (const [x, y] of positions) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(800);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(400);
+    }
     expect(await page.evaluate(() => window.__HONUA_OVERTURE__?.parquetRuntime)).toEqual({
       duckDbVersion: "v1.4.3",
       parquetScanRows: 8,

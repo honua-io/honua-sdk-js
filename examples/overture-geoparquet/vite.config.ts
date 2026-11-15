@@ -92,6 +92,8 @@ export default defineConfig(async () => {
     build: {
       outDir: "dist",
       emptyOutDir: true,
+      // The lossless decoder recognizes Arrow container wrappers by constructor name.
+      rolldownOptions: { output: { keepNames: true } },
     },
   };
 });
