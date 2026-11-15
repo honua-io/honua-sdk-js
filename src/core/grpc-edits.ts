@@ -14,6 +14,7 @@ import {
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { toProtoGeometry } from "./grpc-geometry-input.js";
 import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+import { GRPC_FAILED_PRECONDITION, GRPC_INTERNAL, GRPC_UNKNOWN } from "./grpc-status.js";
 import type {
   ApplyEditsRequest,
   ApplyServiceEditsRequest,
@@ -190,9 +191,6 @@ function toEditAttribute(value: unknown, type?: GrpcPreciseAttributeType): Attri
   return attribute;
 }
 
-/** gRPC status FAILED_PRECONDITION. */
-const FAILED_PRECONDITION = 9;
-
 /**
  * Decode an ApplyEdits response. With `sent`, a global-ID batch whose delete results do not
  * match its `delete_global_ids` is refused: a server older than geospatial-grpc 1.2 ignores the
@@ -207,7 +205,7 @@ export function fromProtoApplyEditsResponse(
   }
   const outcomes = decodeOutcomes(response);
   if (response.error) {
-    throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...outcomes });
+    throw new HonuaGrpcError(GRPC_UNKNOWN, response.error.message, { ...response.error, ...outcomes });
   }
   return outcomes;
 }
@@ -235,7 +233,7 @@ function globalIdsIgnored(
 /** Global IDs were dropped by the server; other rows in the batch may have committed. */
 function globalIdsIgnoredError(details: unknown, reason: string): HonuaGrpcError {
   return new HonuaGrpcError(
-    FAILED_PRECONDITION,
+    GRPC_FAILED_PRECONDITION,
     `The server ignored global IDs in this batch (${reason}); other edits in this batch may have been committed, see details.`,
     details,
   );
@@ -293,17 +291,21 @@ export function fromProtoApplyServiceEditsResponse(
     })),
   };
   if (response.error) {
-    throw new HonuaGrpcError(2, response.error.message, { ...response.error, ...decoded });
+    throw new HonuaGrpcError(GRPC_UNKNOWN, response.error.message, { ...response.error, ...decoded });
   }
   const order = response.results.map((entry) => entry.layerId).join(",");
   if (order !== sent.edits.map((layer) => layer.layerId).join(",")) {
     // The contract returns every request layer in request order; anything else is a protocol violation.
-    throw new HonuaGrpcError(13, `ApplyServiceEdits returned layers [${order}] for a request of different layers.`, {
-      results: response.results.map((entry) => entry.layerId),
-    });
+    throw new HonuaGrpcError(
+      GRPC_INTERNAL,
+      `ApplyServiceEdits returned layers [${order}] for a request of different layers.`,
+      {
+        results: response.results.map((entry) => entry.layerId),
+      },
+    );
   }
   if (response.results.some((entry, index) => resultsIncomplete(sent.edits[index], entry.results))) {
-    throw new HonuaGrpcError(13, "ApplyServiceEdits omitted results for edits it was sent.", decoded);
+    throw new HonuaGrpcError(GRPC_INTERNAL, "ApplyServiceEdits omitted results for edits it was sent.", decoded);
   }
   const ignored = response.results.some((entry, index) => {
     const layer = sent.edits[index];
@@ -331,6 +333,6 @@ function resultsIncomplete(
   return (
     results.addResults.length !== sent.adds.length ||
     results.updateResults.length !== sent.updates.length ||
-    (sent.deletes.length > 0 && results.deleteResults.length !== deletes)
+    (deletes > 0 && results.deleteResults.length !== deletes)
   );
 }

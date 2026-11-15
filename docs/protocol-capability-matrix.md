@@ -213,8 +213,8 @@ evidence; observed evidence only ever narrows them.
 ### gRPC FeatureService
 Canonical transport shared across the SDKs and generated from the
 `geospatial-grpc` FeatureService definitions. The default capability set is
-`query`, `queryExtent`, `queryObjectIds`, `applyEdits`, and
-`stream`. In JS, gRPC-Web is selected on `HonuaClient` with
+`query`, `queryExtent`, `queryObjectIds`, `applyEdits`,
+`stream`, `queryRelated`, and `attachments`. In JS, gRPC-Web is selected on `HonuaClient` with
 `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
 adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
 descriptor onto the same `HonuaFeatureLayer` used by

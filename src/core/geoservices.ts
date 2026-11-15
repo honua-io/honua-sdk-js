@@ -10,8 +10,9 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
-import { HonuaCapabilityNotSupportedError } from "./errors.js";
+import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
+import { GRPC_INTERNAL } from "./grpc-status.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
@@ -278,13 +279,13 @@ export async function applyServiceEdits(
   if (useGlobalIds) params.set("useGlobalIds", "true");
   params.set("edits", JSON.stringify(edits));
   const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/applyEdits`;
-  const response = await transport.requestJson<Array<HonuaApplyEditsResponse & { id: number }>>(
+  const response = await transport.requestJson<unknown>(
     "POST",
     path,
     { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() },
     request.signal,
   );
-  return { layers: response.map(({ id, ...results }) => ({ layerId: id, ...results })) };
+  return serviceEditLayers(request, response);
 }
 
 export async function queryRelatedRecords(
@@ -660,8 +661,25 @@ function encodeDeletesValue(value: NonNullable<ApplyEditsRequest["deletes"]>): s
 
 /** GeoServices takes global-ID deletes as a JSON array of GUID strings. */
 function encodeGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): string {
-  const ids = typeof value === "string" ? value.split(",").map((id) => id.trim()) : value.map(String);
-  return JSON.stringify(ids);
+  return JSON.stringify(serviceGlobalIdDeletes(value));
+}
+
+/** REST applyEdits must name the same layers, in request order, or the body is not a result list. */
+function serviceEditLayers(request: ApplyServiceEditsRequest, response: unknown): HonuaApplyServiceEditsResponse {
+  if (!Array.isArray(response)) {
+    throw new HonuaGrpcError(GRPC_INTERNAL, "applyEdits returned a body that is not a layer array.");
+  }
+  const layers = response.map((entry) => {
+    const record = entry as HonuaApplyEditsResponse & { id?: number };
+    const { id, ...results } = record;
+    return { layerId: id ?? Number.NaN, ...results };
+  });
+  const order = layers.map((layer) => layer.layerId).join(",");
+  const expected = request.edits.map((layer) => layer.layerId).join(",");
+  if (order !== expected) {
+    throw new HonuaGrpcError(GRPC_INTERNAL, `applyEdits returned layers [${order}] for a request of different layers.`);
+  }
+  return { layers };
 }
 
 function normalizeBBox(bbox: ExportMapRequest["bbox"]): string {
