@@ -227,6 +227,44 @@ it("refuses a global-ID query that a pre-1.2 server answered unfiltered", () => 
   expect(() => fromProtoQueryResponse(typedQueryResponse(), sent)).not.toThrow();
 });
 
+it("refuses count, id and extent results that ignored a global-ID selector", () => {
+  const sent = toProtoQueryRequest({ ...target, globalIds: [GID] });
+  expect(() => fromProtoQueryResponse(create(QueryFeaturesResponseSchema, { count: 2n }), sent)).toThrow(
+    HonuaCapabilityNotSupportedError,
+  );
+  expect(() =>
+    fromProtoQueryResponse(
+      create(QueryFeaturesResponseSchema, { objectIdFieldName: "OBJECTID", objectIds: [4n] }),
+      sent,
+    ),
+  ).toThrow(HonuaCapabilityNotSupportedError);
+  expect(() =>
+    fromProtoQueryResponse(
+      create(QueryFeaturesResponseSchema, { extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 } }),
+      sent,
+    ),
+  ).toThrow(HonuaCapabilityNotSupportedError);
+  expect(
+    fromProtoQueryResponse(create(QueryFeaturesResponseSchema, { count: 2n, globalIdFieldName: "GlobalID" }), sent),
+  ).toEqual({ count: 2 });
+});
+
+it("refuses a streamed feature page that ignored a global-ID selector", async () => {
+  const sent = toProtoQueryRequest({ ...target, globalIds: [GID] });
+  async function* pages() {
+    yield create(FeaturePageSchema, { objectIdFieldName: "OBJECTID", features: [{ id: 1n }] });
+  }
+  await expect(streamProtoPages(pages(), sent).next()).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+});
+
+it("refuses an integer-mode update that carries a feature global ID", () => {
+  for (const globalId of [GID, ""]) {
+    expect(() => toProtoApplyEditsRequest({ ...target, updates: [{ attributes: { OBJECTID: 4 }, globalId }] })).toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
+  }
+});
+
 it("refuses an add whose client global ID a pre-1.2 server did not echo", async () => {
   const fetchFn = vi.fn(async () =>
     response(create(ApplyEditsResponseSchema, { addResults: [{ objectId: 3n, success: true }] })),

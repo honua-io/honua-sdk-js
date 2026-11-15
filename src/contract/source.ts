@@ -85,6 +85,7 @@ import {
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
 import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { canonicalEditResult } from "./edit-result.js";
 import { toApplyEditsRequest } from "./feature-layer-edits.js";
 import { nativeAttachmentApi } from "./native-attachments.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
@@ -4993,31 +4994,6 @@ function readField(attributes: unknown, field: string): unknown {
 }
 
 // ── Edit / related / attachment translators ───────────────────
-
-function canonicalEditResult(response: import("../core/types.js").HonuaApplyEditsResponse): EditResult {
-  return {
-    added: (response.addResults ?? []).map(toEditOutcome),
-    updated: (response.updateResults ?? []).map(toEditOutcome),
-    deleted: (response.deleteResults ?? []).map(toEditOutcome),
-  };
-}
-
-function toEditOutcome(result: import("../core/types.js").HonuaEditResult): EditOutcome {
-  const out: EditOutcome = { success: result.success };
-  if (typeof result.globalId === "string" && result.globalId.length > 0) {
-    out.globalId = result.globalId;
-  }
-  if (
-    typeof result.objectId === "string" ||
-    (typeof result.objectId === "number" && Number.isFinite(result.objectId))
-  ) {
-    out.id = result.objectId;
-  }
-  if (result.error) {
-    out.error = { code: result.error.code, description: result.error.description };
-  }
-  return out;
-}
 
 function toRelatedRecordsRequest(request: RelatedQuery): {
   relationshipId: number;

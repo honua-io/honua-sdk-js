@@ -93,7 +93,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.4.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 28 experimental subpaths may change before 1.0, and
+by an API-surface gate; 29 experimental subpaths may change before 1.0, and
 0 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -321,13 +321,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 10.7 KiB |
 | `@honua/sdk-js/style` | 17.0 KiB |
 | `@honua/sdk-js/map` | 56.1 KiB |
-| `@honua/sdk-js` (root) | 207.9 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 61.1 KiB |
-| `{ connect }` from the root (tree-shake guard) | 168.6 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 197.5 KiB |
+| `@honua/sdk-js` (root) | 208.1 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.2 KiB |
+| `{ connect }` from the root (tree-shake guard) | 168.8 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 197.7 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 168.6 KiB gzip and `{ createHonua }` 197.5 KiB against the 207.9 KiB root, so size-sensitive
+alone costs 168.8 KiB gzip and `{ createHonua }` 197.7 KiB against the 208.1 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.

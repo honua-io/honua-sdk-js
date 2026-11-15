@@ -1,5 +1,5 @@
 import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
-import { toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+import { isJsSafeInteger, toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
 export {
   fromProtoApplyEditsResponse,
   fromProtoApplyServiceEditsResponse,
@@ -60,9 +60,9 @@ const FIELD_TYPE_MAP: Record<number, string> = {
   // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
   [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
   [FieldType.DATE_TIME]: "esriFieldTypeDate",
-  // DATE, TIME and TIMESTAMP_OFFSET values arrive as ISO strings
-  // (geospatial-grpc 1.2), not epoch milliseconds, so they report the
-  // matching GeoServices temporal types rather than esriFieldTypeDate.
+  // DATE and TIME exist on 1.1 servers, which have no date_value or time_value
+  // cases, so those columns can still arrive as text or epoch milliseconds.
+  // 1.2 sends ISO strings. The declared field type is reported either way.
   [FieldType.DATE]: "esriFieldTypeDateOnly",
   [FieldType.TIME]: "esriFieldTypeTimeOnly",
   [FieldType.TIMESTAMP_OFFSET]: "esriFieldTypeTimestampOffset",
@@ -276,6 +276,8 @@ export function fromProtoQueryResponse(
   response: QueryFeaturesResponse,
   sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): HonuaQueryResponse | HonuaCountResponse | HonuaObjectIdsResponse | HonuaExtentResponse {
+  // Count, id and extent responses carry the field name too. An empty name means
+  // the server did not honour global_ids, including a pre-1.2 server.
   ensureGlobalIdSelectorHonored(sent, response.globalIdFieldName);
   const hasFeatureMetadata =
     response.fields.length > 0 ||
@@ -676,6 +678,12 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
   }
   const outSpatialReference = toProtoSpatialReference(outSR ?? outSr);
   const ids = request.objectIds === undefined ? [] : toProtoObjectIds(request.objectIds);
+  for (const id of ids) {
+    // The response origin is a JavaScript number, so an unsafe int64 cannot come back.
+    if (!isJsSafeInteger(id)) {
+      throw new RangeError(`Related-record origin ID ${id} exceeds the JavaScript safe integer range.`);
+    }
+  }
   const outFields = request.outFields === undefined ? [] : splitOutFields(request.outFields);
   return create(QueryRelatedRecordsRequestSchema, {
     serviceId: request.serviceId,
@@ -692,11 +700,10 @@ export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageT
 
 /** `HonuaRelatedRecordGroup.objectId` is a number on every transport; refuse IDs it cannot hold. */
 function safeOriginId(objectId: bigint): number {
-  const id = Number(objectId);
-  if (!Number.isSafeInteger(id)) {
+  if (!isJsSafeInteger(objectId)) {
     throw new RangeError(`Related-record origin ID ${objectId} exceeds the JavaScript safe integer range.`);
   }
-  return id;
+  return Number(objectId);
 }
 
 /**

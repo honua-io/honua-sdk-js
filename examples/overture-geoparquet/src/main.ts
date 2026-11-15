@@ -2,6 +2,7 @@ import { PROTOCOL_DEFAULT_CAPABILITIES, createDataset } from "@honua/sdk-js/cont
 import type { Query } from "@honua/sdk-js/contract";
 import { GeoparquetRuntime, createBrowserDuckDbDriver, geoparquetResolver } from "@honua/sdk-js/geoparquet";
 
+import { normalizeFeature } from "./feature-row.js";
 import { OverturePlanRejectedError, parseAoi, planOvertureQuery } from "./planner.js";
 import { fixtureRangeEvidence, probeAwsRanges } from "./range-evidence.js";
 import { FIXTURE_MANIFEST, OVERTURE_POLICY, SOURCE_MANIFESTS } from "./source-manifests.js";
@@ -220,29 +221,6 @@ async function renderRows(rows: readonly OverturePlaceRow[], aoi: Bbox, generati
   return performance.now() - started;
 }
 
-function normalizeFeature(attributes: Record<string, unknown>): OverturePlaceRow {
-  const bbox = asRecord(attributes.bbox);
-  const names = asRecord(attributes.names);
-  const longitude = midpoint(bbox?.xmin, bbox?.xmax);
-  const latitude = midpoint(bbox?.ymin, bbox?.ymax);
-  return {
-    id: String(attributes.id ?? "unknown"),
-    name: String(attributes.name ?? names?.primary ?? "Unnamed place"),
-    category: String(attributes.category ?? attributes.basic_category ?? "uncategorized"),
-    confidence: typeof attributes.confidence === "number" ? attributes.confidence : 0,
-    longitude,
-    latitude,
-  };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
-}
-
-function midpoint(min: unknown, max: unknown): number {
-  return typeof min === "number" && typeof max === "number" ? (min + max) / 2 : 0;
-}
-
 function createQuery(plan: OvertureQueryPlan, signal: AbortSignal): Query<Record<string, unknown>> {
   const query: Query<Record<string, unknown>> = {
     spatialFilter: envelope(plan.aoi),
@@ -351,7 +329,7 @@ async function executePlan(
     const parquetRuntime = plan.lane === "fixture" ? await probeParquetFunctions(runtime, signal) : undefined;
     const locator = plan.lane === "fixture" ? FIXTURE_NAME : (plan.selectedObjects[0]?.url ?? "");
     await requireBboxCoveringPushdown(runtime, locator, signal);
-    const resolver = geoparquetResolver({ runtime });
+    const resolver = geoparquetResolver({ runtime, resultEncoding: "lossless-json" });
     const dataset = createDataset({
       id: `overture-${plan.lane}`,
       client: {} as never,

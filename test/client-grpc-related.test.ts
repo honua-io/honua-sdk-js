@@ -3,7 +3,8 @@ import { expect, it, vi } from "vitest";
 import { createDataset } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
-import { toProtoRelatedRequest } from "../src/core/grpc-adapter.js";
+import { fromProtoRelatedPages, toProtoRelatedRequest } from "../src/core/grpc-adapter.js";
+import { MAX_RELATED_RECORD_PAGES } from "../src/core/grpc-native-calls.js";
 import {
   ApplyServiceEditsRequestSchema,
   ApplyServiceEditsResponseSchema,
@@ -168,7 +169,7 @@ it("refuses duplicate layers and a service batch whose global IDs were not appli
   const old = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn: ignoring });
   await expect(
     old.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, useGlobalIds: true, deletes: [GID] }] }),
-  ).rejects.toMatchObject({ code: 9 });
+  ).rejects.toMatchObject({ code: 13 });
 });
 
 it("uses the GeoServices service-level applyEdits on REST and refuses mixed global-ID modes", async () => {
@@ -264,13 +265,46 @@ it("refuses a repeated continuation token instead of looping", async () => {
   expect(fetchFn).toHaveBeenCalledTimes(2);
 });
 
-it("maps outSR for related records, refuses other extra parameters and keeps exact int64 origins", () => {
+it("maps outSR for related records and refuses extra parameters and unsafe origin IDs", () => {
   const base = { serviceId: "s", layerId: 0, relationshipId: 1 };
   expect(toProtoRelatedRequest({ ...base, extraParams: { outSR: 4326 } }).outSr?.wkid).toBe(4326);
   expect(() => toProtoRelatedRequest({ ...base, extraParams: { orderByFields: "name" } })).toThrow(
     HonuaCapabilityNotSupportedError,
   );
-  expect(toProtoRelatedRequest({ ...base, objectIds: "9007199254740993" }).objectIds).toEqual([9007199254740993n]);
+  expect(() => toProtoRelatedRequest({ ...base, objectIds: "9007199254740993" })).toThrow(RangeError);
+  expect(() =>
+    fromProtoRelatedPages([
+      create(QueryRelatedRecordsResponseSchema, { groups: [{ objectId: 2n ** 53n + 1n, features: [] }] }),
+    ]),
+  ).toThrow(RangeError);
+});
+
+it("checks REST service-edit layer order and drops empty single-layer global-ID deletes", async () => {
+  const fetchFn = vi.fn(async () => Response.json([{ id: 1 }, { id: 0 }]));
+  const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn });
+  await expect(
+    client.applyServiceEdits({
+      serviceId: "s",
+      edits: [{ layerId: 0, adds: [{ attributes: {} }] }, { layerId: 1 }],
+    }),
+  ).rejects.toMatchObject({ code: 13 });
+
+  const objectBody = vi.fn(async () => Response.json({ results: [] }));
+  const broken = new HonuaClient({ baseUrl: "https://example.test", fetchFn: objectBody });
+  await expect(broken.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0 }] })).rejects.toMatchObject({
+    code: 13,
+  });
+
+  let deletes = "";
+  const single = new HonuaClient({
+    baseUrl: "https://example.test",
+    fetchFn: vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      deletes = new URLSearchParams(String(init?.body)).get("deletes") ?? "";
+      return Response.json({ addResults: [], updateResults: [], deleteResults: [] });
+    }),
+  });
+  await single.applyEdits({ serviceId: "s", layerId: 0, useGlobalIds: true, deletes: "" });
+  expect(deletes).toBe("[]");
 });
 
 it("refuses duplicate layers with the same error on REST as on gRPC", async () => {
@@ -293,6 +327,46 @@ it("reports UNIMPLEMENTED related-record and service-edit RPCs as capability gap
   ).rejects.toMatchObject({
     capability: "applyServiceEdits",
   });
+});
+
+it("stops QueryRelatedRecords at the page bound", async () => {
+  let page = 0;
+  const fetchFn = vi.fn(async () => {
+    page += 1;
+    return wireResponse(
+      toBinary(
+        QueryRelatedRecordsResponseSchema,
+        create(QueryRelatedRecordsResponseSchema, { nextPageToken: `page-${page}` }),
+      ),
+    );
+  });
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+  await expect(
+    client.queryRelatedRecords({ serviceId: "s", layerId: 0, relationshipId: 1, objectIds: [1] }),
+  ).rejects.toMatchObject({ name: "HonuaGrpcError", code: 13 });
+  expect(fetchFn).toHaveBeenCalledTimes(MAX_RELATED_RECORD_PAGES);
+});
+
+it("refuses a short add result list and a short global-ID delete list", async () => {
+  const shortAdds = vi.fn(async () =>
+    serviceResponse(
+      create(ApplyServiceEditsResponseSchema, { results: [{ layerId: 0, results: { addResults: [] } }] }),
+    ),
+  );
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn: shortAdds });
+  await expect(
+    client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, adds: [{ attributes: {} }] }] }),
+  ).rejects.toMatchObject({ code: 13 });
+
+  const shortDeletes = vi.fn(async () =>
+    serviceResponse(
+      create(ApplyServiceEditsResponseSchema, { results: [{ layerId: 0, results: { deleteResults: [] } }] }),
+    ),
+  );
+  const globalIds = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn: shortDeletes });
+  await expect(
+    globalIds.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, useGlobalIds: true, deletes: [GID] }] }),
+  ).rejects.toMatchObject({ code: 13 });
 });
 
 it("refuses a service response that omits a layer's results", async () => {
@@ -325,8 +399,10 @@ it("retries QueryRelatedRecords on UNAVAILABLE because it is a read", async () =
 it("sends REST global-ID service edits as one flag with GUID deletes and drops empty delete tokens", async () => {
   const bodies: URLSearchParams[] = [];
   const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    bodies.push(new URLSearchParams(String(init?.body)));
-    return Response.json([{ id: 0 }]);
+    const params = new URLSearchParams(String(init?.body));
+    bodies.push(params);
+    const edits = JSON.parse(params.get("edits") ?? "[]") as Array<{ id: number }>;
+    return Response.json(edits.map((layer) => ({ id: layer.id })));
   });
   const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn });
   await client.applyServiceEdits({ serviceId: "s", edits: [{ layerId: 0, useGlobalIds: true, deletes: [GID] }] });

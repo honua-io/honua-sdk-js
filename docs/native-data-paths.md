@@ -19,7 +19,7 @@ transport or server errors propagate without a REST fallback. Per-row errors
 remain in the result arrays. `rollbackOnFailure` defaults to `true`.
 
 ```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.example",
@@ -51,8 +51,14 @@ canonical gRPC `Source` reads the layer's offset-timestamp and decimal columns f
 `DescribeLayer` once and sends those strings on their exact wire cases; date and
 time strings travel as plain strings, which servers also accept. With
 `HonuaClient.applyEdits`, declare columns in `attributeTypes` (for example
-`{ signed_at: "timestamp-offset", fee: "decimal" }`); declare `date` or `time`
-only for a geospatial-grpc 1.2 server, since older servers ignore those cases.
+`{ signed_at: "timestamp-offset", fee: "decimal" }`). Declare `date`, `time`,
+`timestamp-offset` or `decimal` only for a geospatial-grpc 1.2 server: older
+servers ignore those wire cases and can store the column as null.
+
+A 1.1 server can still declare DATE and TIME fields. It has no `date_value` or
+`time_value` cases, so those columns arrive as text or as epoch milliseconds,
+while the field list reports `esriFieldTypeDateOnly` or `esriFieldTypeTimeOnly`.
+Treat a number as epoch milliseconds, not as calendar text.
 
 Set `useGlobalIds: true` to address updates and deletes by global ID; `deletes`
 then lists UUIDs. On gRPC each update carries `globalId` (or the UUID in the
@@ -74,13 +80,12 @@ require or imply support for the separate Connect protocol.
 npm install @honua/sdk-js @bufbuild/protobuf@^2 @connectrpc/connect@^2 @connectrpc/connect-web@^2
 ```
 
-**Current browser packaging limitation:** the JS SDK loads its optional Connect
-peers and internal gRPC modules dynamically with variable imports. Installing the
-peers alone is insufficient in ordinary Vite browser bundles: those imports are
-left for runtime resolution. The configuration below describes the client API,
-not a verified drop-in Vite application. Before deploying, verify that your build
-and module loader resolve those modules in the browser; otherwise use a backend
-with the native SDK until browser packaging is supported.
+Import the explicit `@honua/sdk-js/grpc-web` entrypoint in browser applications
+(`@honua/sdk/grpc-web` with the split SDK). This binds the optional peers and
+internal adapters statically so Vite can include them in the production bundle.
+Its `HonuaClient` always uses gRPC-Web. The default and `/honua` entrypoints keep
+those peers optional for REST consumers; their variable imports require a Node
+module loader when selecting gRPC-Web.
 
 Configure the deployment's HTTPS gRPC-Web endpoint and allow the application's
 origin, authorization headers and gRPC-Web response headers in its CORS policy.
@@ -88,7 +93,7 @@ Use a short-lived user access token from your sign-in flow; never ship an admin
 key in a browser bundle. Replace these deployment-specific values before running:
 
 ```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.example",
@@ -108,8 +113,9 @@ console.log(page.features);
 
 The endpoint must actually expose gRPC-Web; an ordinary REST endpoint or an
 HTTP/2-only native gRPC listener is insufficient. Configure token renewal through
-the SDK's auth provider for a long-running session. Setting `transport` explicitly
-matters: the JavaScript client's default remains REST for existing applications.
+the SDK's auth provider for a long-running session. The explicit `/grpc-web` client
+selects this transport automatically. The default entrypoint continues to use REST
+for existing applications.
 
 ## Public files and private snapshots
 

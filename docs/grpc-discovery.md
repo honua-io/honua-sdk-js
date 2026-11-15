@@ -15,10 +15,13 @@ the server before converting discovery.
 
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 
+const endpoint = "https://maps.example.test";
 const connection = await connect({
-  endpoint: "https://maps.example.test",
+  endpoint,
   protocol: "grpc",
+  client: new HonuaClient({ baseUrl: endpoint }),
   serviceId: "parcels",
   layerId: 0, // Omit to discover every layer accessible to this caller.
   authorizationScopeFingerprint: "tenant-a:editor",
@@ -32,7 +35,10 @@ const relationships = descriptor?.layer?.relationships;
 
 The endpoint is the gRPC-Web transport base URL. Service and layer identities are
 explicit; a GeoServices-shaped URL is unnecessary. `connect` selects gRPC-Web by
-default for this protocol; supplied clients must also use gRPC-Web. The authorization scope
+default for this protocol; browser applications inject the explicit `/grpc-web`
+client shown above and install the three runtime peers listed in
+[native data paths](native-data-paths.md#browser-setup-grpc-web). Supplied
+clients must also use gRPC-Web. The authorization scope
 fingerprint must distinguish callers whose visible layers, fields or capabilities
 differ. Existing canonical FeatureServer URLs remain accepted as identity input.
 
@@ -54,7 +60,7 @@ relationships, time information and editing information. `describe()` returns th
 protobuf response and preserves `bigint` values; convert them explicitly before
 serializing to JSON. The native handle exposes no REST metadata method.
 
-For direct calls, configure `HonuaClient` with `transport: "grpc-web"`, then call
+For direct calls, import `HonuaClient` from `@honua/sdk-js/grpc-web`, then call
 `describeService({ serviceId, pageSize, pageToken, signal })` or
 `describeLayer({ serviceId, layerId, signal })`. Direct service calls return one
 page; continue with `nextPageToken` until it is empty. Both methods use the

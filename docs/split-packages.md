@@ -151,9 +151,15 @@ gRPC adapter is loaded only after `transport: "grpc-web"` is selected, through
 a non-literal dynamic import, so Vite can build a REST client when the peers
 are absent. Node resolves those peers when they are installed and
 `transport: "grpc-web"` is selected. A browser bundler does not add the same
-specifiers to the bundle, because they are not static literals. A missing peer
-throws `HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC
-failures are not relabeled as a missing install. The connect facade's PMTiles
+specifiers to the bundle, because they are not static literals. Native browser
+applications instead import `HonuaClient` from `@honua/sdk/grpc-web` (or
+`@honua/sdk-js/grpc-web`). That opt-in entrypoint statically binds the runtime
+and adapters and always selects gRPC-Web. Pass that client to `connect` or
+`createDataset` to keep discovery, queries and editing on the native path.
+When using the default entrypoint in Node, a missing peer throws
+`HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC failures are
+not relabeled as a missing install. The browser entrypoint requires those
+peers at build time. The connect facade's PMTiles
 reader uses the same non-literal import, so a REST production build does not
 resolve the optional `pmtiles` package either. Node still loads it when an
 archive is described. `@honua/sdk-client-compat` declares `maplibre-gl` as an

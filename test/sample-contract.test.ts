@@ -1421,10 +1421,8 @@ describe("sample publication contract", () => {
     }
   });
 
-  // This test calls generatedOutputs() twice (current + bumped-version
-  // catalogs), roughly doubling the file's already-doubled four-journey I/O
-  // budget; give it its own headroom rather than inflating every other test
-  // in this file to match.
+  // Two full artifact generations and strict evidence validation need a
+  // separate I/O budget under coverage instrumentation.
   it("derives release versions without catalog edits and still detects semantic drift", async () => {
     const catalog = await readJson("samples/catalog.v2.json");
     const packageJson = await readJson("package.json");
@@ -1483,7 +1481,7 @@ describe("sample publication contract", () => {
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
-  }, 100_000);
+  }, 240_000);
 
   // A full strict validateCatalog is expensive; this test runs three, so it
   // carries its own budget rather than inflating the version-derivation test.

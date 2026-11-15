@@ -69,6 +69,8 @@ export default defineConfig(async () => {
   }
   return {
     root: exampleRoot,
+    // Published samples also run beneath a versioned directory on the site.
+    base: "./",
     plugins: [selfHostDuckDb()],
     resolve: {
       alias: [
@@ -92,6 +94,8 @@ export default defineConfig(async () => {
     build: {
       outDir: "dist",
       emptyOutDir: true,
+      // The lossless decoder recognizes Arrow container wrappers by constructor name.
+      rolldownOptions: { output: { keepNames: true } },
     },
   };
 });
