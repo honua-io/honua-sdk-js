@@ -16,7 +16,8 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     if (message.type() === "error") consoleErrors.push(message.text());
   });
 
-  const server = await startOvertureFixtureServer();
+  const basePath = "/published/overture/";
+  const server = await startOvertureFixtureServer({ basePath });
   const fixtureOrigin = new URL(server.url).origin;
   await page.route("https://extensions.duckdb.org/**", (route) => route.abort("blockedbyclient"));
   await page.route("https://cdn.jsdelivr.net/**", (route) => route.abort("blockedbyclient"));
@@ -45,6 +46,18 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await expect(page.locator("#result-body tr")).toHaveCount(8);
     await expect(page.locator("#result-summary")).toContainText("GERS ids preserved");
     await expect(page.locator("#result-points circle")).toHaveCount(8);
+    const waikiki = page.locator("#result-body tr").filter({ hasText: "Waikiki Beach" });
+    await expect(waikiki.locator("td").nth(3)).toHaveText("0.96");
+    await expect(waikiki.locator("td").nth(4)).toHaveText("-157.8261, 21.2762");
+    const positions = await page.locator("#result-points circle").evaluateAll((circles) =>
+      circles.map((circle) => [Number(circle.getAttribute("cx")), Number(circle.getAttribute("cy"))]),
+    );
+    for (const [x, y] of positions) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(800);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(400);
+    }
     expect(await page.evaluate(() => window.__HONUA_OVERTURE__?.parquetRuntime)).toEqual({
       duckDbVersion: "v1.4.3",
       parquetScanRows: 8,
@@ -58,7 +71,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     expect(externalRequests).toEqual([]);
     expect(externalExtensionRequests).toEqual([]);
     expect(localExtensionRequests).toEqual([
-      `${fixtureOrigin}/duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`,
+      `${fixtureOrigin}${basePath}duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`,
     ]);
 
     const fixtureExecution = await page.evaluate(() => window.__HONUA_OVERTURE__?.lastEvidence);
@@ -106,10 +119,13 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     ).not.toThrow();
 
     await page.selectOption("#category", "beach");
+    await page.locator("#row-limit").fill("1");
     await page.getByRole("button", { name: "Plan + run" }).click();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_OVERTURE__?.status)).toBe("completed");
-    await expect(page.locator("#result-body tr")).toHaveCount(2);
+    await expect(page.locator("#result-body tr")).toHaveCount(1);
     await expect(page.locator("#result-body")).toContainText("Waikiki Beach");
+    await expect(page.locator("#result-body tr td").nth(3)).toHaveText("0.96");
+    await expect(page.locator("#result-body tr td").nth(4)).toHaveText("-157.8261, 21.2762");
 
     await page.getByRole("button", { name: "Plan + run" }).click();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_OVERTURE__?.status)).toBe("completed");
@@ -119,7 +135,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     await page.getByRole("button", { name: "Plan + run" }).click();
     await expect.poll(async () => page.evaluate(() => window.__HONUA_OVERTURE__?.status)).toBe("rejected");
     await expect(page.locator("#query-message")).toContainText("safety budget");
-    await expect(page.locator("#result-body tr")).toHaveCount(2);
+    await expect(page.locator("#result-body tr")).toHaveCount(1);
 
     await page.locator("#aoi").fill("-158.30,21.20,-157.65,21.60");
     const engineStartsBeforeCancel = await page.evaluate(() => window.__HONUA_OVERTURE__?.engineStartCount);
@@ -141,7 +157,7 @@ test("Overture columnar lab stays bounded, offline, accessible, and responsive",
     expect(externalRequests).toEqual([]);
     expect(externalExtensionRequests).toEqual([]);
     expect(new Set(localExtensionRequests)).toEqual(
-      new Set([`${fixtureOrigin}/duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`]),
+      new Set([`${fixtureOrigin}${basePath}duckdb/extensions/v1.4.3/wasm_eh/parquet.duckdb_extension.wasm`]),
     );
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);

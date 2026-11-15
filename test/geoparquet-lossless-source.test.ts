@@ -94,6 +94,30 @@ function readCount(sql: string): number {
 }
 
 describe("GeoParquet lossless-json source wiring", () => {
+  it("decodes an explicitly projected bbox covering without adding it to default columns or schema fields", async () => {
+    const bbox = { xmin: -158, xmax: -157, ymin: 21, ymax: 22 };
+    const h = harness({
+      describe: [
+        { column_name: "id", column_type: "VARCHAR", null: "YES" },
+        { column_name: "geometry", column_type: "BLOB", null: "YES" },
+        {
+          column_name: "bbox",
+          column_type: "STRUCT(xmin DOUBLE, xmax DOUBLE, ymin DOUBLE, ymax DOUBLE)",
+          null: "YES",
+        },
+      ],
+      query: () => [{ bbox }],
+    });
+    const profile = await h.runtime.profile([URL]);
+    expect(profile.columns).toEqual(["id"]);
+    expect(profile.fields?.map((field) => field.name)).toEqual(["id", "geometry"]);
+    const source = geoparquetSource(descriptor(), { runtime: h.runtime, resultEncoding: "lossless-json" });
+    const result = await source.query({ outFields: ["bbox"], returnGeometry: false });
+    expect(result.features[0]?.attributes).toEqual({ bbox });
+    expect(h.scans).toHaveLength(1);
+    await h.runtime.dispose();
+  });
+
   it("normalizes feature, queryAll, and stream rows without a second scan", async () => {
     const h = harness({
       query: () => [LOSSLESS_FEATURE_ROW],
