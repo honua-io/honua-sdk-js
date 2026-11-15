@@ -46,7 +46,7 @@ export function grpcEditSchema(layer: LayerDescriptor | undefined): GrpcEditSche
 /** gRPC status UNIMPLEMENTED: the server predates DescribeLayer, which geospatial-grpc 1.1 added. */
 const GRPC_UNIMPLEMENTED = 12;
 
-/** gRPC status CANCELED: the DescribeLayer timeout signal aborted the call. */
+/** gRPC status CANCELED: cancellation may originate locally or at the server. */
 const GRPC_CANCELED = 1;
 
 /** A stalled DescribeLayer must not hold every later edit on the source. */
@@ -65,15 +65,18 @@ export function memoizedGrpcEditSchema(
   let pending: Promise<GrpcEditSchema> | undefined;
   return (signal) => {
     if (signal?.aborted) return Promise.reject(new HonuaAbortError());
-    pending ??= client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
-      (response) => grpcEditSchema(response.layer),
-      (error: unknown) => {
-        if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
-        pending = undefined;
-        if (isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
-        throw error;
-      },
-    );
+    if (!pending) {
+      const timeout = AbortSignal.timeout(DESCRIBE_TIMEOUT_MS);
+      pending = client.describeLayer({ serviceId, layerId, signal: timeout }).then(
+        (response) => grpcEditSchema(response.layer),
+        (error: unknown) => {
+          if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
+          pending = undefined;
+          if (timeout.aborted && isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
+          throw error;
+        },
+      );
+    }
     return abortable(pending, signal);
   };
 }

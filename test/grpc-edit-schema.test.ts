@@ -51,3 +51,12 @@ it("still caches an unimplemented DescribeLayer", async () => {
   await expect(read()).resolves.toEqual({ attributeTypes: {} });
   expect(describeLayer).toHaveBeenCalledTimes(1);
 });
+
+it("preserves server cancellation before the local deadline and retries the read", async () => {
+  const error = new HonuaGrpcError(1, "server canceled", { reason: "shutdown" });
+  const describeLayer = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(create(DescribeLayerResponseSchema, {}));
+  const read = memoizedGrpcEditSchema({ describeLayer }, "inspections", 0);
+  await expect(read()).rejects.toBe(error);
+  await expect(read()).resolves.toEqual({ attributeTypes: {} });
+  expect(describeLayer).toHaveBeenCalledTimes(2);
+});
