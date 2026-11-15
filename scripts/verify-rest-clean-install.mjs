@@ -11,8 +11,7 @@
  *
  * `config/installed-package-certification.v1.json` still pins those three
  * packages in consumerDependencies. That pin is a temporary sample workaround
- * for the published 0.1.9-beta.0 tarball, not the packaging contract. Do not
- * delete test-results/installed-quickstart-budget.json to make this check pass.
+ * for the published 0.1.9-beta.0 tarball, not the packaging contract.
  */
 
 import { spawn, spawnSync } from "node:child_process";

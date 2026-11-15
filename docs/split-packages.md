@@ -169,9 +169,7 @@ omit that renderer; installing it still includes it in the bundle.
 `config/installed-package-certification.v1.json` still lists
 `@bufbuild/protobuf`, `@connectrpc/connect`, and `@connectrpc/connect-web` in
 `consumerDependencies`. That pin is a temporary sample workaround for the
-published `0.1.9-beta.0` tarball. It is not the packaging contract, and the
-committed `test-results/installed-quickstart-budget.json` receipt that recorded
-those installs stays in place.
+published `0.1.9-beta.0` tarball, not the packaging contract.
 
 A consumer that selects `transport: "grpc-web"` must install the optional peers
 alongside the split SDK:

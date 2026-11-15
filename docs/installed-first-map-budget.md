@@ -151,9 +151,8 @@ the peer, worker and stylesheet fixes and both defect injections are retained.
 The runner now uses the native npm launcher and normalized module paths, with
 its isolated consumer inside the worktree's `test-results` directory.
 
-`test-results/installed-quickstart-budget.windows.json` retains the public
-`0.1.9-beta.0` integrity and full dependency resolution, including MapLibre
-`6.9.0`. Removing the peer fix reproduces two renderer copies and measures
+The replay recorded the public `0.1.9-beta.0` integrity and full dependency
+resolution, including MapLibre `6.9.0`. Removing the peer fix reproduces two renderer copies and measures
 3,108,365 JavaScript / 831,838 gzip bytes. The corrected graph contains one
 renderer, and its worker and CSS share the installed peer, but it still measures
 2,050,733 / 550,795 bytes. **The frozen 1,990,000 / 524,000 limits fail.**
