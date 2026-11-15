@@ -196,9 +196,37 @@ it("encodes dates, binary values and exact integers and resolves conventional ID
     ],
   });
   expect(wire.updates[0].id).toBe(9223372036854775807n);
+  expect(wire.updates[0].attributes).not.toHaveProperty("OBJECTID");
   expect(wire.updates[0].attributes.when.value).toEqual({ case: "datetimeValue", value: 1234n });
   expect(wire.updates[0].attributes.bytes.value).toEqual({ case: "bytesValue", value: new Uint8Array([1]) });
   expect(wire.updates[0].attributes.count.value).toEqual({ case: "int64Value", value: 42n });
+});
+
+it.each(["id", "Id", "OBJECTID", "ObjectId", "parcel_id"])(
+  "uses %s only as the update selector while preserving adds and caller attributes",
+  (idField) => {
+    const attributes = { [idField]: 7, external_id: 23, name: "changed" };
+    const wire = toProtoApplyEditsRequest({
+      ...target,
+      ...(idField === "parcel_id" ? { objectIdField: idField } : {}),
+      adds: [{ attributes }],
+      updates: [{ attributes }],
+    });
+    expect(wire.updates[0].id).toBe(7n);
+    expect(Object.keys(wire.updates[0].attributes)).toEqual(["external_id", "name"]);
+    expect(wire.adds[0].attributes).toHaveProperty(idField);
+    expect(attributes).toEqual({ [idField]: 7, external_id: 23, name: "changed" });
+  },
+);
+
+it("preserves other ID-like attributes when a custom selector is supplied", () => {
+  const wire = toProtoApplyEditsRequest({
+    ...target,
+    objectIdField: "parcel_id",
+    updates: [{ attributes: { parcel_id: 7, id: 23, OBJECTID: 24 } }],
+  });
+  expect(wire.updates[0].id).toBe(7n);
+  expect(Object.keys(wire.updates[0].attributes)).toEqual(["id", "OBJECTID"]);
 });
 
 it("rejects edit reprojection before sending", () => {
@@ -242,6 +270,7 @@ function typedEditFetch() {
     expect(wire.adds[0].attributes.missing.value.case).toBe("nullValue");
     expect(wire.adds[0].geometry?.shape).toMatchObject({ case: "point", value: { x: 1, y: 2 } });
     expect(wire.updates[0].id).toBe(2n);
+    expect(Object.keys(wire.updates[0].attributes)).toEqual(["name"]);
     return response(
       create(ApplyEditsResponseSchema, {
         addResults: [{ objectId: 9223372036854775807n, success: true }],
@@ -257,6 +286,7 @@ it("forwards a compatibility layer's custom primary key through native edits", a
   const fetchFn = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
     const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
     expect(wire.updates[0].id).toBe(7n);
+    expect(Object.keys(wire.updates[0].attributes)).toEqual(["name"]);
     expect(wire.deletes).toEqual([8n]);
     return response(create(ApplyEditsResponseSchema, { updateResults: [{ objectId: 7n, success: true }] }));
   });
@@ -284,9 +314,7 @@ function canonicalEditFetch() {
     }
     const wire = fromBinary(ApplyEditsRequestSchema, (init?.body as Uint8Array).subarray(5));
     expect(wire.updates.map((feature) => feature.id)).toEqual([7n, 9223372036854775807n]);
-    expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([["parcel_id"], ["parcel_id"]]);
-    expect(wire.updates[0].attributes.parcel_id.value).toEqual({ case: "int64Value", value: 7n });
-    expect(wire.updates[1].attributes.parcel_id.value).toEqual({ case: "stringValue", value: "9223372036854775807" });
+    expect(wire.updates.map((feature) => Object.keys(feature.attributes))).toEqual([[], []]);
     expect(wire.deletes).toEqual([9223372036854775807n]);
     return response(
       create(ApplyEditsResponseSchema, {
