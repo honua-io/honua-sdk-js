@@ -167,6 +167,7 @@ describe("createHonuaClient transport selection", () => {
       'The specifier "@connectrpc/connect" was a bare specifier, but was not remapped to anything.',
       "Module name, '@connectrpc/connect' does not resolve to a valid URL.",
       "Failed to fetch dynamically imported module: https://app.example/assets/grpc-adapter.js",
+      "Importing a module script failed.",
     ];
     for (const message of messages) {
       vi.spyOn(HonuaClient.prototype, "describeService").mockRejectedValueOnce(new TypeError(message));

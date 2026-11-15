@@ -8,7 +8,7 @@
  * @module
  */
 import { HonuaClient } from "./client.js";
-import { HonuaOptionalGrpcPeerError } from "./optional-grpc-peer.js";
+import { isGrpcRuntimeLoadFailure } from "./optional-grpc-peer.js";
 import type { HonuaClientOptions, HonuaTransport } from "./types.js";
 
 /** `"auto"` selects gRPC-Web where the server offers it, REST otherwise. */
@@ -16,6 +16,8 @@ export type HonuaTransportPreference = HonuaTransport | "auto";
 
 /** How long the transport probe waits for an answer before selecting REST. */
 export const HONUA_TRANSPORT_PROBE_TIMEOUT_MS = 5_000;
+
+const MAX_TIMER_MS = 2_147_483_647;
 
 /** Options for {@link selectHonuaTransport}. */
 export interface SelectHonuaTransportOptions extends Omit<HonuaClientOptions, "transport"> {
@@ -52,8 +54,8 @@ type ClientFactory = (options: HonuaClientOptions & { readonly transport: HonuaT
  * serves the native contract. A response that is not gRPC-Web (for example an
  * HTML 404 from a REST-only server), no response within the probe timeout after
  * the request is sent (an unreachable host, or a CORS policy that does not admit
- * gRPC-Web), or a gRPC runtime that cannot be loaded select REST. Check `client.isGrpcWeb` to see which
- * transport was chosen.
+ * gRPC-Web), or a gRPC runtime that cannot be loaded select REST. Check
+ * `client.isGrpcWeb` to see which transport was chosen.
  *
  * Browser bundles: import `createHonuaClient` from `@honua/sdk-js/grpc-web`.
  * This variant loads the peers through a runtime specifier that bundlers do not
@@ -144,35 +146,12 @@ export async function selectHonuaTransportWith(
   } catch (error) {
     signal?.throwIfAborted();
     if (answer !== undefined) return isGrpcWebAnswer(answer) ? "grpc-web" : "rest";
-    if (sent || isRuntimeLoadFailure(error)) return "rest";
+    if (sent || isGrpcRuntimeLoadFailure(error)) return "rest";
     throw error;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", forwardAbort);
   }
-}
-
-const MAX_TIMER_MS = 2_147_483_647;
-
-/**
- * Browsers word a failed dynamic import differently (Chromium: "Failed to resolve
- * module specifier", Firefox: "bare specifier ... not remapped", Safari: "does not
- * resolve to a valid URL" / "Importing a module script failed"), and a relative
- * module can fail as "Failed to fetch dynamically imported module". Any of them
- * means this build cannot run gRPC-Web, so the probe selects REST.
- */
-const RUNTIME_LOAD_FAILURE =
-  /ERR_MODULE_NOT_FOUND|Failed to resolve module specifier|bare specifier|does not resolve to a valid URL|Importing a module script failed|dynamically imported module|Cannot find (?:module|package)/iu;
-
-function isRuntimeLoadFailure(error: unknown): boolean {
-  const seen = new Set<unknown>();
-  let current: unknown = error;
-  while (current instanceof Error && !seen.has(current)) {
-    if (current instanceof HonuaOptionalGrpcPeerError || RUNTIME_LOAD_FAILURE.test(current.message)) return true;
-    seen.add(current);
-    current = current.cause;
-  }
-  return false;
 }
 
 function isGrpcWebAnswer(response: Response): boolean {
