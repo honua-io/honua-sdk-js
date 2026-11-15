@@ -333,7 +333,7 @@ describe("cli run", () => {
     const streams = captureStreams();
     const requested = [];
     const fetch = registryFetch(
-      { "dist-tags": { latest: "0.3.1", "release-2026.1": "0.3.0" }, versions: { "0.3.0": {}, "0.3.1": {} } },
+      { "dist-tags": { latest: "0.4.2", "release-2026.1": "0.4.1" }, versions: { "0.4.1": {}, "0.4.2": {} } },
       requested,
     );
     const code = await run(["promoted", "--template", "react-ts"], {
@@ -346,7 +346,7 @@ describe("cli run", () => {
     assert.equal(code, 0, streams.chunks.stderr);
     assert.deepEqual(requested, ["https://registry.example.test/npm/@honua%2Fsdk-js"]);
     const projectManifest = JSON.parse(fs.readFileSync(path.join(cwd, "promoted/package.json"), "utf8"));
-    assert.equal(projectManifest.dependencies["@honua/sdk-js"], "0.3.0");
+    assert.equal(projectManifest.dependencies["@honua/sdk-js"], "0.4.1");
     assert.match(streams.chunks.stdout, /from the promoted release-2026\.1 channel/);
   });
 
