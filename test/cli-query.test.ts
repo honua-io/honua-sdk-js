@@ -61,3 +61,17 @@ describe("CLI spatial counts", () => {
   });
 });
 
+describe("CLI GeoJSON", () => {
+  it("requests WGS84 coordinates from a projected feature layer", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const request = new URL(String(input));
+      requests.push(request);
+      const longitude = request.searchParams.get("outSR") === "4326" ? 10 : 1113194.9079327357;
+      return Response.json({ features: [{ attributes: { name: "point" }, geometry: { x: longitude, y: 0 } }] });
+    });
+    await queryCommand({ positionals: ["projected/0"], flags: { format: "geojson" } }, context);
+    expect(requests[0]?.searchParams.get("outSR")).toBe("4326");
+    expect(JSON.parse(output.join("")).features[0].geometry).toEqual({ type: "Point", coordinates: [10, 0] });
+  });
+
+});
