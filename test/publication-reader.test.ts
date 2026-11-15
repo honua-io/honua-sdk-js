@@ -107,19 +107,19 @@ describe("artifact range reader", () => {
   });
 });
 
-describe("shared task", () => {
-  function deferredTask() {
-    const runs: AbortSignal[] = [];
-    let finish: (value: string) => void = () => undefined;
-    const task = sharedTask((signal) => {
-      runs.push(signal);
-      return new Promise<string>((resolve) => {
-        finish = resolve;
-      });
+function deferredTask() {
+  const runs: AbortSignal[] = [];
+  let finish: (value: string) => void = () => undefined;
+  const task = sharedTask((signal) => {
+    runs.push(signal);
+    return new Promise<string>((resolve) => {
+      finish = resolve;
     });
-    return { task, runs, finish: (value: string) => finish(value) };
-  }
+  });
+  return { task, runs, finish: (value: string) => finish(value) };
+}
 
+describe("pre-aborted shared task callers", () => {
   it("does not start work for an already-cancelled caller", async () => {
     const { task, runs, finish } = deferredTask();
     await expect(task(AbortSignal.abort())).rejects.toBeInstanceOf(HonuaAbortError);
@@ -140,6 +140,9 @@ describe("shared task", () => {
     expect(runs).toHaveLength(1);
   });
 
+});
+
+describe("shared task", () => {
   it("runs once for concurrent callers and keeps running while one caller still waits", async () => {
     const { task, runs, finish } = deferredTask();
     const cancelled = new AbortController();
