@@ -70,7 +70,7 @@ export async function startOvertureFixtureServer({ build = true, basePath = "/" 
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Failed to bind Overture fixture server.");
   return {
-    url: `http://127.0.0.1:${address.port}${basePath}`,
+    url: `http://127.0.0.1:${address.port}${basePath === "/" ? "" : basePath}`,
     async close() {
       await new Promise((resolve) => server.close(resolve));
     },
