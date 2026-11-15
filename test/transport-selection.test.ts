@@ -1,0 +1,126 @@
+import { fromBinary } from "@bufbuild/protobuf";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { HonuaClient } from "../src/core/client.js";
+import { HonuaOptionalGrpcPeerError } from "../src/core/optional-grpc-peer.js";
+import { createHonuaClient, selectHonuaTransport } from "../src/core/transport-selection.js";
+import { DescribeServiceRequestSchema } from "../src/gen/geospatial/v1/feature_service_pb.js";
+import { HonuaClient as GrpcWebHonuaClient, createHonuaClient as createBrowserClient } from "../src/grpc-web.js";
+import { createHonuaClient as fromIndex } from "../src/index.js";
+
+const baseUrl = "https://example.test";
+
+function grpcStatus(code: number): Response {
+  return new Response(null, {
+    headers: { "content-type": "application/grpc-web+proto", "grpc-status": String(code), "grpc-message": "x" },
+  });
+}
+
+function recordingFetch(answer: () => Response | Promise<Response>, calls: string[] = []): typeof fetch {
+  return async (input, init) => {
+    calls.push(String(input));
+    const bytes = new Uint8Array(await new Response(init?.body).arrayBuffer());
+    expect(fromBinary(DescribeServiceRequestSchema, bytes.subarray(5))).toMatchObject({ serviceId: "" });
+    return answer();
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("createHonuaClient transport selection", () => {
+  it("selects gRPC-Web when the server answers the probe with a gRPC status", async () => {
+    const calls: string[] = [];
+    const client = await createHonuaClient({
+      baseUrl,
+      apiKey: "key",
+      fetchFn: recordingFetch(() => grpcStatus(3), calls),
+    });
+    expect(client).toBeInstanceOf(HonuaClient);
+    expect(client.isGrpcWeb).toBe(true);
+    expect(calls).toEqual([`${baseUrl}/geospatial.v1.FeatureService/DescribeService`]);
+  });
+
+  it("treats an UNIMPLEMENTED status as a gRPC-Web server", async () => {
+    await expect(selectHonuaTransport({ baseUrl, fetchFn: recordingFetch(() => grpcStatus(12)) })).resolves.toBe(
+      "grpc-web",
+    );
+  });
+
+  it("selects REST when the answer is not gRPC-Web", async () => {
+    const fetchFn = recordingFetch(
+      () => new Response("<html>not found</html>", { status: 404, headers: { "content-type": "text/html" } }),
+    );
+    const client = await createHonuaClient({ baseUrl, fetchFn });
+    expect(client.isGrpcWeb).toBe(false);
+  });
+
+  it("selects REST for a bare HTTP 400 without gRPC headers", async () => {
+    await expect(
+      selectHonuaTransport({ baseUrl, fetchFn: recordingFetch(() => new Response(null, { status: 400 })) }),
+    ).resolves.toBe("rest");
+  });
+
+  it("selects REST when no response arrives", async () => {
+    const fetchFn: typeof fetch = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    await expect(selectHonuaTransport({ baseUrl, fetchFn })).resolves.toBe("rest");
+  });
+
+  it("does not retry the probe even when the client has a retry policy", async () => {
+    const calls: string[] = [];
+    await expect(
+      selectHonuaTransport({ baseUrl, retry: { maxRetries: 3 }, fetchFn: recordingFetch(() => grpcStatus(14), calls) }),
+    ).resolves.toBe("grpc-web");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("selects REST when the optional gRPC peers are not installed", async () => {
+    const missing = new HonuaOptionalGrpcPeerError("@connectrpc/connect-web", new Error("Cannot find package"));
+    vi.spyOn(HonuaClient.prototype, "describeService").mockRejectedValue(missing);
+    const fetchFn = vi.fn<typeof fetch>();
+    const client = await createHonuaClient({ baseUrl, fetchFn });
+    expect(client.isGrpcWeb).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("honours an explicit transport without probing", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    expect((await createHonuaClient({ baseUrl, fetchFn, transport: "rest" })).isGrpcWeb).toBe(false);
+    expect((await createHonuaClient({ baseUrl, fetchFn, transport: "grpc-web" })).isGrpcWeb).toBe(true);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects with the abort reason instead of choosing a transport", async () => {
+    const controller = new AbortController();
+    const reason = new Error("caller cancelled");
+    const fetchFn: typeof fetch = async () => {
+      controller.abort(reason);
+      throw reason;
+    };
+    await expect(createHonuaClient({ baseUrl, fetchFn, signal: controller.signal })).rejects.toBe(reason);
+
+    const fetchNever = vi.fn<typeof fetch>();
+    await expect(createHonuaClient({ baseUrl, fetchFn: fetchNever, signal: controller.signal })).rejects.toBe(reason);
+    expect(fetchNever).not.toHaveBeenCalled();
+  });
+
+  it("is exported from the package entrypoint", () => {
+    expect(fromIndex).toBe(createHonuaClient);
+  });
+
+  it("returns the statically bound gRPC-Web class from the browser entrypoint", async () => {
+    const native = await createBrowserClient({ baseUrl, fetchFn: recordingFetch(() => grpcStatus(3)) });
+    expect(native).toBeInstanceOf(GrpcWebHonuaClient);
+    expect(native.isGrpcWeb).toBe(true);
+
+    const rest = await createBrowserClient({
+      baseUrl,
+      fetchFn: recordingFetch(() => new Response(null, { status: 404 })),
+    });
+    expect(rest).not.toBeInstanceOf(GrpcWebHonuaClient);
+    expect(rest.isGrpcWeb).toBe(false);
+  });
+});

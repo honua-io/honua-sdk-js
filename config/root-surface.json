@@ -36,6 +36,7 @@
       "connect",
       "createDataset",
       "createHonua",
+      "createHonuaClient",
       "envelope",
       "executeQueryPlan",
       "explainQuery",
@@ -73,6 +74,7 @@
       "QUERY_PLAN_VERSION",
       "queryFilter",
       "sanitizeHonuaErrorContext",
+      "selectHonuaTransport",
       "serializeHonuaError",
       "spatialContains",
       "spatialIntersects",
@@ -113,6 +115,8 @@
       "createDataset",
       "CreateDatasetOptions",
       "createHonua",
+      "createHonuaClient",
+      "CreateHonuaClientOptions",
       "Dataset",
       "DatasetId",
       "DegradedReason",
@@ -178,6 +182,7 @@
       "HonuaTerminalFailureReceipt",
       "HonuaTimeoutError",
       "HonuaTransport",
+      "HonuaTransportPreference",
       "InspectOptions",
       "isHonuaError",
       "isHonuaErrorCode",
@@ -238,6 +243,7 @@
       "RendererTarget",
       "Result",
       "sanitizeHonuaErrorContext",
+      "selectHonuaTransport",
       "SerializedHonuaError",
       "SerializedHonuaErrorCause",
       "serializeHonuaError",
@@ -650,6 +656,22 @@
     },
     {
       "symbol": "HonuaTerminalFailureReceipt",
+      "kind": "type"
+    },
+    {
+      "symbol": "createHonuaClient",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "selectHonuaTransport",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "CreateHonuaClientOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaTransportPreference",
       "kind": "type"
     }
   ],

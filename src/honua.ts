@@ -20,6 +20,8 @@
  * @packageDocumentation
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
+export { createHonuaClient, selectHonuaTransport } from "./core/transport-selection.js";
+export type { CreateHonuaClientOptions, HonuaTransportPreference } from "./core/transport-selection.js";
 export type { HonuaNativeAttachments } from "./core/native-attachments.js";
 export {
   HONUA_CONNECT_ADAPTER_VERSION,

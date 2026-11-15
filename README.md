@@ -21,7 +21,9 @@ surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimen
 
 ## Native application data
 
-Use `HonuaClient` with explicit `transport: "grpc-web"` for live feature queries.
+Create the client with `await createHonuaClient({ baseUrl })` for live feature queries: it uses the
+native gRPC-Web transport where the server offers it and GeoServices REST otherwise
+(`transport: "grpc-web"` or `"rest"` skips the probe; `new HonuaClient` still defaults to REST).
 Follow the [native data guide](docs/native-data-paths.md) for the complete browser
 setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
 

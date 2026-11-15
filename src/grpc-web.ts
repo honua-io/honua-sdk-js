@@ -10,6 +10,7 @@ import { createGrpcWebTransport } from "@connectrpc/connect-web";
 
 import { HonuaClient as BaseHonuaClient } from "./core/client.js";
 import * as grpcAdapter from "./core/grpc-adapter.js";
+import { type CreateHonuaClientOptions, createHonuaClientWith } from "./core/transport-selection.js";
 import type { HonuaClientOptions } from "./core/types.js";
 import { FeatureService } from "./gen/geospatial/v1/feature_service_pb.js";
 
@@ -29,3 +30,17 @@ export class HonuaClient extends BaseHonuaClient {
     return Promise.resolve(grpcAdapter);
   }
 }
+
+/**
+ * Browser variant of the root `createHonuaClient`: probes with this entrypoint's
+ * statically bound gRPC-Web runtime and returns its {@link HonuaClient} when the
+ * server answers gRPC-Web, or a REST client otherwise. Pass `transport` to skip
+ * the probe.
+ */
+export function createHonuaClient(options: CreateHonuaClientOptions): Promise<BaseHonuaClient> {
+  return createHonuaClientWith(options, ({ transport, ...clientOptions }) =>
+    transport === "grpc-web" ? new HonuaClient(clientOptions) : new BaseHonuaClient({ ...clientOptions, transport }),
+  );
+}
+
+export type { CreateHonuaClientOptions, HonuaTransportPreference } from "./core/transport-selection.js";
