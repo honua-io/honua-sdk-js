@@ -95,6 +95,7 @@ function encodeUpdate(input: HonuaFeature, request: ApplyEditsRequest): ProtoFea
     Object.keys(input.attributes).find((key) => key.toLowerCase() === "id");
   const id = idField === undefined ? undefined : input.attributes[idField];
   encoded.id = id === undefined || id === null ? 0n : editObjectId(id);
+  if (idField !== undefined) delete encoded.attributes[idField];
   return encoded;
 }
 
