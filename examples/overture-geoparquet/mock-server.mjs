@@ -37,12 +37,18 @@ function serve(res, filePath) {
   res.end(fs.readFileSync(filePath));
 }
 
-export async function startOvertureFixtureServer({ build = true } = {}) {
+export async function startOvertureFixtureServer({ build = true, basePath = "/" } = {}) {
   if (build) buildDemoIfNeeded();
 
   const server = http.createServer((req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
-    const requestedPath = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
+    if (!requestUrl.pathname.startsWith(basePath)) {
+      res.writeHead(404);
+      res.end("Not found");
+      return;
+    }
+    const relativePath = requestUrl.pathname.slice(basePath.length);
+    const requestedPath = relativePath ? `/${relativePath}` : "/index.html";
     const staticPath = path.join(distRoot, requestedPath);
 
     if (staticPath.startsWith(distRoot) && fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
@@ -64,7 +70,7 @@ export async function startOvertureFixtureServer({ build = true } = {}) {
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Failed to bind Overture fixture server.");
   return {
-    url: `http://127.0.0.1:${address.port}`,
+    url: `http://127.0.0.1:${address.port}${basePath}`,
     async close() {
       await new Promise((resolve) => server.close(resolve));
     },

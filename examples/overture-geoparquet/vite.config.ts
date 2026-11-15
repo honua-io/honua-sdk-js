@@ -69,6 +69,8 @@ export default defineConfig(async () => {
   }
   return {
     root: exampleRoot,
+    // Published samples also run beneath a versioned directory on the site.
+    base: "./",
     plugins: [selfHostDuckDb()],
     resolve: {
       alias: [
