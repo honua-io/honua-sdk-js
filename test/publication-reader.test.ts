@@ -92,6 +92,25 @@ describe("artifact range reader", () => {
     await expect(short.view().slice(10, 20)).rejects.toMatchObject({ code: "artifact-mismatch" });
   });
 
+  it("rejects cancelled cached reads while keeping the cache available to other callers", async () => {
+    let requests = 0;
+    const counting: typeof fetch = async () => {
+      requests++;
+      return new Response(new Uint8Array(10), { status: 206, headers: rangeOf(10, 19) });
+    };
+    const reader = artifactRangeReader(URL_UNDER_TEST, FILE_BYTES, counting);
+    const cached = await reader.view().slice(10, 20);
+    const controller = new AbortController();
+    const view = reader.view(controller.signal);
+    controller.abort();
+    const meter = { bytes: 0 };
+    await expect(view.slice(10, 20)).rejects.toBeInstanceOf(HonuaAbortError);
+    await expect(reader.view(controller.signal, meter).slice(10, 20)).rejects.toBeInstanceOf(HonuaAbortError);
+    await expect(reader.view(undefined, meter).slice(10, 20)).resolves.toBe(cached);
+    expect(requests).toBe(1);
+    expect(meter.bytes).toBe(0);
+  });
+
   it("serves a repeated small read from memory without counting it again", async () => {
     let requests = 0;
     const counting: typeof fetch = async () => {
@@ -107,19 +126,41 @@ describe("artifact range reader", () => {
   });
 });
 
-describe("shared task", () => {
-  function deferredTask() {
-    const runs: AbortSignal[] = [];
-    let finish: (value: string) => void = () => undefined;
-    const task = sharedTask((signal) => {
-      runs.push(signal);
-      return new Promise<string>((resolve) => {
-        finish = resolve;
-      });
+function deferredTask() {
+  const runs: AbortSignal[] = [];
+  let finish: (value: string) => void = () => undefined;
+  const task = sharedTask((signal) => {
+    runs.push(signal);
+    return new Promise<string>((resolve) => {
+      finish = resolve;
     });
-    return { task, runs, finish: (value: string) => finish(value) };
-  }
+  });
+  return { task, runs, finish: (value: string) => finish(value) };
+}
 
+describe("pre-aborted shared task callers", () => {
+  it("does not start work for an already-cancelled caller", async () => {
+    const { task, runs, finish } = deferredTask();
+    await expect(task(AbortSignal.abort())).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(runs).toHaveLength(0);
+    const next = task();
+    finish("footer");
+    await expect(next).resolves.toBe("footer");
+    expect(runs).toHaveLength(1);
+  });
+
+  it("does not disturb a shared run when an already-cancelled caller joins", async () => {
+    const { task, runs, finish } = deferredTask();
+    const first = task();
+    await expect(task(AbortSignal.abort())).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(runs[0]?.aborted).toBe(false);
+    finish("footer");
+    await expect(first).resolves.toBe("footer");
+    expect(runs).toHaveLength(1);
+  });
+});
+
+describe("shared task", () => {
   it("runs once for concurrent callers and keeps running while one caller still waits", async () => {
     const { task, runs, finish } = deferredTask();
     const cancelled = new AbortController();

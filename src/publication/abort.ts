@@ -47,6 +47,7 @@ export function sharedTask<T>(task: (signal: AbortSignal) => Promise<T>): (signa
     return run;
   }
   return (signal?: AbortSignal): Promise<T> => {
+    if (signal?.aborted) return Promise.reject(new HonuaAbortError());
     shared ??= start();
     const run = shared;
     run.waiters++;
