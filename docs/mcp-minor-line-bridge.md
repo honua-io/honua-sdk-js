@@ -49,7 +49,7 @@ historical steps; use the current published-pin guidance below for new releases.
    recorded peer to the exact pin and integrity; live verification downloads and
    checks those bytes again. An inferred caret based on the independently
    versioned MCP release cannot describe this bridge. The historical Node 20 bridge used published
-   `@honua/mcp-server@0.1.19`. Keep its immutable receipts as transition
+   `@honua/mcp-server@0.1.19`. That immutable release is the transition
    evidence; it is no longer the current generated-client pin.
 3. The approved Node 22 breaking baseline merged, and Release Please computed
    the next minor versions. The public bridge pin was retained until the next
@@ -59,7 +59,7 @@ historical steps; use the current published-pin guidance below for new releases.
 A range declaration proves metadata compatibility only. Source/runtime tests,
 managed updater checks, and real default-resolver installations are separate
 proofs. This policy change alone did not publish or qualify the subsequent 0.2 packages.
-Historical Node 20 receipts and the certified scaffold fallback remain intact.
+The published Node 20 release and the certified scaffold fallback remain intact.
 
 ## Historical bridge recovery and release boundary
 
