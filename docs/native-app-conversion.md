@@ -9,7 +9,7 @@ Use gRPC for authenticated live reads and editing, and versioned PMTiles,
 GeoParquet and COG files for rendering and bulk reads. Render with MapLibre styles.
 Application code uses `Dataset` and `Source`; it does not need a FeatureServer URL
 builder or a GeoServices-shaped facade over gRPC. See [native setup and file
-delivery](native-data-paths.md) for transport peers, browser packaging limitations,
+delivery](native-data-paths.md) for transport peers, the browser entrypoint,
 CORS, signed URLs and snapshot freshness.
 
 ## Bind a source
@@ -20,7 +20,7 @@ capabilities when the deployment supports DescribeService and DescribeLayer.
 Protocol defaults describe the SDK surface.
 
 ```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES, queryFilter } from "@honua/sdk-js/contract";
 
 const baseUrl = "https://your-honua-server.example";
@@ -168,7 +168,7 @@ older servers reject the calls. Most applications should call
 resource for custom chunking and incremental hashing.
 
 ```ts doc-test=compile
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 
 const client = new HonuaClient({
   baseUrl: "https://your-honua-server.example",
