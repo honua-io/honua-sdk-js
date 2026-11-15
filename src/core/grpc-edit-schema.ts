@@ -1,7 +1,7 @@
 import type { FieldType as ProtoFieldType } from "../gen/geospatial/v1/common_pb.js";
 import type { LayerDescriptor } from "../gen/geospatial/v1/metadata_types_pb.js";
 import type { HonuaClient } from "./client.js";
-import { HonuaAbortError, HonuaGrpcError } from "./errors.js";
+import { HonuaAbortError, HonuaGrpcError, HonuaTimeoutError } from "./errors.js";
 import type { GrpcPreciseAttributeType } from "./types.js";
 
 /** Edit-encoding hints read from a native layer descriptor. */
@@ -46,6 +46,9 @@ export function grpcEditSchema(layer: LayerDescriptor | undefined): GrpcEditSche
 /** gRPC status UNIMPLEMENTED: the server predates DescribeLayer, which geospatial-grpc 1.1 added. */
 const GRPC_UNIMPLEMENTED = 12;
 
+/** gRPC status CANCELED: the DescribeLayer timeout signal aborted the call. */
+const GRPC_CANCELED = 1;
+
 /** A stalled DescribeLayer must not hold every later edit on the source. */
 const DESCRIBE_TIMEOUT_MS = 30_000;
 
@@ -61,16 +64,36 @@ export function memoizedGrpcEditSchema(
 ): (signal?: AbortSignal) => Promise<GrpcEditSchema> {
   let pending: Promise<GrpcEditSchema> | undefined;
   return (signal) => {
-    pending ??= client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
-      (response) => grpcEditSchema(response.layer),
-      (error: unknown) => {
-        if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
-        pending = undefined;
-        throw error;
-      },
-    );
+    if (signal?.aborted) return Promise.reject(new HonuaAbortError());
+    pending ??= readEditSchema(client, serviceId, layerId, () => {
+      pending = undefined;
+    });
     return abortable(pending, signal);
   };
+}
+
+function readEditSchema(
+  client: Pick<HonuaClient, "describeLayer">,
+  serviceId: string,
+  layerId: number,
+  forget: () => void,
+): Promise<GrpcEditSchema> {
+  return client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
+    (response) => grpcEditSchema(response.layer),
+    (error: unknown) => {
+      if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
+      forget();
+      if (isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
+      throw error;
+    },
+  );
+}
+
+/** The DescribeLayer call carries only this module's timeout signal, never the caller's. */
+function isDescribeTimeout(error: unknown): boolean {
+  if (error instanceof HonuaAbortError || error instanceof HonuaTimeoutError) return true;
+  if (error instanceof HonuaGrpcError && error.code === GRPC_CANCELED) return true;
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 /** Stop waiting on the shared read when this caller aborts; the read itself continues. */
