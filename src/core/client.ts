@@ -48,7 +48,6 @@ import {
   applyServiceEditsOverGrpc,
   queryRelatedRecordsOverGrpc,
 } from "./grpc-native-calls.js";
-import { assertDistinctServiceLayers } from "./service-edit-layers.js";
 import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
@@ -127,6 +126,7 @@ import {
   toHttpError,
 } from "./request-pipeline.js";
 import { readBoundedResponseBytes } from "./response-body.js";
+import { assertDistinctServiceLayers } from "./service-edit-layers.js";
 import {
   HonuaStacSearch,
   getStacCollection,
