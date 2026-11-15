@@ -210,7 +210,12 @@ try {
     "utf8",
   );
 
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "dist/test/helpers/grpc-wire.js"),
+    path.join(tempRoot, "grpc-wire.mjs"),
+  );
   const smokeScript = `
+import { wireResponse } from "./grpc-wire.mjs";
 import {
   HonuaClient,
   HonuaGeometryService,
@@ -456,22 +461,6 @@ if (typeof connect !== "function") throw new Error("connect export missing from 
   // Exercise the packed SDK's actual lazy Buf + Connect path without relying
   // on an external Honua deployment. The fixture speaks the gRPC-Web framing
   // protocol and returns an empty, successful QueryFeaturesResponse.
-  const frame = (flag, payload) => {
-    const framed = new Uint8Array(5 + payload.byteLength);
-    framed[0] = flag;
-    new DataView(framed.buffer).setUint32(1, payload.byteLength, false);
-    framed.set(payload, 5);
-    return framed;
-  };
-  const concatenate = (...parts) => {
-    const joined = new Uint8Array(parts.reduce((length, part) => length + part.byteLength, 0));
-    let offset = 0;
-    for (const part of parts) {
-      joined.set(part, offset);
-      offset += part.byteLength;
-    }
-    return joined;
-  };
   let observedRequest;
   const grpcClient = new HonuaClient({
     baseUrl: "https://grpc.example.test",
@@ -491,12 +480,7 @@ if (typeof connect !== "function") throw new Error("connect export missing from 
         url: request?.url ?? String(input),
       };
 
-      const message = frame(0, new Uint8Array());
-      const trailers = frame(0x80, new TextEncoder().encode("grpc-status: 0\\r\\n"));
-      return new Response(concatenate(message, trailers), {
-        status: 200,
-        headers: { "content-type": "application/grpc-web+proto" },
-      });
+      return wireResponse(new Uint8Array());
     },
   });
   const result = await grpcClient.queryFeatures({

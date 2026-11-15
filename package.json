@@ -46,6 +46,10 @@
       "types": "./dist/src/index.d.ts",
       "default": "./dist/browser/honua-sdk.esm.js"
     },
+    "./grpc-web": {
+      "types": "./dist/src/grpc-web.d.ts",
+      "default": "./dist/src/grpc-web.js"
+    },
     "./honua": {
       "types": "./dist/src/honua.d.ts",
       "default": "./dist/src/honua.js"

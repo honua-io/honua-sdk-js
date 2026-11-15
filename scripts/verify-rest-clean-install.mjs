@@ -109,6 +109,12 @@ try {
   process.stdout.write(missingPeer.stdout);
   await queryProductionBuild();
   process.stdout.write("restCleanInstall=ok\n");
+  // Opt in only after the REST install, bundle, and missing-peer proof pass.
+  runNpm(["install", "--ignore-scripts", "--no-audit", "--no-fund",
+    ...OPTIONAL_GRPC_PACKAGES.map((name) => `${name}@${ROOT_PACKAGE_LOCK.packages[`node_modules/${name}`].version}`)]);
+  writeGrpcConsumerFiles();
+  runNode([path.join(appDir, "node_modules", "vite", "bin", "vite.js"), "build"]);
+  await queryProductionBuild("grpcWebCleanInstallBrowser=ok");
 } finally {
   if (preview && preview.exitCode === null) preview.kill("SIGTERM");
   fs.rmSync(appDir, { recursive: true, force: true });
@@ -277,6 +283,79 @@ export default defineConfig({
   );
 }
 
+function writeGrpcConsumerFiles() {
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "dist/test/helpers/grpc-wire.js"),
+    path.join(appDir, "grpc-wire.mjs"),
+  );
+  fs.writeFileSync(path.join(appDir, "main.js"), `
+import { HonuaClient } from "@honua/sdk/grpc-web";
+const out = document.querySelector("#out");
+try {
+  const client = new HonuaClient({ baseUrl: window.location.origin, bearerToken: "fixture-token" });
+  const target = { serviceId: "plants", layerId: 0 };
+  const descriptor = await client.describeLayer(target);
+  if (descriptor.layer?.name !== "Plants") throw new Error("descriptor lost");
+  const page = await client.queryFeatures({ ...target, returnGeometry: false });
+  const edits = await client.applyEdits({ ...target, deletes: [7] });
+  if (!edits.deleteResults?.[0]?.success) throw new Error("edit result lost");
+  out.textContent = page.features?.[0]?.attributes?.name ?? "missing";
+} catch (error) {
+  out.textContent = String(error);
+}
+`);
+  fs.writeFileSync(path.join(appDir, "vite.config.js"), `
+import { defineConfig } from "vite";
+import { wireBody } from "./grpc-wire.mjs";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import {
+  DescribeLayerRequestSchema, DescribeLayerResponseSchema,
+  QueryFeaturesRequestSchema, QueryFeaturesResponseSchema,
+  ApplyEditsRequestSchema, ApplyEditsResponseSchema,
+} from "./node_modules/@honua/sdk/gen/geospatial/v1/feature_service_pb.js";
+const operations = {
+  DescribeLayer: [DescribeLayerRequestSchema, DescribeLayerResponseSchema, { layer: { name: "Plants" } }],
+  QueryFeatures: [QueryFeaturesRequestSchema, QueryFeaturesResponseSchema, {
+    features: [{ attributes: { name: { value: { case: "stringValue", value: "Plant A" } } } }],
+  }],
+  ApplyEdits: [ApplyEditsRequestSchema, ApplyEditsResponseSchema, { deleteResults: [{ objectId: 7n, success: true }] }],
+};
+export default defineConfig({ plugins: [{
+  name: "grpc-web-installed-proof",
+  configurePreviewServer(server) {
+    server.middlewares.use(async (request, response, next) => {
+      try {
+        const url = request.url ?? "";
+        if (!url.startsWith("/geospatial.v1.FeatureService/") && !url.startsWith("/rest/")) {
+          next();
+          return;
+        }
+        const operation = operations[url.split("/").at(-1)];
+        if (!operation || !url.startsWith("/geospatial.v1.FeatureService/")) {
+          response.statusCode = 400;
+          response.end("unexpected route");
+          return;
+        }
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const message = fromBinary(operation[0], Buffer.concat(chunks).subarray(5));
+        if (message.serviceId !== "plants" || message.layerId !== 0 ||
+            request.headers.authorization !== "Bearer fixture-token" ||
+            (operation[0] === ApplyEditsRequestSchema && message.deletes[0] !== 7n)) {
+          throw new Error("unexpected request");
+        }
+        response.setHeader("content-type", "application/grpc-web+proto");
+        response.end(Buffer.from(wireBody(toBinary(operation[1], create(operation[1], operation[2])))));
+      } catch {
+        response.statusCode = 400;
+        response.end("invalid RPC request");
+      }
+    });
+  },
+}] });
+`);
+}
+
 function negativeConfig(entry, outDir) {
   const base = path.posix.basename(entry);
   return `import path from "node:path";
@@ -418,7 +497,7 @@ function assertProductionGraph() {
     );
 }
 
-async function queryProductionBuild() {
+async function queryProductionBuild(marker = "restCleanInstallBrowserQuery=Plant A") {
   const port = await freePort();
   preview = spawn(
     process.execPath,
@@ -475,9 +554,15 @@ async function queryProductionBuild() {
         `production browser query returned ${JSON.stringify(text)}; page errors: ${pageErrors.join(" | ")}\n${log}`,
       );
     }
-    process.stdout.write("restCleanInstallBrowserQuery=Plant A\n");
+    process.stdout.write(`${marker}\n`);
   } finally {
     await browser.close();
+    if (preview.exitCode === null && preview.signalCode === null) {
+      await new Promise((resolve) => {
+        preview.once("exit", resolve);
+        preview.kill("SIGTERM");
+      });
+    }
   }
 }
 

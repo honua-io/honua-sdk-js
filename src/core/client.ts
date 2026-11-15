@@ -615,7 +615,7 @@ export class HonuaClient {
     // Vite/Rolldown and fails a REST production build when the peer is absent.
     let initPromise = this.connectClientPromise;
     if (!initPromise) {
-      initPromise = loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
+      initPromise = this.loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
         const transport = createGrpcWebTransport(this.connectTransportOptions());
         this.connectClient = createClient(FeatureService, transport);
         return this.connectClient;
@@ -720,7 +720,12 @@ export class HonuaClient {
     }
   }
 
-  private static async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
+  /** Override in the explicit browser entrypoint to bind the optional runtime. */
+  protected loadGrpcWebRuntime(): ReturnType<typeof loadGrpcWebRuntime> {
+    return loadGrpcWebRuntime();
+  }
+
+  protected async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
     let loaded: unknown;
     try {
       loaded = await importOptionalGrpcSpecifier(GRPC_ADAPTER_SPECIFIER);
@@ -823,7 +828,7 @@ export class HonuaClient {
    */
   public async *queryFeaturesStream(request: QueryFeaturesRequest): AsyncGenerator<HonuaFeature[], void, undefined> {
     const client = await this.ensureConnectClient();
-    const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+    const grpcAdapter = await this.loadGrpcAdapter();
     const protoRequest = grpcAdapter.toProtoQueryRequest(request);
     yield* grpcAdapter.streamProtoPages(
       client.queryFeaturesStream(protoRequest, request.signal ? { signal: request.signal } : undefined),
@@ -1812,7 +1817,7 @@ export class HonuaClient {
     if (!this.isGrpcWeb) throw new Error("Native attachments require transport: grpc-web.");
     options?.signal?.throwIfAborted();
     const client = await this.ensureConnectClient();
-    const adapter = await HonuaClient.loadGrpcAdapter();
+    const adapter = await this.loadGrpcAdapter();
     try {
       return await call(client);
     } catch (error) {
@@ -1829,7 +1834,7 @@ export class HonuaClient {
   }): Promise<DescribeServiceResponse> {
     if (!this.isGrpcWeb) throw new Error("describeService requires transport: grpc-web.");
     const client = await this.ensureConnectClient();
-    const adapter = await HonuaClient.loadGrpcAdapter();
+    const adapter = await this.loadGrpcAdapter();
     try {
       return await client.describeService(request, request.signal ? { signal: request.signal } : undefined);
     } catch (error) {
@@ -1845,7 +1850,7 @@ export class HonuaClient {
   }): Promise<DescribeLayerResponse> {
     if (!this.isGrpcWeb) throw new Error("describeLayer requires transport: grpc-web.");
     const client = await this.ensureConnectClient();
-    const adapter = await HonuaClient.loadGrpcAdapter();
+    const adapter = await this.loadGrpcAdapter();
     try {
       return await client.describeLayer(request, request.signal ? { signal: request.signal } : undefined);
     } catch (error) {
@@ -1885,7 +1890,7 @@ export class HonuaClient {
   public async queryFeatures(request: QueryFeaturesRequest): Promise<HonuaQueryResponse> {
     if (this.transport === "grpc-web") {
       const client = await this.ensureConnectClient();
-      const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+      const grpcAdapter = await this.loadGrpcAdapter();
       const protoRequest = grpcAdapter.toProtoQueryRequest(request);
       try {
         const response = await client.queryFeatures(
@@ -1907,7 +1912,7 @@ export class HonuaClient {
 
   public async applyEdits(request: ApplyEditsRequest): Promise<HonuaApplyEditsResponse> {
     if (this.transport === "grpc-web") {
-      const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+      const grpcAdapter = await this.loadGrpcAdapter();
       const protoRequest = grpcAdapter.toProtoApplyEditsRequest(request);
       const client = await this.ensureConnectClient();
       try {
@@ -1929,16 +1934,12 @@ export class HonuaClient {
     if (this.transport !== "grpc-web") {
       return applyServiceEdits(this.protocolTransport, request);
     }
-    return applyServiceEditsOverGrpc(await HonuaClient.loadGrpcAdapter(), await this.ensureConnectClient(), request);
+    return applyServiceEditsOverGrpc(await this.loadGrpcAdapter(), await this.ensureConnectClient(), request);
   }
 
   public async queryRelatedRecords(request: QueryRelatedRecordsRequest): Promise<HonuaRelatedRecordsResponse> {
     if (this.transport === "grpc-web") {
-      return queryRelatedRecordsOverGrpc(
-        await HonuaClient.loadGrpcAdapter(),
-        await this.ensureConnectClient(),
-        request,
-      );
+      return queryRelatedRecordsOverGrpc(await this.loadGrpcAdapter(), await this.ensureConnectClient(), request);
     }
     return queryRelatedRecords(this.protocolTransport, request);
   }

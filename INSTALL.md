@@ -10,7 +10,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 28 experimental,
+It projects 22 supported (documented below as stable), 29 experimental,
 and 0 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -76,6 +76,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
+| `@honua/sdk-js/grpc-web` | Browser-bundleable native `HonuaClient`; install the optional Buf/Connect peers before importing ([native conversion guide](./docs/native-app-conversion.md)). |
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/pmtiles` | Authenticated bounded archive inspection plus experimental Honua archive/publish jobs, status/cancellation, strict public/signed/range-proxy descriptors, and truthful cleanup dispositions ([guide](./docs/pmtiles-lifecycle.md)). |
 | `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |

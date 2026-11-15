@@ -115,6 +115,7 @@ function createSdkPackage() {
   // turf stays a dependency of the packages whose entry does.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyEmittedModule(packageRoot, "widget-capabilities");
+  copyEmittedModule(packageRoot, "grpc-web");
   // Offline declarations type-import this module. Its implementation stays on
   // @honua/app-platform; the type module only imports contract/types.js.
   copyEmittedModule(packageRoot, "replica-sync/types");
@@ -235,6 +236,10 @@ function createSdkPackage() {
       ".": {
         types: "./index.d.ts",
         default: "./index.js",
+      },
+      "./grpc-web": {
+        types: "./grpc-web.d.ts",
+        default: "./grpc-web.js",
       },
       "./auth": {
         types: "./core/auth/index.d.ts",
