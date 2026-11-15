@@ -49,8 +49,7 @@ tarball reduction does not imply a faster endpoint-to-map journey.
 The clean packed-development measurement at source `5aac8654325f20845dc37a386f0f8999d683bb83`
 was 4,039,866 packed bytes and 19,606,974 unpacked bytes across 2,074 files: a
 67.9% packed and 49.9% unpacked reduction from the audited registry baseline.
-[The receipt](./evidence/distribution-1413/2026-10-11-runtime-tarball.json) records
-owner inventory, integrity and toolchain identity. Ceilings leave approximately
+The receipt recorded owner inventory, integrity and toolchain identity. Ceilings leave approximately
 11–12% headroom over this measured result.
 
 ## Packages produced by the split build
@@ -232,8 +231,8 @@ cases. Exact-head compiled artifact measurements with esbuild 0.28.1 reduced
 196,387 gzip bytes. The 880,000 / 200,000 byte ceilings deliberately preserve
 that improvement: the previous graph fails both ceilings.
 
-[Recorded comparisons](./evidence/distribution-1413/) include producer fingerprints,
-toolchain and external-peer options. The generic First Map does not retain this
+The recorded comparisons included producer fingerprints, toolchain and
+external-peer options. The generic First Map does not retain this
 validator, so this change makes no hero-path reduction claim. Its byte and CPU
 budgets are recorded in the [installed First Map report](./installed-first-map-budget.md).
 The bundle gate separately checks the actual generated validator path is absent

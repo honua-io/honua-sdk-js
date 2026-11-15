@@ -21,7 +21,6 @@
 * [Catalog dataset picker](controls-catalog-picker.md)
 * [Filtered-row data export](controls-data-export.md)
 * [Scaffold a new app](create-honua-app.md)
-* [FOSS4G NA evidence renewal runbook](evidence/foss4g-renewal-2217/README.md)
 * [Native gRPC metadata and discovery](grpc-discovery.md)
 * [MCP compatibility across the Node 22 transition](mcp-minor-line-bridge.md)
 * [@honua/mcp-server: the standalone MCP server](mcp-server.md)
@@ -58,13 +57,6 @@
 * [Discovery truth and cache identity](discovery-contract.md)
 * [Dynamic Query Tiles](dynamic-query-tiles.md)
 * [Error envelope](errors.md)
-* [Preview alerts fixture evidence](evidence/alerts-1954/README.md)
-* [Ask this map live qualification](evidence/ask-map-2051/README.md)
-* [Basemap development bundle evidence](evidence/basemap-1717/README.md)
-* [Terminal control-plane diagnostic evidence](evidence/control-plane-1424/2026-10-11/README.md)
-* [First Map release-tag provenance qualification](evidence/first-map-release-1993/README.md)
-* [Local setup development qualification for issue 1401](evidence/local-setup-1401/README.md)
-* [Published documentation qualification for SDK issue 1897](evidence/published-commands-1897/README.md)
 * [ExplorationContext](exploration-context.md)
 * [Feature inspection](feature-inspection.md)
 * [Read multidimensional coverages with OGC API Coverages and WCS](features/coverages-wcs.md)
@@ -121,8 +113,3 @@
 * [WFS 2.0 adapter](wfs.md)
 * [Source SDK widget-removal survival guide](widget-survival-guide.md)
 * [Zarr client](zarr.md)
-
-## Other
-
-* [evidence/distribution-1413/README.md](evidence/distribution-1413/README.md)
-* [evidence/local-agent-2003/README.md](evidence/local-agent-2003/README.md)

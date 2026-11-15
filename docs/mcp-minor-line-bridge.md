@@ -78,9 +78,8 @@ transition required SDK **0.2.0** and MCP **0.2.0** through Release Please,
 rather than a 0.1 patch. That release-boundary requirement is historical; no
 version override or manual tag is permitted.
 
-The independent public-byte receipts are retained under
-`docs/evidence/mcp-bridge-2070/`. They prove the historical Node 20 artifact identities; they do not describe
-the current synchronized pin.
+Independent public-byte receipts proved the historical Node 20 artifact
+identities; they do not describe the current synchronized pin.
 
 ## Current published pin
 

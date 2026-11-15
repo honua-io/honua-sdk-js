@@ -106,8 +106,7 @@ The earlier migration dependency repair used the published migration engine
 `@honua/honua-migrate@0.2.0-beta.0`, whose stable SDK dependencies resolve to
 `0.1.15`. Its tarball integrity and signed publisher provenance were verified,
 and the installed canonical and SDK compatibility CLIs produce identical matrix
-output. The [consumer receipt](evidence/migration-1897/published-migrator-consumer.json)
-records that bounded proof. The recorded September verdict stands; that
+output. A consumer receipt recorded that bounded proof. The recorded September verdict stands; that
 source update did not qualify a new SDK release or the complete operation
 matrix.
 
