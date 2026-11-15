@@ -92,7 +92,9 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
         const inspection = await connection.inspect({ signal: cancellation.signal });
         const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
         if (!sourceId) throw new Error("The endpoint advertised no queryable source.");
-        const plan = await connection.explain(QUERY, { sourceId, signal: cancellation.signal });
+        // MapLibre GeoJSON is WGS84; GeoServices layers are often stored in Web Mercator.
+        const query = inspection.protocol === "geoservices-feature-service" ? { ...QUERY, outSr: 4326 } : QUERY;
+        const plan = await connection.explain(query, { sourceId, signal: cancellation.signal });
         const mounted = await connection.mount(map, {
           renderer: maplibreRenderer(maplibregl),
           rendererOptions: { sourceId: STARTER_SOURCE_ID },

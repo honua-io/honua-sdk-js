@@ -575,6 +575,12 @@ describe("connection MapLibre mount", () => {
       expect(lookups).toEqual(["id:map"]);
     });
 
+    it("keeps the string for a document shim without element lookup", async () => {
+      vi.stubGlobal("document", {});
+      const { created } = await mountTarget("#map");
+      expect(created[0]!.container).toBe("#map");
+    });
+
     it.each(["#missing", "##"])("refuses %s before constructing a map", async (target) => {
       await expect(mountTarget(target)).rejects.toThrow(/matches no element/);
       expect(lookups).toEqual([`id:${target}`, `selector:${target}`]);

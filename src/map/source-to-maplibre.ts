@@ -159,7 +159,7 @@ function assertGeographicCoordinates(features: readonly AdapterGeoJsonFeature[],
     if (position !== undefined) {
       throw new HonuaMapLibreSourceAdapterError(
         "unsupported-plan",
-        `The accepted plan returned coordinates outside WGS84 longitude/latitude (${position.join(", ")}), which a MapLibre GeoJSON source cannot place. Request WGS84 with outSr: 4326 in the mount query or the accepted plan.`,
+        `The accepted plan returned coordinates outside WGS84 longitude/latitude (${position.join(", ")}), which a MapLibre GeoJSON source cannot place. Request WGS84 longitude/latitude output in the mount query or the accepted plan (outSr: 4326 for GeoServices).`,
         { sourceId, position },
       );
     }

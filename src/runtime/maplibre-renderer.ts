@@ -253,7 +253,7 @@ function protocolRegistrar(peer: ResolvedMapLibreRendererPeer): MaplibreProtocol
  */
 function resolveContainerTarget(target: string): string | object {
   const doc = (globalThis as { document?: Pick<Document, "getElementById" | "querySelector"> }).document;
-  if (doc === undefined) return target;
+  if (typeof doc?.getElementById !== "function" || typeof doc.querySelector !== "function") return target;
   const byId = doc.getElementById(target);
   if (byId) return byId;
   let element: Element | null = null;
