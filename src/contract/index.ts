@@ -308,6 +308,14 @@ export type {
 export { WIDGET_SOURCE_SCHEMA_VERSION, createWidgetSource, widgetSource } from "./widget-source.js";
 
 export { EditWorkflowSession, createEditSession, normalizeEditWorkflowFailures } from "./edit-session.js";
+export { createServiceEditSession } from "./service-edit-session.js";
+export type {
+  ServiceEditSession,
+  ServiceEditSubmitOptions,
+  ServiceEditSubmitResult,
+  ServiceSourceEdits,
+  ServiceSourceEditResult,
+} from "./service-edit-session.js";
 export type {
   CreateEditSessionOptions,
   EditAttachmentMutation,
