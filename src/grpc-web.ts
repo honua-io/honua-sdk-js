@@ -2,6 +2,7 @@
  * Browser gRPC-Web client with statically bound optional Buf/Connect peers.
  * Install the three runtime peers before importing this opt-in entrypoint.
  * REST consumers should keep using the default or honua entrypoint.
+ * @experimental
  * @packageDocumentation
  */
 import { createClient } from "@connectrpc/connect";
