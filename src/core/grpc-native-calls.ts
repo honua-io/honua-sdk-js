@@ -89,14 +89,3 @@ function asCapabilityGap(error: Error, capability: string, target: { serviceId: 
   const scope = target.layerId === undefined ? target.serviceId : `${target.serviceId}/${target.layerId}`;
   return new HonuaCapabilityNotSupportedError(capability, "grpc", scope, { cause: error });
 }
-
-/** Service edits name each layer once, on every transport. */
-export function assertDistinctServiceLayers(request: ApplyServiceEditsRequest): void {
-  const seen = new Set<number>();
-  for (const layer of request.edits) {
-    if (seen.has(layer.layerId)) {
-      throw new RangeError(`applyServiceEdits names layer ${layer.layerId} more than once.`);
-    }
-    seen.add(layer.layerId);
-  }
-}
