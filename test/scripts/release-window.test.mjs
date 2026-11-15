@@ -4,7 +4,13 @@ import { it } from "node:test";
 
 import { GENERATED_FILES, GENERATED_PREFIXES, isGeneratedReleasePath } from "../../scripts/lib/generated-release-paths.mjs";
 import { refreshPullRequest } from "../../scripts/lib/refresh-release-window.mjs";
-import { evaluateReleaseWindow, loadReleaseWindows, readAllPages } from "../../scripts/lib/release-window.mjs";
+import {
+  evaluateReleaseWindow,
+  loadReleaseWindows,
+  readAllPages,
+  releaseWindowRunFails,
+  targetPullRequestNumber,
+} from "../../scripts/lib/release-window.mjs";
 
 const repository = "honua-io/honua-sdk-js";
 const automation = JSON.parse(fs.readFileSync(new URL("../fixtures/pr-issue-disposition/release-please-pr-382.json", import.meta.url)));
@@ -137,6 +143,7 @@ it("refreshes the exact PR head from held to passed without merging or weakening
   const invalid = fakeGitHub({ current, releases: [] });
   const result = await refreshPullRequest({ repository, pullRequestNumber: current.pullRequestNumber }, {}, invalid.request);
   assert.equal(result.allowed, false);
+  assert.equal(result.infrastructureError, undefined, "a disposition failure belongs to the PR, not the run");
   assert.equal(invalid.calls.at(-1).body.conclusion, "failure");
 });
 
@@ -145,6 +152,7 @@ it("replaces stale green with failure when release reads fail", async () => {
   const result = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, api.request);
   assert.equal(result.allowed, false);
   assert.match(result.summary, /rate limited/);
+  assert.equal(result.infrastructureError, true, "an infrastructure error must still fail a bulk refresh");
   assert.equal(api.calls.at(-1).body.conclusion, "failure");
 });
 
@@ -186,4 +194,34 @@ it("holds old source checks before draft creation while allowing regeneration du
   const workflow = fs.readFileSync(new URL("../../.github/workflows/release-please.yml", import.meta.url), "utf8");
   assert.ok(workflow.indexOf("node scripts/check-release-window.mjs --refresh --allow-held") <
     workflow.indexOf("- uses: googleapis/release-please-action@"));
+});
+
+it("fails a targeted run on a held PR but not a bulk refresh that published every PR check", () => {
+  const held = [{ number: 7, allowed: true }, { number: 8, allowed: false }];
+  // pull_request_target and dispatch with a number: the run belongs to that PR.
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: false, results: held }), true);
+  // schedule, release, Release Please completion: each held PR already carries its own failing check.
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: false, allowHeld: false, results: held }), false);
+  assert.equal(releaseWindowRunFails({ refresh: false, targeted: true, allowHeld: false, results: held }), true);
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: true, results: held }), false);
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: false, results: [held[0]] }), false);
+  // Nothing is published without --refresh, so a held result always fails it.
+  assert.equal(releaseWindowRunFails({ refresh: false, targeted: false, allowHeld: false, results: held }), true);
+  // An infrastructure error while checking a PR fails even a bulk refresh.
+  const broken = [{ number: 9, allowed: false, infrastructureError: true }];
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: false, allowHeld: false, results: broken }), true);
+  const script = fs.readFileSync(new URL("../../scripts/check-release-window.mjs", import.meta.url), "utf8");
+  assert.match(script, /releaseWindowRunFails\(/);
+  assert.match(script, /targetPullRequestNumber\(event\)/);
+});
+
+it("derives the target PR from each refresh trigger", () => {
+  assert.equal(targetPullRequestNumber({ pull_request: { number: 12 } }), 12);
+  assert.equal(targetPullRequestNumber({ inputs: { pull_request_number: "34" } }), 34);
+  for (const input of ["", "0", "abc", "-3", "1.5"]) {
+    assert.equal(targetPullRequestNumber({ inputs: { pull_request_number: input } }), undefined, input);
+  }
+  assert.equal(targetPullRequestNumber({ release: { tag_name: "js-sdk-v0.4.1" } }), undefined);
+  assert.equal(targetPullRequestNumber({ workflow_run: { pull_requests: [{ number: 5 }] } }), undefined);
+  assert.equal(targetPullRequestNumber({ schedule: "*/10 * * * *" }), undefined);
 });

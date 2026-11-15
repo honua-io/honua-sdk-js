@@ -2,7 +2,7 @@ import process from "node:process";
 
 import { githubRequest } from "./github-pr-issue-disposition.mjs";
 import { isGeneratedReleasePath } from "./generated-release-paths.mjs";
-import { automationExemption } from "./pr-issue-disposition.mjs";
+import { PullRequestDispositionError, automationExemption } from "./pr-issue-disposition.mjs";
 
 export function repositoryApi(repository) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error("Invalid repository.");
@@ -57,7 +57,10 @@ function describeWindows(windows, now) {
 function assertUnchanged(current, input) {
   if (current.state !== "open" || current.head?.sha !== input.headSha || current.base?.sha !== input.baseSha ||
       current.updated_at !== input.updatedAt || (current.body ?? "") !== input.body || current.title !== input.title) {
-    throw new Error("Pull request changed during release-window validation; rerun the check.");
+    throw new PullRequestDispositionError(
+      "pull-request-changed",
+      "Pull request changed during release-window validation; rerun the check.",
+    );
   }
 }
 
@@ -85,4 +88,24 @@ export async function evaluateReleaseWindow(input, options = {}, request = githu
     summary: `Release window held: ${describeWindows(windows, options.now ?? Date.now())}. ` +
       "Source changes must wait for publication, deletion, or creation of the release tag; generated-only PRs may merge.",
   };
+}
+
+/** The PR a run is for: the pull_request event's, or a positive dispatch input; otherwise all open PRs. */
+export function targetPullRequestNumber(event) {
+  if (event.pull_request?.number) return event.pull_request.number;
+  const input = Number(event.inputs?.pull_request_number);
+  return Number.isSafeInteger(input) && input > 0 ? input : undefined;
+}
+
+/**
+ * Whether a merge-policy run should fail. A targeted run (one PR) reports that
+ * PR's verdict. A bulk refresh has already published each PR's own required
+ * check, so a held PR there is the PR's state, not a failure of the trunk run;
+ * an infrastructure error while checking any PR still fails it.
+ */
+export function releaseWindowRunFails({ refresh, targeted, allowHeld, results }) {
+  if (allowHeld) return false;
+  if (results.some((result) => result.infrastructureError)) return true;
+  if (refresh && !targeted) return false;
+  return results.some((result) => !result.allowed);
 }

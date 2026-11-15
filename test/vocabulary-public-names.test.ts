@@ -164,7 +164,8 @@ describe("docs and examples use the current names", () => {
   }
 
   it("never names a renamed pre-vocabulary name", () => {
-    const pattern = new RegExp(`\\b(${[...renamed.keys()].join("|")})\\b`);
+    // Docs also named the bare server type MapPackage; the wire field mapPackageId stays.
+    const pattern = new RegExp(`\\b(${[...renamed.keys(), "MapPackage"].join("|")})\\b`);
     const offenders = DOC_ROOTS.flatMap(documentFiles).filter(
       (file) => file !== RENAMES_DOC && pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
     );
