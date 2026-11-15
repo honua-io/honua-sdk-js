@@ -13,8 +13,13 @@ This follows the founder direction recorded in [ADR-0087](https://github.com/hon
 
 ## Live queries and edits
 
-Use `HonuaClient` with `transport: "grpc-web"` for native feature queries,
-query streaming and `applyEdits()`. Edits use the unary `ApplyEdits` RPC;
+To use the native path wherever the server offers it, create the client with
+`await createHonuaClient({ baseUrl, bearerToken })` from `@honua/sdk-js/grpc-web` (browser
+bundles) or `@honua/sdk-js` (Node). It probes once and selects gRPC-Web when the server
+answers gRPC-Web, GeoServices REST otherwise; check `client.isGrpcWeb`.
+
+Use `HonuaClient` with `transport: "grpc-web"` when the app requires gRPC-Web for native
+feature queries, query streaming and `applyEdits()`. Edits use the unary `ApplyEdits` RPC;
 transport or server errors propagate without a REST fallback. Per-row errors
 remain in the result arrays. `rollbackOnFailure` defaults to `true`.
 
@@ -114,8 +119,9 @@ console.log(page.features);
 The endpoint must actually expose gRPC-Web; an ordinary REST endpoint or an
 HTTP/2-only native gRPC listener is insufficient. Configure token renewal through
 the SDK's auth provider for a long-running session. The explicit `/grpc-web` client
-selects this transport automatically. The default entrypoint continues to use REST
-for existing applications.
+selects this transport automatically. `new HonuaClient` from the default entrypoint
+still defaults to REST for existing applications; `createHonuaClient` is the
+native-first constructor.
 
 ## Public files and private snapshots
 

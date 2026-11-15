@@ -7,8 +7,13 @@
 
 const OPTIONAL_GRPC_PACKAGES = ["@connectrpc/connect-web", "@connectrpc/connect", "@bufbuild/protobuf"] as const;
 
+/**
+ * Module-loader failures as Node and each browser word them (Chromium: "Failed to
+ * resolve module specifier", Firefox: "bare specifier ... not remapped", Safari:
+ * "does not resolve to a valid URL" / "Importing a module script failed").
+ */
 const RESOLUTION_FAILURE =
-  /ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Failed to resolve module specifier|Failed to fetch dynamically imported module|Cannot find package|Cannot find module/;
+  /ERR_MODULE_NOT_FOUND|ERR_PACKAGE_PATH_NOT_EXPORTED|Failed to resolve module specifier|bare specifier|does not resolve to a valid URL|Importing a module script failed|dynamically imported module|Cannot find package|Cannot find module/;
 
 export type OptionalGrpcPackage = (typeof OPTIONAL_GRPC_PACKAGES)[number];
 
@@ -37,26 +42,47 @@ function isGenuineGrpcFailure(error: unknown): boolean {
   return typeof error.code === "number";
 }
 
-function peerNamedByResolutionFailure(error: unknown): OptionalGrpcPackage | undefined {
+function resolutionFailureText(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
   const code =
     "code" in error && (typeof error.code === "string" || typeof error.code === "number") ? String(error.code) : "";
   const message = `${code}\n${error.message}`;
-  if (!RESOLUTION_FAILURE.test(message)) return undefined;
-  return OPTIONAL_GRPC_PACKAGES.find((name) => message.includes(name));
+  return RESOLUTION_FAILURE.test(message) ? message : undefined;
 }
 
-function missingOptionalGrpcPeer(error: unknown): OptionalGrpcPackage | undefined {
+function peerNamedByResolutionFailure(error: unknown): OptionalGrpcPackage | undefined {
+  const message = resolutionFailureText(error);
+  return message === undefined ? undefined : OPTIONAL_GRPC_PACKAGES.find((name) => message.includes(name));
+}
+
+/** Walk the cause chain until `read` finds something, stopping at a genuine gRPC failure. */
+function scanLoadFailure<T>(error: unknown, read: (current: unknown) => T | undefined): T | undefined {
   const seen = new Set<unknown>();
   let current: unknown = error;
   while (isRecord(current) && !seen.has(current)) {
     seen.add(current);
     if (isGenuineGrpcFailure(current)) return undefined;
-    const peer = peerNamedByResolutionFailure(current);
-    if (peer) return peer;
+    const found = read(current);
+    if (found !== undefined) return found;
     current = current.cause;
   }
   return undefined;
+}
+
+function missingOptionalGrpcPeer(error: unknown): OptionalGrpcPackage | undefined {
+  return scanLoadFailure(error, peerNamedByResolutionFailure);
+}
+
+/**
+ * True when the gRPC-Web runtime, its peers or its adapter modules could not be
+ * loaded, whether or not the failure names a peer. A genuine gRPC failure (for
+ * example an auth error wrapped as `HonuaGrpcError`) is never a load failure.
+ */
+export function isGrpcRuntimeLoadFailure(error: unknown): boolean {
+  if (error instanceof HonuaOptionalGrpcPeerError) return true;
+  return (
+    scanLoadFailure(error, (current) => (resolutionFailureText(current) === undefined ? undefined : true)) === true
+  );
 }
 
 export function explainOptionalGrpcLoadFailure(error: unknown): unknown {

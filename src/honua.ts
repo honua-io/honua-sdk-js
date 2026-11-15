@@ -20,6 +20,16 @@
  * @packageDocumentation
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
+export {
+  createHonuaClient,
+  HONUA_TRANSPORT_PROBE_TIMEOUT_MS,
+  selectHonuaTransport,
+} from "./core/transport-selection.js";
+export type {
+  CreateHonuaClientOptions,
+  HonuaTransportPreference,
+  SelectHonuaTransportOptions,
+} from "./core/transport-selection.js";
 export type { HonuaNativeAttachments } from "./core/native-attachments.js";
 export {
   HONUA_CONNECT_ADAPTER_VERSION,
