@@ -376,8 +376,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1203,
-      "signatureSha256": "e9820a18863dfa75c29a9c43290017b6a72f473f2802b4678f1c318037308449",
+      "exportCount": 1205,
+      "signatureSha256": "5c6db892689b2fd6d85c30d47f1db7d7a110c67e830268e19677d532fe65073e",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -699,6 +699,7 @@
         "HonuaFeatureLayerDeleteAttachmentsRequest — interface",
         "HonuaFeatureLayerListAttachmentsRequest — interface",
         "HonuaFeatureLayerOptions — interface",
+        "HonuaFeatureLayerQueryAllBudgetRequest — type",
         "HonuaFeatureLayerQueryAllRequest — type",
         "HonuaFeatureLayerQueryAttachmentsRequest — interface",
         "HonuaFeatureLayerQueryCountRequest — type",
@@ -763,6 +764,7 @@
         "HonuaMapEventListener — type",
         "HonuaMapLayer — class",
         "HonuaMapLayerOptions — interface",
+        "HonuaMapLayerQueryAllBudgetRequest — type",
         "HonuaMapLayerQueryAllRequest — type",
         "HonuaMapLayerQueryCountRequest — type",
         "HonuaMapLayerQueryExtentRequest — type",
