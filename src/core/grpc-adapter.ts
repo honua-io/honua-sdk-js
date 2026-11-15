@@ -276,6 +276,9 @@ export function fromProtoQueryResponse(
   response: QueryFeaturesResponse,
   sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): HonuaQueryResponse | HonuaCountResponse | HonuaObjectIdsResponse | HonuaExtentResponse {
+  // Count, id and extent responses carry the field name too. An empty name means
+  // the server did not honour global_ids, including a pre-1.2 server.
+  ensureGlobalIdSelectorHonored(sent, response.globalIdFieldName);
   const hasFeatureMetadata =
     response.fields.length > 0 ||
     response.objectIdFieldName.length > 0 ||
@@ -316,8 +319,7 @@ export function fromProtoQueryResponse(
     };
   }
 
-  // Standard feature response. Count, id and extent envelopes omit the field name.
-  ensureGlobalIdSelectorHonored(sent, response.globalIdFieldName);
+  // Standard feature response
   const identity = { objectIdFieldName: response.objectIdFieldName, globalIdFieldName: response.globalIdFieldName };
   return {
     objectIdFieldName: response.objectIdFieldName,

@@ -227,21 +227,26 @@ it("refuses a global-ID query that a pre-1.2 server answered unfiltered", () => 
   expect(() => fromProtoQueryResponse(typedQueryResponse(), sent)).not.toThrow();
 });
 
-it("accepts count, id and extent results for a global-ID selector that names no field", () => {
+it("refuses count, id and extent results that ignored a global-ID selector", () => {
   const sent = toProtoQueryRequest({ ...target, globalIds: [GID] });
-  expect(fromProtoQueryResponse(create(QueryFeaturesResponseSchema, { count: 2n }), sent)).toEqual({ count: 2 });
-  expect(
+  expect(() => fromProtoQueryResponse(create(QueryFeaturesResponseSchema, { count: 2n }), sent)).toThrow(
+    HonuaCapabilityNotSupportedError,
+  );
+  expect(() =>
     fromProtoQueryResponse(
       create(QueryFeaturesResponseSchema, { objectIdFieldName: "OBJECTID", objectIds: [4n] }),
       sent,
     ),
-  ).toMatchObject({ objectIds: [4] });
-  expect(
+  ).toThrow(HonuaCapabilityNotSupportedError);
+  expect(() =>
     fromProtoQueryResponse(
       create(QueryFeaturesResponseSchema, { extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 } }),
       sent,
     ),
-  ).toMatchObject({ extent: { xmin: 0, ymax: 1 } });
+  ).toThrow(HonuaCapabilityNotSupportedError);
+  expect(
+    fromProtoQueryResponse(create(QueryFeaturesResponseSchema, { count: 2n, globalIdFieldName: "GlobalID" }), sent),
+  ).toEqual({ count: 2 });
 });
 
 it("refuses a streamed feature page that ignored a global-ID selector", async () => {
