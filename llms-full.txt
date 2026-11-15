@@ -2507,6 +2507,53 @@ surface:
   for the precedent and [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md)
   for the runtime-library posture.
 
+## Native service edit sessions
+
+`createServiceEditSession({ dataset })`, exported from `@honua/sdk-js/contract`,
+submits canonical edits for multiple registered sources through one gRPC-Web
+`ApplyServiceEdits` call. It requires a server implementing geospatial-grpc 1.4.
+Sources must advertise `applyEdits`, use `protocol: "grpc"`, and name distinct
+layers of the same service and endpoint. Invalid source combinations fail before
+metadata or mutation requests; unsupported protocols raise
+`HonuaCapabilityNotSupportedError`.
+
+```ts doc-test=compile
+import { createServiceEditSession, type Dataset } from "@honua/sdk-js/contract";
+
+async function saveInspection(dataset: Dataset, inspectionGlobalId: string) {
+  const session = createServiceEditSession({ dataset });
+  return session.submit({
+    edits: [
+      {
+        sourceId: "inspections",
+        edits: { adds: [{ globalId: inspectionGlobalId, attributes: { fee: "12.10" } }] },
+      },
+      {
+        sourceId: "observations",
+        edits: { adds: [{ attributes: { inspection_global_id: inspectionGlobalId } }] },
+      },
+    ],
+    idempotencyKey: "inspection-save-7",
+  });
+}
+```
+
+The dataset must use a gRPC-Web client; in browsers construct it from
+`@honua/sdk-js/grpc-web`. Keep the session for subsequent submits so each
+source's precise column types and global-ID field are read once from
+`DescribeLayer`. Edits run in submission order, allowing a child to reference a
+parent's client-generated global ID. Supply that ID explicitly rather than
+waiting for a parent response between writes.
+
+Rollback defaults to `true` for the entire transaction. A whole-call failure
+rejects with the original error and diagnostics; it does not report partial
+success. With `rollbackOnFailure: false`, inspect each entry in `result.sources`:
+its canonical `result` contains per-row outcomes, and `error`, when present,
+describes a whole-layer failure. Entries retain the source IDs and order from
+the request. Cancellation and rollback options belong to the submission, not
+individual source envelopes. Writes have no automatic retry or REST fallback;
+reuse an idempotency key only when explicitly retrying the same logical batch.
+
 ## Edit Workflow Sessions
 
 `createEditSession({ source, kind, feature, metadata, optimistic })`
