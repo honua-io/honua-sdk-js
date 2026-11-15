@@ -197,6 +197,20 @@ it("accepts equivalent endpoint URLs", async () => {
   await expect(session.submit(batch)).resolves.toHaveProperty("sources.1.sourceId", "children");
 });
 
+it.each(["https://other.test", "https://example.test/other"])(
+  "rejects sources sharing endpoint %s when the client targets another server before any RPC",
+  async (url) => {
+    const sources = [descriptor("parents", 0), descriptor("children", 1)];
+    for (const source of sources) source.locator.url = url;
+    const { session, client, describe, fetchFn } = fixture(sources);
+    const apply = vi.spyOn(client, "applyServiceEdits");
+    await expect(session.submit(batch)).rejects.toThrow("same service and endpoint");
+    expect(describe).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+    expect(fetchFn).not.toHaveBeenCalled();
+  },
+);
+
 it("keeps per-row errors and whole-layer errors on their sources", async () => {
   const { session, client } = fixture();
   vi.spyOn(client, "applyServiceEdits").mockResolvedValue({

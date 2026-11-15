@@ -1,5 +1,6 @@
 import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { type GrpcEditSchema, memoizedGrpcEditSchema } from "../core/grpc-edit-schema.js";
+import { assertDistinctServiceLayers } from "../core/grpc-native-calls.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { ServiceLayerEditsRequest } from "../core/service-edit-types.js";
 import { canonicalEditResult } from "./edit-result.js";
@@ -90,14 +91,13 @@ function prepareLayers(dataset: Dataset, edits: readonly ServiceSourceEdits[]): 
   }
   if (edits.length === 0) throw new Error("A service edit requires at least one source.");
   const layers = edits.map((entry) => prepareLayer(dataset, entry));
-  const seen = new Set<number>();
+  const endpoint = trimTrailingSlashes(new URL(dataset.client.serverBaseUrl).href);
   for (const layer of layers) {
-    if (layer.serviceId !== layers[0].serviceId || layer.endpoint !== layers[0].endpoint) {
+    if (layer.serviceId !== layers[0].serviceId || layer.endpoint !== endpoint) {
       throw new Error("Service edits require sources from the same service and endpoint.");
     }
-    if (seen.has(layer.request.layerId)) throw new Error("Service edits require distinct layers.");
-    seen.add(layer.request.layerId);
   }
+  assertDistinctServiceLayers({ serviceId: layers[0].serviceId, edits: layers.map((layer) => layer.request) });
   return layers;
 }
 
