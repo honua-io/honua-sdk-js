@@ -37,7 +37,7 @@ The endpoint is the gRPC-Web transport base URL. Service and layer identities ar
 explicit; a GeoServices-shaped URL is unnecessary. `connect` selects gRPC-Web by
 default for this protocol; browser applications inject the explicit `/grpc-web`
 client shown above and install the three runtime peers listed in
-[native data paths](native-data-paths.md#browser-runtime-dependencies). Supplied
+[native data paths](native-data-paths.md#browser-setup-grpc-web). Supplied
 clients must also use gRPC-Web. The authorization scope
 fingerprint must distinguish callers whose visible layers, fields or capabilities
 differ. Existing canonical FeatureServer URLs remain accepted as identity input.
