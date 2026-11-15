@@ -92,6 +92,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     where: where ?? "1=1",
     outFields: outFields.length > 0 ? outFields : "*",
     returnGeometry: asGeoJson,
+    ...(asGeoJson ? { outSr: 4326 } : {}),
     resultRecordCount: limit,
     ...spatialFilter,
   };
