@@ -76,7 +76,7 @@ then-current ceilings.
 Run `npm run test:installed-quickstart` to install the manifest-pinned public SDK
 and peers into a fresh consumer, check its npm integrity, build the canonical
 quickstart through public package entrypoints, and measure the written chunks.
-The receipt is `test-results/installed-quickstart-budget.json`. It includes the
+The run writes its receipt to `test-results/installed-quickstart-budget.json`. It includes the
 package identity, dependency versions and integrities, lock digest, SDK module
 count, MapLibre module origins, and actual byte measurements. The existing
 budget counts Rollup/Vite chunks; worker assets stay in the sample's final-byte
@@ -134,12 +134,12 @@ declared runtime peer beside the SDK too. MapLibre 5's legacy entry fields and
 MapLibre 6's export map are both supported. Worker and stylesheet subpaths
 resolve from the same installed peer, with its public export map enforced.
 
-The retained reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
+The reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
 773,645 written chunk bytes before the fix and 1,979,893 / 523,377 after it.
 The source-mode build measured 1,953,828 / 516,171. No ceiling changed.
 
 This is a bundle regression receipt, not a live-server certification receipt.
-The historical #39 installed-example receipt still records #1584 as failed.
+The #39 installed-example certification recorded #1584 as failed.
 The issue's corrected coordinated-candidate publication and certification rerun
 remain outstanding; a successful harness repair must not rewrite historical
 failed candidate evidence or certify an unpublished replacement package.

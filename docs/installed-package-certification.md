@@ -85,7 +85,7 @@ when package identity passes. PR CI runs the bounded identity regressions and th
 denominator drift check. Setup/identity failures emit `install.status: "failed"`
 and attribute the unexecuted rows to this issue, rather than reporting passes.
 
-## Retained September candidate failure
+## September candidate failure
 
 The 2026-09-06 clean installation resolves:
 
@@ -107,15 +107,15 @@ The earlier migration dependency repair used the published migration engine
 `0.1.15`. Its tarball integrity and signed publisher provenance were verified,
 and the installed canonical and SDK compatibility CLIs produce identical matrix
 output. The [consumer receipt](evidence/migration-1897/published-migrator-consumer.json)
-records that bounded proof. The September receipt above remains unchanged;
-that source update did not qualify a new SDK release or the complete operation
+records that bounded proof. The recorded September verdict stands; that
+source update did not qualify a new SDK release or the complete operation
 matrix.
 
 Current source selects `@honua/honua-migrate@0.3.0-beta.0`, which requires the
 SDK/compat 0.2 generation. Its managed SDK publication and registry-only cohort
 proof remain separate obligations; see the
-[migration transition verification](migration-tool-transition.md). The retained
-historical receipts above are unchanged.
+[migration transition verification](migration-tool-transition.md). The
+recorded verdicts above stand.
 
 For a non-certifying check of the fixture oracle while package-set admission is
 blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.
