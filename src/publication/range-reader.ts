@@ -143,6 +143,7 @@ export function artifactRangeReader(url: string, byteLength: number, fetchImpl: 
       return {
         byteLength,
         async slice(start: number, end = byteLength) {
+          if (signal?.aborted) throw new HonuaAbortError();
           const key = `${start}-${end}`;
           const cached = cache.get(key);
           if (cached) return cached;
