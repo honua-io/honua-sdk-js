@@ -152,7 +152,8 @@ describe("projectSourceToMapLibre", () => {
           { attributes: { OBJECTID: 2 }, geometry: { x: -540, y: 90 } },
         ],
       };
-      expect(projectSourceToMapLibre(fakeSource([result]), plan, result).source.data.features).toHaveLength(2);
+      const projection = projectSourceToMapLibre(fakeSource([result]), plan, result);
+      expect((projection.source.data as { features: unknown[] }).features).toHaveLength(2);
     });
 
     it("refuses projected coordinates on refresh without replacing the mounted data", async () => {
