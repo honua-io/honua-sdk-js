@@ -51,7 +51,7 @@ const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/servi
 await using honua = createHonua();
 const data = await honua.connect(endpoint);
 const info = await data.inspect();
-const plan = await data.explain({ returnGeometry: true, pagination: { limit: 100 } }, { sourceId: info.defaultSourceId });
+const plan = await data.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 100 } }, { sourceId: info.defaultSourceId });
 const result = await data.query(plan);
 const map = await data.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId: info.defaultSourceId });
 await map.ready;

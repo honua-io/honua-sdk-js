@@ -75,7 +75,7 @@ const connection = await honua.connect(
 );
 const inspection = await connection.inspect();
 const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
-const plan = await connection.explain({ returnGeometry: true, pagination: { limit: 250 } }, { sourceId });
+const plan = await connection.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 250 } }, { sourceId });
 const mounted = await connection.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId });
 await mounted.ready;
 ```
