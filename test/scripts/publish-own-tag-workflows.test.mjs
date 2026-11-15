@@ -7,6 +7,8 @@ import { describe, it } from "node:test";
 
 import { parse } from "yaml";
 
+import { NPM_PUBLISH_ENVIRONMENT } from "./npm-publish-environment.mjs";
+
 // Merging an own-tag release starts two publish runs for one version: the tag
 // push and the release workflow's dispatch. These tests run the real "Publish
 // package" shell against an offline npm double and a verifier double, so the
@@ -146,3 +148,11 @@ for (const spec of workflows) {
     });
   });
 }
+
+describe("publication environment", () => {
+  for (const spec of workflows) {
+    it(`${spec.file} publishes for real only inside the npm-publish environment`, () => {
+      assert.equal(loadJob(spec).job.environment, NPM_PUBLISH_ENVIRONMENT);
+    });
+  }
+});

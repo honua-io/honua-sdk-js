@@ -9,17 +9,17 @@ on:
         default: true
         type: boolean
       release_version:
-        description: "Existing package version to publish from a branch recovery run"
+        description: "Existing package version to publish from a trunk recovery run"
         required: false
         default: ""
         type: string
       allow_branch_publish:
-        description: "Allow a non-dry-run branch recovery publish when release_version matches package.json"
+        description: "Allow a non-dry-run recovery publish from trunk when release_version matches package.json"
         required: false
         default: false
         type: boolean
       source_revision:
-        description: "Exact commit required for a guarded branch recovery publish"
+        description: "Exact commit required for a guarded trunk recovery publish"
         required: false
         default: ""
         type: string
@@ -38,7 +38,7 @@ jobs:
   # a refresh before the strict samples:verify below. Fast no-op when trunk's
   # tip is already a regeneration merge.
   #
-  # Branch-recovery runs only (#768): a reseal always lands as a NEW commit on
+  # Trunk-recovery runs only (#768): a reseal always lands as a NEW commit on
   # trunk, so it can never freshen the tree a tag already names. Waiting for one
   # on a tag run would burn 10+ minutes and still leave a stale tag stale, so
   # tag runs are gated by the strict release-seal check in the publish job
@@ -97,6 +97,10 @@ jobs:
     # there still blocks the publish.
     if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' }}
     runs-on: ubuntu-24.04
+    # Real publishes run in the npm-publish environment, whose deployment rules admit the
+    # release tags of the three npm workflows and trunk (this workflow's recovery publish);
+    # dry runs need no environment.
+    environment: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') && 'npm-publish' || '' }}
     permissions:
       contents: read
       # Authenticated recovery reads Actions run attempts and jobs. contents:read
@@ -255,10 +259,11 @@ jobs:
               echo "Tag version ($tag_version) does not match package.json version ($package_version)."
               exit 1
             fi
-          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" && -n "${EXPECTED_SOURCE_REVISION}" ]]; then
-            echo "Running guarded branch recovery publish for ${package_version} from ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" && -n "${EXPECTED_SOURCE_REVISION}" && "${GITHUB_REF}" == "refs/heads/trunk" ]]; then
+            echo "Running guarded trunk recovery publish for ${package_version} from ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
           else
-            echo "Non-dry-run publish must run from a js-sdk-* tag, or set allow_branch_publish with release_version and source_revision for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+            # A recovery publish from any other branch would ship code no review covered.
+            echo "Non-dry-run publish must run from a js-sdk-* tag, or from trunk with allow_branch_publish, release_version and source_revision for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
             exit 1
           fi
 
@@ -553,10 +558,10 @@ jobs:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('js-sdk-v{0}', github.event.inputs.release_version) }}
           SEALED_COMMIT: ${{ github.sha }}
           # npm provenance records the ref the publish job actually ran from.
-          # A tag run records refs/tags/js-sdk-v*, but the guarded branch
+          # A tag run records refs/tags/js-sdk-v*, but the guarded trunk
           # recovery publish this workflow supports (allow_branch_publish, which
           # already pins release_version and source_revision) records
-          # refs/heads/<branch>. Pass the real ref so a recovered publish is
+          # refs/heads/trunk. Pass the real ref so a recovered publish is
           # verified rather than failed after the packages are already live;
           # the commit check still pins every artifact to SEALED_COMMIT.
           PUBLISH_REF: ${{ github.ref }}
