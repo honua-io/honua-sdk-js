@@ -51,8 +51,14 @@ canonical gRPC `Source` reads the layer's offset-timestamp and decimal columns f
 `DescribeLayer` once and sends those strings on their exact wire cases; date and
 time strings travel as plain strings, which servers also accept. With
 `HonuaClient.applyEdits`, declare columns in `attributeTypes` (for example
-`{ signed_at: "timestamp-offset", fee: "decimal" }`); declare `date` or `time`
-only for a geospatial-grpc 1.2 server, since older servers ignore those cases.
+`{ signed_at: "timestamp-offset", fee: "decimal" }`). Declare `date`, `time`,
+`timestamp-offset` or `decimal` only for a geospatial-grpc 1.2 server: older
+servers ignore those wire cases and can store the column as null.
+
+A 1.1 server can still declare DATE and TIME fields. It has no `date_value` or
+`time_value` cases, so those columns arrive as text or as epoch milliseconds,
+while the field list reports `esriFieldTypeDateOnly` or `esriFieldTypeTimeOnly`.
+Treat a number as epoch milliseconds, not as calendar text.
 
 Set `useGlobalIds: true` to address updates and deletes by global ID; `deletes`
 then lists UUIDs. On gRPC each update carries `globalId` (or the UUID in the

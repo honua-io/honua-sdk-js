@@ -77,6 +77,9 @@ function encodeUpdate(input: HonuaFeature, request: ApplyEditsRequest): ProtoFea
   if (input.geometry === null) {
     throw new HonuaCapabilityNotSupportedError("clearGeometry", "grpc", `${request.serviceId}/${request.layerId}`);
   }
+  if (request.useGlobalIds !== true && hasExplicitGlobalId(input)) {
+    throw new HonuaCapabilityNotSupportedError("globalId", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
   if (request.useGlobalIds === true) {
     const encoded = encodeAdd(input, request);
     if (!encoded.globalId) {
@@ -102,6 +105,10 @@ export function toWireGlobalId(value: string): string {
   const match = UUID_PATTERN.exec(value);
   if (!match?.[1]) throw new Error(`gRPC global IDs must be UUIDs; received "${value}".`);
   return match[1].toLowerCase();
+}
+
+function hasExplicitGlobalId(input: HonuaFeature): boolean {
+  return input.globalId !== undefined;
 }
 
 /** Take the global ID from `globalId` or the global-ID attribute, removing that attribute. */
@@ -193,9 +200,9 @@ function toEditAttribute(value: unknown, type?: GrpcPreciseAttributeType): Attri
 }
 
 /**
- * Decode an ApplyEdits response. With `sent`, a global-ID batch whose delete results do not
- * match its `delete_global_ids` is refused: a server older than geospatial-grpc 1.2 ignores the
- * unknown selectors and would otherwise report an empty success.
+ * Decode an ApplyEdits response. With `sent`, a success that drops a sent global ID
+ * on an add, update or delete is refused: a server older than geospatial-grpc 1.2
+ * ignores those fields and would otherwise report success.
  */
 export function fromProtoApplyEditsResponse(
   response: ApplyEditsResponse,

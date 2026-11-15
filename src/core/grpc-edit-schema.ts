@@ -1,8 +1,8 @@
 import type { FieldType as ProtoFieldType } from "../gen/geospatial/v1/common_pb.js";
 import type { LayerDescriptor } from "../gen/geospatial/v1/metadata_types_pb.js";
 import type { HonuaClient } from "./client.js";
-import { HonuaAbortError, HonuaGrpcError } from "./errors.js";
-import { GRPC_UNIMPLEMENTED } from "./grpc-status.js";
+import { HonuaAbortError, HonuaGrpcError, HonuaTimeoutError } from "./errors.js";
+import { GRPC_CANCELED, GRPC_UNIMPLEMENTED } from "./grpc-status.js";
 import type { GrpcPreciseAttributeType } from "./types.js";
 
 /** Edit-encoding hints read from a native layer descriptor. */
@@ -59,16 +59,28 @@ export function memoizedGrpcEditSchema(
 ): (signal?: AbortSignal) => Promise<GrpcEditSchema> {
   let pending: Promise<GrpcEditSchema> | undefined;
   return (signal) => {
-    pending ??= client.describeLayer({ serviceId, layerId, signal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS) }).then(
-      (response) => grpcEditSchema(response.layer),
-      (error: unknown) => {
-        if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
-        pending = undefined;
-        throw error;
-      },
-    );
+    if (signal?.aborted) return Promise.reject(new HonuaAbortError());
+    if (!pending) {
+      const timeout = AbortSignal.timeout(DESCRIBE_TIMEOUT_MS);
+      pending = client.describeLayer({ serviceId, layerId, signal: timeout }).then(
+        (response) => grpcEditSchema(response.layer),
+        (error: unknown) => {
+          if (error instanceof HonuaGrpcError && error.code === GRPC_UNIMPLEMENTED) return grpcEditSchema(undefined);
+          pending = undefined;
+          if (timeout.aborted && isDescribeTimeout(error)) throw new HonuaTimeoutError(DESCRIBE_TIMEOUT_MS);
+          throw error;
+        },
+      );
+    }
     return abortable(pending, signal);
   };
+}
+
+/** The DescribeLayer call carries only this module's timeout signal, never the caller's. */
+function isDescribeTimeout(error: unknown): boolean {
+  if (error instanceof HonuaAbortError || error instanceof HonuaTimeoutError) return true;
+  if (error instanceof HonuaGrpcError && error.code === GRPC_CANCELED) return true;
+  return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
 /** Stop waiting on the shared read when this caller aborts; the read itself continues. */
