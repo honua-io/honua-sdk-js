@@ -14,18 +14,32 @@ import type { HonuaClientOptions, HonuaTransport } from "./types.js";
 /** `"auto"` selects gRPC-Web where the server offers it, REST otherwise. */
 export type HonuaTransportPreference = HonuaTransport | "auto";
 
+/** How long the transport probe waits for an answer before selecting REST. */
+export const HONUA_TRANSPORT_PROBE_TIMEOUT_MS = 5_000;
+
+/** Options for {@link selectHonuaTransport}. */
+export interface SelectHonuaTransportOptions extends Omit<HonuaClientOptions, "transport"> {
+  /** Cancels the transport probe; the returned promise rejects with the abort reason. */
+  readonly signal?: AbortSignal;
+  /**
+   * Milliseconds to wait for the probe's answer before selecting REST.
+   * Default {@link HONUA_TRANSPORT_PROBE_TIMEOUT_MS}.
+   */
+  readonly probeTimeoutMs?: number;
+}
+
 /** Options for {@link createHonuaClient}. */
-export interface CreateHonuaClientOptions extends Omit<HonuaClientOptions, "transport"> {
+export interface CreateHonuaClientOptions extends SelectHonuaTransportOptions {
   /**
    * Transport preference. Default `"auto"`: gRPC-Web when the server answers a
    * gRPC-Web probe and the optional peers (`@bufbuild/protobuf`,
-   * `@connectrpc/connect`, `@connectrpc/connect-web`) are installed, otherwise
+   * `@connectrpc/connect`, `@connectrpc/connect-web`) can be loaded, otherwise
    * `"rest"`. `"rest"` and `"grpc-web"` skip the probe.
    */
   readonly transport?: HonuaTransportPreference;
-  /** Cancels the transport probe. */
-  readonly signal?: AbortSignal;
 }
+
+type ClientFactory = (options: HonuaClientOptions & { readonly transport: HonuaTransport }) => HonuaClient;
 
 /**
  * Create a {@link HonuaClient} on the native gRPC-Web transport where the
@@ -34,11 +48,18 @@ export interface CreateHonuaClientOptions extends Omit<HonuaClientOptions, "tran
  * The probe is one unary `DescribeService` call with an empty service ID. Any
  * gRPC-Web answer, including the expected `INVALID_ARGUMENT`, shows the server
  * serves the native contract. A response that is not gRPC-Web (for example an
- * HTML 404 from a REST-only server), no response at all (an unreachable host
- * or a CORS policy that does not admit gRPC-Web), or missing optional peers
- * selects REST. Check `client.isGrpcWeb` to see which transport was chosen.
+ * HTML 404 from a REST-only server), no response within the probe timeout (an
+ * unreachable host, or a CORS policy that does not admit gRPC-Web), or optional
+ * peers that cannot be loaded select REST. Check `client.isGrpcWeb` to see which
+ * transport was chosen.
  *
- * @throws The caller's abort reason when `signal` aborts during the probe.
+ * Browser bundles: import `createHonuaClient` from `@honua/sdk-js/grpc-web`.
+ * This variant loads the peers through a runtime specifier that bundlers do not
+ * follow, so in a bundled browser app it always selects REST.
+ *
+ * @throws The caller's abort reason when `signal` aborts during the probe, and
+ *   any error raised before the probe request is sent (for example a failing
+ *   `auth` provider), so a local failure is never read as a REST-only server.
  *
  * @example
  * ```ts
@@ -51,60 +72,81 @@ export async function createHonuaClient(options: CreateHonuaClientOptions): Prom
 }
 
 /**
+ * Probe the server once and return the transport {@link createHonuaClient}
+ * would choose, for callers that construct clients themselves. Same browser
+ * caveat as {@link createHonuaClient}.
+ */
+export async function selectHonuaTransport(options: SelectHonuaTransportOptions): Promise<HonuaTransport> {
+  return selectHonuaTransportWith(options, (clientOptions) => new HonuaClient(clientOptions));
+}
+
+/**
  * @internal Shared by the root and `grpc-web` entrypoints: `makeClient` builds the
  * client for a resolved transport, so the browser entrypoint can probe and
  * return its statically bound gRPC-Web class.
  */
 export async function createHonuaClientWith(
   options: CreateHonuaClientOptions,
-  makeClient: (options: HonuaClientOptions & { readonly transport: HonuaTransport }) => HonuaClient,
+  makeClient: ClientFactory,
 ): Promise<HonuaClient> {
-  const { transport = "auto", signal, ...clientOptions } = options;
-  const selected = transport === "auto" ? await probeTransport(clientOptions, signal, makeClient) : transport;
+  const { transport = "auto", signal, probeTimeoutMs, ...clientOptions } = options;
+  const selected =
+    transport === "auto"
+      ? await selectHonuaTransportWith(
+          {
+            ...clientOptions,
+            ...(signal ? { signal } : {}),
+            ...(probeTimeoutMs !== undefined ? { probeTimeoutMs } : {}),
+          },
+          makeClient,
+        )
+      : transport;
   return makeClient({ ...clientOptions, transport: selected });
 }
 
-/**
- * Probe the server once and return the transport {@link createHonuaClient}
- * would choose. Exposed for callers that construct clients themselves.
- */
-export async function selectHonuaTransport(
-  options: Omit<HonuaClientOptions, "transport">,
-  signal?: AbortSignal,
+/** @internal See {@link createHonuaClientWith}. */
+export async function selectHonuaTransportWith(
+  options: SelectHonuaTransportOptions,
+  makeClient: ClientFactory,
 ): Promise<HonuaTransport> {
-  return probeTransport(options, signal, (clientOptions) => new HonuaClient(clientOptions));
-}
-
-async function probeTransport(
-  options: Omit<HonuaClientOptions, "transport">,
-  signal: AbortSignal | undefined,
-  makeClient: (options: HonuaClientOptions & { readonly transport: HonuaTransport }) => HonuaClient,
-): Promise<HonuaTransport> {
+  const { signal, probeTimeoutMs = HONUA_TRANSPORT_PROBE_TIMEOUT_MS, ...clientOptions } = options;
   signal?.throwIfAborted();
-  const baseFetch = (options.fetchFn ?? fetch).bind(globalThis);
+  const baseFetch = (clientOptions.fetchFn ?? fetch).bind(globalThis);
+  let sent = false;
   let answer: Response | undefined;
   const probe = makeClient({
-    ...options,
+    ...clientOptions,
     transport: "grpc-web",
-    // One attempt: a retried probe only delays the fallback decision.
+    // One attempt: a retried probe only delays the decision.
     retry: { maxRetries: 0 },
     fetchFn: async (input, init) => {
+      sent = true;
       const response = await baseFetch(input, init);
       answer = response;
       return response;
     },
   });
+
+  const deadline = new AbortController();
+  const forwardAbort = () => deadline.abort(signal?.reason);
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+  const timer = setTimeout(() => deadline.abort(new Error("transport probe timed out")), probeTimeoutMs);
   try {
-    await probe.describeService({ serviceId: "", ...(signal ? { signal } : {}) });
+    await probe.describeService({ serviceId: "", signal: deadline.signal });
     return "grpc-web";
   } catch (error) {
     signal?.throwIfAborted();
-    if (error instanceof HonuaOptionalGrpcPeerError) return "rest";
-    return answer !== undefined && isGrpcWebAnswer(answer) ? "grpc-web" : "rest";
+    if (answer !== undefined) return isGrpcWebAnswer(answer) ? "grpc-web" : "rest";
+    if (sent || error instanceof HonuaOptionalGrpcPeerError) return "rest";
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
   }
 }
 
 function isGrpcWebAnswer(response: Response): boolean {
+  // content-type is readable cross-origin without an expose list; grpc-status is not.
   const contentType = response.headers.get("content-type") ?? "";
   return /^application\/grpc-web(?:-text)?(?:[+;]|$)/iu.test(contentType) || response.headers.has("grpc-status");
 }

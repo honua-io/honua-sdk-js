@@ -17,8 +17,16 @@
  */
 
 export { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "./core/client.js";
-export { createHonuaClient, selectHonuaTransport } from "./core/transport-selection.js";
-export type { CreateHonuaClientOptions, HonuaTransportPreference } from "./core/transport-selection.js";
+export {
+  createHonuaClient,
+  HONUA_TRANSPORT_PROBE_TIMEOUT_MS,
+  selectHonuaTransport,
+} from "./core/transport-selection.js";
+export type {
+  CreateHonuaClientOptions,
+  HonuaTransportPreference,
+  SelectHonuaTransportOptions,
+} from "./core/transport-selection.js";
 export {
   HONUA_CONNECT_ADAPTER_VERSION,
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,

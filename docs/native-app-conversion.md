@@ -14,26 +14,28 @@ CORS, signed URLs and snapshot freshness.
 
 ## Bind a source
 
-`createHonuaClient` probes the server once with an empty-ID `DescribeService`
-call: any gRPC-Web answer selects the native transport; a non-gRPC answer, no
-answer (for example a CORS policy that does not admit gRPC-Web) or missing
-optional peers selects REST. Pass `transport: "grpc-web"` or `"rest"` to skip the
-probe. Calls never switch transport after that choice. This example supplies a known source explicitly. It does not perform metadata
+For an app that should run on either transport, create the client with
+`createHonuaClient` from `@honua/sdk-js/grpc-web`. It probes once with an empty-ID
+`DescribeService` call: any gRPC-Web answer selects gRPC-Web; a non-gRPC answer,
+no answer within the probe timeout (for example a CORS policy that does not admit
+gRPC-Web) or unloadable optional peers select REST. Calls never switch transport
+after that choice. The examples below require gRPC-Web, so they set it explicitly.
+
+This example supplies a known source explicitly. It does not perform metadata
 discovery or prove that the deployment permits editing. Use [native discovery](grpc-discovery.md) to observe descriptors and caller
 capabilities when the deployment supports DescribeService and DescribeLayer.
 Protocol defaults describe the SDK surface.
 
 ```ts doc-test=compile
-import { createHonuaClient } from "@honua/sdk-js/grpc-web";
+import { HonuaClient } from "@honua/sdk-js/grpc-web";
 import { createDataset, PROTOCOL_DEFAULT_CAPABILITIES, queryFilter } from "@honua/sdk-js/contract";
 
 const baseUrl = "https://your-honua-server.example";
-// gRPC-Web where the server offers it, GeoServices REST otherwise.
-const client = await createHonuaClient({
+const client = new HonuaClient({
   baseUrl,
+  transport: "grpc-web",
   bearerToken: "<short-lived-user-access-token>",
 });
-if (!client.isGrpcWeb) throw new Error("This deployment does not serve gRPC-Web to this origin.");
 const dataset = createDataset({
   id: "inspection-app",
   client,

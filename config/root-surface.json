@@ -47,6 +47,7 @@
       "HONUA_ERROR_CODE_REGISTRY",
       "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
+      "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
       "HonuaAbortError",
       "HonuaAuthError",
       "HonuaCapabilityNotSupportedError",
@@ -137,6 +138,7 @@
       "HONUA_ERROR_CODE_REGISTRY",
       "HONUA_ERROR_KIND",
       "HONUA_MINIMUM_SUPPORTED_SERVER_VERSION",
+      "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
       "HonuaAbortError",
       "HonuaAuthCredentials",
       "HonuaAuthCredentialsProvider",
@@ -244,6 +246,7 @@
       "Result",
       "sanitizeHonuaErrorContext",
       "selectHonuaTransport",
+      "SelectHonuaTransportOptions",
       "SerializedHonuaError",
       "SerializedHonuaErrorCause",
       "serializeHonuaError",
@@ -672,6 +675,14 @@
     },
     {
       "symbol": "HonuaTransportPreference",
+      "kind": "type"
+    },
+    {
+      "symbol": "HONUA_TRANSPORT_PROBE_TIMEOUT_MS",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "SelectHonuaTransportOptions",
       "kind": "type"
     }
   ],

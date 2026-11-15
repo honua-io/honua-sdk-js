@@ -10,7 +10,13 @@ import { createGrpcWebTransport } from "@connectrpc/connect-web";
 
 import { HonuaClient as BaseHonuaClient } from "./core/client.js";
 import * as grpcAdapter from "./core/grpc-adapter.js";
-import { type CreateHonuaClientOptions, createHonuaClientWith } from "./core/transport-selection.js";
+import {
+  type CreateHonuaClientOptions,
+  type SelectHonuaTransportOptions,
+  createHonuaClientWith,
+  selectHonuaTransportWith,
+} from "./core/transport-selection.js";
+import type { HonuaTransport } from "./core/types.js";
 import type { HonuaClientOptions } from "./core/types.js";
 import { FeatureService } from "./gen/geospatial/v1/feature_service_pb.js";
 
@@ -43,4 +49,16 @@ export function createHonuaClient(options: CreateHonuaClientOptions): Promise<Ba
   );
 }
 
-export type { CreateHonuaClientOptions, HonuaTransportPreference } from "./core/transport-selection.js";
+/** Browser variant of the root `selectHonuaTransport`, probing with this entrypoint's bound runtime. */
+export function selectHonuaTransport(options: SelectHonuaTransportOptions): Promise<HonuaTransport> {
+  return selectHonuaTransportWith(options, ({ transport, ...clientOptions }) =>
+    transport === "grpc-web" ? new HonuaClient(clientOptions) : new BaseHonuaClient({ ...clientOptions, transport }),
+  );
+}
+
+export { HONUA_TRANSPORT_PROBE_TIMEOUT_MS } from "./core/transport-selection.js";
+export type {
+  CreateHonuaClientOptions,
+  HonuaTransportPreference,
+  SelectHonuaTransportOptions,
+} from "./core/transport-selection.js";

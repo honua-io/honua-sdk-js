@@ -6,6 +6,7 @@ import { HonuaOptionalGrpcPeerError } from "../src/core/optional-grpc-peer.js";
 import { createHonuaClient, selectHonuaTransport } from "../src/core/transport-selection.js";
 import { DescribeServiceRequestSchema } from "../src/gen/geospatial/v1/feature_service_pb.js";
 import { HonuaClient as GrpcWebHonuaClient, createHonuaClient as createBrowserClient } from "../src/grpc-web.js";
+import { createHonuaClient as fromHonua } from "../src/honua.js";
 import { createHonuaClient as fromIndex } from "../src/index.js";
 
 const baseUrl = "https://example.test";
@@ -109,6 +110,7 @@ describe("createHonuaClient transport selection", () => {
 
   it("is exported from the package entrypoint", () => {
     expect(fromIndex).toBe(createHonuaClient);
+    expect(fromHonua).toBe(createHonuaClient);
   });
 
   it("returns the statically bound gRPC-Web class from the browser entrypoint", async () => {
@@ -122,5 +124,37 @@ describe("createHonuaClient transport selection", () => {
     });
     expect(rest).not.toBeInstanceOf(GrpcWebHonuaClient);
     expect(rest.isGrpcWeb).toBe(false);
+  });
+
+  it("detects gRPC-Web from the content type alone, including grpc-web-text", async () => {
+    for (const contentType of ["application/grpc-web+proto", "application/grpc-web-text"]) {
+      const fetchFn = recordingFetch(
+        () => new Response(null, { status: 200, headers: { "content-type": contentType } }),
+      );
+      await expect(selectHonuaTransport({ baseUrl, fetchFn })).resolves.toBe("grpc-web");
+    }
+  });
+
+  it("selects REST when the probe gets no answer before its deadline", async () => {
+    const fetchFn: typeof fetch = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      });
+    await expect(selectHonuaTransport({ baseUrl, fetchFn, probeTimeoutMs: 20 })).resolves.toBe("rest");
+  });
+
+  it("rethrows a failure raised before the probe request is sent", async () => {
+    const failure = new Error("token refresh failed");
+    const fetchFn = vi.fn<typeof fetch>();
+    await expect(
+      createHonuaClient({
+        baseUrl,
+        fetchFn,
+        auth: async () => {
+          throw failure;
+        },
+      }),
+    ).rejects.toThrow("token refresh failed");
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 });
