@@ -53,7 +53,7 @@ query limit and initial selected record to the governed fixture manifest rather 
 Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a 300-second
 ceiling. The browser shell also reports narrower monotonic budgets: 10,000 ms to its first usable fixture frame, 100 ms
 for a synchronous filter/selection update, and 1,000 ms for managed cleanup. See the
-[quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures). These are machine budgets,
+[quickstart budget](../../docs/ci-evidence-graph.md#why-the-quickstart-budget-does-not-reuse-the-build). These are machine budgets,
 not claims about a first-time human session or public-network latency.
 
 ## Secret-free live run
