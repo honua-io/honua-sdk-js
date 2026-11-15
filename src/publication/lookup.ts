@@ -194,12 +194,15 @@ async function answerFromServer<T>(context: LookupContext, request: ServerReques
     message: answeredByServerMessage(value, request.fallback),
   };
   const server = context.serverSource as Source<T>;
-  const result = await server.query({
-    filter: queryFilter.eq(context.publication.identity.field, value),
-    outFields: context.guard.names,
-    returnGeometry: true,
-    ...(signal ? { signal } : {}),
-  });
+  const result = await settleOrAbort(
+    server.query({
+      filter: queryFilter.eq(context.publication.identity.field, value),
+      outFields: context.guard.names,
+      returnGeometry: true,
+      ...(signal ? { signal } : {}),
+    }),
+    signal,
+  );
   const reason: DegradedReason = {
     capability: "query",
     reason: limit.message,

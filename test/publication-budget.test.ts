@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { queryFilter } from "../src/contract/query-filter.js";
 import type { Query, Result, Source } from "../src/contract/types.js";
+import { HonuaAbortError } from "../src/core/errors.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
 import {
@@ -46,6 +47,26 @@ function liveService() {
 const tinyBudget = { maxBytes: 4_096, maxTimeToFirstResultMs: 10_000 };
 
 describe("byte budget", () => {
+  it("rejects a cancelled server fallback even when the live service returns an answer", async () => {
+    const controller = new AbortController();
+    const live = liveService();
+    const source = await pairedSource(await served(), {
+      budget: tinyBudget,
+      serverSource: {
+        async query(query: Query) {
+          controller.abort();
+          return live.query(query);
+        },
+      } as Source,
+    });
+
+    await expect(source.lookup(MERGED_MULTIPART_PARCEL, { signal: controller.signal })).rejects.toBeInstanceOf(
+      HonuaAbortError,
+    );
+    expect(live.requests).toHaveLength(1);
+    expect(live.requests[0]?.signal).toBe(controller.signal);
+  });
+
   it("keeps a committed-fixture lookup within the confirmed byte budget, planned and actually sent", async () => {
     const server = await served();
     const source = await pairedSource(server);
