@@ -253,9 +253,11 @@ it("refuses a streamed feature page that ignored a global-ID selector", async ()
 });
 
 it("refuses an integer-mode update that carries a feature global ID", () => {
-  expect(() =>
-    toProtoApplyEditsRequest({ ...target, updates: [{ attributes: { OBJECTID: 4 }, globalId: GID }] }),
-  ).toThrow(HonuaCapabilityNotSupportedError);
+  for (const globalId of [GID, ""]) {
+    expect(() => toProtoApplyEditsRequest({ ...target, updates: [{ attributes: { OBJECTID: 4 }, globalId }] })).toThrow(
+      HonuaCapabilityNotSupportedError,
+    );
+  }
 });
 
 it("refuses an add whose client global ID a pre-1.2 server did not echo", async () => {

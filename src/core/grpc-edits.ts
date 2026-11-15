@@ -106,7 +106,7 @@ export function toWireGlobalId(value: string): string {
 }
 
 function hasExplicitGlobalId(input: HonuaFeature): boolean {
-  return input.globalId !== undefined && input.globalId !== "";
+  return input.globalId !== undefined;
 }
 
 /** Take the global ID from `globalId` or the global-ID attribute, removing that attribute. */
