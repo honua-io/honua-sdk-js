@@ -168,10 +168,15 @@ it("isolates skipped comment events from the real pending-review concurrency gro
   assert.match(concurrency, /cancel-in-progress: false/);
 });
 
-it("explicitly reduces the exchanged reviewer App token's repository contents permission", () => {
+it("reviews with the job's own token, which cannot write repository contents", () => {
+  // The action would otherwise exchange its own App token, which keeps contents: write whatever
+  // additional_permissions asks for. Comment text the reviewer reads is written by any user, so
+  // the token it holds must not be able to push to the pull-request branch.
   const review = workflow.slice(workflow.indexOf("  review:\n"));
   assert.match(review, /allowed_bots: chatgpt-codex-connector\[bot\]\n/);
   assert.equal((review.match(/allowed_bots:/g) ?? []).length, 1);
-  assert.match(review, /additional_permissions: \|\n            contents: read\n/);
-  assert.match(review, /permissions:\n      contents: read\n      pull-requests: write\n      id-token: write/);
+  assert.match(review, /github_token: \$\{\{ github\.token \}\}\n/);
+  assert.ok(!review.includes("additional_permissions"));
+  assert.ok(!review.includes("id-token"));
+  assert.match(review, /permissions:\n      contents: read\n      pull-requests: write\n    steps:/);
 });

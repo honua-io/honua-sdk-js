@@ -29,6 +29,10 @@ concurrency:
 jobs:
   publish-mcp-server:
     runs-on: ubuntu-latest
+    # Real publishes run in the npm-publish environment (shared with publish-js-sdk.yml), whose
+    # deployment rules admit the release tags and trunk; this job's own guard accepts only its
+    # release tag. Dry runs need no environment.
+    environment: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') && 'npm-publish' || '' }}
     permissions:
       contents: read
       # Trusted publishing: npm >= 11.5 exchanges the Actions OIDC token for
