@@ -22,7 +22,8 @@ const missingTag = () => { throw Object.assign(new Error("Not Found"), { status:
 
 function restSnapshot(current, files) {
   return { state: "open", title: current.title, body: current.body, updated_at: current.updatedAt,
-    head: { sha: current.headSha }, base: { sha: current.baseSha, ref: "trunk" }, changed_files: files.length };
+    head: { sha: current.headSha, repo: { full_name: current.headRepository } }, base: { sha: current.baseSha, ref: "trunk" },
+    changed_files: files.length };
 }
 
 function graphqlSnapshot(current) {
@@ -36,8 +37,9 @@ function graphqlSnapshot(current) {
 }
 
 function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", status: "modified" }], releases = [draft], tagged = false,
-  rest = restSnapshot(current, files), releaseError, runs = [], sharing = [] } = {}) {
+  rest = restSnapshot(current, files), releaseError, runs = [], sharing = [], others = [] } = {}) {
   const calls = [];
+  const byNumber = new Map([current, ...others].map((pull) => [pull.pullRequestNumber, pull]));
   const request = async (url, options = {}) => {
     const endpoint = new URL(url);
     const body = options.body && JSON.parse(options.body);
@@ -46,16 +48,20 @@ function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", sta
       if (body.query.includes("issueOrPullRequest")) {
         return { data: { repository: { nameWithOwner: repository, issueOrPullRequest: { __typename: "Issue", number: 2532, state: "OPEN" } } } };
       }
-      return graphqlSnapshot(current);
+      return graphqlSnapshot(byNumber.get(body.variables.number) ?? current);
     }
     if (endpoint.pathname.endsWith("/release-please.yml/runs")) return { workflow_runs: runs };
     if (endpoint.pathname.endsWith("/releases")) { if (releaseError) throw releaseError; return releases; }
     if (endpoint.pathname.includes("/git/ref/tags/")) return tagged ? { object: { sha: "a".repeat(40) } } : missingTag();
     if (endpoint.pathname.endsWith("/files")) return files;
-    if (endpoint.pathname.endsWith("/pulls") && endpoint.searchParams.get("state") === "open") return sharing;
+    if (endpoint.pathname.endsWith("/pulls") && endpoint.searchParams.get("state") === "open") {
+      if (sharing instanceof Error) throw sharing;
+      return sharing;
+    }
     if (endpoint.pathname.endsWith("/check-runs")) return { id: 7 };
     if (endpoint.pathname.endsWith("/check-runs/7")) return body;
-    if (/\/pulls\/\d+$/.test(endpoint.pathname)) return rest;
+    const pull = byNumber.get(Number(/\/pulls\/(\d+)$/.exec(endpoint.pathname)?.[1]));
+    if (pull) return pull === current ? rest : restSnapshot(pull, files);
     throw new Error(`Unexpected request: ${url}`);
   };
   return { request, calls };
@@ -148,29 +154,50 @@ it("refreshes the exact PR head from held to passed without merging or weakening
   assert.equal(invalid.calls.at(-1).body.conclusion, "failure");
 });
 
-it("leaves a shared head's check to the newest open trunk PR on it", async () => {
-  const other = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" }, head: { sha: input.headSha }, ...overrides });
-  const older = { ...input, body: "missing issue footer" };
-  const superseded = fakeGitHub({ current: older, releases: [], sharing: [other(older.pullRequestNumber), other(older.pullRequestNumber + 1)] });
-  const result = await refreshPullRequest({ repository, pullRequestNumber: older.pullRequestNumber }, {}, superseded.request);
-  assert.equal(result.allowed, true);
-  assert.equal(result.superseded, true);
-  assert.match(result.summary, new RegExp(`#${older.pullRequestNumber + 1} is a newer open PR on the same head`));
-  assert.equal(superseded.calls.filter((call) => call.endpoint.pathname.includes("/check-runs")).length, 0,
-    "an older PR must not write its verdict onto the shared commit");
+it("publishes one combined verdict for same-repository PRs that share a head", async () => {
+  const entry = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" },
+    head: { sha: input.headSha, repo: { full_name: repository } }, ...overrides });
+  const stale = { ...input, pullRequestNumber: input.pullRequestNumber - 1, body: "missing issue footer" };
+  const listing = [entry(input.pullRequestNumber), entry(stale.pullRequestNumber)];
 
-  const notOwners = [other(input.pullRequestNumber - 1), other(input.pullRequestNumber + 1, { state: "closed" }),
-    other(input.pullRequestNumber + 2, { base: { ref: "release" } }), other(input.pullRequestNumber + 3, { head: { sha: "f".repeat(40) } })];
-  const owning = fakeGitHub({ releases: [], sharing: [other(input.pullRequestNumber), ...notOwners] });
-  const published = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, owning.request);
-  assert.equal(published.superseded, undefined);
-  assert.equal(owning.calls.at(-1).body.conclusion, "success", "the newest open trunk PR on the head still publishes");
+  // Whichever PR's run writes last, the commit carries the same verdict and names the PR to act on.
+  const fromValid = fakeGitHub({ releases: [], sharing: listing, others: [stale] });
+  const held = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, fromValid.request);
+  assert.equal(held.allowed, false);
+  assert.equal(held.infrastructureError, undefined);
+  assert.match(held.summary, new RegExp(`fix or close it: #${stale.pullRequestNumber} \\(`));
+  assert.equal(fromValid.calls.at(-1).body.conclusion, "failure");
+  const fromStale = fakeGitHub({ current: stale, releases: [], sharing: listing, others: [input] });
+  const own = await refreshPullRequest({ repository, pullRequestNumber: stale.pullRequestNumber }, {}, fromStale.request);
+  assert.equal(own.allowed, false, "a valid sibling never clears a PR's own failure");
+  assert.equal(fromStale.calls.at(-1).body.conclusion, "failure");
 
-  const bulk = fakeGitHub({ releases: [], sharing: [other(input.pullRequestNumber - 1), other(input.pullRequestNumber)] });
+  // Not siblings: a fork at the same commit, a closed PR, another base, another head.
+  const fork = { ...stale, pullRequestNumber: input.pullRequestNumber + 1 };
+  const unrelated = [entry(fork.pullRequestNumber, { head: { sha: input.headSha, repo: { full_name: "outsider/honua-sdk-js" } } }),
+    entry(input.pullRequestNumber + 2, { state: "closed" }), entry(input.pullRequestNumber + 3, { base: { ref: "release" } }),
+    entry(input.pullRequestNumber + 4, { head: { sha: "f".repeat(40), repo: { full_name: repository } } })];
+  const alone = fakeGitHub({ releases: [], sharing: [entry(input.pullRequestNumber), ...unrelated], others: [fork] });
+  const passed = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, alone.request);
+  assert.equal(passed.allowed, true);
+  assert.equal(alone.calls.at(-1).body.conclusion, "success");
+
+  // A sibling that moved off the head since the listing no longer shares the check.
+  const moved = fakeGitHub({ releases: [], sharing: listing, others: [{ ...stale, headSha: "e".repeat(40) }] });
+  assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, moved.request)).allowed, true);
+
+  // An infrastructure error while reading siblings replaces a stale green and fails the run.
+  const broken = fakeGitHub({ releases: [], sharing: new Error("rate limited") });
+  const failed = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, broken.request);
+  assert.equal(failed.infrastructureError, true);
+  assert.equal(broken.calls.at(-1).body.conclusion, "failure");
+
+  // A bulk refresh lists open PRs once and writes the combined verdict for each.
+  const bulk = fakeGitHub({ releases: [], sharing: listing, others: [stale] });
   const results = await refreshReleaseWindows({ repository }, bulk.request);
-  assert.deepEqual(results.map(({ number, superseded }) => [number, superseded]),
-    [[input.pullRequestNumber - 1, true], [input.pullRequestNumber, undefined]]);
-  assert.equal(bulk.calls.filter((call) => call.endpoint.pathname.endsWith("/pulls")).length, 1, "a bulk refresh lists open PRs once");
+  assert.deepEqual(results.map(({ number, allowed }) => [number, allowed]),
+    [[input.pullRequestNumber, false], [stale.pullRequestNumber, false]]);
+  assert.equal(bulk.calls.filter((call) => call.endpoint.pathname.endsWith("/pulls")).length, 1);
 });
 
 it("replaces stale green with failure when release reads fail", async () => {

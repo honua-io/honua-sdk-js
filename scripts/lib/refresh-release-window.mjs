@@ -12,15 +12,42 @@ async function completeCheck(checkUrl, result, request) {
   });
 }
 
+async function pullRequestVerdict(input, headSha, options, request) {
+  const current = await loadCurrentPullRequestDisposition(input, request);
+  if (current.headSha !== headSha) throw new PullRequestDispositionError("head-changed", "PR head changed before validation.");
+  validatePullRequestDisposition(current);
+  return evaluateReleaseWindow(current, options, request);
+}
+
 /**
- * The required check is published on a commit, so open trunk PRs that share a
- * head share one check. The newest of them owns it; an older PR that published
- * its own verdict there would block (or unblock) a PR nobody can fix from its side.
+ * The required check is published on a commit, so open trunk PRs from one
+ * repository that share a head share one check. Every one of them publishes
+ * the same combined verdict: the commit is held while any of them is held, and
+ * the summary names the PR to fix or close. A PR from another repository (a
+ * fork at the same commit) never holds this PR.
  */
-function newerPullRequestOnHead(openPulls, pull, pullRequestNumber) {
-  const newer = openPulls.filter((other) => other.state === "open" && other.base?.ref === "trunk" &&
-    other.head?.sha === pull.head.sha && other.number > pullRequestNumber).map((other) => other.number);
-  return newer.length > 0 ? Math.max(...newer) : undefined;
+async function siblingHolds(input, initial, options, request) {
+  const root = repositoryApi(input.repository);
+  const openPulls = options.openPulls ?? await readAllPages(`${root}/pulls?state=open&base=trunk`, request);
+  const headRepository = initial.head.repo?.full_name;
+  const siblings = openPulls.filter((other) => other.number !== input.pullRequestNumber && other.state === "open" &&
+    other.base?.ref === "trunk" && other.head?.sha === initial.head.sha &&
+    headRepository !== undefined && other.head?.repo?.full_name === headRepository);
+  const holds = [];
+  for (const listed of siblings) {
+    // The listing can be stale: a sibling that closed or moved off this head no longer shares the check.
+    const sibling = await request(`${root}/pulls/${listed.number}`);
+    if (sibling.state !== "open" || sibling.base?.ref !== "trunk" || sibling.head?.sha !== initial.head.sha) continue;
+    try {
+      const verdict = await pullRequestVerdict({ repository: input.repository, pullRequestNumber: listed.number },
+        initial.head.sha, options, request);
+      if (!verdict.allowed) holds.push({ number: listed.number, summary: verdict.summary });
+    } catch (error) {
+      if (!(error instanceof PullRequestDispositionError)) throw error;
+      holds.push({ number: listed.number, summary: error.message });
+    }
+  }
+  return holds;
 }
 
 export async function refreshPullRequest(input, options = {}, request = githubRequest) {
@@ -28,12 +55,6 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   const initial = await request(`${root}/pulls/${input.pullRequestNumber}`);
   if (initial.state !== "open" || initial.base?.ref !== "trunk") return { allowed: true, summary: "PR no longer targets trunk." };
   if (!/^[a-f0-9]{40}$/.test(initial.head?.sha)) throw new Error("Missing current PR head SHA.");
-  const openPulls = options.openPulls ?? await readAllPages(`${root}/pulls?state=open&base=trunk`, request);
-  const owner = newerPullRequestOnHead(openPulls, initial, input.pullRequestNumber);
-  if (owner !== undefined) {
-    return { allowed: true, superseded: true,
-      summary: `Not published: #${owner} is a newer open PR on the same head and owns the merge-policy check.` };
-  }
   const check = await request(`${root}/check-runs`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: REQUIRED_DISPOSITION_CHECK, head_sha: initial.head.sha, status: "in_progress",
@@ -42,10 +63,12 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   if (!Number.isSafeInteger(check.id)) throw new Error("GitHub did not create a pending merge-policy check.");
   let result;
   try {
-    const current = await loadCurrentPullRequestDisposition(input, request);
-    if (current.headSha !== initial.head.sha) throw new PullRequestDispositionError("head-changed", "PR head changed before validation.");
-    validatePullRequestDisposition(current);
-    result = await evaluateReleaseWindow(current, options, request);
+    result = await pullRequestVerdict(input, initial.head.sha, options, request);
+    const holds = result.allowed ? await siblingHolds(input, initial, options, request) : [];
+    if (holds.length > 0) {
+      result = { allowed: false, summary: "Held by another open PR on the same commit; fix or close it: " +
+        holds.map((hold) => `#${hold.number} (${hold.summary})`).join("; ") };
+    }
   } catch (error) {
     // The PR owns a disposition failure; anything else is an infrastructure error the run must surface.
     result = { allowed: false, summary: `Merge policy validation failed: ${error.message}`,
