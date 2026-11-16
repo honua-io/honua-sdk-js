@@ -834,8 +834,10 @@ This SDK ships from a single repository: the canonical package is
 `@honua/sdk-js` (all subpath entrypoints in [`INSTALL.md`](./INSTALL.md) live
 under that name), with the standalone packages in the table above built from
 the same source tree. The MCP server lives in [`mcp/`](./mcp/README.md).
-See [`AGENTS.md`](./AGENTS.md) for contributor instructions and the Specifica
-issue format used for backlog items.
+This repository does not accept outside code contributions. Bug reports, feature
+requests, and interoperability reports are welcome through GitHub Issues. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the policy and security-reporting guidance.
+Maintainer development instructions are in [`AGENTS.md`](./AGENTS.md).
 
 ## Security
 
