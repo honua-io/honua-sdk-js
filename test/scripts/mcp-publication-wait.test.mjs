@@ -26,14 +26,26 @@ if [[ "$1 $2" == "pr checks" ]]; then
   count=$((count + 1))
   echo "$count" > "$STATE/count"
   case "$MODE" in
+    late-context)
+      if (( count <= 35 )); then
+        echo '[{"name":"one","bucket":"pass"},{"name":"two","bucket":"pass"},{"name":"three","bucket":"pass"}]'
+        exit 0
+      fi
+      bucket=pass ;;
     late-pass)
       if (( count <= 35 )); then echo '[]'; exit 1; fi
       if (( count == 36 )); then bucket=pending; else bucket=pass; fi ;;
     missing) echo '[]'; exit 1 ;;
+    rules-unavailable) bucket=pass ;;
     *) bucket="$MODE" ;;
   esac
-  printf '[{"name":"one","bucket":"%s"},{"name":"two","bucket":"%s"},{"name":"three","bucket":"%s"}]\\n' "$bucket" "$bucket" "$bucket"
+  printf '[{"name":"one","bucket":"%s"},{"name":"two","bucket":"%s"},{"name":"three","bucket":"%s"},{"name":"four","bucket":"%s"}]\\n' "$bucket" "$bucket" "$bucket" "$bucket"
   [[ "$bucket" == pass ]]
+elif [[ "$1 $2" == "pr view" ]]; then
+  echo trunk
+elif [[ "$1" == api ]]; then
+  [[ "$MODE" != rules-unavailable ]] || exit 1
+  echo '["one","two","three","four"]'
 else
   printf '%s\\n' "$*" >> "$STATE/operations"
 fi
@@ -56,7 +68,9 @@ function runPublication(mode, command = script) {
       encoding: "utf8", timeout: 30_000,
     });
     const operationsPath = path.join(temporaryRoot, "operations");
-    return { ...result, operations: fs.existsSync(operationsPath) ? fs.readFileSync(operationsPath, "utf8") : "" };
+    const countPath = path.join(temporaryRoot, "count");
+    return { ...result, checks: fs.existsSync(countPath) ? Number(fs.readFileSync(countPath, "utf8")) : 0,
+      operations: fs.existsSync(operationsPath) ? fs.readFileSync(operationsPath, "utf8") : "" };
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
@@ -67,6 +81,19 @@ it("waits for checks attaching after five minutes, then merges only after all pa
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.operations, /pr merge 2608 .*--match-head-commit a{40}/u);
   assert.match(result.operations, /workflow run regenerate-derived-artifacts.yml/u);
+});
+
+it("waits for a fourth required context even when three attached checks pass", () => {
+  const result = runPublication("late-context");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.checks, 36);
+  assert.match(result.operations, /pr merge 2608 /u);
+});
+
+it("does not merge when branch requirements cannot be read", () => {
+  const result = runPublication("rules-unavailable");
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.operations, "");
 });
 
 for (const mode of ["fail", "cancel", "missing", "pending", "skipping"]) {
