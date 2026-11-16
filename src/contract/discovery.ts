@@ -249,16 +249,28 @@ export interface DiscoveryTileMatrixMetadata {
  * `unavailable` and unaccepted `inferred` evidence intentionally produce no
  * effective capabilities. Callers with trusted configuration should use
  * `declared` evidence rather than presenting protocol defaults as discovery.
- * `transportLimit` narrows the adapter to what the client transport serves
- * (for example the gRPC FeatureService set for a gRPC-Web client); excluded
- * capabilities resolve as `adapter-unsupported`.
  */
 export function resolveDiscoveryCapabilities(
   protocol: Protocol,
   evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[],
   policy: DiscoveryCapabilityPolicy = {},
-  transportLimit?: ReadonlySet<Capability>,
 ): DiscoveryCapabilityResolution {
+  return resolveTransportDiscoveryCapabilities({ protocol, evidence, policy });
+}
+
+/**
+ * @internal Same as {@link resolveDiscoveryCapabilities}, with `transportLimit`
+ * narrowing the adapter to what the client transport serves (the gRPC
+ * FeatureService set for a gRPC-Web client); excluded capabilities resolve as
+ * `adapter-unsupported`. Evidence is still checked against the full adapter.
+ */
+export function resolveTransportDiscoveryCapabilities(request: {
+  readonly protocol: Protocol;
+  readonly evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[];
+  readonly policy?: DiscoveryCapabilityPolicy;
+  readonly transportLimit?: ReadonlySet<Capability>;
+}): DiscoveryCapabilityResolution {
+  const { protocol, evidence, policy = {}, transportLimit } = request;
   const adapter = DISCOVERY_ADAPTER_MAXIMA.get(protocol);
   if (!adapter) {
     throw new HonuaDiscoveryError("unsupported-protocol", `Unknown discovery protocol "${String(protocol)}".`, {

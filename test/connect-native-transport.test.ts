@@ -192,7 +192,7 @@ describe("connect() native transport default for GeoServices feature services", 
       evaluatedAt: "2026-11-16T00:00:00.000Z",
     });
     const source = projected.source();
-    const pbf = source.capabilityProfile.entries.find((entry) => entry.id === "pbf" || entry.id.endsWith(":pbf"));
+    const pbf = source.capabilityProfile.entries.find((entry) => entry.id === "pbf");
     expect(pbf).toMatchObject({ effective: "unsupported" });
     expect(source.supports("pbf")).toBe(false);
   });

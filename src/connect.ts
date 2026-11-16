@@ -117,6 +117,7 @@ import {
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
+  resolveTransportDiscoveryCapabilities,
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesModuleLike } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
@@ -633,12 +634,12 @@ export async function connectWithSourceSchemaProjection(
 
   const inspections = Object.freeze(
     snapshot.sources.map((source) => {
-      const resolution = resolveDiscoveryCapabilities(
-        snapshot.protocol,
-        source.evidence ?? snapshot.evidence,
-        options.capabilityPolicy,
-        client.isGrpcWeb ? PROTOCOL_DEFAULT_CAPABILITIES.grpc : undefined,
-      );
+      const resolution = resolveTransportDiscoveryCapabilities({
+        protocol: snapshot.protocol,
+        evidence: source.evidence ?? snapshot.evidence,
+        ...(options.capabilityPolicy ? { policy: options.capabilityPolicy } : {}),
+        ...(client.isGrpcWeb ? { transportLimit: PROTOCOL_DEFAULT_CAPABILITIES.grpc } : {}),
+      });
       const descriptor: SourceDescriptor = {
         id: source.id,
         protocol: snapshot.protocol,
