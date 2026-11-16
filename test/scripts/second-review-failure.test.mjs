@@ -1,10 +1,36 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, truncateSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, truncateSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import { classifySecondReviewFailure, readSecondReviewFailure } from "../../scripts/lib/second-review-failure.mjs";
+const workflow = readFileSync(".github/workflows/claude-second-review.yml", "utf8");
+const inlineCode = workflow.split("node --input-type=module <<'NODE'\n")[1]
+  .split("          NODE")[0].replace(/^ {10}/gm, "");
+
+function runReporter(directory, cwd) {
+  return spawnSync(process.execPath, ["--input-type=module"], {
+    input: inlineCode, encoding: "utf8", cwd,
+    env: { ...process.env, RUNNER_TEMP: directory },
+  });
+}
+
+function assertReport(directory, expected, cwd) {
+  const result = runReporter(directory, cwd);
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+  assert.equal(result.stdout, `Second-pass review failed; error category hint: ${expected}. Raw output withheld.\n`);
+}
+
+function classifySecondReviewFailure(messages) {
+  const directory = mkdtempSync(join(tmpdir(), "review-failure-"));
+  try {
+    writeFileSync(join(directory, "claude-execution-output.json"), JSON.stringify(messages));
+    return runReporter(directory).stdout.match(/hint: ([a-z-]+)\./)?.[1];
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
 
 const failure = (result) => ({ type: "result", is_error: true, subtype: "success", result });
 
@@ -37,16 +63,16 @@ test("ignores ordinary prompts, tool responses and successful result text", () =
 
 test("handles unavailable, malformed and oversized files without emitting exceptions", () => {
   const directory = mkdtempSync(join(tmpdir(), "review-failure-"));
-  const path = join(directory, "output.json");
+  const path = join(directory, "claude-execution-output.json");
   try {
-    assert.equal(readSecondReviewFailure(path), "unavailable");
-    assert.equal(readSecondReviewFailure(directory), "unavailable");
+    assertReport(directory, "unavailable");
+
     writeFileSync(path, "secret-token {bad json");
-    assert.equal(readSecondReviewFailure(path), "unavailable");
+    assertReport(directory, "unavailable");
     writeFileSync(path, JSON.stringify([failure("invalid token: secret-token")]));
-    assert.equal(readSecondReviewFailure(path), "authentication");
+    assertReport(directory, "authentication");
     truncateSync(path, 16 * 1024 * 1024 + 1);
-    assert.equal(readSecondReviewFailure(path), "unavailable");
+    assertReport(directory, "unavailable");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -58,21 +84,31 @@ test("CLI emits only a fixed category even with secret-bearing workflow commands
     writeFileSync(join(directory, "claude-execution-output.json"), JSON.stringify([
       failure("401 unauthorized secret-token\n::error::secret-prompt\n::add-mask::secret-output"),
     ]));
-    const result = spawnSync(process.execPath, ["scripts/report-second-review-failure.mjs"], {
-      encoding: "utf8", env: { ...process.env, RUNNER_TEMP: directory },
-    });
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, "");
-    assert.equal(result.stdout, "Second-pass review failed; error category hint: authentication. Raw output withheld.\n");
+    assertReport(directory, "authentication");
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
 test("failure reporting cannot turn a failed review into success", () => {
-  const workflow = readFileSync(".github/workflows/claude-second-review.yml", "utf8");
   assert.match(workflow, /name: Run the second-pass review\n        id: second_review/);
   assert.match(workflow, /if: \$\{\{ failure\(\) && steps\.second_review\.outcome == 'failure' \}\}/);
-  assert.match(workflow, /run: node scripts\/report-second-review-failure\.mjs/);
+  assert.match(workflow, /node --input-type=module/);
+  assert.doesNotMatch(inlineCode, /import .*from ["\']\./);
   assert.doesNotMatch(workflow, /continue-on-error:|show_full_output:|upload-artifact/);
+});
+
+test("workspace script tampering cannot alter the inline failure reporter", () => {
+  const directory = mkdtempSync(join(tmpdir(), "review-tampering-"));
+  try {
+    mkdirSync(join(directory, "scripts/lib"), { recursive: true });
+    writeFileSync(join(directory, "scripts/report-second-review-failure.mjs"), 'throw new Error("secret-token");');
+    writeFileSync(join(directory, "scripts/lib/second-review-failure.mjs"), 'throw new Error("secret-prompt");');
+    writeFileSync(join(directory, "claude-execution-output.json"), JSON.stringify([
+      failure("401 unauthorized secret-token"),
+    ]));
+    assertReport(directory, "authentication", directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
