@@ -12,9 +12,9 @@ async function completeCheck(checkUrl, result, request) {
   });
 }
 
-async function pullRequestVerdict(input, headSha, options, request) {
-  const current = await loadCurrentPullRequestDisposition(input, request);
-  if (current.headSha !== headSha) throw new PullRequestDispositionError("head-changed", "PR head changed before validation.");
+async function pullRequestVerdict(target, options, request) {
+  const current = await loadCurrentPullRequestDisposition(target, request);
+  if (current.headSha !== target.headSha) throw new PullRequestDispositionError("head-changed", "PR head changed before validation.");
   validatePullRequestDisposition(current);
   return evaluateReleaseWindow(current, options, request);
 }
@@ -26,19 +26,18 @@ async function pullRequestVerdict(input, headSha, options, request) {
  * held, and the summary names the PR to fix or close. Fail closed: a valid PR
  * never clears another PR's failure on the commit they share.
  */
-async function siblingHolds(input, initial, options, request) {
-  const root = repositoryApi(input.repository);
+async function siblingHolds(target, options, request) {
+  const root = repositoryApi(target.repository);
   const openPulls = options.openPulls ?? await readAllPages(`${root}/pulls?state=open&base=trunk`, request);
-  const siblings = openPulls.filter((other) => other.number !== input.pullRequestNumber && other.state === "open" &&
-    other.base?.ref === "trunk" && other.head?.sha === initial.head.sha);
+  const siblings = openPulls.filter((other) => other.number !== target.pullRequestNumber && other.state === "open" &&
+    other.base?.ref === "trunk" && other.head?.sha === target.headSha);
   const holds = [];
   for (const listed of siblings) {
-    // The listing can be stale: a sibling that closed or moved off this head no longer shares the check.
+    // The listing can be stale: only a sibling that is still open on this head shares the check.
     const sibling = await request(`${root}/pulls/${listed.number}`);
-    if (sibling.state !== "open" || sibling.base?.ref !== "trunk" || sibling.head?.sha !== initial.head.sha) continue;
+    if (sibling.state !== "open" || sibling.base?.ref !== "trunk" || sibling.head?.sha !== target.headSha) continue;
     try {
-      const verdict = await pullRequestVerdict({ repository: input.repository, pullRequestNumber: listed.number },
-        initial.head.sha, options, request);
+      const verdict = await pullRequestVerdict({ ...target, pullRequestNumber: listed.number }, options, request);
       if (!verdict.allowed) holds.push({ number: listed.number, summary: verdict.summary });
     } catch (error) {
       if (!(error instanceof PullRequestDispositionError)) throw new Error(`#${listed.number}: ${error.message}`, { cause: error });
@@ -63,8 +62,9 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   try {
     // One release-window read serves this PR and every PR that shares its head.
     const shared = { ...options, windows: options.windows ?? await loadReleaseWindows(input.repository, request) };
-    result = await pullRequestVerdict(input, initial.head.sha, shared, request);
-    const holds = result.allowed ? await siblingHolds(input, initial, shared, request) : [];
+    const target = { ...input, headSha: initial.head.sha };
+    result = await pullRequestVerdict(target, shared, request);
+    const holds = result.allowed ? await siblingHolds(target, shared, request) : [];
     if (holds.length > 0) {
       result = { allowed: false, summary: "Held by another open PR on the same commit; fix or close it: " +
         holds.map((hold) => `#${hold.number} (${hold.summary})`).join("; ") };

@@ -157,12 +157,13 @@ it("refreshes the exact PR head from held to passed without merging or weakening
   assert.equal(invalid.calls.at(-1).body.conclusion, "failure");
 });
 
-it("publishes one combined verdict for every open trunk PR that shares a head", async () => {
-  const entry = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" },
-    head: { sha: input.headSha, repo: { full_name: repository } }, ...overrides });
-  const stale = { ...input, pullRequestNumber: input.pullRequestNumber - 1, body: "missing issue footer" };
-  const listing = [entry(input.pullRequestNumber), entry(stale.pullRequestNumber)];
+const entry = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" },
+  head: { sha: input.headSha, repo: { full_name: repository } }, ...overrides });
+const stale = { ...input, pullRequestNumber: input.pullRequestNumber - 1, body: "missing issue footer" };
+const listing = [entry(input.pullRequestNumber), entry(stale.pullRequestNumber)];
+const refreshInput = (api, number = input.pullRequestNumber) => refreshPullRequest({ repository, pullRequestNumber: number }, {}, api.request);
 
+it("publishes one combined verdict for every open trunk PR that shares a head", async () => {
   // Whichever PR's run writes last, the commit carries the same verdict and names the PR to act on.
   const fromValid = fakeGitHub({ releases: [], sharing: listing, others: [stale] });
   const held = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, fromValid.request);
@@ -182,7 +183,9 @@ it("publishes one combined verdict for every open trunk PR that shares a head", 
   const forkRun = await refreshPullRequest({ repository, pullRequestNumber: fork.pullRequestNumber }, {}, fromFork.request);
   assert.match(forkRun.summary, new RegExp(`fix or close it: #${stale.pullRequestNumber} `));
   assert.equal(fromFork.calls.at(-1).body.conclusion, "failure");
+});
 
+it("counts only PRs that are still open on the same trunk head", async () => {
   // Not siblings: a closed PR, another base, another head, and a listed PR that has since closed.
   const closedSince = { ...stale, pullRequestNumber: input.pullRequestNumber + 5 };
   const unrelated = [entry(input.pullRequestNumber + 2, { state: "closed" }), entry(input.pullRequestNumber + 3, { base: { ref: "release" } }),
@@ -198,10 +201,12 @@ it("publishes one combined verdict for every open trunk PR that shares a head", 
   const twins = fakeGitHub({ releases: [], sharing: [entry(input.pullRequestNumber), entry(twin.pullRequestNumber)], others: [twin] });
   assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, twins.request)).allowed, true);
 
-  // A sibling that moved off the head since the listing no longer shares the check.
+  // A sibling that moved off the head after the listing does not share the check.
   const moved = fakeGitHub({ releases: [], sharing: listing, others: [{ ...stale, headSha: "e".repeat(40) }] });
   assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, moved.request)).allowed, true);
+});
 
+it("fails the run on an infrastructure error from a shared head, and lists open PRs once in bulk", async () => {
   // An infrastructure error while listing or reading siblings replaces a stale green and fails the run.
   for (const [api, message] of [[fakeGitHub({ releases: [], sharing: new Error("rate limited") }), /rate limited/],
     [fakeGitHub({ releases: [], sharing: listing, others: [stale], otherError: new Error("bad gateway") }),
