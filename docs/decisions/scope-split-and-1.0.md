@@ -334,7 +334,7 @@ overpromising them today:
 > question that decides adoption.
 >
 > **Today (pre-1.0, `0.x`).** The **stable tier** — the subpath entrypoints
-> listed under "Stable subpath entrypoints" in [`INSTALL.md`](./INSTALL.md) — is
+> listed under "Stable subpath entrypoints" in [`INSTALL.md`](../../INSTALL.md) — is
 > where we invest compatibility effort and is guarded in CI by a public-API
 > report (`npm run verify:api-report`): no symbol leaves or changes shape by
 > accident. While we are on `0.x` a minor *may* still change a stable symbol, but

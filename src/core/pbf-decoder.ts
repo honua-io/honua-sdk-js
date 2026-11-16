@@ -614,6 +614,11 @@ function decodeFeatureResult(reader: PbfReader): Record<string, unknown> {
     );
   }
 
+  // Proto3 omits the zero-valued Point enum; nonspatial results omit the spatial reference too.
+  if (!geometryType && spatialReference) {
+    geometryType = "esriGeometryPoint";
+  }
+
   // Now decode features with full field/transform context
   const features = featureReaders.map((fr) => decodeFeature(fr, fields, transform, geometryType));
 

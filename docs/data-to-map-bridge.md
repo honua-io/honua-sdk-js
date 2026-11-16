@@ -188,8 +188,8 @@ are serialized: concurrent calls run in order, never interleaved.
 ```ts doc-test=skip reason="requires a mounted handle"
 import { envelope } from "@honua/sdk-js";
 
-await mounted.setFilter({ spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7) });
-await mounted.refresh();
+await mounted.setFilter({ spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7) }); // fetches the filtered rows
+await mounted.refresh();              // later, e.g. after an edit: re-run the same filter
 await mounted.setFilter(undefined);   // clear
 ```
 

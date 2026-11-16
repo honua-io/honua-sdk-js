@@ -26,7 +26,7 @@ at or below 6.4.0 carries [GHSA-jrc7-96c5-q579](https://github.com/advisories/GH
 a sanitizer bypass the runtime cannot protect you from. MapLibre 6 is ESM-only
 and loads its worker as a separate module; a Vite host configures it once with
 `maplibregl.setWorkerUrl(...)` before the first map is created (see
-[MapLibre 5 and 6 compatibility](maplibre-runtime.md#maplibre-5-and-6-compatibility)).
+[MapLibre runtime support](maplibre-runtime.md#maplibre-runtime-support)).
 
 ## 2. Connect, query, explain
 
@@ -86,7 +86,7 @@ const connection = await honua.connect(
 );
 const inspection = await connection.inspect();
 const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
-const plan = await connection.explain({ returnGeometry: true, pagination: { limit: 250 } }, { sourceId });
+const plan = await connection.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 250 } }, { sourceId });
 const mounted = await connection.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId });
 await mounted.ready; // first usable frame, not merely source mutation
 
@@ -95,6 +95,9 @@ await honua.dispose();
 ```
 
 `inspect()` reports the sources and capabilities the endpoint advertises.
+`outSr: 4326` asks the service for WGS84 longitude/latitude, which a MapLibre
+GeoJSON source needs; most public FeatureServer layers are stored in Web Mercator,
+and a plan that returns projected coordinates is refused rather than drawn blank.
 `explain()` returns the accepted plan, and `mount()` executes exactly that plan
 for the renderer, so what is drawn is what was reviewed. Pass an existing
 `maplibregl.Map` instead of a selector to borrow a map you already own.

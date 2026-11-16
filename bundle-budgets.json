@@ -1,5 +1,6 @@
 {
  "$comment": [
+  "/map min and gzip were reset for #2573: MapLibre source mounting now refuses coordinates outside WGS84 longitude/latitude with the remedy instead of drawing nothing. CI at f83d2b80 measures 203170 minified and 57814 gzip bytes, 170 and 314 over the prior ceilings. Only these two metrics change to ceil(actual * 1.1): 223487 and 63596. Every other entrypoint ceiling is unchanged.",
   "Native gRPC-Web attachments (#2517) add the unary and chunked-upload attachment facade and signed download URLs. CI at bdeb3269 measures /contract at 110634 and /web-components at 364851 gzip bytes; only these exceeded gzip ceilings are reset to ceil(actual * 1.1): 121698 and 401337. Minified ceilings and every other entrypoint stay unchanged.",
   "Native descriptor discovery (#2502) adds typed gRPC metadata projection to /source-schema. The build-host measurement is 203034 gzip bytes; only that exceeded ceiling is reset to 223338, ceil(actual * 1.1). The root-connect retention guard and every other ceiling stay in place.",
   "Advertised OGC vector tileset discovery measures /source-schema at 200537 gzip bytes. Its narrow gzip ceiling is 201000 (0.5% above the prior ceiling), still below the audited prior PROJJSON graph at 201663. All other ceilings and retention guards remain unchanged.",
@@ -223,8 +224,8 @@
    "gzip": 17575
   },
   "/map": {
-   "min": 203000,
-   "gzip": 57500
+   "min": 223487,
+   "gzip": 63596
   },
   "/geoparquet": {
    "min": 158603,

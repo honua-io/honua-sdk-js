@@ -18,7 +18,7 @@ import {
   HonuaQueryPlanExecutionError,
   type QueryExecutionPlanV1,
 } from "../query-planner/types.js";
-import type { AdapterGeoJsonFeatureCollection } from "./feature-service-adapter.js";
+import type { AdapterGeoJsonFeature, AdapterGeoJsonFeatureCollection } from "./feature-service-adapter.js";
 import {
   type MapLibreGeometryKind,
   canonicalFeaturesToGeoJson,
@@ -145,6 +145,42 @@ export interface MountedMapLibreSource {
   dispose(): void;
 }
 
+/** Longitudes beyond one extra world each side are not a wrapped WGS84 value. */
+const MAX_WRAPPED_LONGITUDE = 540;
+
+/**
+ * MapLibre GeoJSON sources are WGS84 longitude/latitude. A plan that returns a
+ * projected CRS (GeoServices layers are often stored in Web Mercator) would
+ * mount metres as degrees and draw nothing, so refuse it with the remedy.
+ */
+function assertGeographicCoordinates(features: readonly AdapterGeoJsonFeature[], sourceId: string): void {
+  for (const feature of features) {
+    const position = firstNonGeographicPosition(feature.geometry?.coordinates);
+    if (position !== undefined) {
+      throw new HonuaMapLibreSourceAdapterError(
+        "unsupported-plan",
+        `The accepted plan returned coordinates outside WGS84 longitude/latitude (${position.join(", ")}), which a MapLibre GeoJSON source cannot place. Request WGS84 longitude/latitude output in the mount query or the accepted plan (outSr: 4326 for GeoServices).`,
+        { sourceId, position },
+      );
+    }
+  }
+}
+
+function firstNonGeographicPosition(coordinates: unknown): readonly number[] | undefined {
+  if (!Array.isArray(coordinates)) return undefined;
+  if (typeof coordinates[0] === "number") {
+    const [longitude, latitude] = coordinates as number[];
+    return Math.abs(longitude ?? 0) > MAX_WRAPPED_LONGITUDE || Math.abs(latitude ?? 0) > 90
+      ? [longitude ?? 0, latitude ?? 0]
+      : undefined;
+  }
+  for (const child of coordinates) {
+    const position = firstNonGeographicPosition(child);
+    if (position !== undefined) return position;
+  }
+  return undefined;
+}
+
 /**
  * Project an already-executed plan result into native MapLibre source/layers.
  * This function is deterministic and does not mutate a map.
@@ -162,6 +198,7 @@ export function projectSourceToMapLibre<T>(
   const sourceId = options.sourceId ?? `honua-${safeId(source.descriptor.id)}`;
   const layerId = options.layerId ?? `${sourceId}-features`;
   const converted = canonicalFeaturesToGeoJson(result.features, source.descriptor.schema?.primaryKey);
+  assertGeographicCoordinates(converted.data.features, sourceId);
   const presentKinds = geometryKinds(converted.data.features);
   const requestedKind = options.geometry === "auto" || options.geometry === undefined ? undefined : options.geometry;
   // Auto mode installs a stable three-layer geometry matrix. Refresh can then

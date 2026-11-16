@@ -396,7 +396,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -523,7 +523,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -4225,13 +4225,13 @@ function withUnboundedMaxPages<R extends object>(params: R): R & { maxPages: num
 }
 
 /**
- * `HonuaFeatureLayer.queryFeaturesAll` / `HonuaMapLayer.queryFeaturesAll` only
- * stop on an empty or short page — they have no total-row cap. When the
- * canonical `Query.pagination.limit` supplies a cap, derive the per-page size
- * *and* `maxPages` from it so the paging loop fetches at most `limit + 1`
+ * Paged collection drains (OGC Records, STAC) stop only on an empty or short
+ * page. When the canonical `Query.pagination.limit` supplies a cap, derive the
+ * per-page size *and* `maxPages` from it so the loop fetches about `limit + 1`
  * rows (the extra row lets `applyQueryAllLimit` stamp `exceededTransferLimit`
  * when more records exist). Without this, `queryAll({ pagination: { limit: 1 } })`
  * would keep issuing `resultOffset=0,1,2,…` until the source is drained.
+ * GeoServices layers take an exact row budget instead; see `withRowBudget`.
  */
 function withPagingBounds<R extends object>(
   params: R,
@@ -4244,6 +4244,22 @@ function withPagingBounds<R extends object>(
   const target = limit + 1;
   const maxPages = Math.max(1, Math.ceil(target / pageSize));
   return { ...params, pageSize, maxPages };
+}
+
+/**
+ * Bounded GeoServices drains need one row past the limit to report overflow.
+ * `maxRecords` caps the total so the last page asks for that row, not another
+ * full page, and replaces the page cap: a server that clamps every page below
+ * the requested size still reaches the probe row.
+ */
+function withRowBudget<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number; maxPages: number; maxRecords?: number } {
+  const bounded = withPagingBounds(params, limit);
+  return typeof limit === "number" && limit >= 0
+    ? { ...bounded, maxPages: Number.MAX_SAFE_INTEGER, maxRecords: limit + 1 }
+    : bounded;
 }
 
 /**

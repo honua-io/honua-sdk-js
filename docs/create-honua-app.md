@@ -54,7 +54,7 @@ Both templates pin **MapLibre GL JS 6.4.1**, the first release patched for
 `overrides` and no `--legacy-peer-deps`. MapLibre 5 and 6.0.0 through 6.4.0 do not satisfy that range: no patched 5.x
 release exists, so apps still on MapLibre 5 must upgrade the renderer before the SDK. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
-the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
+the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-runtime-support).
 
 ```bash
 npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.4.0 # x-release-please-version
@@ -75,7 +75,7 @@ const connection = await honua.connect(
 );
 const inspection = await connection.inspect();
 const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
-const plan = await connection.explain({ returnGeometry: true, pagination: { limit: 250 } }, { sourceId });
+const plan = await connection.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 250 } }, { sourceId });
 const mounted = await connection.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId });
 await mounted.ready;
 ```

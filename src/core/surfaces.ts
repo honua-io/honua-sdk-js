@@ -98,6 +98,11 @@ export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
   /** Maximum number of pages to request. Defaults to 100. */
   maxPages?: number;
 };
+/** A full drain with an optional total row budget; streaming does not take one. */
+export type HonuaFeatureLayerQueryAllBudgetRequest = HonuaFeatureLayerQueryAllRequest & {
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
+};
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
 };
@@ -180,6 +185,11 @@ export type HonuaMapLayerQueryRequest = Omit<MapLayerQueryRequest, "serviceId" |
 export type HonuaMapLayerQueryAllRequest = HonuaMapLayerQueryRequest & {
   pageSize?: number;
   maxPages?: number;
+};
+/** A full drain with an optional total row budget; streaming does not take one. */
+export type HonuaMapLayerQueryAllBudgetRequest = HonuaMapLayerQueryAllRequest & {
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
 };
 export type HonuaMapLayerQueryRelatedRecordsRequest = Omit<MapRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaMapLayerQueryCountRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
@@ -340,7 +350,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     }) as Promise<HonuaTypedQueryResponse<T>>;
   }
 
-  public async queryFeaturesAll(request: HonuaFeatureLayerQueryAllRequest = {}): Promise<HonuaTypedFeature<T>[]> {
+  public async queryFeaturesAll(request: HonuaFeatureLayerQueryAllBudgetRequest = {}): Promise<HonuaTypedFeature<T>[]> {
     const pageSize =
       typeof request.pageSize === "number" && Number.isFinite(request.pageSize)
         ? Math.max(1, Math.trunc(request.pageSize))
@@ -350,6 +360,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
+
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
 
     const features: HonuaTypedFeature<T>[] = [];
     let offset = startingOffset;
@@ -362,6 +374,11 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     // page repeat page one for a full/exact-page result set (issue #663).
     let previousPageSignature: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
+      if (maxRecords !== undefined && features.length >= maxRecords) break;
+      // gRPC-web keeps full pages: a shorter last page would slip past the
+      // identical-page guard below when a facade ignores resultOffset.
+      const requested =
+        maxRecords === undefined || this.client.isGrpcWeb ? pageSize : Math.min(pageSize, maxRecords - features.length);
       const response = await this.queryFeatures({
         ...request,
         // Strip any caller-supplied `extraParams.resultOffset` /
@@ -370,7 +387,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         // `extraParams` after the top-level fields on the REST transport).
         extraParams: withoutPagingExtraParams(request.extraParams),
         resultOffset: offset,
-        resultRecordCount: pageSize,
+        resultRecordCount: requested,
       });
 
       const pageFeatures = response.features ?? [];
@@ -401,7 +418,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
@@ -975,7 +992,7 @@ export class HonuaMapLayer {
     return this.queryRelatedRecords(request);
   }
 
-  public async queryFeaturesAll(request: HonuaMapLayerQueryAllRequest = {}): Promise<HonuaFeature[]> {
+  public async queryFeaturesAll(request: HonuaMapLayerQueryAllBudgetRequest = {}): Promise<HonuaFeature[]> {
     const pageSize =
       typeof request.pageSize === "number" && Number.isFinite(request.pageSize)
         ? Math.max(1, Math.trunc(request.pageSize))
@@ -986,15 +1003,19 @@ export class HonuaMapLayer {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
+
     const features: HonuaFeature[] = [];
     let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
+      if (maxRecords !== undefined && features.length >= maxRecords) break;
+      const requested = maxRecords === undefined ? pageSize : Math.min(pageSize, maxRecords - features.length);
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
           resultOffset: offset,
-          resultRecordCount: pageSize,
+          resultRecordCount: requested,
         },
       });
 
@@ -1005,7 +1026,7 @@ export class HonuaMapLayer {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
@@ -2538,6 +2559,10 @@ function normalizeMaxPages(maxPages: number | undefined): number {
     return maxPages;
   }
   return 100;
+}
+
+function normalizeMaxRecords(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : undefined;
 }
 
 function normalizeOffset(offset: number | undefined): number {
