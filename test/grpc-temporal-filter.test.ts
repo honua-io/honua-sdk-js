@@ -31,7 +31,7 @@ function fixture() {
       },
     ],
   }).source("inspections")!;
-  return { source, queryFeatures, queryFeaturesStream, fetchFn };
+  return { client, source, queryFeatures, queryFeaturesStream, fetchFn };
 }
 
 describe("gRPC temporal filters", () => {
@@ -42,30 +42,34 @@ describe("gRPC temporal filters", () => {
   });
 
   it("rejects a field-less canonical time window before either RPC is called", async () => {
-    const { source, queryFeatures, queryFeaturesStream, fetchFn } = fixture();
+    const { client, source, queryFeatures, queryFeaturesStream, fetchFn } = fixture();
     await expect(source.query({ temporalFilter: window })).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
     await expect(source.stream({ temporalFilter: window }).next()).rejects.toBeInstanceOf(
       HonuaCapabilityNotSupportedError,
     );
+    await expect(
+      client.queryFeaturesStream({ serviceId: "published", layerId: 0, extraParams: { time: "0" } }).next(),
+    ).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
     expect(queryFeatures).not.toHaveBeenCalled();
     expect(queryFeaturesStream).not.toHaveBeenCalled();
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("preserves field-bound temporal predicates in unary and streaming requests", async () => {
-    const { source, queryFeatures, queryFeaturesStream, fetchFn } = fixture();
+    const { source, queryFeatures, fetchFn } = fixture();
     const temporalFilter = { ...window, field: "REPORTED_AT" };
     await source.query({ temporalFilter });
     await source.stream({ temporalFilter }).next();
-    for (const rpc of [queryFeatures, queryFeaturesStream]) {
-      expect(rpc).toHaveBeenCalledWith(
+    expect(queryFeatures).toHaveBeenCalledTimes(2);
+    for (const call of queryFeatures.mock.calls) {
+      expect(call).toEqual([
         expect.objectContaining({
           serviceId: "published",
           layerId: 0,
           where: expect.stringMatching(/REPORTED_AT.*>=.*2026-01-01/),
         }),
         undefined,
-      );
+      ]);
     }
     expect(fetchFn).not.toHaveBeenCalled();
   });
