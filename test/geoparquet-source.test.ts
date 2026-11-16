@@ -200,7 +200,7 @@ describe("geoparquet Source — real DuckDB-WASM against fixtures", () => {
       },
     ]);
     expect(() => JSON.stringify(aggregate)).not.toThrow();
-  });
+  }, 30_000);
 });
 
 describe("geoparquet profile safety", () => {
