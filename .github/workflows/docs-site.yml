@@ -50,6 +50,9 @@ jobs:
         run: npm ci
 
       # REQ-004: hosted docs, repo docs, and llms.txt cannot drift apart.
+      - name: Generate llms.txt from checked-out documentation
+        run: npm run docs:llms
+
       - name: Verify llms.txt freshness (gate)
         run: npm run verify:llms
 
