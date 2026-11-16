@@ -475,7 +475,7 @@ or the executable named by `HONUA_GP_CLI`. The
 documents that tool as `Honua.Geoprocessing.Cli` on the GitHub Packages feed
 `https://nuget.pkg.github.com/honua-io/index.json`. That feed has no
 `Honua.Geoprocessing.Cli` package, and the guide's checkout pack is the install
-that produces `honua-gp-devkit` without a packages token. The .NET 10 SDK is
+that produces `honua-gp-devkit` without a packages token. The .NET 11 SDK is
 required. These commands pin the public server source, pack that project, put
 the tool on `PATH`, then run the local catalog.
 
@@ -486,14 +486,14 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
-if ! command -v dotnet >/dev/null 2>&1; then
+if ! command -v dotnet >/dev/null 2>&1 || ! dotnet --list-sdks | grep -q '^11\.0\.'; then
   curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$HOME/dotnet-install.sh"
-  bash "$HOME/dotnet-install.sh" --channel 10.0 --install-dir "$HOME/.dotnet"
+  bash "$HOME/dotnet-install.sh" --version 11.0.100 --install-dir "$HOME/.dotnet"
   export DOTNET_ROOT="$HOME/.dotnet"
   export PATH="$DOTNET_ROOT:$PATH"
 fi
 
-SERVER_SHA=b4a69b7093abe351babb9b68544733c945223974
+SERVER_SHA=0d7f47d5f59ef106b93379b791e9bcef19da25be
 rm -rf honua-gp-src honua-gp-feed honua-gp
 mkdir -p honua-gp-src honua-gp-feed
 curl -fsSL -o honua-server.tar.gz "https://codeload.github.com/honua-io/honua-server/tar.gz/${SERVER_SHA}"
@@ -508,7 +508,7 @@ cat > honua-gp.nuget.config <<'NUGET'
   </packageSources>
 </configuration>
 NUGET
-dotnet pack honua-gp-src/src/Honua.Geoprocessing.Cli/Honua.Geoprocessing.Cli.csproj \
+dotnet pack honua-gp-src/src/Honua.Geoprocessing/Cli/Honua.Geoprocessing.Cli.csproj \
   -c Release -o honua-gp-feed --configfile honua-gp.nuget.config
 
 cat > honua-gp-feed/nuget.config <<NUGET
