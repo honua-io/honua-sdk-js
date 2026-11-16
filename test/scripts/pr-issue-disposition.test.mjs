@@ -216,7 +216,7 @@ describe("pull request issue disposition policy", () => {
     const prCreation = workflow.indexOf("gh pr create");
     const strictDispatch = workflow.indexOf("name: Dispatch strict CI for regeneration PR");
     const nativeApproval = workflow.indexOf("name: Approve native checks for regeneration PR");
-    const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
+    const requiredCheckWait = workflow.indexOf('bash scripts/wait-required-checks.sh "$PR_NUMBER"');
     assert.ok(
       prCreation >= 0 &&
         strictDispatch > prCreation &&
@@ -233,7 +233,8 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /\["SDK CI","PR issue disposition","Security"\]/u);
     assert.doesNotMatch(workflow, /expected_workflows='[^']*Schema sync gate/u);
     assert.match(workflow, /"\$attached" -eq "\$expected_count"/u);
-    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
+    const requiredCheckHelper = fs.readFileSync(path.join(root, "scripts/wait-required-checks.sh"), "utf8");
+    assert.match(requiredCheckHelper, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
     const mergeWait = workflow.slice(
       workflow.indexOf("- name: Wait for exact regeneration validation"),
       workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
@@ -241,11 +242,11 @@ describe("pull request issue disposition policy", () => {
     assert.match(mergeWait, /timeout-minutes: 120/u);
     assert.doesNotMatch(mergeWait, /--auto/u);
     assert.doesNotMatch(mergeWait, /--watch/u);
-    assert.match(mergeWait, /all\(\.\[\]; \.bucket == "pass"\)/u);
-    assert.match(mergeWait, /\.bucket == "fail" or \.bucket == "cancel"/u);
-    assert.match(mergeWait, /Required checks did not all pass/u);
+    assert.match(requiredCheckHelper, /all\(\.\[\]; \.bucket == "pass"\)/u);
+    assert.match(requiredCheckHelper, /\.bucket == "fail" or \.bucket == "cancel"/u);
+    assert.match(requiredCheckHelper, /Required checks did not all pass/u);
     const boundedRequiredCheckWait = mergeWait.indexOf(
-      'gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket',
+      'bash scripts/wait-required-checks.sh "$PR_NUMBER"',
     );
     const postWaitPrRead = mergeWait.indexOf('post_wait_pr="$(gh pr view');
     const postWaitTopologyRead = mergeWait.indexOf(
@@ -809,7 +810,7 @@ describe("pull request issue disposition policy", () => {
     assert.doesNotMatch(workflow, /\[skip ci\]/u);
     const prCreation = workflow.indexOf("gh pr create");
     const nativeApproval = workflow.indexOf("name: Approve native checks for the publication pull request");
-    const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
+    const requiredCheckWait = workflow.indexOf('bash scripts/wait-required-checks.sh "$PR_NUMBER"');
     const merge = workflow.indexOf('gh pr merge "$PR_NUMBER"');
     assert.ok(prCreation >= 0);
     assert.ok(nativeApproval > prCreation);
@@ -819,7 +820,8 @@ describe("pull request issue disposition policy", () => {
     // The approval wait names the workflows carrying trunk's required contexts,
     // so a late-appearing held run cannot stall the check wait unnoticed.
     assert.match(workflow, /\["SDK CI","PR issue disposition"\]/u);
-    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
+    const requiredCheckHelper = fs.readFileSync(path.join(root, "scripts/wait-required-checks.sh"), "utf8");
+    assert.match(requiredCheckHelper, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --json name,bucket/u);
     assert.match(workflow, /--match-head-commit "\$PUBLISHED"/u);
     assert.doesNotMatch(workflow, /--auto/u);
     // A token merge emits no push event, so trunk would otherwise carry no core

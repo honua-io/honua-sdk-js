@@ -5,12 +5,20 @@ import os from "node:os";
 import path from "node:path";
 import { it } from "node:test";
 
+const helper = "bash scripts/wait-required-checks.sh";
+const regeneration = fs.readFileSync(new URL("../../.github/workflows/regenerate-derived-artifacts.yml", import.meta.url), "utf8");
+
 const workflow = fs.readFileSync(new URL("../../.github/workflows/mcp-cert-scheduled.yml", import.meta.url), "utf8");
 const step = workflow.split("      - name: Merge the validated publication pull request\n")[1]
   .split("      - name: Summarize publication")[0];
 const script = step.split("        run: |\n")[1].replace(/^          /gmu, "");
 
-function runPublication(mode) {
+it("both publication validators use the shared required-check helper", () => {
+  assert.ok(workflow.includes(helper));
+  assert.ok(regeneration.includes(helper));
+});
+
+function runPublication(mode, command = script) {
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-mcp-publication-"));
   try {
     fs.writeFileSync(path.join(temporaryRoot, "sleep"), "#!/bin/bash\nexit 0\n", { mode: 0o755 });
@@ -34,7 +42,13 @@ else
   printf '%s\\n' "$*" >> "$STATE/operations"
 fi
 `, { mode: 0o755 });
-    const result = spawnSync("bash", ["-c", script], {
+    fs.mkdirSync(path.join(temporaryRoot, "scripts"));
+    fs.copyFileSync(new URL("../../scripts/wait-required-checks.sh", import.meta.url),
+      path.join(temporaryRoot, "scripts/wait-required-checks.sh"));
+    const scriptPath = path.join(temporaryRoot, "workflow.sh");
+    fs.writeFileSync(scriptPath, command);
+    const result = spawnSync("bash", [scriptPath], {
+      cwd: temporaryRoot,
       env: { ...process.env, PATH: `${temporaryRoot}:${process.env.PATH}`, STATE: temporaryRoot,
         MODE: mode, PR_NUMBER: "2608", PUBLISHED: "a".repeat(40), GITHUB_REPOSITORY: "honua-io/honua-sdk-js" },
       encoding: "utf8", timeout: 30_000,
@@ -57,6 +71,14 @@ for (const mode of ["fail", "cancel", "missing", "pending", "skipping"]) {
   it(`refuses publication when required checks report ${mode}`, () => {
     const result = runPublication(mode);
     assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.equal(result.operations, "");
+  });
+}
+
+for (const mode of ["late-pass", "fail", "cancel", "missing", "pending", "skipping"]) {
+  it(`shared validator handles ${mode}`, () => {
+    const result = runPublication(mode, `${helper} "$PR_NUMBER"`);
+    assert.equal(result.status, mode === "late-pass" ? 0 : 1, result.stdout + result.stderr);
     assert.equal(result.operations, "");
   });
 }
