@@ -473,6 +473,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .content img{max-width:100%;height:auto}
 .content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1rem;overflow-x:auto;font-size:.88rem}
 .content code{background:var(--code-bg);padding:.15em .4em;border-radius:4px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.content :not(pre)>code{overflow-wrap:anywhere}
 .content pre code{background:none;padding:0;font-size:1em}
 .content table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:1rem 0}
 .content th,.content td{border:1px solid var(--border);padding:.45rem .7rem;text-align:left}
