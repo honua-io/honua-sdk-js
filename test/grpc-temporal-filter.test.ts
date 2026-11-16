@@ -78,8 +78,6 @@ describe("gRPC temporal filters", () => {
     const { source, queryFeatures } = fixture();
     await source.query({ where: "OBJECTID = 0" });
     expect(queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "OBJECTID = 0" }), undefined);
-    expect(toProtoQueryRequest({ serviceId: "published", layerId: 0, extraParams: { time: undefined } }).where).toBe(
-      "1=1",
-    );
+    expect(toProtoQueryRequest({ serviceId: "published", layerId: 0 }).where).toBe("1=1");
   });
 });
