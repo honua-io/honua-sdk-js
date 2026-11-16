@@ -95,6 +95,7 @@ test("publication gates stay present and strict", () => {
     "fetch-depth: 0",
     "uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7",
     "run: npm ci",
+    "run: npm run docs:llms",
     "run: npm run verify:llms",
     "run: npm run docs:comparison:check",
     "run: npm run docs:npm-search:check",

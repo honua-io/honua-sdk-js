@@ -110,7 +110,7 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 `.github/workflows/docs-site.yml` runs daily and on `workflow_dispatch`,
 including the derived-artifact workflow's dispatch. It does not deploy on a
 trunk push, which raced Release Please's immutable SDK tag. The publication
-gates stay strict: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
+gates stay strict: `npm ci` → `docs:llms` → `verify:llms` (freshness gate, REQ-004) →
 `samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
 `deploy-pages`. A failed build or deploy opens or updates one tracking issue
@@ -120,4 +120,5 @@ recipe/lab profile gates remain declarations rather than receipt claims;
 `samples:verify`
 receipt-validates any qualified golden journey before the docs build may
 publish it. `node_modules` is cached and the full SDK test suite is intentionally
-skipped to hold the ≤ 5 min budget (NFR-001).
+skipped to hold the ≤ 5 min budget (NFR-001). The llms corpus is generated from
+the checked-out documentation so publication does not race trunk artifact regeneration.
