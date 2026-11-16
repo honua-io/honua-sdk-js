@@ -94,17 +94,8 @@ export class FakeMap implements MapLibreRendererMap {
   }
 }
 
-export function fixture<T>(
-  descriptor: SourceDescriptor,
-  query: Source<T>["query"],
-): { readonly connection: HonuaConnection; readonly source: Source<T> } {
-  const source = {
-    descriptor,
-    capabilities: descriptor.capabilities,
-    query,
-    queryAll: query,
-  } as unknown as Source<T>;
-  const inspection: SourceDiscoveryInspection = {
+function fixtureInspection(descriptor: SourceDescriptor): SourceDiscoveryInspection {
+  return {
     descriptor,
     discovery: "metadata",
     provenance: [
@@ -126,6 +117,19 @@ export function fixture<T>(
     })),
     diagnostics: [],
   };
+}
+
+export function fixture<T>(
+  descriptor: SourceDescriptor,
+  query: Source<T>["query"],
+): { readonly connection: HonuaConnection; readonly source: Source<T> } {
+  const source = {
+    descriptor,
+    capabilities: descriptor.capabilities,
+    query,
+    queryAll: query,
+  } as unknown as Source<T>;
+  const inspection = fixtureInspection(descriptor);
   const dataset = {
     id: "mount-fixture",
     sourceDescriptors: [descriptor],
