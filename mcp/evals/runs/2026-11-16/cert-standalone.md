@@ -2,7 +2,7 @@
 
 **Result:** ✅ PASS
 
-- Generated: `2026-11-16T16:55:11.126Z`
+- Generated: `2026-11-16T21:45:14.324Z`
 - Certified surface: honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces)
 - Target mode: `standalone`
 - MCP transport: `streamable-http`
@@ -17,8 +17,8 @@
 | Auth mode | `anonymous` |
 | Negotiated protocol | `n/a` |
 | Tools advertised | 11 |
-| Suite git SHA | `7596a19187948a4a30c39d27615b45ff51038b87` (env) |
-| Generated | `2026-11-16T16:55:11.126Z` |
+| Suite git SHA | `0caf8a8d0061d1a9d1cf780bd00a91038a8a0683` (env) |
+| Generated | `2026-11-16T21:45:14.324Z` |
 
 ## Summary
 

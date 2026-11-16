@@ -135,8 +135,8 @@ schedule and it fails loudly.
 | 2026-10-05 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `73bdd0e8f70b` |
 | 2026-11-02 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `c8715bcc9e32` |
 | 2026-11-02 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `c8715bcc9e32` |
-| 2026-11-16 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `7596a1918794` |
-| 2026-11-16 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `7596a1918794` |
+| 2026-11-16 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `0caf8a8d0061` |
+| 2026-11-16 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `0caf8a8d0061` |
 
 ### Certification failures and skips — 2026-11-16
 
@@ -217,8 +217,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json) | 2026-10-05 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `73bdd0e8f70b` |
 | [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-candidate.json) | 2026-11-02 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `c8715bcc9e32` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) | 2026-11-02 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `c8715bcc9e32` |
-| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-candidate.json) | 2026-11-16 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `7596a1918794` |
-| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) | 2026-11-16 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `7596a1918794` |
+| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-candidate.json) | 2026-11-16 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `0caf8a8d0061` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) | 2026-11-16 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `0caf8a8d0061` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published

@@ -2,7 +2,7 @@
 
 **Result:** ❌ FAIL
 
-- Generated: `2026-11-16T16:53:55.439Z`
+- Generated: `2026-11-16T21:44:51.009Z`
 - Certified surface: live honua /mcp (http://localhost:8080/mcp)
 - Target mode: `remote`
 - MCP transport: `streamable-http`
@@ -17,8 +17,8 @@
 | Auth mode | `api-key` |
 | Negotiated protocol | `2025-06-18` |
 | Tools advertised | 12 |
-| Suite git SHA | `7596a19187948a4a30c39d27615b45ff51038b87` (env) |
-| Generated | `2026-11-16T16:53:55.439Z` |
+| Suite git SHA | `0caf8a8d0061d1a9d1cf780bd00a91038a8a0683` (env) |
+| Generated | `2026-11-16T21:44:51.009Z` |
 
 ## Summary
 
