@@ -7,6 +7,12 @@ import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
  * Ambiguous URLs still require an explicit protocol. No endpoint is probed as
  * a different protocol when discovery fails.
  *
+ * Transport is separate from protocol detection. For a GeoServices feature
+ * service with no caller client or `clientOptions.transport`, a cache miss
+ * makes one gRPC-Web probe (see `createHonuaClient`) and the default client
+ * reads and edits over gRPC-Web where the server offers it. The snapshot
+ * records that choice, so a cache hit replays it without a request.
+ *
  * @experimental
  */
 
@@ -134,6 +140,7 @@ import type { HonuaOdataMetadata } from "./core/odata.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
 import { hasStacConformance } from "./core/stac-conformance.js";
+import { selectHonuaTransport } from "./core/transport-selection.js";
 import type {
   HonuaClientOptions,
   HonuaLayerMetadata,
@@ -141,6 +148,7 @@ import type {
   HonuaOgcCollectionsResponse,
   HonuaOgcLandingResponse,
   HonuaStacLandingResponse,
+  HonuaTransport,
   OgcEndpointLayout,
 } from "./core/types.js";
 import { classifyWmsFeatureInfoFormat, reviewedWmsQueryCrs } from "./core/wms-feature-info.js";
@@ -291,6 +299,12 @@ export interface ConnectDiscoverySnapshot {
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
   /** Present only for a bounded static Catalog/Collection/Item connection. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
+  /**
+   * Transport the default client selected for a GeoServices feature service:
+   * gRPC-Web where the server offers it, REST otherwise. A cache hit replays it
+   * without probing; a snapshot without it replays as REST.
+   */
+  readonly transport?: HonuaTransport;
 }
 
 export interface ConnectOptions {
@@ -565,7 +579,20 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const client = discoveryClient(options, target);
+  const selectsTransport =
+    !options.client &&
+    target.protocol === "geoservices-feature-service" &&
+    options.clientOptions?.transport === undefined;
+  const transport = selectsTransport
+    ? snapshot
+      ? (snapshot.transport ?? "rest")
+      : await selectHonuaTransport({
+          ...options.clientOptions,
+          baseUrl: target.clientBaseUrl,
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
+    : undefined;
+  const client = discoveryClient(options, target, transport);
   if (!snapshot) {
     snapshot =
       target.protocol === "grpc"
@@ -593,6 +620,7 @@ export async function connectWithSourceSchemaProjection(
                             : target.protocol === "wms" || target.protocol === "wmts"
                               ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                               : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+    if (transport) snapshot = Object.freeze({ ...snapshot, transport });
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -978,12 +1006,17 @@ async function discoverGeoServices(
   });
 }
 
-function discoveryClient(options: ConnectOptions, target: ConnectTarget): HonuaClient {
+function discoveryClient(
+  options: ConnectOptions,
+  target: ConnectTarget,
+  transport: HonuaTransport | undefined,
+): HonuaClient {
   const client =
     options.client ??
     new HonuaClient({
       ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
       ...options.clientOptions,
+      ...(transport ? { transport } : {}),
       baseUrl: target.clientBaseUrl,
     });
   if (target.protocol === "grpc" && !client.isGrpcWeb) {
@@ -1621,6 +1654,13 @@ async function validateSnapshot(
       expectedVersion: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
       expectedIdentityKey: identity.key,
     });
+  }
+  if (
+    owned.transport !== undefined &&
+    (target.protocol !== "geoservices-feature-service" ||
+      (owned.transport !== "rest" && owned.transport !== "grpc-web"))
+  ) {
+    throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache records an invalid transport.");
   }
   const sharedEvidence = validateCachedEvidence(target.protocol, owned.evidence, true);
   const sourceIds = new Set<string>();
