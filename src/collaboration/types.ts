@@ -1,9 +1,9 @@
-export type SavedMapId = string;
-export type SavedMapCollaborationSessionId = string;
-export type SavedMapCollaborationParticipantId = string;
-export type SavedMapCollaborationTransportKind = "mock" | "websocket" | "webtransport" | "sse" | "custom";
+export type MapId = string;
+export type MapCollaborationSessionId = string;
+export type MapCollaborationParticipantId = string;
+export type MapCollaborationTransportKind = "mock" | "websocket" | "webtransport" | "sse" | "custom";
 
-export type SavedMapCollaborationConnectionStatus =
+export type MapCollaborationConnectionStatus =
   | "idle"
   | "connecting"
   | "live"
@@ -12,7 +12,7 @@ export type SavedMapCollaborationConnectionStatus =
   | "closed"
   | "error";
 
-export type SavedMapCollaborationErrorCode =
+export type MapCollaborationErrorCode =
   | "permission-denied"
   | "unsupported-collaboration"
   | "lock-held"
@@ -21,7 +21,7 @@ export type SavedMapCollaborationErrorCode =
   | "transport-failure"
   | "resync-required";
 
-export interface SavedMapCollaborationCapabilities {
+export interface MapCollaborationCapabilities {
   readonly cursors: boolean;
   readonly selections: boolean;
   readonly follow: boolean;
@@ -30,9 +30,9 @@ export interface SavedMapCollaborationCapabilities {
   readonly replay: boolean;
 }
 
-export interface SavedMapCollaborationParticipant {
-  readonly id: SavedMapCollaborationParticipantId;
-  readonly sessionId: SavedMapCollaborationSessionId;
+export interface MapCollaborationParticipant {
+  readonly id: MapCollaborationParticipantId;
+  readonly sessionId: MapCollaborationSessionId;
   readonly displayName?: string;
   readonly color?: string;
   readonly permissions?: ReadonlyArray<string>;
@@ -40,7 +40,7 @@ export interface SavedMapCollaborationParticipant {
   readonly lastSeenAt?: string;
 }
 
-export interface SavedMapCursor {
+export interface MapCursor {
   readonly x: number;
   readonly y: number;
   readonly sourceId?: string;
@@ -51,7 +51,7 @@ export interface SavedMapCursor {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface SavedMapSelection {
+export interface MapSelection {
   readonly ids: ReadonlyArray<string | number>;
   readonly sourceId?: string;
   readonly layerId?: string | number;
@@ -60,26 +60,26 @@ export interface SavedMapSelection {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface SavedMapFollowTarget {
-  readonly targetParticipantId?: SavedMapCollaborationParticipantId;
+export interface MapFollowTarget {
+  readonly targetParticipantId?: MapCollaborationParticipantId;
   readonly following: boolean;
   readonly updatedAt?: string;
 }
 
-export interface SavedMapFeatureLock {
-  readonly mapId: SavedMapId;
+export interface MapFeatureLock {
+  readonly mapId: MapId;
   readonly featureId: string | number;
   readonly sourceId?: string;
   readonly layerId?: string | number;
-  readonly ownerId: SavedMapCollaborationParticipantId;
-  readonly sessionId: SavedMapCollaborationSessionId;
+  readonly ownerId: MapCollaborationParticipantId;
+  readonly sessionId: MapCollaborationSessionId;
   readonly token: string;
   readonly claimedAt: string;
   readonly expiresAt?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface SavedMapEditOperation<TPayload = unknown> {
+export interface MapEditOperation<TPayload = unknown> {
   readonly id?: string;
   readonly kind: "create" | "update" | "delete" | "style" | "metadata" | "view" | (string & {});
   readonly target?: {
@@ -93,87 +93,87 @@ export interface SavedMapEditOperation<TPayload = unknown> {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface SavedMapCommittedOperation<TPayload = unknown> extends SavedMapEditOperation<TPayload> {
+export interface MapCommittedOperation<TPayload = unknown> extends MapEditOperation<TPayload> {
   readonly id: string;
-  readonly mapId: SavedMapId;
+  readonly mapId: MapId;
   readonly revision: number;
   readonly sequence: number;
   readonly cursor: string;
-  readonly authorId: SavedMapCollaborationParticipantId;
+  readonly authorId: MapCollaborationParticipantId;
   readonly submittedAt: string;
 }
 
-export interface SavedMapCollaborationSnapshot<TPayload = unknown> {
-  readonly mapId: SavedMapId;
+export interface MapCollaborationSnapshot<TPayload = unknown> {
+  readonly mapId: MapId;
   readonly sequence: number;
   readonly cursor?: string;
-  readonly capabilities: SavedMapCollaborationCapabilities;
-  readonly participants: ReadonlyArray<SavedMapCollaborationParticipant>;
-  readonly cursors: Readonly<Record<SavedMapCollaborationParticipantId, SavedMapCursor>>;
-  readonly selections: Readonly<Record<SavedMapCollaborationParticipantId, SavedMapSelection>>;
-  readonly followTargets: Readonly<Record<SavedMapCollaborationParticipantId, SavedMapFollowTarget>>;
-  readonly featureLocks: ReadonlyArray<SavedMapFeatureLock>;
-  readonly operations: ReadonlyArray<SavedMapCommittedOperation<TPayload>>;
-  readonly status: SavedMapCollaborationConnectionStatus;
-  readonly error?: SavedMapCollaborationErrorEvent;
+  readonly capabilities: MapCollaborationCapabilities;
+  readonly participants: ReadonlyArray<MapCollaborationParticipant>;
+  readonly cursors: Readonly<Record<MapCollaborationParticipantId, MapCursor>>;
+  readonly selections: Readonly<Record<MapCollaborationParticipantId, MapSelection>>;
+  readonly followTargets: Readonly<Record<MapCollaborationParticipantId, MapFollowTarget>>;
+  readonly featureLocks: ReadonlyArray<MapFeatureLock>;
+  readonly operations: ReadonlyArray<MapCommittedOperation<TPayload>>;
+  readonly status: MapCollaborationConnectionStatus;
+  readonly error?: MapCollaborationErrorEvent;
 }
 
-export type SavedMapCollaborationEvent<TPayload = unknown> =
+export type MapCollaborationEvent<TPayload = unknown> =
   | {
       readonly type: "snapshot";
-      readonly snapshot: SavedMapCollaborationSnapshot<TPayload>;
+      readonly snapshot: MapCollaborationSnapshot<TPayload>;
     }
   | {
       readonly type: "participant-joined";
-      readonly participant: SavedMapCollaborationParticipant;
+      readonly participant: MapCollaborationParticipant;
     }
   | {
       readonly type: "participant-left";
-      readonly participantId: SavedMapCollaborationParticipantId;
-      readonly sessionId: SavedMapCollaborationSessionId;
+      readonly participantId: MapCollaborationParticipantId;
+      readonly sessionId: MapCollaborationSessionId;
     }
   | {
       readonly type: "cursor";
-      readonly participantId: SavedMapCollaborationParticipantId;
-      readonly cursor: SavedMapCursor;
+      readonly participantId: MapCollaborationParticipantId;
+      readonly cursor: MapCursor;
     }
   | {
       readonly type: "selection";
-      readonly participantId: SavedMapCollaborationParticipantId;
-      readonly selection: SavedMapSelection;
+      readonly participantId: MapCollaborationParticipantId;
+      readonly selection: MapSelection;
     }
   | {
       readonly type: "follow";
-      readonly participantId: SavedMapCollaborationParticipantId;
-      readonly follow: SavedMapFollowTarget;
+      readonly participantId: MapCollaborationParticipantId;
+      readonly follow: MapFollowTarget;
     }
   | {
       readonly type: "feature-lock-claimed" | "feature-lock-renewed";
-      readonly lock: SavedMapFeatureLock;
+      readonly lock: MapFeatureLock;
     }
   | {
       readonly type: "feature-lock-released";
       readonly featureId: string | number;
       readonly sourceId?: string;
       readonly layerId?: string | number;
-      readonly ownerId: SavedMapCollaborationParticipantId;
+      readonly ownerId: MapCollaborationParticipantId;
       readonly token?: string;
     }
   | {
       readonly type: "operation-appended";
-      readonly operation: SavedMapCommittedOperation<TPayload>;
+      readonly operation: MapCommittedOperation<TPayload>;
     }
   | {
       readonly type: "status";
-      readonly status: SavedMapCollaborationConnectionStatus;
+      readonly status: MapCollaborationConnectionStatus;
       readonly reason?: string;
       readonly retryAfterMs?: number;
     }
-  | SavedMapCollaborationErrorEvent;
+  | MapCollaborationErrorEvent;
 
-export interface SavedMapCollaborationErrorEvent {
+export interface MapCollaborationErrorEvent {
   readonly type: "error";
-  readonly code: SavedMapCollaborationErrorCode;
+  readonly code: MapCollaborationErrorCode;
   readonly message: string;
   readonly terminal?: boolean;
   readonly retryAfterMs?: number;
@@ -181,29 +181,29 @@ export interface SavedMapCollaborationErrorEvent {
   readonly details?: unknown;
 }
 
-export interface SavedMapCollaborationEnvelope<TPayload = unknown> {
+export interface MapCollaborationEnvelope<TPayload = unknown> {
   readonly envelopeVersion: "honua.saved-map-collaboration.v1";
-  readonly mapId: SavedMapId;
+  readonly mapId: MapId;
   readonly eventId: string;
   readonly sequence: number;
   readonly cursor: string;
   readonly serverTime: string;
-  readonly sessionId?: SavedMapCollaborationSessionId;
-  readonly actorId?: SavedMapCollaborationParticipantId;
-  readonly event: SavedMapCollaborationEvent<TPayload>;
+  readonly sessionId?: MapCollaborationSessionId;
+  readonly actorId?: MapCollaborationParticipantId;
+  readonly event: MapCollaborationEvent<TPayload>;
 }
 
-export interface SavedMapCollaborationTransportCapabilities {
-  readonly kind: SavedMapCollaborationTransportKind;
+export interface MapCollaborationTransportCapabilities {
+  readonly kind: MapCollaborationTransportKind;
   readonly resumable: boolean;
   readonly ordered: boolean;
   readonly replay: boolean;
 }
 
-export interface SavedMapCollaborationJoinRequest {
-  readonly mapId: SavedMapId;
-  readonly sessionId?: SavedMapCollaborationSessionId;
-  readonly participantId?: SavedMapCollaborationParticipantId;
+export interface MapCollaborationJoinRequest {
+  readonly mapId: MapId;
+  readonly sessionId?: MapCollaborationSessionId;
+  readonly participantId?: MapCollaborationParticipantId;
   readonly displayName?: string;
   readonly color?: string;
   readonly permissions?: ReadonlyArray<string>;
@@ -215,18 +215,18 @@ export interface SavedMapCollaborationJoinRequest {
   readonly signal?: AbortSignal;
 }
 
-export interface SavedMapCollaborationSessionRef {
-  readonly mapId: SavedMapId;
-  readonly sessionId: SavedMapCollaborationSessionId;
-  readonly participantId: SavedMapCollaborationParticipantId;
+export interface MapCollaborationSessionRef {
+  readonly mapId: MapId;
+  readonly sessionId: MapCollaborationSessionId;
+  readonly participantId: MapCollaborationParticipantId;
 }
 
-export interface SavedMapCollaborationJoinResult<TPayload = unknown> extends SavedMapCollaborationSessionRef {
-  readonly capabilities: SavedMapCollaborationCapabilities;
-  readonly snapshot: SavedMapCollaborationSnapshot<TPayload>;
+export interface MapCollaborationJoinResult<TPayload = unknown> extends MapCollaborationSessionRef {
+  readonly capabilities: MapCollaborationCapabilities;
+  readonly snapshot: MapCollaborationSnapshot<TPayload>;
 }
 
-export interface SavedMapFeatureLockRequest {
+export interface MapFeatureLockRequest {
   readonly featureId: string | number;
   readonly sourceId?: string;
   readonly layerId?: string | number;
@@ -235,88 +235,76 @@ export interface SavedMapFeatureLockRequest {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface SavedMapFeatureLockReleaseRequest {
+export interface MapFeatureLockReleaseRequest {
   readonly featureId: string | number;
   readonly sourceId?: string;
   readonly layerId?: string | number;
   readonly token?: string;
 }
 
-export interface SavedMapOperationSubmitRequest<TPayload = unknown> {
-  readonly operation: SavedMapEditOperation<TPayload>;
+export interface MapOperationSubmitRequest<TPayload = unknown> {
+  readonly operation: MapEditOperation<TPayload>;
   readonly expectedRevision?: number;
 }
 
-export interface SavedMapOperationReplayRequest {
+export interface MapOperationReplayRequest {
   readonly afterCursor?: string;
   readonly afterSequence?: number;
   readonly limit?: number;
 }
 
-export interface SavedMapOperationReplayResult<TPayload = unknown> {
-  readonly operations: ReadonlyArray<SavedMapCommittedOperation<TPayload>>;
+export interface MapOperationReplayResult<TPayload = unknown> {
+  readonly operations: ReadonlyArray<MapCommittedOperation<TPayload>>;
   readonly cursor?: string;
   readonly sequence: number;
   readonly resyncRequired?: boolean;
 }
 
-export interface SavedMapCollaborationReconnectOptions extends SavedMapOperationReplayRequest {
+export interface MapCollaborationReconnectOptions extends MapOperationReplayRequest {
   readonly replayOperations?: boolean;
 }
 
-export interface SavedMapCollaborationObserver<TPayload = unknown> {
-  next(envelope: SavedMapCollaborationEnvelope<TPayload>): void;
+export interface MapCollaborationObserver<TPayload = unknown> {
+  next(envelope: MapCollaborationEnvelope<TPayload>): void;
   error(error: unknown): void;
   complete(): void;
 }
 
-export interface SavedMapCollaborationSubscriptionHandle {
+export interface MapCollaborationSubscriptionHandle {
   close(): void;
 }
 
-export interface SavedMapCollaborationTransport<TPayload = unknown> {
-  readonly capabilities?: SavedMapCollaborationTransportCapabilities;
-  join(request: SavedMapCollaborationJoinRequest): Promise<SavedMapCollaborationJoinResult<TPayload>>;
-  leave(session: SavedMapCollaborationSessionRef): Promise<void>;
+export interface MapCollaborationTransport<TPayload = unknown> {
+  readonly capabilities?: MapCollaborationTransportCapabilities;
+  join(request: MapCollaborationJoinRequest): Promise<MapCollaborationJoinResult<TPayload>>;
+  leave(session: MapCollaborationSessionRef): Promise<void>;
   subscribe(
-    session: SavedMapCollaborationSessionRef,
-    observer: SavedMapCollaborationObserver<TPayload>,
-  ): SavedMapCollaborationSubscriptionHandle;
-  publishCursor(
-    session: SavedMapCollaborationSessionRef,
-    cursor: SavedMapCursor,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>>;
+    session: MapCollaborationSessionRef,
+    observer: MapCollaborationObserver<TPayload>,
+  ): MapCollaborationSubscriptionHandle;
+  publishCursor(session: MapCollaborationSessionRef, cursor: MapCursor): Promise<MapCollaborationEnvelope<TPayload>>;
   publishSelection(
-    session: SavedMapCollaborationSessionRef,
-    selection: SavedMapSelection,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>>;
+    session: MapCollaborationSessionRef,
+    selection: MapSelection,
+  ): Promise<MapCollaborationEnvelope<TPayload>>;
   publishFollow(
-    session: SavedMapCollaborationSessionRef,
-    follow: SavedMapFollowTarget,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>>;
-  claimFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockRequest,
-  ): Promise<SavedMapFeatureLock>;
-  releaseFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockReleaseRequest,
-  ): Promise<void>;
-  renewFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockRequest,
-  ): Promise<SavedMapFeatureLock>;
+    session: MapCollaborationSessionRef,
+    follow: MapFollowTarget,
+  ): Promise<MapCollaborationEnvelope<TPayload>>;
+  claimFeatureLock(session: MapCollaborationSessionRef, request: MapFeatureLockRequest): Promise<MapFeatureLock>;
+  releaseFeatureLock(session: MapCollaborationSessionRef, request: MapFeatureLockReleaseRequest): Promise<void>;
+  renewFeatureLock(session: MapCollaborationSessionRef, request: MapFeatureLockRequest): Promise<MapFeatureLock>;
   submitOperation(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapOperationSubmitRequest<TPayload>,
-  ): Promise<SavedMapCommittedOperation<TPayload>>;
+    session: MapCollaborationSessionRef,
+    request: MapOperationSubmitRequest<TPayload>,
+  ): Promise<MapCommittedOperation<TPayload>>;
   replayOperations(
-    session: SavedMapCollaborationSessionRef,
-    request?: SavedMapOperationReplayRequest,
-  ): Promise<SavedMapOperationReplayResult<TPayload>>;
+    session: MapCollaborationSessionRef,
+    request?: MapOperationReplayRequest,
+  ): Promise<MapOperationReplayResult<TPayload>>;
 }
 
-export type SavedMapCollaborationSnapshotListener<TPayload = unknown> = (
-  snapshot: SavedMapCollaborationSnapshot<TPayload>,
-  envelope?: SavedMapCollaborationEnvelope<TPayload>,
+export type MapCollaborationSnapshotListener<TPayload = unknown> = (
+  snapshot: MapCollaborationSnapshot<TPayload>,
+  envelope?: MapCollaborationEnvelope<TPayload>,
 ) => void;

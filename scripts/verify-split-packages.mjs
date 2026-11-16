@@ -239,8 +239,8 @@ import {
   createHonuaControlPlane,
 } from "@honua/app-platform/control-plane";
 import {
-  createFixtureSavedMapCollaborationTransport,
-  createHonuaSavedMapCollaboration,
+  createFixtureMapCollaborationTransport,
+  createHonuaMapCollaboration,
 } from "@honua/app-platform/collaboration";
 import {
   parseEmbedTokenFromFragment,
@@ -677,10 +677,10 @@ if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
   throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
 if (typeof createHonuaControlPlane !== "function")
   throw new Error("createHonuaControlPlane export missing from @honua/sdk/control-plane");
-if (typeof createHonuaSavedMapCollaboration !== "function")
-  throw new Error("createHonuaSavedMapCollaboration export missing from @honua/sdk/collaboration");
-if (typeof createFixtureSavedMapCollaborationTransport !== "function")
-  throw new Error("createFixtureSavedMapCollaborationTransport export missing from @honua/sdk/collaboration");
+if (typeof createHonuaMapCollaboration !== "function")
+  throw new Error("createHonuaMapCollaboration export missing from @honua/sdk/collaboration");
+if (typeof createFixtureMapCollaborationTransport !== "function")
+  throw new Error("createFixtureMapCollaborationTransport export missing from @honua/sdk/collaboration");
 if (typeof parseEmbedTokenFromFragment !== "function" || typeof toDcatDataset !== "function")
   throw new Error("share contract exports missing from @honua/sdk/share");
 if (parseEmbedTokenFromFragment("https://app.example/embed?embed_token=leaked").ok)
