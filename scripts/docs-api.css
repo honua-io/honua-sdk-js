@@ -1,5 +1,17 @@
-/* Keep wide reference tables scrollable within TypeDoc's mobile content column. */
+/* Keep long API content within TypeDoc's mobile content column. */
 @media (max-width: 769px) {
+  .tsd-page-title h1,
+  .tsd-breadcrumb,
+  .tsd-signature,
+  .tsd-hierarchy,
+  .tsd-parameter-list,
+  .tsd-member-summary,
+  .tsd-returns-title,
+  .tsd-sources,
+  .tsd-typography p {
+    overflow-wrap: anywhere;
+  }
+
   .tsd-typography table {
     display: block;
     max-width: 100%;

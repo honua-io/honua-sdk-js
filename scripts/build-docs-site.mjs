@@ -29,6 +29,7 @@ import {
   verifyGalleryProjectionIntegrity,
 } from "./lib/docs-gallery.mjs";
 import { parseJsonDocument } from "./sample-contract.mjs";
+import { markdownBody } from "./lib/docs-markdown.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "dist", "docs-site");
@@ -179,7 +180,7 @@ function injectHeadingIds(html) {
 function renderMarkdown(md, ctx) {
   renderContext = ctx;
   try {
-    return injectHeadingIds(marked.parse(expandDocsVersionTokens(md, DOC_VERSIONS)));
+    return injectHeadingIds(marked.parse(expandDocsVersionTokens(markdownBody(md), DOC_VERSIONS)));
   } finally {
     renderContext = null;
   }
