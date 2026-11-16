@@ -991,34 +991,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --exit-status \
             --interval 10
-          # Do not use GitHub CLI's check watcher here. Its stream has left
-          # this step attached after the required-check snapshot was already
-          # entirely green (#1541), until the job's outer timeout killed it.
-          # Poll snapshots instead, so the predicate is explicit: every
-          # currently required context must report `pass`. This does not soften
-          # branch protection; the merge below remains subject to GitHub's
-          # ruleset, and no unreported or non-passing requirement is accepted.
-          for attempt in {1..270}; do
-            required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket 2>/dev/null || true)"
-            if [[ -z "$required" ]]; then
-              required='[]'
-            fi
-            if jq -e 'length >= 3 and all(.[]; .bucket == "pass")' <<<"$required" >/dev/null; then
-              echo "All required checks passed for regeneration PR #$PR_NUMBER."
-              break
-            fi
-            if jq -e 'any(.[]; .bucket == "fail" or .bucket == "cancel")' <<<"$required" >/dev/null; then
-              echo "A required check failed or was cancelled for regeneration PR #$PR_NUMBER:"
-              jq -c '.[] | select(.bucket == "fail" or .bucket == "cancel")' <<<"$required"
-              exit 1
-            fi
-            if (( attempt == 270 )); then
-              echo "Required checks did not all pass for regeneration PR #$PR_NUMBER after 45 minutes:"
-              jq -c '.[] | select(.bucket != "pass")' <<<"$required"
-              exit 1
-            fi
-            sleep 10
-          done
+          bash scripts/wait-required-checks.sh "$PR_NUMBER"
 
       - name: Refresh release merge identity
         id: merge-token
