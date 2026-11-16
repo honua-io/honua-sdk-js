@@ -27,6 +27,8 @@ const result = runNpxSync(
     "tsconfig.docs.json",
     "--out",
     "dist/docs-api",
+    "--customCss",
+    "scripts/docs-api.css",
     "--excludeInternal",
     "--excludePrivate",
     "--readme",
