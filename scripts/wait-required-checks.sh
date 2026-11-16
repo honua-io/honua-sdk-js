@@ -3,6 +3,15 @@ set -euo pipefail
 PR_NUMBER="${1:?pull request number is required}"
 : "${GITHUB_REPOSITORY:?repository is required}"
 
+base="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName --jq .baseRefName)"
+encoded_base="$(jq -rn --arg base "$base" '$base | @uri')"
+expected="$(gh api "repos/$GITHUB_REPOSITORY/rules/branches/$encoded_base" \
+  --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | unique')"
+if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "string" and length > 0)' <<<"$expected" >/dev/null; then
+  echo "Cannot determine required check contexts for PR #$PR_NUMBER."
+  exit 1
+fi
+
 # Hosted-runner admission can delay required checks beyond five minutes.
 # Bound the entire wait and require every context to pass before merging.
 for attempt in {1..270}; do
@@ -10,7 +19,10 @@ for attempt in {1..270}; do
   if [[ -z "$required" ]]; then
     required='[]'
   fi
-  if jq -e 'length >= 3 and all(.[]; .bucket == "pass")' <<<"$required" >/dev/null; then
+  if jq -e --argjson expected "$expected" '
+    . as $checks | all(.[]; .bucket == "pass") and
+    all($expected[]; . as $name | any($checks[]; .name == $name and .bucket == "pass"))
+  ' <<<"$required" >/dev/null; then
     break
   fi
   if jq -e 'any(.[]; .bucket == "fail" or .bucket == "cancel")' <<<"$required" >/dev/null; then
