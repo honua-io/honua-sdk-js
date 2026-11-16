@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Vocabulary renames"
-description: "Every public SDK name renamed to the Honua vocabulary in #2348 (old -> new). The old names were removed outright, with no deprecated aliases."
+description: "Public SDK names renamed to the Honua vocabulary (old -> new). The old names were removed outright, with no deprecated aliases."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Vocabulary renames
 
 The SDK's public names follow the Honua vocabulary (honua-server
 `docs/concepts/domain/README.md`): `MapPackage` -> `MapDocument`, `ApiToken` -> `ApiKey`,
-`HostedMap` -> `SavedMap`, and `AppPackage` -> `AppVersion`. The old names were removed outright
+`HostedMap` -> `Map`, and `AppPackage` -> `AppVersion`. The old names were removed outright
 ([#2348](https://github.com/honua-io/honua-sdk-js/issues/2348)). There are no deprecated aliases,
 re-exports or shims. Update imports to the new names.
 
@@ -27,6 +27,11 @@ them. Affected entry points:
   `fromMapPackageValidation`.
 
 The table below maps every old name to its replacement.
+
+The Map vocabulary follow-up removes `SavedMap` from the control-plane and collaboration APIs.
+Use `client.maps` instead of `client.savedMaps`, and `client.joinMap()` instead of
+`client.joinSavedMap()`. The collaboration envelope version remains
+`honua.saved-map-collaboration.v1`, matching the server wire contract.
 
 Unchanged: server-owned wire fields (`mapPackageId`, `mapPackage` in JSON bodies and the export
 envelope, `links.mapPackage`), routes, capability keys, error codes (`runtime.map-package.*`), format
@@ -61,11 +66,11 @@ ids (`honua_map_package.v1`) and `schemas/honua-map-package.v1.json`.
 | `HonuaApiToken` | `HonuaApiKey` |
 | `HonuaApiTokenCreateRequest` | `HonuaApiKeyCreateRequest` |
 | `HonuaApiTokensClient` | `HonuaApiKeysClient` |
-| `HonuaCreateHostedMapRequest` | `HonuaCreateSavedMapRequest` |
+| `HonuaCreateHostedMapRequest` | `HonuaCreateMapRequest` |
 | `HonuaGeneratedAppPackage` | `HonuaGeneratedAppVersion` |
-| `HonuaHostedMap` | `HonuaSavedMap` |
-| `HonuaHostedMapsClient` | `HonuaSavedMapsClient` |
-| `HonuaHostedMapSummary` | `HonuaSavedMapSummary` |
+| `HonuaHostedMap` | `HonuaMap` |
+| `HonuaHostedMapsClient` | `HonuaMapsClient` |
+| `HonuaHostedMapSummary` | `HonuaMapSummary` |
 | `HonuaMapPackage` | `HonuaMapDocument` |
 | `HonuaMapPackageAttribution` | `HonuaMapDocumentAttribution` |
 | `HonuaMapPackageDependency` | `HonuaMapDocumentDependency` |
@@ -92,7 +97,7 @@ ids (`honua_map_package.v1`) and `schemas/honua-map-package.v1.json`.
 | `HonuaMapPackageWidget` | `HonuaMapDocumentWidget` |
 | `HonuaPublishMapPackageRequest` | `HonuaPublishMapDocumentRequest` |
 | `HonuaPublishMapPackageResponse` | `HonuaPublishMapDocumentResponse` |
-| `HonuaUpdateHostedMapRequest` | `HonuaUpdateSavedMapRequest` |
+| `HonuaUpdateHostedMapRequest` | `HonuaUpdateMapRequest` |
 | `importMapPackage` | `importMapDocument` |
 | `ImportMapPackageOptions` | `ImportMapDocumentOptions` |
 | `ImportMapPackageResult` | `ImportMapDocumentResult` |
@@ -153,16 +158,63 @@ ids (`honua_map_package.v1`) and `schemas/honua-map-package.v1.json`.
 | `ValidateMapPackageResult` | `ValidateMapDocumentResult` |
 | `watchMapPackage` | `watchMapDocument` |
 | `WatchMapPackageOptions` | `WatchMapDocumentOptions` |
+| `FixtureSavedMapCollaborationTransport` | `FixtureMapCollaborationTransport` |
+| `FixtureSavedMapCollaborationTransportOptions` | `FixtureMapCollaborationTransportOptions` |
+| `HonuaCreateSavedMapRequest` | `HonuaCreateMapRequest` |
+| `HonuaSavedMap` | `HonuaMap` |
+| `HonuaSavedMapCollaborationClient` | `HonuaMapCollaborationClient` |
+| `HonuaSavedMapCollaborationClientOptions` | `HonuaMapCollaborationClientOptions` |
+| `HonuaSavedMapCollaborationSession` | `HonuaMapCollaborationSession` |
+| `HonuaSavedMapSummary` | `HonuaMapSummary` |
+| `HonuaSavedMapsClient` | `HonuaMapsClient` |
+| `HonuaUpdateSavedMapRequest` | `HonuaUpdateMapRequest` |
+| `SavedMapCollaborationCapabilities` | `MapCollaborationCapabilities` |
+| `SavedMapCollaborationConnectionStatus` | `MapCollaborationConnectionStatus` |
+| `SavedMapCollaborationEnvelope` | `MapCollaborationEnvelope` |
+| `SavedMapCollaborationErrorCode` | `MapCollaborationErrorCode` |
+| `SavedMapCollaborationErrorEvent` | `MapCollaborationErrorEvent` |
+| `SavedMapCollaborationEvent` | `MapCollaborationEvent` |
+| `SavedMapCollaborationJoinRequest` | `MapCollaborationJoinRequest` |
+| `SavedMapCollaborationJoinResult` | `MapCollaborationJoinResult` |
+| `SavedMapCollaborationObserver` | `MapCollaborationObserver` |
+| `SavedMapCollaborationParticipant` | `MapCollaborationParticipant` |
+| `SavedMapCollaborationParticipantId` | `MapCollaborationParticipantId` |
+| `SavedMapCollaborationReconnectOptions` | `MapCollaborationReconnectOptions` |
+| `SavedMapCollaborationSessionId` | `MapCollaborationSessionId` |
+| `SavedMapCollaborationSessionRef` | `MapCollaborationSessionRef` |
+| `SavedMapCollaborationSnapshot` | `MapCollaborationSnapshot` |
+| `SavedMapCollaborationSnapshotListener` | `MapCollaborationSnapshotListener` |
+| `SavedMapCollaborationSubscriptionHandle` | `MapCollaborationSubscriptionHandle` |
+| `SavedMapCollaborationTransport` | `MapCollaborationTransport` |
+| `SavedMapCollaborationTransportCapabilities` | `MapCollaborationTransportCapabilities` |
+| `SavedMapCollaborationTransportKind` | `MapCollaborationTransportKind` |
+| `SavedMapCommittedOperation` | `MapCommittedOperation` |
+| `SavedMapCursor` | `MapCursor` |
+| `SavedMapEditOperation` | `MapEditOperation` |
+| `SavedMapFeatureLock` | `MapFeatureLock` |
+| `SavedMapFeatureLockReleaseRequest` | `MapFeatureLockReleaseRequest` |
+| `SavedMapFeatureLockRequest` | `MapFeatureLockRequest` |
+| `SavedMapFollowTarget` | `MapFollowTarget` |
+| `SavedMapId` | `MapId` |
+| `SavedMapOperationReplayRequest` | `MapOperationReplayRequest` |
+| `SavedMapOperationReplayResult` | `MapOperationReplayResult` |
+| `SavedMapOperationSubmitRequest` | `MapOperationSubmitRequest` |
+| `SavedMapSelection` | `MapSelection` |
+| `createFixtureSavedMapCollaborationTransport` | `createFixtureMapCollaborationTransport` |
+| `createHonuaSavedMapCollaboration` | `createHonuaMapCollaboration` |
+| `reduceSavedMapCollaborationSnapshot` | `reduceMapCollaborationSnapshot` |
 
 ## Members and messages
 
 | Old | New |
 | --- | --- |
-| `HonuaControlPlaneClient#hostedMaps` | `savedMaps` |
+| `HonuaControlPlaneClient#hostedMaps` | `maps` |
+| `HonuaControlPlaneClient#savedMaps` | `maps` |
+| `HonuaSavedMapCollaborationClient#joinSavedMap()` | `HonuaMapCollaborationClient#joinMap()` |
 | `HonuaControlPlaneClient#packages` | `mapDocuments` |
 | `HonuaControlPlaneClient#tokens` | `apiKeys` |
-| `HonuaSavedMapsClient#getPackage()` | `getMapDocument()` |
-| `HonuaSavedMapsClient#getPackageLocator()` | `getMapDocumentLocator()` |
+| `HonuaHostedMapsClient#getPackage()` | `getMapDocument()` |
+| `HonuaHostedMapsClient#getPackageLocator()` | `getMapDocumentLocator()` |
 | `HonuaMapRuntime#updatePackage()` | `updateMapDocument()` |
 | `MapWorkspaceController#loadPackage()` | `loadMapDocument()` |
 | `BuilderWorkspaceController#loadPackage()` | `loadAppVersion()` |

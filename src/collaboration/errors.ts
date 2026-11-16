@@ -1,13 +1,13 @@
-import type { SavedMapCollaborationErrorCode } from "./types.js";
+import type { MapCollaborationErrorCode } from "./types.js";
 
 export class HonuaCollaborationError extends Error {
-  public readonly code: SavedMapCollaborationErrorCode;
+  public readonly code: MapCollaborationErrorCode;
   public readonly details: unknown;
   public readonly retryAfterMs: number | undefined;
   public readonly resyncRequired: boolean;
 
   public constructor(
-    code: SavedMapCollaborationErrorCode,
+    code: MapCollaborationErrorCode,
     message: string,
     options: {
       readonly details?: unknown;

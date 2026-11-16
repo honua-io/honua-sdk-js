@@ -1,26 +1,26 @@
 ---
 type: reference
-title: "Saved-Map Collaboration"
-description: "The SDK-side contract for collaborative saved-map editing: join a session and exchange operations through a transport adapter that hides whether the server uses WebSocket, WebTransport or SSE."
+title: "Map Collaboration"
+description: "The SDK-side contract for collaborative Map editing: join a session and exchange operations through a transport adapter that hides whether the server uses WebSocket, WebTransport or SSE."
 resource: "honua://capability/collaboration.map-sessions"
 ---
-# Saved-Map Collaboration
+# Map Collaboration
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-`@honua/app-platform/collaboration` defines the SDK-side contract for collaborative saved-map editing. Portal code talks to `HonuaSavedMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
+`@honua/app-platform/collaboration` defines the SDK-side contract for collaborative Map editing. Portal code talks to `HonuaMapCollaborationSession`; transport adapters hide whether the server uses WebSocket, WebTransport, SSE, or a fixture.
 
 ```ts doc-test=compile
 import {
-  createFixtureSavedMapCollaborationTransport,
-  createHonuaSavedMapCollaboration,
+  createFixtureMapCollaborationTransport,
+  createHonuaMapCollaboration,
 } from "@honua/app-platform/collaboration";
 
-const collaboration = createHonuaSavedMapCollaboration({
-  transport: createFixtureSavedMapCollaborationTransport(),
+const collaboration = createHonuaMapCollaboration({
+  transport: createFixtureMapCollaborationTransport(),
 });
 
-const session = await collaboration.joinSavedMap({
+const session = await collaboration.joinMap({
   mapId: "map-ops",
   participantId: "user-123",
   displayName: "Kai",
@@ -35,7 +35,7 @@ await session.publishCursor({ x: 320, y: 184, sourceId: "parcels" });
 
 ## Envelope
 
-Server adapters should map each server message to `SavedMapCollaborationEnvelope`:
+Server adapters should map each server message to `MapCollaborationEnvelope`:
 
 ```ts doc-test=compile
 const envelope = {
@@ -51,11 +51,11 @@ const envelope = {
 };
 ```
 
-`sequence` is stream ordering. `cursor` is the server replay token. Consumers keep the latest `snapshot.cursor` and pass it back through `joinSavedMap({ resumeFrom: { cursor } })`, `replayOperations({ afterCursor })`, or `reconnect()`.
+`sequence` is stream ordering. `cursor` is the server replay token. Consumers keep the latest `snapshot.cursor` and pass it back through `joinMap({ resumeFrom: { cursor } })`, `replayOperations({ afterCursor })`, or `reconnect()`.
 
 ## Reconnect
 
-Use `session.disconnect()` when the host detects an interrupted channel but should keep the logical saved-map participant. The snapshot status becomes `stale` and subscriptions remain registered. `session.reconnect()` closes the stale subscription, replays committed operations from the last snapshot cursor by default, merges unseen operations, and opens a fresh subscription:
+Use `session.disconnect()` when the host detects an interrupted channel but should keep the logical Map participant. The snapshot status becomes `stale` and subscriptions remain registered. `session.reconnect()` closes the stale subscription, replays committed operations from the last snapshot cursor by default, merges unseen operations, and opens a fresh subscription:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 session.disconnect();
@@ -80,7 +80,7 @@ Pass `reconnect({ replayOperations: false })` when the server channel itself wil
 - `selection`: participant feature selection.
 - `follow`: follow or unfollow another participant.
 - `feature-lock-claimed` / `feature-lock-renewed` / `feature-lock-released`: edit lock state.
-- `operation-appended`: committed saved-map edit operation with revision, sequence, cursor, and author.
+- `operation-appended`: committed Map edit operation with revision, sequence, cursor, and author.
 - `status`: connection lifecycle.
 - `error`: typed terminal or recoverable collaboration error.
 
@@ -96,7 +96,7 @@ Pass `reconnect({ replayOperations: false })` when the server channel itself wil
 - `transport-failure`
 - `resync-required`
 
-`stale-cursor` and `resync-required` set `resyncRequired: true`. Portal should request a fresh saved-map collaboration snapshot before allowing more collaborative edits.
+`stale-cursor` and `resync-required` set `resyncRequired: true`. Portal should request a fresh Map collaboration snapshot before allowing more collaborative edits.
 
 ## Portal Integration Notes
 
@@ -104,9 +104,9 @@ Use the fixture transport for component and smoke tests until the production tra
 
 Typical Portal flow:
 
-1. Join with the saved map id and active user profile.
+1. Join with the Map id and active user profile.
 2. Subscribe to snapshots and render participants, cursors, selections, follow target, locks, and operation status from the current snapshot.
 3. Publish cursor/selection/follow events from UI interactions.
 4. Claim a feature lock before editing; handle `lock-held` by keeping the feature read-only.
-5. Submit saved-map operations with `expectedRevision` when optimistic concurrency is available.
+5. Submit Map operations with `expectedRevision` when optimistic concurrency is available.
 6. On reconnect, call `session.reconnect()` to replay operations from the last cursor. On `resync-required`, discard local collaboration state and join without a resume cursor.
