@@ -2,9 +2,9 @@
  * Default transport for `connect()` on a GeoServices feature service.
  *
  * Transport is separate from protocol detection. With no caller client and no
- * `clientOptions.transport`, a cache miss makes one gRPC-Web probe (see
- * `createHonuaClient`) and the default client reads and edits over gRPC-Web
- * where the server offers it. The discovery snapshot records the choice, so a
+ * `clientOptions.transport`, a cache miss outside a browser document makes one
+ * gRPC-Web probe (see `createHonuaClient`) and the default client reads and
+ * edits over gRPC-Web where the server offers it. The discovery snapshot records the choice, so a
  * cache hit replays it without a request.
  *
  * @module
