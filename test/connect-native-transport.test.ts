@@ -4,6 +4,7 @@ import type { ConnectDiscoveryCache, ConnectDiscoverySnapshot } from "../src/con
 import { connect } from "../src/connect.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaAbortError } from "../src/core/errors.js";
+import { connectWithSourceCapabilities } from "../src/source-capability-discovery.js";
 
 const endpoint = "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer";
 const probePath = "/geospatial.v1.FeatureService/DescribeService";
@@ -176,5 +177,23 @@ describe("connect() native transport default for GeoServices feature services", 
       });
     };
     await expect(connect({ ...base(fetchFn), signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
+  });
+
+  it("resolves decisions and capability profiles to the gRPC set on gRPC-Web", async () => {
+    const connection = await connect(base(serverFetch(grpcAnswer)));
+    const decisions = connection.inspection.sources[0]?.capabilityDecisions ?? [];
+    expect(decisions.find((decision) => decision.capability === "pbf")).toMatchObject({
+      code: "adapter-unsupported",
+      effective: false,
+    });
+    expect(decisions.find((decision) => decision.capability === "query")).toMatchObject({ effective: true });
+
+    const projected = await connectWithSourceCapabilities(base(serverFetch(grpcAnswer)), {
+      evaluatedAt: "2026-11-16T00:00:00.000Z",
+    });
+    const source = projected.source();
+    const pbf = source.capabilityProfile.entries.find((entry) => entry.id === "pbf" || entry.id.endsWith(":pbf"));
+    expect(pbf).toMatchObject({ effective: "unsupported" });
+    expect(source.supports("pbf")).toBe(false);
   });
 });

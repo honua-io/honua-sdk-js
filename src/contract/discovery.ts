@@ -249,11 +249,15 @@ export interface DiscoveryTileMatrixMetadata {
  * `unavailable` and unaccepted `inferred` evidence intentionally produce no
  * effective capabilities. Callers with trusted configuration should use
  * `declared` evidence rather than presenting protocol defaults as discovery.
+ * `transportLimit` narrows the adapter to what the client transport serves
+ * (for example the gRPC FeatureService set for a gRPC-Web client); excluded
+ * capabilities resolve as `adapter-unsupported`.
  */
 export function resolveDiscoveryCapabilities(
   protocol: Protocol,
   evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[],
   policy: DiscoveryCapabilityPolicy = {},
+  transportLimit?: ReadonlySet<Capability>,
 ): DiscoveryCapabilityResolution {
   const adapter = DISCOVERY_ADAPTER_MAXIMA.get(protocol);
   if (!adapter) {
@@ -266,7 +270,8 @@ export function resolveDiscoveryCapabilities(
   const deny = capabilitySet(policy.deny ?? [], "policy.deny");
   const effective: Capability[] = [];
   const decisions = CAPABILITIES.map((capability): DiscoveryCapabilityDecision => {
-    const adapterSupported = adapter.has(capability);
+    const adapterSupported =
+      adapter.has(capability) && (transportLimit === undefined || transportLimit.has(capability));
     const relevant = evidenceRecords.filter((record) => record.scope.has(capability));
     const positive = relevant.filter((record) => record.capabilities.has(capability));
     const authoritativeNegative = relevant.some(

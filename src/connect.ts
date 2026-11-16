@@ -396,12 +396,7 @@ export interface HonuaConnectionInspection {
   readonly diagnostics: readonly DiscoveryDiagnostic[];
   readonly cacheIdentity: DiscoveryCacheIdentity;
   readonly cacheStatus: ConnectCacheStatus;
-  /**
-   * Transport of the connection's client. On `grpc-web`, source descriptors
-   * carry only the capabilities the gRPC FeatureService serves (no `pbf` or
-   * `sql`; aggregates are computed by the client or refused under a strict
-   * capability policy).
-   */
+  /** Transport of the connection's client; on `grpc-web` capabilities resolve to the gRPC FeatureService set. */
   readonly transport: HonuaTransport;
   /** Static object tree and classified asset candidates, when the endpoint is static STAC. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
@@ -642,6 +637,7 @@ export async function connectWithSourceSchemaProjection(
         snapshot.protocol,
         source.evidence ?? snapshot.evidence,
         options.capabilityPolicy,
+        client.isGrpcWeb ? PROTOCOL_DEFAULT_CAPABILITIES.grpc : undefined,
       );
       const descriptor: SourceDescriptor = {
         id: source.id,
@@ -683,7 +679,7 @@ export async function connectWithSourceSchemaProjection(
           : discovered.diagnostics;
       return Object.freeze({
         ...discovered,
-        descriptor: client.isGrpcWeb ? descriptorForGrpcWeb(projectedDescriptor) : projectedDescriptor,
+        descriptor: projectedDescriptor,
         diagnostics,
         ...(source.metadata || source.crs || source.extent
           ? {
@@ -1862,15 +1858,6 @@ async function validateSnapshot(
     evidence: sharedEvidence,
     sources: Object.freeze(sources),
     ...(stacStatic ? { stacStatic } : {}),
-  });
-}
-
-function descriptorForGrpcWeb(descriptor: SourceDescriptor): SourceDescriptor {
-  const capabilities = descriptor.capabilities;
-  if (!capabilities) return descriptor;
-  return Object.freeze({
-    ...descriptor,
-    capabilities: new Set([...capabilities].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability))),
   });
 }
 
