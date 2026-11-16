@@ -77,7 +77,7 @@ Check the deployment and the linked work before removing a compatibility path.
 | Distinct values | Explicit bounded query and client deduplication, or a published analytical file | Canonical `Query` has no `distinct` property. Do not deduplicate one page and claim a complete distinct set. |
 | Large reads/export | `for await (const page of source.stream(query))` or GeoParquet | Stream has no reconnect cursor. Bound memory; choose a snapshot for reproducible exports. |
 | Statistics/grouping | `source.queryAggregate({ aggregation: { groupBy, metrics } })` | gRPC strict policy rejects unsupported server aggregation; degrade policy may materialize client-side. Inspect `Result.degraded`. |
-| Time slider | `source.query({ temporalFilter })` | Native server time filtering remains pending; do not silently drop the constraint. |
+| Time slider | `source.query({ temporalFilter: { kind: "interval", field: "REPORTED_AT", start, end } })` | Name the temporal field to compile a server-side SQL predicate. A field-less time constraint throws `HonuaCapabilityNotSupportedError` on gRPC, including streams; it cannot be sent as a protocol time dimension. |
 | Top features per group | Explicit analytical query/file | No canonical `top` parameter yet. |
 | Identify | `identifySources(selectedSources, options)` | Queries each selected source; coordinate-space envelope tolerance, one bounded page per source. |
 | Find | `findSources([{ source, fields }], options)` | Typed equality or explicit LIKE pattern over chosen fields; no service-wide discovery. |

@@ -141,6 +141,9 @@ function toProtoGlobalIds(request: QueryFeaturesRequest): string[] {
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
 export function toProtoQueryRequest(request: QueryFeaturesRequest) {
+  if (request.extraParams?.time !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("temporalFilter", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
   if (
     request.outStatistics !== undefined ||
     request.groupByFieldsForStatistics !== undefined ||
