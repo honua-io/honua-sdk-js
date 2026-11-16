@@ -33,6 +33,8 @@ const result = runNpxSync(
     "README.md",
     "--name",
     "@honua/sdk-js",
+    "--customCss",
+    "scripts/docs-api.css",
     ...sources,
   ],
   { cwd: PROJECT_ROOT, stdio: "inherit" },
