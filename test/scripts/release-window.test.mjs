@@ -193,6 +193,11 @@ it("publishes one combined verdict for every open trunk PR that shares a head", 
   assert.equal(passed.allowed, true);
   assert.equal(alone.calls.at(-1).body.conclusion, "success");
 
+  // A valid PR on the same head holds nothing.
+  const twin = { ...input, pullRequestNumber: input.pullRequestNumber + 6 };
+  const twins = fakeGitHub({ releases: [], sharing: [entry(input.pullRequestNumber), entry(twin.pullRequestNumber)], others: [twin] });
+  assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, twins.request)).allowed, true);
+
   // A sibling that moved off the head since the listing no longer shares the check.
   const moved = fakeGitHub({ releases: [], sharing: listing, others: [{ ...stale, headSha: "e".repeat(40) }] });
   assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, moved.request)).allowed, true);
