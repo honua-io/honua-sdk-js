@@ -18,11 +18,7 @@ it("both publication validators use the shared required-check helper", () => {
   assert.ok(regeneration.includes(helper));
 });
 
-function runPublication(mode, command = script) {
-  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-mcp-publication-"));
-  try {
-    fs.writeFileSync(path.join(temporaryRoot, "sleep"), "#!/bin/bash\nexit 0\n", { mode: 0o755 });
-    fs.writeFileSync(path.join(temporaryRoot, "gh"), `#!/bin/bash
+const githubStub = `#!/bin/bash
 set -eu
 if [[ "$1 $2" == "pr checks" ]]; then
   count=0
@@ -41,7 +37,13 @@ if [[ "$1 $2" == "pr checks" ]]; then
 else
   printf '%s\\n' "$*" >> "$STATE/operations"
 fi
-`, { mode: 0o755 });
+`;
+
+function runPublication(mode, command = script) {
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-mcp-publication-"));
+  try {
+    fs.writeFileSync(path.join(temporaryRoot, "sleep"), "#!/bin/bash\nexit 0\n", { mode: 0o755 });
+    fs.writeFileSync(path.join(temporaryRoot, "gh"), githubStub, { mode: 0o755 });
     fs.mkdirSync(path.join(temporaryRoot, "scripts"));
     fs.copyFileSync(new URL("../../scripts/wait-required-checks.sh", import.meta.url),
       path.join(temporaryRoot, "scripts/wait-required-checks.sh"));
