@@ -1,7 +1,7 @@
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
 import { PullRequestDispositionError, validatePullRequestDisposition } from "./pr-issue-disposition.mjs";
 import { REQUIRED_DISPOSITION_CHECK } from "./release-please-disposition-check.mjs";
-import { evaluateReleaseWindow, readAllPages, repositoryApi } from "./release-window.mjs";
+import { evaluateReleaseWindow, loadReleaseWindows, readAllPages, repositoryApi } from "./release-window.mjs";
 
 async function completeCheck(checkUrl, result, request) {
   await request(checkUrl, {
@@ -20,19 +20,17 @@ async function pullRequestVerdict(input, headSha, options, request) {
 }
 
 /**
- * The required check is published on a commit, so open trunk PRs from one
- * repository that share a head share one check. Every one of them publishes
- * the same combined verdict: the commit is held while any of them is held, and
- * the summary names the PR to fix or close. A PR from another repository (a
- * fork at the same commit) never holds this PR.
+ * The required check is published on a commit, so every open trunk PR on one
+ * head shares one check, whichever repository its branch is in. Each of them
+ * publishes the same combined verdict: the commit is held while any of them is
+ * held, and the summary names the PR to fix or close. Fail closed: a valid PR
+ * never clears another PR's failure on the commit they share.
  */
 async function siblingHolds(input, initial, options, request) {
   const root = repositoryApi(input.repository);
   const openPulls = options.openPulls ?? await readAllPages(`${root}/pulls?state=open&base=trunk`, request);
-  const headRepository = initial.head.repo?.full_name;
   const siblings = openPulls.filter((other) => other.number !== input.pullRequestNumber && other.state === "open" &&
-    other.base?.ref === "trunk" && other.head?.sha === initial.head.sha &&
-    headRepository !== undefined && other.head?.repo?.full_name === headRepository);
+    other.base?.ref === "trunk" && other.head?.sha === initial.head.sha);
   const holds = [];
   for (const listed of siblings) {
     // The listing can be stale: a sibling that closed or moved off this head no longer shares the check.
@@ -43,7 +41,7 @@ async function siblingHolds(input, initial, options, request) {
         initial.head.sha, options, request);
       if (!verdict.allowed) holds.push({ number: listed.number, summary: verdict.summary });
     } catch (error) {
-      if (!(error instanceof PullRequestDispositionError)) throw error;
+      if (!(error instanceof PullRequestDispositionError)) throw new Error(`#${listed.number}: ${error.message}`, { cause: error });
       holds.push({ number: listed.number, summary: error.message });
     }
   }
@@ -63,8 +61,10 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   if (!Number.isSafeInteger(check.id)) throw new Error("GitHub did not create a pending merge-policy check.");
   let result;
   try {
-    result = await pullRequestVerdict(input, initial.head.sha, options, request);
-    const holds = result.allowed ? await siblingHolds(input, initial, options, request) : [];
+    // One release-window read serves this PR and every PR that shares its head.
+    const shared = { ...options, windows: options.windows ?? await loadReleaseWindows(input.repository, request) };
+    result = await pullRequestVerdict(input, initial.head.sha, shared, request);
+    const holds = result.allowed ? await siblingHolds(input, initial, shared, request) : [];
     if (holds.length > 0) {
       result = { allowed: false, summary: "Held by another open PR on the same commit; fix or close it: " +
         holds.map((hold) => `#${hold.number} (${hold.summary})`).join("; ") };
