@@ -8,57 +8,57 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-15 at commit `b085f4e7c`._
+_Generated 2026-11-16 at commit `5e18cb9b6`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 774.2 KiB | 829.3 KiB | 208.2 KiB | 211.8 KiB |
-| `/honua` | 949.1 KiB | 1033.4 KiB | 256.1 KiB | 278.1 KiB |
-| `/contract` | 397.0 KiB | 400.6 KiB | 108.9 KiB | 118.8 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 846.3 KiB | 859.4 KiB | 202.5 KiB | 218.1 KiB |
+| `.` (root) | 777.9 KiB | 829.3 KiB | 209.5 KiB | 211.8 KiB |
+| `/honua` | 952.3 KiB | 1033.4 KiB | 257.3 KiB | 278.1 KiB |
+| `/contract` | 397.6 KiB | 400.6 KiB | 109.1 KiB | 118.8 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 849.2 KiB | 859.4 KiB | 202.8 KiB | 218.1 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.2 KiB | 257.5 KiB | 26.2 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 880.3 KiB | 961.8 KiB | 211.8 KiB | 237.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 883.2 KiB | 961.8 KiB | 212.1 KiB | 237.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 68.7 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
 | `/agent-tools` | 46.4 KiB | 48.1 KiB | 12.7 KiB | 13.3 KiB |
 | `/agent-safety` | 69.4 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.9 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
 | `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.2 KiB | 20.8 KiB |
-| `/runtime` | 727.5 KiB | 752.5 KiB | 188.3 KiB | 198.6 KiB |
+| `/runtime` | 728.8 KiB | 752.5 KiB | 188.8 KiB | 198.6 KiB |
 | `/realtime` | 82.6 KiB | 86.2 KiB | 23.7 KiB | 25.0 KiB |
 | `/offline` | 171.8 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 707.1 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.4 KiB | 183.6 KiB | 52.6 KiB | 55.8 KiB |
-| `/client-compat` | 1084.1 KiB | 1139.7 KiB | 273.0 KiB | 309.5 KiB |
+| `/client-compat` | 1084.6 KiB | 1139.7 KiB | 273.2 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
 | `/geocoding` | 33.3 KiB | 35.9 KiB | 9.4 KiB | 10.1 KiB |
 | `/routing` | 29.0 KiB | 31.8 KiB | 8.7 KiB | 9.5 KiB |
 | `/auth` | 28.5 KiB | 30.6 KiB | 7.8 KiB | 8.7 KiB |
-| `/style` | 67.2 KiB | 69.0 KiB | 17.0 KiB | 17.2 KiB |
-| `/map` | 197.5 KiB | 198.2 KiB | 56.1 KiB | 56.2 KiB |
+| `/style` | 67.5 KiB | 69.0 KiB | 17.1 KiB | 17.2 KiB |
+| `/map` | 198.4 KiB | 218.2 KiB | 56.5 KiB | 62.1 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 148.4 KiB | 154.9 KiB | 44.4 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.9 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 334.3 KiB | 364.2 KiB | 89.3 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 334.9 KiB | 364.2 KiB | 89.6 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1228.9 KiB | 1275.0 KiB | 324.0 KiB | 344.5 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1338.6 KiB | 1395.4 KiB | 357.3 KiB | 391.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1230.5 KiB | 1275.0 KiB | 324.6 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1340.2 KiB | 1395.4 KiB | 357.8 KiB | 391.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
-| `/react` (react/react-dom external) | 572.5 KiB | 619.8 KiB | 155.8 KiB | 165.2 KiB |
+| `/react` (react/react-dom external) | 572.9 KiB | 619.8 KiB | 155.9 KiB | 165.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 519.6 KiB | 568.0 KiB | 143.4 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 774.4 KiB | 832.8 KiB | 208.3 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 774.0 KiB | 828.5 KiB | 208.1 KiB | 221.7 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 240.0 KiB | 280.2 KiB | 61.2 KiB | 74.3 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 632.4 KiB | 695.1 KiB | 168.8 KiB | 186.7 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 778.1 KiB | 832.8 KiB | 209.7 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 777.7 KiB | 828.5 KiB | 209.5 KiB | 221.7 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 240.5 KiB | 280.2 KiB | 61.4 KiB | 74.3 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 635.3 KiB | 695.1 KiB | 169.9 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 17.0 KiB | 17.1 KiB | 4.5 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.7 KiB | 18.5 KiB | 3.7 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 734.6 KiB | 791.3 KiB | 197.7 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 264.1 KiB | 296.3 KiB | 67.8 KiB | 77.7 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 737.4 KiB | 791.3 KiB | 198.8 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 264.5 KiB | 296.3 KiB | 68.0 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.0 KiB | 316.3 KiB | 65.2 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 49.5 KiB | 54.4 KiB | 15.1 KiB | 16.4 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 50.1 KiB | 54.4 KiB | 15.3 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 35.1 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 33.0 KiB | 35.9 KiB | 10.6 KiB | 11.3 KiB |
