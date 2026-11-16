@@ -7,6 +7,8 @@ import { it } from "node:test";
 
 import { parse } from "yaml";
 
+import { NPM_PUBLISH_ENVIRONMENT } from "./npm-publish-environment.mjs";
+
 const workflow = parse(fs.readFileSync(new URL("../../.github/workflows/publish-js-sdk.yml", import.meta.url), "utf8"));
 const steps = workflow.jobs["publish-js-packages"].steps;
 const prerequisite = steps.find((step) => step.name === "Verify publication prerequisites").run;
@@ -408,4 +410,62 @@ it("a companion that arrives during the grace period ends verified without a gap
   assert.equal(run.status, 0);
   assert.doesNotMatch(run.outputs, /companion_gap/u);
   assert.ok(run.elapsed >= 300);
+});
+
+it("publishes for real only inside the npm-publish environment", () => {
+  assert.equal(workflow.jobs["publish-js-packages"].environment, NPM_PUBLISH_ENVIRONMENT);
+});
+
+function runRefGuard(env) {
+  const step = steps.find((candidate) => candidate.name === "Validate publish ref and version");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "publish-js-sdk-ref-"));
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ version: "0.3.4" }));
+  const scriptPath = path.join(root, "guard.sh");
+  fs.writeFileSync(scriptPath, step.run, { mode: 0o755 });
+  const sha = "a".repeat(40);
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", scriptPath], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      GITHUB_SHA: sha,
+      RELEASE_VERSION: "",
+      EXPECTED_SOURCE_REVISION: "",
+      ALLOW_BRANCH_PUBLISH: "false",
+      ...env(sha),
+    },
+  });
+  fs.rmSync(root, { recursive: true, force: true });
+  return result;
+}
+
+const recovery = (ref, name) => (sha) => ({
+  GITHUB_REF: ref,
+  GITHUB_REF_TYPE: "branch",
+  GITHUB_REF_NAME: name,
+  ALLOW_BRANCH_PUBLISH: "true",
+  RELEASE_VERSION: "0.3.4",
+  EXPECTED_SOURCE_REVISION: sha,
+});
+
+it("publishes from a matching release tag", () => {
+  const tag = () => ({ GITHUB_REF: "refs/tags/js-sdk-v0.3.4", GITHUB_REF_TYPE: "tag", GITHUB_REF_NAME: "js-sdk-v0.3.4" });
+  assert.equal(runRefGuard(tag).status, 0);
+});
+
+it("allows a pinned recovery publish from trunk only", () => {
+  assert.equal(runRefGuard(recovery("refs/heads/trunk", "trunk")).status, 0);
+  for (const [ref, name] of [["refs/heads/recovery/publish-js-sdk-0.3.4", "recovery/publish-js-sdk-0.3.4"],
+    ["refs/heads/trunk-copy", "trunk-copy"]]) {
+    const result = runRefGuard(recovery(ref, name));
+    assert.equal(result.status, 1, ref);
+    assert.match(result.stdout, /must run from a js-sdk-\* tag, or from trunk with allow_branch_publish/);
+  }
+});
+
+it("refuses an unpinned trunk publish", () => {
+  const unpinned = () => ({ GITHUB_REF: "refs/heads/trunk", GITHUB_REF_TYPE: "branch", GITHUB_REF_NAME: "trunk" });
+  const result = runRefGuard(unpinned);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /must run from a js-sdk-\* tag, or from trunk with allow_branch_publish/);
 });

@@ -649,8 +649,10 @@ export interface HonuaClientOptions {
    */
   preferBinary?: boolean;
   /**
-   * Transport protocol. `"rest"` uses JSON/PBF over HTTP (default).
-   * `"grpc-web"` uses typed RPC via Connect gRPC-Web transport.
+   * Transport protocol for this constructor. `"rest"` uses GeoServices JSON/PBF over HTTP
+   * (the constructor default). `"grpc-web"` uses the native typed RPC contract via the
+   * Connect gRPC-Web transport. Prefer `createHonuaClient`, which selects gRPC-Web where
+   * the server offers it and REST otherwise.
    */
   transport?: HonuaTransport;
 }

@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { HonuaGrpcError } from "../src/core/errors.js";
-import { HonuaOptionalGrpcPeerError, explainOptionalGrpcLoadFailure } from "../src/core/optional-grpc-peer.js";
+import {
+  HonuaOptionalGrpcPeerError,
+  explainOptionalGrpcLoadFailure,
+  isGrpcRuntimeLoadFailure,
+} from "../src/core/optional-grpc-peer.js";
 
 function missingPackage(name: string): NodeJS.ErrnoException {
   const error: NodeJS.ErrnoException = new Error(
@@ -55,5 +59,21 @@ describe("optional gRPC peer diagnostics", () => {
     expect(runtimeSource).not.toMatch(/\bimport\s*\(\s*["']\.\.\/gen\/geospatial\//);
     expect(source).toContain("importOptionalGrpcSpecifier");
     expect(source).toContain("import(/* @vite-ignore */ specifier)");
+  });
+
+  it("names the peer in Firefox and Safari bare-specifier failures", () => {
+    const firefox = new TypeError(
+      'The specifier "@connectrpc/connect-web" was a bare specifier, but was not remapped to anything.',
+    );
+    expect(explainOptionalGrpcLoadFailure(firefox)).toMatchObject({ peer: "@connectrpc/connect-web" });
+    const safari = new TypeError("Module name, '@bufbuild/protobuf' does not resolve to a valid URL.");
+    expect(explainOptionalGrpcLoadFailure(safari)).toMatchObject({ peer: "@bufbuild/protobuf" });
+  });
+
+  it("recognises runtime load failures without treating gRPC failures as one", () => {
+    expect(isGrpcRuntimeLoadFailure(new TypeError("Importing a module script failed."))).toBe(true);
+    expect(isGrpcRuntimeLoadFailure(new Error("wrapped", { cause: missingPackage("@connectrpc/connect") }))).toBe(true);
+    expect(isGrpcRuntimeLoadFailure(new HonuaGrpcError(2, "Cannot find module in auth provider"))).toBe(false);
+    expect(isGrpcRuntimeLoadFailure(new Error("token refresh failed"))).toBe(false);
   });
 });

@@ -10,7 +10,13 @@ import { createGrpcWebTransport } from "@connectrpc/connect-web";
 
 import { HonuaClient as BaseHonuaClient } from "./core/client.js";
 import * as grpcAdapter from "./core/grpc-adapter.js";
-import type { HonuaClientOptions } from "./core/types.js";
+import {
+  type CreateHonuaClientOptions,
+  type SelectHonuaTransportOptions,
+  createHonuaClientWith,
+  selectHonuaTransportWith,
+} from "./core/transport-selection.js";
+import type { HonuaClientOptions, HonuaTransport } from "./core/types.js";
 import { FeatureService } from "./gen/geospatial/v1/feature_service_pb.js";
 
 export type GrpcWebClientOptions = Omit<HonuaClientOptions, "transport"> & { transport?: "grpc-web" };
@@ -29,3 +35,34 @@ export class HonuaClient extends BaseHonuaClient {
     return Promise.resolve(grpcAdapter);
   }
 }
+
+function clientForTransport({
+  transport,
+  ...clientOptions
+}: HonuaClientOptions & { readonly transport: HonuaTransport }): BaseHonuaClient {
+  return transport === "grpc-web"
+    ? new HonuaClient(clientOptions)
+    : new BaseHonuaClient({ ...clientOptions, transport });
+}
+
+/**
+ * Browser variant of the root `createHonuaClient`: probes with this entrypoint's
+ * statically bound gRPC-Web runtime and returns its {@link HonuaClient} when the
+ * server answers gRPC-Web, or a REST client otherwise. Pass `transport` to skip
+ * the probe.
+ */
+export function createHonuaClient(options: CreateHonuaClientOptions): Promise<BaseHonuaClient> {
+  return createHonuaClientWith(options, clientForTransport);
+}
+
+/** Browser variant of `selectHonuaTransport` from `@honua/sdk-js/honua`, probing with this entrypoint's bound runtime. */
+export function selectHonuaTransport(options: SelectHonuaTransportOptions): Promise<HonuaTransport> {
+  return selectHonuaTransportWith(options, clientForTransport);
+}
+
+export { HONUA_TRANSPORT_PROBE_TIMEOUT_MS } from "./core/transport-selection.js";
+export type {
+  CreateHonuaClientOptions,
+  HonuaTransportPreference,
+  SelectHonuaTransportOptions,
+} from "./core/transport-selection.js";

@@ -350,7 +350,7 @@ render model, and `errors: []`; error responses include serializable `HonuaGener
 throw from `previewGeneratedApp`. Call `loadGeneratedAppRuntime` directly when the host wants exceptions. Full
 contract reference: [`docs/generated-app-runtime.md`](./generated-app-runtime.md). For map-backed manifests,
 the host must provide a `HonuaMapDocument`, `mapFactory`, and `mapLoadOptions`; when `manifest.mapPackageId` is present,
-the supplied `MapPackage.mapPackageId` must match before map construction. Map filter bindings use the widget
+the supplied `HonuaMapDocument.mapPackageId` must match before map construction. Map filter bindings use the widget
 `layerId` with `manifest.bindings.layerId` as fallback, and failed initial feature loads dispose partially loaded map
 resources before returning an error result.
 

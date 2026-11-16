@@ -165,7 +165,7 @@ describe("prepared SDK artifact contract", () => {
     expect(publish).toContain("npm run demo:examples:build:prepared");
     expect(publish).not.toContain("HONUA_DERIVED_ARTIFACTS_RELAX");
     expect(publish).toContain("EXPECTED_SOURCE_REVISION");
-    expect(publish).toContain("allow_branch_publish with release_version and source_revision");
+    expect(publish).toContain("from trunk with allow_branch_publish, release_version and source_revision");
     expect(releasePlease).toContain('gh run watch "${reseal_run_id}"');
     expect(releasePlease).toContain("Post-release trunk contains a non-generated path");
     expect(releasePlease).toContain('-f source_revision="${sealed_sha}"');

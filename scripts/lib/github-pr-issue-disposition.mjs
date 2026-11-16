@@ -1,6 +1,6 @@
 import process from "node:process";
 
-import { automationExemption, parsePullRequestDisposition } from "./pr-issue-disposition.mjs";
+import { PullRequestDispositionError, automationExemption, parsePullRequestDisposition } from "./pr-issue-disposition.mjs";
 
 const GITHUB_GRAPHQL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -73,7 +73,10 @@ function parseGraphqlSnapshot(payload, input) {
     throw new Error(`GitHub did not return ${input.repository}#${input.pullRequestNumber}.`);
   }
   if (pullRequest.state !== "OPEN") {
-    throw new Error(`Pull request #${input.pullRequestNumber} is ${String(pullRequest.state).toLowerCase()}.`);
+    throw new PullRequestDispositionError(
+      "pull-request-not-open",
+      `Pull request #${input.pullRequestNumber} is ${String(pullRequest.state).toLowerCase()}.`,
+    );
   }
   if (normalizedRepository(pullRequest.baseRepository?.nameWithOwner) !== normalizedRepository(input.repository)) {
     throw new Error(`Pull request #${input.pullRequestNumber} returned unexpected base-repository metadata.`);
@@ -87,7 +90,10 @@ function parseGraphqlSnapshot(payload, input) {
   const closingIssueNumbers = [];
   for (const issue of closing.nodes) {
     if (normalizedRepository(issue?.repository?.nameWithOwner) !== normalizedRepository(input.repository)) {
-      throw new Error(`GitHub parsed a cross-repository closing reference to ${issue?.repository?.nameWithOwner}.`);
+      throw new PullRequestDispositionError(
+        "cross-repository-closing-reference",
+        `GitHub parsed a cross-repository closing reference to ${issue?.repository?.nameWithOwner}.`,
+      );
     }
     closingIssueNumbers.push(issue.number);
   }

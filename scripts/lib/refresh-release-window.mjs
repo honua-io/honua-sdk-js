@@ -1,5 +1,5 @@
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
-import { validatePullRequestDisposition } from "./pr-issue-disposition.mjs";
+import { PullRequestDispositionError, validatePullRequestDisposition } from "./pr-issue-disposition.mjs";
 import { REQUIRED_DISPOSITION_CHECK } from "./release-please-disposition-check.mjs";
 import { evaluateReleaseWindow, readAllPages, repositoryApi } from "./release-window.mjs";
 
@@ -26,11 +26,13 @@ export async function refreshPullRequest(input, options = {}, request = githubRe
   let result;
   try {
     const current = await loadCurrentPullRequestDisposition(input, request);
-    if (current.headSha !== initial.head.sha) throw new Error("PR head changed before validation.");
+    if (current.headSha !== initial.head.sha) throw new PullRequestDispositionError("head-changed", "PR head changed before validation.");
     validatePullRequestDisposition(current);
     result = await evaluateReleaseWindow(current, options, request);
   } catch (error) {
-    result = { allowed: false, summary: `Merge policy validation failed: ${error.message}` };
+    // The PR owns a disposition failure; anything else is an infrastructure error the run must surface.
+    result = { allowed: false, summary: `Merge policy validation failed: ${error.message}`,
+      ...(error instanceof PullRequestDispositionError ? {} : { infrastructureError: true }) };
   }
   await completeCheck(`${root}/check-runs/${check.id}`, result, request);
   return result;

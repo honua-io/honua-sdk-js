@@ -63,9 +63,9 @@ the browser-safe projection of canonical builder/package output.
 | `BuildSpec.initialState` | `manifest.initialState` | Optional initial `ExplorationState` seed. |
 | `AppVersion.id` / `AppVersion.version` | `manifest.appId` / `manifest.version` fallback | `projectAppVersionToGeneratedAppManifest` fills these when the artifact omits them. |
 | `AppVersion.manifest_artifact` / `AppVersion.manifestArtifact` | `HonuaGeneratedAppManifestArtifact` | Inline artifact with kind/version plus `manifest`. `manifest_artifact` is the preferred Portal handoff; the SDK also accepts a bare manifest for draft/test callers. |
-| `MapPackage.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app package. |
-| `MapPackage.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapDocument`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
-| `MapPackage.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
+| `HonuaMapDocument.mapPackageId` | `manifest.mapPackageId` | Used to verify the map asset referenced by the app version. |
+| `HonuaMapDocument.sourceBindings[]` | `manifest.data.sourceId` plus runtime source ids | The generated runtime reuses `loadMapDocument`; source/protocol logic stays in `@honua/sdk-js/runtime`. |
+| `HonuaMapDocument.mapSpec`, `legend`, `popupBindings`, `initialView` | map widget model / `HonuaMapRuntime` | The generated runtime does not duplicate map style, legend, popup, or view logic. |
 
 When a `BuildSpec` or `HonuaMapDocument` projection omits widgets, the SDK creates
 the proof dashboard's default map, table, count, chart, and filter widgets from
@@ -96,7 +96,7 @@ if (preview.status === "error") {
 
 Manifests with a `map` widget require a `HonuaMapDocument`, `mapFactory`, and
 `mapLoadOptions`. When `manifest.mapPackageId` is present, the resolved
-`MapPackage.mapPackageId` must match before the SDK constructs the host map;
+`HonuaMapDocument.mapPackageId` must match before the SDK constructs the host map;
 mismatches return a `map-package-mismatch` diagnostic. `mapFactory` returns the
 host-owned MapLibre map plus an optional `dispose` callback. The SDK calls that
 callback during normal runtime teardown and if the map loads but the initial
