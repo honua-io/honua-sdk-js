@@ -1,0 +1,8 @@
+/* Keep wide reference tables scrollable within TypeDoc's mobile content column. */
+@media (max-width: 769px) {
+  .tsd-typography table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
