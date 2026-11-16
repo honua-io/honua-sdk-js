@@ -210,4 +210,25 @@ describe("connect() native transport default for GeoServices feature services", 
       vi.unstubAllGlobals();
     }
   });
+
+  it("does not narrow another protocol's capabilities for a gRPC-Web client", async () => {
+    const mapFetch = vi.fn(async () =>
+      json({
+        id: 2,
+        name: "Cities",
+        capabilities: "Map,Query",
+        advancedQueryCapabilities: { supportsPagination: true },
+        fields: [],
+      }),
+    ) as unknown as typeof fetch;
+    const mapEndpoint = "https://example.test/arcgis/rest/services/Maps/Cities/MapServer/2";
+    const options = { endpoint: mapEndpoint, protocol: "auto" as const, authorizationScopeFingerprint: "anonymous" };
+    const rest = await connect({ ...options, clientOptions: { fetchFn: mapFetch, transport: "rest" } });
+    const native = await connect({ ...options, clientOptions: { fetchFn: mapFetch, transport: "grpc-web" } });
+
+    const capabilities = (connection: typeof rest) =>
+      [...(connection.inspection.sources[0]?.descriptor.capabilities ?? [])].sort();
+    expect(capabilities(native)).toEqual(capabilities(rest));
+    expect(capabilities(native)).toContain("render");
+  });
 });

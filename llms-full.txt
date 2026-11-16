@@ -36,9 +36,6 @@ native gRPC-Web transport where the server offers it and GeoServices REST otherw
 (`transport: "grpc-web"` or `"rest"` skips the probe; `new HonuaClient` still defaults to REST).
 In a browser bundle import it from `@honua/sdk-js/grpc-web`; the root export cannot load the
 gRPC peers there and selects REST.
-Outside a browser, `connect()` on a GeoServices FeatureServer URL makes the same choice for its
-default client and records it in the discovery cache; in a browser pass it a `client` from
-`@honua/sdk-js/grpc-web`.
 Follow the [native data guide](docs/native-data-paths.md) for the complete browser
 setup, current edit gap, and PMTiles / GeoParquet / COG file examples.
 

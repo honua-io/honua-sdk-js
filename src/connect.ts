@@ -629,7 +629,9 @@ export async function connectWithSourceSchemaProjection(
         protocol: snapshot.protocol,
         evidence: source.evidence ?? snapshot.evidence,
         ...(options.capabilityPolicy ? { policy: options.capabilityPolicy } : {}),
-        ...(client.isGrpcWeb ? { transportLimit: PROTOCOL_DEFAULT_CAPABILITIES.grpc } : {}),
+        ...(client.isGrpcWeb && snapshot.protocol === "geoservices-feature-service"
+          ? { transportLimit: PROTOCOL_DEFAULT_CAPABILITIES.grpc }
+          : {}),
       });
       const descriptor: SourceDescriptor = {
         id: source.id,
