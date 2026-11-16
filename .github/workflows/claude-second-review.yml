@@ -267,6 +267,7 @@ jobs:
           wc -c .claude-second-review/resolved-threads.md
 
       - name: Run the second-pass review
+        id: second_review
         uses: anthropics/claude-code-action@4d75e5f390ee76b2e09c1980ecc99ff3a2e088c8 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -341,3 +342,7 @@ jobs:
           claude_args: |
             --max-turns 60
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api repos/${{ github.repository }}/contents/*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+
+      - name: Report a safe review failure category
+        if: ${{ failure() && steps.second_review.outcome == 'failure' }}
+        run: node scripts/report-second-review-failure.mjs
