@@ -1,5 +1,5 @@
 /**
- * `MapWorkspaceController` — orchestrates the `HonuaMapRuntime` and the
+ * `MapController` — orchestrates the `HonuaMapRuntime` and the
  * `ExplorationContext` for a single result `HonuaMapDocument`. The controller
  * owns no MapLibre source/style code of its own — every map mutation
  * delegates to the runtime from `src/runtime/`.
@@ -28,7 +28,7 @@ import { HonuaOperatorMapError } from "../errors.js";
 import type { OperatorTelemetry } from "../telemetry.js";
 import { ListenerBag, type Unsubscribe, withTelemetrySpan } from "./base.js";
 
-export type MapWorkspaceEvent =
+export type MapEvent =
   | { kind: "package-loaded"; pkg: HonuaMapDocument }
   | { kind: "package-refined"; pkg: HonuaMapDocument }
   | { kind: "package-disposed" }
@@ -45,7 +45,7 @@ export interface MapFactoryResult {
   dispose?: () => void;
 }
 
-export interface MapWorkspaceControllerOptions {
+export interface MapControllerOptions {
   client: OperatorClient;
   mapFactory: MapFactory;
   /** Linked-view preset for the embedded `ExplorationContext`. Default `"mapDriven"`. */
@@ -61,13 +61,13 @@ export interface MapWorkspaceControllerOptions {
 
 const MAP_VIEW_BINDING_ID = "map-primary";
 
-export class MapWorkspaceController {
+export class MapController {
   readonly #client: OperatorClient;
   readonly #mapFactory: MapFactory;
   readonly #preset: LinkedViewPresetName;
   readonly #telemetry: OperatorTelemetry | undefined;
   readonly #loadOptions: Omit<LoadMapDocumentOptions, "telemetry"> | undefined;
-  readonly #bag = new ListenerBag<MapWorkspaceEvent>();
+  readonly #bag = new ListenerBag<MapEvent>();
 
   #runtime: HonuaMapRuntime | undefined;
   #context: ExplorationContext | undefined;
@@ -81,7 +81,7 @@ export class MapWorkspaceController {
   // overwrite a newer one.
   #opGeneration = 0;
 
-  public constructor(options: MapWorkspaceControllerOptions) {
+  public constructor(options: MapControllerOptions) {
     this.#client = options.client;
     this.#mapFactory = options.mapFactory;
     this.#preset = options.explorationPreset ?? "mapDriven";
@@ -97,7 +97,7 @@ export class MapWorkspaceController {
     return this.#context;
   }
 
-  public on(listener: (event: MapWorkspaceEvent) => void): Unsubscribe {
+  public on(listener: (event: MapEvent) => void): Unsubscribe {
     return this.#bag.on(listener);
   }
 

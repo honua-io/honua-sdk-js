@@ -22,6 +22,7 @@ import {
   type HonuaControlPlaneRequestOptions,
   type HonuaControlPlaneResult,
   type HonuaCreateMapRequest,
+  type HonuaFolderSummary,
   type HonuaImportCreateRequest,
   type HonuaMap,
   type HonuaMapDocumentSummary,
@@ -32,7 +33,6 @@ import {
   type HonuaShareRequest,
   type HonuaShareResponse,
   type HonuaUpdateMapRequest,
-  type HonuaWorkspaceSummary,
 } from "./types.js";
 
 export interface HonuaControlPlaneClientOptions {
@@ -52,7 +52,7 @@ export class HonuaControlPlaneClient {
   public readonly mapDocuments: HonuaMapDocumentsClient;
   public readonly imports: HonuaImportsClient;
   public readonly apiKeys: HonuaApiKeysClient;
-  public readonly workspaces: HonuaWorkspacesClient;
+  public readonly folders: HonuaFoldersClient;
   public readonly connections: HonuaConnectionsClient;
   public readonly sharing: HonuaSharingClient;
 
@@ -63,7 +63,7 @@ export class HonuaControlPlaneClient {
     this.mapDocuments = new HonuaMapDocumentsClient(this);
     this.imports = new HonuaImportsClient(this);
     this.apiKeys = new HonuaApiKeysClient(this);
-    this.workspaces = new HonuaWorkspacesClient(this);
+    this.folders = new HonuaFoldersClient(this);
     this.connections = new HonuaConnectionsClient(this);
     this.sharing = new HonuaSharingClient(this);
   }
@@ -488,7 +488,7 @@ export class HonuaApiKeysClient {
   }
 }
 
-export class HonuaWorkspacesClient {
+export class HonuaFoldersClient {
   readonly #controlPlane: HonuaControlPlaneClient;
 
   public constructor(controlPlane: HonuaControlPlaneClient) {
@@ -497,7 +497,7 @@ export class HonuaWorkspacesClient {
 
   public list(
     options: HonuaControlPlaneListOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaWorkspaceSummary>>> {
+  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaFolderSummary>>> {
     return this.#controlPlane.requestPage("workspaces", "/workspaces", options);
   }
 }

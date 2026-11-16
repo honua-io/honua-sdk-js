@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  HonuaAppWorkspace,
-  bindHonuaAppWorkspaceSelector,
-  createHonuaAppWorkspace,
-  createHonuaAppWorkspaceFromSavedDocument,
-  createHonuaSavedWorkspaceDocument,
-  hydrateHonuaSavedWorkspaceState,
-  reattachHonuaSavedWorkspaceArtifacts,
-  selectHonuaAppWorkspaceChartModel,
-  selectHonuaAppWorkspaceDetailModel,
-  selectHonuaAppWorkspaceDrafts,
-  selectHonuaAppWorkspaceFilterModel,
-  selectHonuaAppWorkspaceJobModel,
-  selectHonuaAppWorkspaceMapModel,
-  selectHonuaAppWorkspaceMetadataCacheModel,
-  selectHonuaAppWorkspaceRealtimeModel,
-  selectHonuaAppWorkspaceTableModel,
-  summarizeHonuaSavedWorkspaceForMcp,
-  validateHonuaSavedWorkspaceDocument,
+  HonuaAppStore,
+  bindHonuaAppStoreSelector,
+  createHonuaAppStore,
+  createHonuaAppStoreFromSavedDocument,
+  createHonuaSavedAppStateDocument,
+  hydrateHonuaSavedAppState,
+  reattachHonuaSavedAppStateArtifacts,
+  selectHonuaAppStoreChartModel,
+  selectHonuaAppStoreDetailModel,
+  selectHonuaAppStoreDrafts,
+  selectHonuaAppStoreFilterModel,
+  selectHonuaAppStoreJobModel,
+  selectHonuaAppStoreMapModel,
+  selectHonuaAppStoreMetadataCacheModel,
+  selectHonuaAppStoreRealtimeModel,
+  selectHonuaAppStoreTableModel,
+  summarizeHonuaSavedAppStateForMcp,
+  validateHonuaSavedAppStateDocument,
 } from "../src/app-workspace/index.js";
 import type {
   IJobRun,
@@ -30,9 +30,9 @@ import type {
 } from "../src/contract/index.js";
 import { createExplorationContext, sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 
-describe("HonuaAppWorkspace", () => {
+describe("HonuaAppStore", () => {
   it("notifies narrow slice subscribers only for changed slices", () => {
-    const workspace = createHonuaAppWorkspace();
+    const workspace = createHonuaAppStore();
     const sourceEvents: string[] = [];
     const layoutEvents: string[] = [];
 
@@ -52,7 +52,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("suppresses selector notifications when equality reports no change", () => {
-    const workspace = createHonuaAppWorkspace();
+    const workspace = createHonuaAppStore();
     const statuses: string[] = [];
 
     workspace.subscribeSelector(
@@ -69,7 +69,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("round-trips snapshot and restore without aliasing live state", () => {
-    const workspace = new HonuaAppWorkspace({
+    const workspace = new HonuaAppStore({
       initialState: {
         layout: { activeViewId: "map", panels: { table: { visible: true, size: 320 } } },
       },
@@ -87,7 +87,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("serializes and reloads a framework-neutral saved workspace document", () => {
-    const workspace = createHonuaAppWorkspace<{ status: string }, { title: string }, { count: number }>();
+    const workspace = createHonuaAppStore<{ status: string }, { title: string }, { count: number }>();
     const exploration = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
 
     exploration.dispatch({
@@ -118,7 +118,7 @@ describe("HonuaAppWorkspace", () => {
       snapshot: { status: "successful", result: { outputs: { total: { count: 1 } } } },
     });
 
-    const saved = createHonuaSavedWorkspaceDocument({
+    const saved = createHonuaSavedAppStateDocument({
       project: { id: "ops", title: "Operations" },
       session: { id: "session-1", activeViewId: "map" },
       snapshot: workspace.snapshot(),
@@ -146,15 +146,15 @@ describe("HonuaAppWorkspace", () => {
     });
 
     const wireFixture = JSON.parse(JSON.stringify(saved)) as unknown;
-    const validation = validateHonuaSavedWorkspaceDocument(wireFixture);
+    const validation = validateHonuaSavedAppStateDocument(wireFixture);
     expect(validation.ok).toBe(true);
 
-    const reloaded = createHonuaAppWorkspaceFromSavedDocument<{ status: string }, { title: string }, { count: number }>(
+    const reloaded = createHonuaAppStoreFromSavedDocument<{ status: string }, { title: string }, { count: number }>(
       wireFixture,
     );
     expect(reloaded.state.sources.entries.incidents?.metadata).toEqual({ title: "Incidents" });
-    expect(selectHonuaAppWorkspaceFilterModel(reloaded.state).filters.status?.value).toBe("open");
-    expect(selectHonuaAppWorkspaceDetailModel(reloaded.state).selection).toEqual([
+    expect(selectHonuaAppStoreFilterModel(reloaded.state).filters.status?.value).toBe("open");
+    expect(selectHonuaAppStoreDetailModel(reloaded.state).selection).toEqual([
       sourceFeatureSelectionTarget("incidents", 7),
     ]);
     expect(reloaded.state.jobs.entries["job-1"]?.snapshot.result?.outputs.total).toEqual({ count: 1 });
@@ -176,25 +176,25 @@ describe("HonuaAppWorkspace", () => {
       analysisOutputs: [],
     };
 
-    const validation = validateHonuaSavedWorkspaceDocument(invalid);
+    const validation = validateHonuaSavedAppStateDocument(invalid);
     expect(validation.ok).toBe(false);
     if (!validation.ok) {
       expect(validation.errors.map((error) => error.path)).toContain("$.version");
       expect(validation.errors.map((error) => error.path)).toContain("$.project.id");
       expect(validation.errors.map((error) => error.path)).toContain("$.jobs[0].status");
     }
-    expect(() => hydrateHonuaSavedWorkspaceState(invalid)).toThrow(/Invalid Honua saved workspace document/);
+    expect(() => hydrateHonuaSavedAppState(invalid)).toThrow(/Invalid Honua saved workspace document/);
   });
 
   it("reattaches jobs and materialized analysis outputs by id", () => {
-    const workspace = createHonuaAppWorkspace<unknown, unknown, { href: string }>();
+    const workspace = createHonuaAppStore<unknown, unknown, { href: string }>();
     workspace.dispatch({
       kind: "set-job-snapshot",
       jobId: "job-1",
       type: "hotspots",
       snapshot: { status: "running" },
     });
-    const saved = createHonuaSavedWorkspaceDocument({
+    const saved = createHonuaSavedAppStateDocument({
       project: { id: "ops" },
       savedAt: "2026-05-05T00:00:00.000Z",
       snapshot: workspace.snapshot(),
@@ -206,7 +206,7 @@ describe("HonuaAppWorkspace", () => {
       analysisOutputs: [{ id: "heatmap", jobId: "job-1", type: "geojson", href: "honua://old" }],
     });
 
-    const reattached = reattachHonuaSavedWorkspaceArtifacts(saved, {
+    const reattached = reattachHonuaSavedAppStateArtifacts(saved, {
       jobsById: {
         "job-1": {
           status: "successful",
@@ -222,7 +222,7 @@ describe("HonuaAppWorkspace", () => {
         },
       },
     });
-    const state = hydrateHonuaSavedWorkspaceState<unknown, unknown, { href: string }>(reattached);
+    const state = hydrateHonuaSavedAppState<unknown, unknown, { href: string }>(reattached);
 
     expect(reattached.jobs[0]?.status).toBe("successful");
     expect(reattached.analysisOutputs[0]?.href).toBe("honua://workspace/artifacts/heatmap");
@@ -232,7 +232,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("projects saved workspaces into MCP-readable summaries", () => {
-    const saved = createHonuaSavedWorkspaceDocument({
+    const saved = createHonuaSavedAppStateDocument({
       project: { id: "ops", title: "Operations" },
       savedAt: "2026-05-05T00:00:00.000Z",
       sources: [{ id: "incidents", protocol: "ogc-features", title: "Incidents", status: "ready" }],
@@ -243,7 +243,7 @@ describe("HonuaAppWorkspace", () => {
       analysisOutputs: [{ id: "summary", jobId: "job-1", type: "markdown", label: "Summary" }],
     });
 
-    const summary = summarizeHonuaSavedWorkspaceForMcp(saved);
+    const summary = summarizeHonuaSavedAppStateForMcp(saved);
 
     expect(summary).toMatchObject({
       kind: "honua.workspace.summary",
@@ -263,7 +263,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("updates realtime, job, and source cache state through typed intents", () => {
-    const workspace = createHonuaAppWorkspace<{ status: string }, { title: string }, { count: number }>();
+    const workspace = createHonuaAppStore<{ status: string }, { title: string }, { count: number }>();
 
     workspace.dispatch({
       kind: "set-source-metadata",
@@ -294,7 +294,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("derives map, table, detail, filter, chart, job, realtime, and metadata models", () => {
-    const workspace = createHonuaAppWorkspace<{ status: string }, { title: string }, { count: number }>();
+    const workspace = createHonuaAppStore<{ status: string }, { title: string }, { count: number }>();
     const exploration = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
     const selected = sourceFeatureSelectionTarget("incidents", 7);
 
@@ -338,26 +338,26 @@ describe("HonuaAppWorkspace", () => {
       snapshot: { status: "successful", result: { outputs: { total: { count: 1 } } } },
     });
 
-    expect(selectHonuaAppWorkspaceMapModel(workspace.state, { sourceId: "incidents" }).query.filters.status).toEqual({
+    expect(selectHonuaAppStoreMapModel(workspace.state, { sourceId: "incidents" }).query.filters.status).toEqual({
       field: "STATUS",
       operator: "=",
       value: "open",
       appliesTo: ["incidents"],
     });
-    expect(selectHonuaAppWorkspaceTableModel(workspace.state, { sourceId: "incidents" }).records).toHaveLength(1);
-    expect(selectHonuaAppWorkspaceDetailModel(workspace.state).selectedRecords[0]?.id).toBe(7);
-    expect(selectHonuaAppWorkspaceFilterModel(workspace.state).filters.status?.value).toBe("open");
-    expect(selectHonuaAppWorkspaceChartModel(workspace.state).grouping).toEqual(["SEVERITY"]);
-    expect(selectHonuaAppWorkspaceRealtimeModel(workspace.state, { sourceId: "incidents" }).cursor).toBe("c1");
-    expect(selectHonuaAppWorkspaceJobModel(workspace.state).running.map((entry) => entry.id)).toEqual(["running-job"]);
-    expect(selectHonuaAppWorkspaceJobModel(workspace.state).terminal.map((entry) => entry.id)).toEqual(["done-job"]);
-    expect(selectHonuaAppWorkspaceMetadataCacheModel(workspace.state).ready[0]?.metadata).toEqual({
+    expect(selectHonuaAppStoreTableModel(workspace.state, { sourceId: "incidents" }).records).toHaveLength(1);
+    expect(selectHonuaAppStoreDetailModel(workspace.state).selectedRecords[0]?.id).toBe(7);
+    expect(selectHonuaAppStoreFilterModel(workspace.state).filters.status?.value).toBe("open");
+    expect(selectHonuaAppStoreChartModel(workspace.state).grouping).toEqual(["SEVERITY"]);
+    expect(selectHonuaAppStoreRealtimeModel(workspace.state, { sourceId: "incidents" }).cursor).toBe("c1");
+    expect(selectHonuaAppStoreJobModel(workspace.state).running.map((entry) => entry.id)).toEqual(["running-job"]);
+    expect(selectHonuaAppStoreJobModel(workspace.state).terminal.map((entry) => entry.id)).toEqual(["done-job"]);
+    expect(selectHonuaAppStoreMetadataCacheModel(workspace.state).ready[0]?.metadata).toEqual({
       title: "Incidents",
     });
   });
 
   it("stages MCP or AI output as reviewable drafts before mutating visible state", () => {
-    const workspace = createHonuaAppWorkspace<unknown, { title: string }>();
+    const workspace = createHonuaAppStore<unknown, { title: string }>();
 
     workspace.dispatch({
       kind: "stage-draft",
@@ -376,21 +376,21 @@ describe("HonuaAppWorkspace", () => {
     });
 
     expect(workspace.state.sources.entries.incidents).toBeUndefined();
-    expect(selectHonuaAppWorkspaceDrafts(workspace.state).activeDraftId).toBe("draft-1");
+    expect(selectHonuaAppStoreDrafts(workspace.state).activeDraftId).toBe("draft-1");
 
     workspace.applyDraft("draft-1");
 
     expect(workspace.state.sources.entries.incidents?.metadata).toEqual({ title: "Incidents" });
-    expect(selectHonuaAppWorkspaceDrafts(workspace.state).entries).toEqual({});
+    expect(selectHonuaAppStoreDrafts(workspace.state).entries).toEqual({});
   });
 
   it("binds derived models with an optional initial notification", () => {
-    const workspace = createHonuaAppWorkspace({
+    const workspace = createHonuaAppStore({
       initialState: { layout: { activeViewId: "map", panels: {} } },
     });
     const activeViews: string[] = [];
 
-    const unsubscribe = bindHonuaAppWorkspaceSelector(
+    const unsubscribe = bindHonuaAppStoreSelector(
       workspace,
       (state) => state.layout.activeViewId,
       (viewId) => activeViews.push(viewId ?? "none"),
@@ -404,7 +404,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("attaches existing exploration contexts and job runs as composed surfaces", async () => {
-    const workspace = createHonuaAppWorkspace<unknown, unknown, { count: number }>();
+    const workspace = createHonuaAppStore<unknown, unknown, { count: number }>();
     const exploration = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
     const job = new MockJobRun<{ count: number }>("job-2", "summarize");
     const explorationSnapshots: number[] = [];
@@ -433,7 +433,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("lets components coordinate through workspace intents instead of imperative component references", () => {
-    const workspace = createHonuaAppWorkspace();
+    const workspace = createHonuaAppStore();
 
     const mapComponent = {
       selectIncident(id: number): void {
@@ -469,7 +469,7 @@ describe("HonuaAppWorkspace", () => {
   });
 
   it("clears subscriptions and external attachments on dispose", () => {
-    const workspace = createHonuaAppWorkspace();
+    const workspace = createHonuaAppStore();
     const job = new MockJobRun("job-3", "summarize");
     let events = 0;
 

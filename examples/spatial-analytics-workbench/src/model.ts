@@ -1,12 +1,12 @@
 import {
-  createHonuaAppWorkspace,
-  createHonuaSavedWorkspaceDocument,
-  selectHonuaAppWorkspaceChartModel,
-  selectHonuaAppWorkspaceDetailModel,
-  selectHonuaAppWorkspaceJobModel,
-  selectHonuaAppWorkspaceMapModel,
-  selectHonuaAppWorkspaceMetadataCacheModel,
-  selectHonuaAppWorkspaceTableModel,
+  createHonuaAppStore,
+  createHonuaSavedAppStateDocument,
+  selectHonuaAppStoreChartModel,
+  selectHonuaAppStoreDetailModel,
+  selectHonuaAppStoreJobModel,
+  selectHonuaAppStoreMapModel,
+  selectHonuaAppStoreMetadataCacheModel,
+  selectHonuaAppStoreTableModel,
 } from "@honua/app-platform/app-workspace";
 import {
   assertValidSpatialAggregationRequest,
@@ -70,7 +70,7 @@ interface SavedWorkspaceSourceProjection {
 export function createSpatialAnalyticsWorkbenchSession(
   dataset: AnalyticsDataset = createFixtureSpatialAnalyticsDataset(),
 ): SpatialAnalyticsWorkbenchSession {
-  const workspace = createHonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>();
+  const workspace = createHonuaAppStore<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>();
   const exploration = createExplorationContext({
     datasetId: dataset.workspaceId,
     sourceIds: [dataset.resultSourceId],
@@ -239,7 +239,7 @@ export function createSpatialAnalyticsWorkbenchSession(
       return this.startAnalysis();
     },
     visibleFeatures(): AnalyticsFeature[] {
-      const tableModel = selectHonuaAppWorkspaceTableModel(workspace.state, { sourceId: dataset.resultSourceId });
+      const tableModel = selectHonuaAppStoreTableModel(workspace.state, { sourceId: dataset.resultSourceId });
       const records = tableModel.records.map((record) => record.feature);
       return applyProjection(records, session.currentProjection());
     },
@@ -302,89 +302,87 @@ export function createSpatialAnalyticsWorkbenchSession(
     exportWorkspace(): string {
       syncWorkspaceExploration(dataset, workspace, exploration);
       const output = latestOutput;
-      const document = createHonuaSavedWorkspaceDocument<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>(
-        {
-          snapshot: workspace.snapshot(),
-          project: {
-            id: dataset.workspaceId,
-            title: "Cloud Spatial Analytics Workbench",
-            description: "Fixture-backed Honua Cloud analytics workspace",
-          },
-          sources: sourceDocuments(dataset, output?.resultLayer),
-          layers: output
-            ? [
-                {
-                  id: output.resultLayer.id,
-                  sourceId: dataset.resultSourceId,
-                  title: output.resultLayer.title,
-                  visible: true,
-                  metadata: { mediaType: RESULT_LAYER_MEDIA_TYPE, lineage: output.resultLayer.lineage },
-                },
-              ]
-            : [],
-          savedQueries: [
-            {
-              id: "active-analysis-query",
-              label: requirePlan(dataset, activePlanId).title,
-              sourceIds: [dataset.resultSourceId],
-              filters: exploration.state.filters,
-              spatialFilter: exploration.state.spatialFilter,
-              page: exploration.state.page,
-              visibleFields: exploration.state.visibleFields,
-              grouping: exploration.state.grouping,
-              aggregation: exploration.state.aggregation,
-              createdAt: dataset.generatedAt,
-              metadata: {
-                aoiId: activeAoiId,
-                planId: activePlanId,
-                linkedAnalysisContextId: linkedAnalysisContext?.id,
-                executionPlanId: linkedAnalysisContext?.plan?.id,
-                executionPlanFingerprint: linkedAnalysisContext?.plan?.fingerprint,
-              },
-            },
-          ],
-          analysisOutputs: output
-            ? [
-                {
-                  id: output.resultLayer.id,
-                  jobId: activeJobId,
-                  type: RESULT_LAYER_MEDIA_TYPE,
-                  label: output.resultLayer.title,
-                  sourceId: dataset.resultSourceId,
-                  layerId: output.resultLayer.id,
-                  href: output.resultLayer.href,
-                  createdAt: dataset.generatedAt,
-                  data: {
-                    metrics: output.metrics,
-                    featureCount: output.features.length,
-                    linkedAnalysisArtifact: output.linkedAnalysis?.outputArtifact,
-                  },
-                  metadata: {
-                    materialized: output.resultLayer.materialized,
-                    cache: output.resultLayer.cache,
-                    linkedAnalysisContextId: output.linkedAnalysis?.id,
-                    executionPlanFingerprint: output.linkedAnalysis?.plan?.fingerprint,
-                  },
-                },
-              ]
-            : [],
-          metadata: {
-            capabilityGaps: dataset.capabilityGaps,
-            cachePolicy:
-              "Layer metadata and process descriptions are cacheable; arbitrary AOI results are reusable only after materialization.",
-            linkedAnalysis: linkedAnalysisContext
-              ? {
-                  contextId: linkedAnalysisContext.id,
-                  state: linkedAnalysisContext.state,
-                  lane: linkedAnalysisContext.lane,
-                  planId: linkedAnalysisContext.plan?.id,
-                  planFingerprint: linkedAnalysisContext.plan?.fingerprint,
-                  provenance: linkedAnalysisContext.provenance,
-                }
-              : undefined,
-          },
+      const document = createHonuaSavedAppStateDocument<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>({
+        snapshot: workspace.snapshot(),
+        project: {
+          id: dataset.workspaceId,
+          title: "Cloud Spatial Analytics Workbench",
+          description: "Fixture-backed Honua Cloud analytics workspace",
         },
-      );
+        sources: sourceDocuments(dataset, output?.resultLayer),
+        layers: output
+          ? [
+              {
+                id: output.resultLayer.id,
+                sourceId: dataset.resultSourceId,
+                title: output.resultLayer.title,
+                visible: true,
+                metadata: { mediaType: RESULT_LAYER_MEDIA_TYPE, lineage: output.resultLayer.lineage },
+              },
+            ]
+          : [],
+        savedQueries: [
+          {
+            id: "active-analysis-query",
+            label: requirePlan(dataset, activePlanId).title,
+            sourceIds: [dataset.resultSourceId],
+            filters: exploration.state.filters,
+            spatialFilter: exploration.state.spatialFilter,
+            page: exploration.state.page,
+            visibleFields: exploration.state.visibleFields,
+            grouping: exploration.state.grouping,
+            aggregation: exploration.state.aggregation,
+            createdAt: dataset.generatedAt,
+            metadata: {
+              aoiId: activeAoiId,
+              planId: activePlanId,
+              linkedAnalysisContextId: linkedAnalysisContext?.id,
+              executionPlanId: linkedAnalysisContext?.plan?.id,
+              executionPlanFingerprint: linkedAnalysisContext?.plan?.fingerprint,
+            },
+          },
+        ],
+        analysisOutputs: output
+          ? [
+              {
+                id: output.resultLayer.id,
+                jobId: activeJobId,
+                type: RESULT_LAYER_MEDIA_TYPE,
+                label: output.resultLayer.title,
+                sourceId: dataset.resultSourceId,
+                layerId: output.resultLayer.id,
+                href: output.resultLayer.href,
+                createdAt: dataset.generatedAt,
+                data: {
+                  metrics: output.metrics,
+                  featureCount: output.features.length,
+                  linkedAnalysisArtifact: output.linkedAnalysis?.outputArtifact,
+                },
+                metadata: {
+                  materialized: output.resultLayer.materialized,
+                  cache: output.resultLayer.cache,
+                  linkedAnalysisContextId: output.linkedAnalysis?.id,
+                  executionPlanFingerprint: output.linkedAnalysis?.plan?.fingerprint,
+                },
+              },
+            ]
+          : [],
+        metadata: {
+          capabilityGaps: dataset.capabilityGaps,
+          cachePolicy:
+            "Layer metadata and process descriptions are cacheable; arbitrary AOI results are reusable only after materialization.",
+          linkedAnalysis: linkedAnalysisContext
+            ? {
+                contextId: linkedAnalysisContext.id,
+                state: linkedAnalysisContext.state,
+                lane: linkedAnalysisContext.lane,
+                planId: linkedAnalysisContext.plan?.id,
+                planFingerprint: linkedAnalysisContext.plan?.fingerprint,
+                provenance: linkedAnalysisContext.provenance,
+              }
+            : undefined,
+        },
+      });
       return `${JSON.stringify(document, null, 2)}\n`;
     },
     dispose(): void {
@@ -453,18 +451,18 @@ export function applyProjection(
 
 export function selectAnalyticsUiModels(session: SpatialAnalyticsWorkbenchSession) {
   return {
-    map: selectHonuaAppWorkspaceMapModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
-    table: selectHonuaAppWorkspaceTableModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
-    chart: selectHonuaAppWorkspaceChartModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
-    detail: selectHonuaAppWorkspaceDetailModel(session.workspace.state),
-    jobs: selectHonuaAppWorkspaceJobModel(session.workspace.state),
-    cache: selectHonuaAppWorkspaceMetadataCacheModel(session.workspace.state),
+    map: selectHonuaAppStoreMapModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
+    table: selectHonuaAppStoreTableModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
+    chart: selectHonuaAppStoreChartModel(session.workspace.state, { sourceId: session.dataset.resultSourceId }),
+    detail: selectHonuaAppStoreDetailModel(session.workspace.state),
+    jobs: selectHonuaAppStoreJobModel(session.workspace.state),
+    cache: selectHonuaAppStoreMetadataCacheModel(session.workspace.state),
   };
 }
 
 function registerMetadata(
   dataset: AnalyticsDataset,
-  workspace: ReturnType<typeof createHonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
+  workspace: ReturnType<typeof createHonuaAppStore<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
 ): void {
   for (const layer of dataset.layers) {
     workspace.dispatch({
@@ -584,7 +582,7 @@ function successfulSnapshot(output: AnalyticsJobOutput): JobSnapshot<AnalyticsJo
 
 function publishOutput(
   dataset: AnalyticsDataset,
-  workspace: ReturnType<typeof createHonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
+  workspace: ReturnType<typeof createHonuaAppStore<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
   output: AnalyticsJobOutput,
   jobId: string,
   step: number,
@@ -946,7 +944,7 @@ function envelopeFromExtent(extent: HonuaExtent) {
 
 function syncWorkspaceExploration(
   dataset: AnalyticsDataset,
-  workspace: ReturnType<typeof createHonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
+  workspace: ReturnType<typeof createHonuaAppStore<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>>,
   exploration: ReturnType<typeof createExplorationContext>,
 ): void {
   workspace.dispatch({

@@ -162,7 +162,7 @@ export interface ArtifactRef {
 /**
  * Forward-declared stub. The canonical server shape replaces this when
  * the `HonuaClient` operator transport ticket lands. Until then in-repo
- * fixtures drive `BuilderWorkspaceController` and its tests.
+ * fixtures drive `BuilderController` and its tests.
  */
 export interface AppVersion {
   readonly id: string;

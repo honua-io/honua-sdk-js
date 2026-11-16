@@ -30,7 +30,7 @@
  *
  * ## Enumeration
  *
- * `contentItems.list()` (`GET /content-items`) and `drafts.list()`
+ * `content.list()` (`GET /content-items`) and `drafts.list()`
  * (`GET /package-drafts`) are the content-browser entry points added by
  * `honua-server#3003`: filters (`family`, `workspaceId`, `ownerId`, `search`, plus
  * `state` for content items), opaque keyset-cursor pagination ordered by
@@ -53,9 +53,9 @@ import type { QueryMethod } from "../core/types.js";
 import { HonuaStudioError, type HonuaStudioProblemDetails, classifyStudioProblemStatus } from "./lifecycle-errors.js";
 import type {
   StudioApiResponse,
-  StudioContentItemListOptions,
-  StudioContentItemListResponse,
-  StudioContentItemListRow,
+  StudioContentListOptions,
+  StudioContentListResponse,
+  StudioContentListRow,
   StudioContentVersion,
   StudioContentVersionListResponse,
   StudioListFilterOptions,
@@ -124,7 +124,7 @@ export class HonuaStudioLifecycleClient {
 
   public readonly packageFamilies: HonuaStudioPackageFamiliesClient;
   public readonly drafts: HonuaStudioDraftsClient;
-  public readonly contentItems: HonuaStudioContentItemsClient;
+  public readonly content: HonuaStudioContentClient;
   public readonly contentVersions: HonuaStudioContentVersionsClient;
   public readonly publicationRequests: HonuaStudioPublicationRequestsClient;
   public readonly rollbackRequests: HonuaStudioRollbackRequestsClient;
@@ -134,7 +134,7 @@ export class HonuaStudioLifecycleClient {
     this.#basePath = normalizeBasePath(options.basePath ?? HONUA_STUDIO_LIFECYCLE_BASE_PATH);
     this.packageFamilies = new HonuaStudioPackageFamiliesClient(this);
     this.drafts = new HonuaStudioDraftsClient(this);
-    this.contentItems = new HonuaStudioContentItemsClient(this);
+    this.content = new HonuaStudioContentClient(this);
     this.contentVersions = new HonuaStudioContentVersionsClient(this);
     this.publicationRequests = new HonuaStudioPublicationRequestsClient(this);
     this.rollbackRequests = new HonuaStudioRollbackRequestsClient(this);
@@ -235,7 +235,7 @@ export class HonuaStudioDraftsClient {
 
   /**
    * Walk `GET /package-drafts` to completion, yielding each page verbatim.
-   * Bounded by `options.maxPages` — see {@link HonuaStudioContentItemsClient.listAll}
+   * Bounded by `options.maxPages` — see {@link HonuaStudioContentClient.listAll}
    * for the shared pagination rules.
    */
   public listAll(
@@ -334,7 +334,7 @@ export const HONUA_STUDIO_LIST_DEFAULT_LIMIT = 25;
 export const HONUA_STUDIO_LIST_MAX_LIMIT = 1_000;
 
 /**
- * Default hard bound on how many pages {@link HonuaStudioContentItemsClient.listAll}
+ * Default hard bound on how many pages {@link HonuaStudioContentClient.listAll}
  * / {@link HonuaStudioDraftsClient.listAll} will fetch. There is no
  * "walk forever" mode, and no option that produces one.
  */
@@ -382,7 +382,7 @@ export function isStudioListExhausted(page: StudioListPage<unknown>): boolean {
 }
 
 /** `/content-items` — enumerate Studio content items with joined publication badges. */
-export class HonuaStudioContentItemsClient {
+export class HonuaStudioContentClient {
   readonly #lifecycle: HonuaStudioLifecycleClient;
 
   public constructor(lifecycle: HonuaStudioLifecycleClient) {
@@ -411,9 +411,9 @@ export class HonuaStudioContentItemsClient {
   // client, rather than as a synchronous throw callers would have to catch
   // separately.
   public async list(
-    filters: StudioContentItemListOptions = {},
+    filters: StudioContentListOptions = {},
     options: HonuaStudioRequestOptions = {},
-  ): Promise<StudioContentItemListResponse> {
+  ): Promise<StudioContentListResponse> {
     return await this.#lifecycle.request("GET", withStudioListQuery("/content-items", filters), undefined, options);
   }
 
@@ -436,10 +436,10 @@ export class HonuaStudioContentItemsClient {
    *   {@link HonuaStudioError} with its RFC 7807 problem details.
    */
   public listAll(
-    filters: StudioContentItemListOptions = {},
+    filters: StudioContentListOptions = {},
     options: HonuaStudioPaginationOptions = {},
-  ): AsyncGenerator<StudioContentItemListResponse, void, undefined> {
-    return paginateStudioList<StudioContentItemListRow>(
+  ): AsyncGenerator<StudioContentListResponse, void, undefined> {
+    return paginateStudioList<StudioContentListRow>(
       (pageFilters, pageOptions) => this.list(pageFilters, pageOptions),
       filters,
       options,
@@ -448,9 +448,9 @@ export class HonuaStudioContentItemsClient {
 
   /** Accumulate every content-item page into one {@link StudioListCollection}. */
   public collect(
-    filters: StudioContentItemListOptions = {},
+    filters: StudioContentListOptions = {},
     options: HonuaStudioPaginationOptions = {},
-  ): Promise<StudioListCollection<StudioContentItemListRow>> {
+  ): Promise<StudioListCollection<StudioContentListRow>> {
     return collectStudioList(this.listAll(filters, options));
   }
 }
@@ -533,7 +533,7 @@ function normalizePageBound(value: number | undefined): number {
  * Blank strings are dropped rather than sent as an empty filter the server
  * would trim to `null` anyway.
  */
-function withStudioListQuery(path: string, filters: StudioContentItemListOptions): string {
+function withStudioListQuery(path: string, filters: StudioContentListOptions): string {
   const params = new URLSearchParams();
   if (filters.family?.trim()) params.set("family", filters.family);
   if (filters.state?.trim()) params.set("state", filters.state);

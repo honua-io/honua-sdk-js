@@ -424,7 +424,7 @@ export interface LoadKeplerPeersOptions {
 }
 
 /** Redux-ish dispatch target for an attached Kepler instance. */
-export interface KeplerWorkspaceHost {
+export interface KeplerAppHost {
   dispatch(action: KeplerAction): void;
   /** Kepler instance id used with `wrapTo`. */
   readonly instanceId?: string;

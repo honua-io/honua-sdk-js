@@ -94,12 +94,12 @@ import {
   type SceneImageryLayerPrimitive,
   type SceneModelLayerPrimitive,
   type SceneRuntimePrimitive,
+  type SceneStoreState,
   type SceneTimelineState,
-  type SceneWorkspaceState,
   applyCesiumScenePrimitives,
   applyCesiumSceneTime,
   bindTemporalPlaybackToCesium,
-  emptySceneWorkspaceState,
+  emptySceneStoreState,
   mountScenePrimitivesToCesium,
   sceneTimelineToCesiumClockPlan,
 } from "../src/scene-workspace/index.js";
@@ -184,8 +184,8 @@ function createTarget(options: { clock?: CesiumClockLike; clockOwnership?: "adap
   };
 }
 
-function stateWith(timeline: SceneTimelineState, realtime?: SceneWorkspaceState["realtime"]): SceneWorkspaceState {
-  const base = emptySceneWorkspaceState();
+function stateWith(timeline: SceneTimelineState, realtime?: SceneStoreState["realtime"]): SceneStoreState {
+  const base = emptySceneStoreState();
   return { ...base, timeline, ...(realtime ? { realtime } : {}) };
 }
 
@@ -331,7 +331,7 @@ describe("cesium scene adapter — application time binding", () => {
     const clock = createClock();
     const { target } = createTarget({ clock });
 
-    const result = await applyCesiumScenePrimitives(target, [IMAGERY], emptySceneWorkspaceState());
+    const result = await applyCesiumScenePrimitives(target, [IMAGERY], emptySceneStoreState());
 
     expect(clock.currentTime).toBeUndefined();
     expect(result.diagnostics.filter((entry) => entry.code.startsWith("scene-time-"))).toEqual([]);

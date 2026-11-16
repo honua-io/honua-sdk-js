@@ -12,8 +12,8 @@ import {
   OPERATOR_EXECUTION_OUTPUT_KEY,
   type OperatorClient,
   type OperatorClientApi,
-  OperatorWorkspace,
-  type WorkspaceEvent,
+  OperatorShell,
+  type OperatorShellEvent,
 } from "@honua/app-platform/operator";
 // Subpath import — also acts as a regression for the Vitest alias
 // resolving `@honua/app-platform/operator/i18n` to a file that exists
@@ -259,8 +259,8 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 async function waitForEvent(
-  events: ReadonlyArray<WorkspaceEvent>,
-  kind: WorkspaceEvent["kind"],
+  events: ReadonlyArray<OperatorShellEvent>,
+  kind: OperatorShellEvent["kind"],
   maxTicks = 50,
 ): Promise<void> {
   for (let i = 0; i < maxTicks; i += 1) {
@@ -271,8 +271,8 @@ async function waitForEvent(
 }
 
 async function waitForAsyncEvent(
-  events: ReadonlyArray<WorkspaceEvent>,
-  kind: WorkspaceEvent["kind"],
+  events: ReadonlyArray<OperatorShellEvent>,
+  kind: OperatorShellEvent["kind"],
   maxTicks = 50,
 ): Promise<void> {
   for (let i = 0; i < maxTicks; i += 1) {
@@ -352,11 +352,11 @@ function makeDismissingClient(): OperatorClient {
   };
 }
 
-describe("OperatorWorkspace", () => {
+describe("OperatorShell", () => {
   it("assembles the operator flow from composable controllers and package runtime primitives", async () => {
     const map = makeMockMap();
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({
       client: makeOperatorClient(),
       mapFactory: () => ({ map }),
       mapLoadOptions: {
@@ -413,8 +413,8 @@ describe("OperatorWorkspace", () => {
   });
 
   it("emits execution-dismissed on the workspace event stream when a run is cancelled", async () => {
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client: makeDismissingClient() });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client: makeDismissingClient() });
     workspace.on((event) => events.push(event));
 
     const plan = makePlan("intent-2");
@@ -432,8 +432,8 @@ describe("OperatorWorkspace", () => {
   it("drives passive IJobRun polling so watch-only adapters reach a terminal snapshot", async () => {
     const result: ExecutionResult = { kind: "analysis", summary: "passive" };
     const run = new PassiveJobRun(result);
-    const workspace = new OperatorWorkspace({ client: makeClientWithRun(run) });
-    const events: WorkspaceEvent[] = [];
+    const workspace = new OperatorShell({ client: makeClientWithRun(run) });
+    const events: OperatorShellEvent[] = [];
     workspace.on((event) => events.push(event));
 
     await workspace.execution.start(makePlan("intent-passive"));
@@ -447,8 +447,8 @@ describe("OperatorWorkspace", () => {
 
   it("wraps submitPlan failures in HonuaOperatorExecutionError and routes them through the workspace error stream", async () => {
     const failure = new Error("transport down");
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client: makeFailingSubmitClient(failure) });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client: makeFailingSubmitClient(failure) });
     workspace.on((event) => events.push(event));
 
     await expect(workspace.execution.start(makePlan("intent-3"))).rejects.toBeInstanceOf(HonuaOperatorExecutionError);
@@ -481,7 +481,7 @@ describe("OperatorWorkspace", () => {
       },
       initialView: { center: [-157.85, 21.3], zoom: 9 },
     };
-    const workspace = new OperatorWorkspace({
+    const workspace = new OperatorShell({
       client: makeRefiningClient(refined),
       mapFactory: () => ({ map }),
       mapLoadOptions: {
@@ -513,7 +513,7 @@ describe("OperatorWorkspace", () => {
         return { ...makePlan(intentId), id: "plan-revised" };
       },
     });
-    const workspace = new OperatorWorkspace({ client });
+    const workspace = new OperatorShell({ client });
 
     await workspace.planReview.load("intent-rev");
     await workspace.planReview.revise({ intentId: "intent-rev", notes: "use vector tiles" });
@@ -526,8 +526,8 @@ describe("OperatorWorkspace", () => {
 
   it("surfaces map factory failures as HonuaOperatorMapError on the workspace error stream", async () => {
     const factoryFailure = new Error("WebGL unavailable");
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({
       client: makeOperatorClient(),
       mapFactory: () => {
         throw factoryFailure;
@@ -553,8 +553,8 @@ describe("OperatorWorkspace", () => {
 
   it("propagates host map factory failures through the workspace event stream when execution loads a map", async () => {
     const factoryFailure = new Error("factory boom");
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({
       client: makeOperatorClient(),
       mapFactory: () => {
         throw factoryFailure;
@@ -610,8 +610,8 @@ describe("OperatorWorkspace", () => {
       },
     });
 
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client });
     workspace.on((event) => events.push(event));
 
     const slow = workspace.chat.send("first").catch(() => undefined);
@@ -656,8 +656,8 @@ describe("OperatorWorkspace", () => {
       },
     });
 
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client });
     workspace.on((event) => events.push(event));
 
     workspace.clarification.load(intentA);
@@ -695,8 +695,8 @@ describe("OperatorWorkspace", () => {
       },
     });
 
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client });
     workspace.on((event) => events.push(event));
 
     const slowLoad = workspace.planReview.load("intent-A").catch(() => undefined);
@@ -742,7 +742,7 @@ describe("OperatorWorkspace", () => {
       },
     });
 
-    const workspace = new OperatorWorkspace({ client });
+    const workspace = new OperatorShell({ client });
 
     const slowStart = workspace.execution.start(makePlan("intent-slow")).catch((error: unknown) => error);
     const fastStart = workspace.execution.start(makePlan("intent-fast"));
@@ -785,8 +785,8 @@ describe("OperatorWorkspace", () => {
       releaseA = resolve;
     });
     let factoryCall = 0;
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({
       client: makeOperatorClient(),
       mapFactory: async () => {
         factoryCall += 1;
@@ -859,8 +859,8 @@ describe("OperatorWorkspace", () => {
       },
     });
 
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client });
     workspace.on((event) => events.push(event));
 
     const slowLoad = workspace.approval.load("op-A").catch(() => undefined);
@@ -909,8 +909,8 @@ describe("OperatorWorkspace", () => {
         return runIndex === 1 ? firstRun : secondRun;
       },
     });
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({
       client,
       mapFactory: () => ({ map }),
       mapLoadOptions: {
@@ -941,8 +941,8 @@ describe("OperatorWorkspace", () => {
 
   it("emits execution-dismissed when a passive run reports dismissed only via cancel()", async () => {
     const passiveRun = new SilentDismissJobRun();
-    const events: WorkspaceEvent[] = [];
-    const workspace = new OperatorWorkspace({ client: makeClientWithRun(passiveRun) });
+    const events: OperatorShellEvent[] = [];
+    const workspace = new OperatorShell({ client: makeClientWithRun(passiveRun) });
     workspace.on((event) => events.push(event));
 
     await workspace.execution.start(makePlan("intent-passive"));
@@ -971,7 +971,7 @@ describe("OperatorWorkspace", () => {
         throw typedError;
       },
     });
-    const workspace = new OperatorWorkspace({ client });
+    const workspace = new OperatorShell({ client });
 
     await expect(workspace.approval.load("op-typed")).rejects.toBe(typedError);
 
@@ -987,7 +987,7 @@ describe("OperatorWorkspace", () => {
       throw new Error("style apply failed");
     };
     let factoryDisposed = 0;
-    const workspace = new OperatorWorkspace({
+    const workspace = new OperatorShell({
       client: makeOperatorClient(),
       mapFactory: () => ({
         map,
@@ -1039,7 +1039,7 @@ describe("OperatorWorkspace", () => {
         yield { turnId: "agent-1", delta: "late", done: true };
       },
     });
-    const workspace = new OperatorWorkspace({ client });
+    const workspace = new OperatorShell({ client });
     const send = workspace.chat.send("hello").catch(() => undefined);
 
     workspace.dispose();

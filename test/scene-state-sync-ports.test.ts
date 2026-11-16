@@ -6,8 +6,8 @@ import {
   DEFAULT_MAPLIBRE_CAMERA_GEOMETRY,
   type MapLibreStateSyncTarget,
   SCENE_STATE_SYNC_SLICES,
-  SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK,
-  SCENE_WORKSPACE_SLICES,
+  SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK,
+  SCENE_STORE_SLICES,
   type SceneStateSyncIdentity,
   compileMapLibreFilterSet,
   compileMapLibreFilters,
@@ -356,15 +356,15 @@ describe("attribution derivation", () => {
 
 describe("slice vocabularies", () => {
   it("crosswalks every wire slice onto the workspace store vocabulary", () => {
-    expect(Object.keys(SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK).sort()).toEqual([...SCENE_STATE_SYNC_SLICES].sort());
-    for (const [slice, workspaceSlice] of Object.entries(SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK)) {
+    expect(Object.keys(SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK).sort()).toEqual([...SCENE_STATE_SYNC_SLICES].sort());
+    for (const [slice, workspaceSlice] of Object.entries(SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK)) {
       if (workspaceSlice === null) {
         expect(slice).toBe("attribution");
         continue;
       }
-      expect(SCENE_WORKSPACE_SLICES).toContain(workspaceSlice);
+      expect(SCENE_STORE_SLICES).toContain(workspaceSlice);
     }
-    expect(SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK.time).toBe("timeline");
+    expect(SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK.time).toBe("timeline");
   });
 });
 

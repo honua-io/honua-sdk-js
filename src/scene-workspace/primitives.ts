@@ -16,7 +16,7 @@ import { isCredentialQueryName } from "../connect-url-safety.js";
 import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FilterClause } from "../exploration/index.js";
 import type { SceneStateSyncFidelity } from "./state-sync.js";
-import type { SceneCameraState, SceneLayerState, SceneWorkspaceState } from "./types.js";
+import type { SceneCameraState, SceneLayerState, SceneStoreState } from "./types.js";
 
 export type SceneRendererKind = "maplibre" | "cesium" | "three" | "custom";
 export type ScenePrimitiveStatus = "supported" | "degraded" | "unsupported";
@@ -381,13 +381,10 @@ export interface ScenePrimitiveApplyResult {
 export interface SceneRuntimeAdapter {
   readonly id: string;
   readonly capabilities: SceneRuntimeCapabilities;
-  diagnose(
-    primitives: readonly SceneRuntimePrimitive[],
-    state?: SceneWorkspaceState,
-  ): readonly ScenePrimitiveDiagnostic[];
+  diagnose(primitives: readonly SceneRuntimePrimitive[], state?: SceneStoreState): readonly ScenePrimitiveDiagnostic[];
   apply?(
     primitives: readonly SceneRuntimePrimitive[],
-    state?: SceneWorkspaceState,
+    state?: SceneStoreState,
   ): ScenePrimitiveApplyResult | Promise<ScenePrimitiveApplyResult>;
 }
 

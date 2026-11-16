@@ -472,7 +472,7 @@ export type StudioRollbackRequestInput = StudioOpenApiSchemas["CreateStudioRollb
 };
 
 /** The Studio content item's current/published version pointers. */
-export interface StudioContentItemPointers {
+export interface StudioContentPointers {
   readonly itemId: string;
   readonly currentVersionId?: string;
   readonly publishedVersionId?: string;
@@ -485,7 +485,7 @@ export interface StudioRollbackRequest {
   readonly itemId: string;
   readonly targetVersionId: string;
   readonly pointer: StudioRollbackPointer;
-  readonly pointers: StudioContentItemPointers;
+  readonly pointers: StudioContentPointers;
   readonly requestedBy?: string;
   readonly reason?: string;
   readonly createdAt?: string;
@@ -511,7 +511,7 @@ export interface StudioRollbackRequest {
  *
  * @experimental
  */
-export type StudioContentItemState = "draft" | "current" | "published";
+export type StudioContentState = "draft" | "current" | "published";
 
 /**
  * The route lifecycle a joined Content Publication Registry publication
@@ -524,7 +524,7 @@ export type StudioPublicationRouteLifecycle = "active" | "suspended" | "archived
 
 /**
  * The publication-registry lifecycle badge joined onto a
- * {@link StudioContentItemListRow} (REQ-004), so a content browser can render
+ * {@link StudioContentListRow} (REQ-004), so a content browser can render
  * lifecycle state without one extra call per row.
  *
  * The registry has no foreign key back to Studio: the join uses the convention
@@ -535,7 +535,7 @@ export type StudioPublicationRouteLifecycle = "active" | "suspended" | "archived
  *
  * @experimental
  */
-export interface StudioContentItemPublicationBadge {
+export interface StudioContentPublicationBadge {
   readonly publicationId: string;
   readonly routeSlug: string;
   readonly routePath: string;
@@ -552,13 +552,13 @@ export interface StudioContentItemPublicationBadge {
  *
  * @experimental
  */
-export type StudioContentItemListRow = StudioOpenApiSchemas["StudioContentItemSummary"] & {
+export type StudioContentListRow = StudioOpenApiSchemas["StudioContentItemSummary"] & {
   /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly createdBy?: string;
   /** @deprecated Not present in the canonical Studio OpenAPI contract. */
   readonly updatedBy?: string;
   /** @deprecated Not present in the canonical Studio OpenAPI contract. */
-  readonly publication?: StudioContentItemPublicationBadge;
+  readonly publication?: StudioContentPublicationBadge;
   readonly [extra: string]: unknown;
 };
 
@@ -582,7 +582,7 @@ export interface StudioListPage<TItem> {
 }
 
 /** `GET /content-items` response. @experimental */
-export type StudioContentItemListResponse = StudioListPage<StudioContentItemListRow>;
+export type StudioContentListResponse = StudioListPage<StudioContentListRow>;
 
 /**
  * `GET /package-drafts` response. Rows are full {@link StudioPackageDraft}
@@ -624,6 +624,6 @@ export type StudioPackageDraftListOptions = NonNullable<
  *
  * @experimental
  */
-export type StudioContentItemListOptions = NonNullable<
+export type StudioContentListOptions = NonNullable<
   StudioOpenApiOperations["listStudioContentItems"]["parameters"]["query"]
 >;

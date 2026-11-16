@@ -12,7 +12,7 @@
  */
 
 import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.js";
-import type { SceneCameraState, SceneDetailState, SceneTimelineState, SceneWorkspaceSlice } from "./types.js";
+import type { SceneCameraState, SceneDetailState, SceneStoreSlice, SceneTimelineState } from "./types.js";
 
 export const SCENE_STATE_SYNC_KIND = "honua.scene-state-sync" as const;
 export const SCENE_STATE_SYNC_VERSION = "1.0" as const;
@@ -35,7 +35,7 @@ export type SceneStateSyncSlice = (typeof SCENE_STATE_SYNC_SLICES)[number];
  * They are deliberately different sizes because they answer different
  * questions. `SCENE_STATE_SYNC_SLICES` is a *wire* vocabulary: the seven pieces
  * of state that two renderers in the same application have to agree on.
- * `SCENE_WORKSPACE_SLICES` is a *store* vocabulary: the thirteen change
+ * `SCENE_STORE_SLICES` is a *store* vocabulary: the thirteen change
  * notifications one workspace publishes to its own subscribers.
  *
  * The overlap is exactly what crosses renderers, and this table names it. The
@@ -49,17 +49,16 @@ export type SceneStateSyncSlice = (typeof SCENE_STATE_SYNC_SLICES)[number];
  *
  * The only rename across the boundary is `time` (wire) / `timeline` (store).
  */
-export const SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK: Readonly<
-  Record<SceneStateSyncSlice, SceneWorkspaceSlice | null>
-> = Object.freeze({
-  camera: "camera",
-  selection: "selection",
-  filters: "filters",
-  time: "timeline",
-  detail: "detail",
-  attribution: null,
-  realtime: "realtime",
-});
+export const SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK: Readonly<Record<SceneStateSyncSlice, SceneStoreSlice | null>> =
+  Object.freeze({
+    camera: "camera",
+    selection: "selection",
+    filters: "filters",
+    time: "timeline",
+    detail: "detail",
+    attribution: null,
+    realtime: "realtime",
+  });
 export type SceneStateSyncRenderer = "maplibre" | "cesium" | "custom";
 export type SceneStateSyncFidelity = "exact" | "equivalent" | "unsupported";
 

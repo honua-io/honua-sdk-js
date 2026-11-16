@@ -36,7 +36,7 @@ import {
 // exports its symbols; the "keeps experimental subpaths off the root entrypoint"
 // test enforces the stable/experimental split against an actual src/index.js import.
 import { createHonuaController } from "../src/app-controller/index.js";
-import { createHonuaAppWorkspace, selectHonuaAppWorkspaceMetadataCacheModel } from "../src/app-workspace/index.js";
+import { createHonuaAppStore, selectHonuaAppStoreMetadataCacheModel } from "../src/app-workspace/index.js";
 import {
   AreaMeasurement2DCompat,
   AttributionCompat,
@@ -253,10 +253,10 @@ import {
 } from "../src/runtime/index.js";
 import {
   createMapLibreSceneAdapter,
-  createSceneWorkspace,
+  createSceneStore,
   mountSourceToCesium,
   projectSourceToCesium,
-  sceneWorkspaceIntentFromAdapterEvent,
+  sceneStoreIntentFromAdapterEvent,
 } from "../src/scene-workspace/index.js";
 
 describe("entrypoint modules", () => {
@@ -531,16 +531,16 @@ describe("entrypoint modules", () => {
   });
 
   it("exposes the app workspace entrypoint", () => {
-    expect(createHonuaAppWorkspace).toBeTypeOf("function");
-    expect(selectHonuaAppWorkspaceMetadataCacheModel).toBeTypeOf("function");
+    expect(createHonuaAppStore).toBeTypeOf("function");
+    expect(selectHonuaAppStoreMetadataCacheModel).toBeTypeOf("function");
   });
 
   it("exposes the scene workspace entrypoint", () => {
-    expect(createSceneWorkspace).toBeTypeOf("function");
+    expect(createSceneStore).toBeTypeOf("function");
     expect(createMapLibreSceneAdapter).toBeTypeOf("function");
     expect(projectSourceToCesium).toBeTypeOf("function");
     expect(mountSourceToCesium).toBeTypeOf("function");
-    expect(sceneWorkspaceIntentFromAdapterEvent).toBeTypeOf("function");
+    expect(sceneStoreIntentFromAdapterEvent).toBeTypeOf("function");
   });
 
   it("exposes the experimental app-controller subpath", () => {
@@ -556,10 +556,10 @@ describe("entrypoint modules", () => {
 
     expect(root).not.toHaveProperty("createHonuaController");
     expect(root).not.toHaveProperty("HonuaControlPlaneClient");
-    expect(root).not.toHaveProperty("createHonuaAppWorkspace");
-    expect(root).not.toHaveProperty("selectHonuaAppWorkspaceMetadataCacheModel");
-    expect(root).not.toHaveProperty("createSceneWorkspace");
+    expect(root).not.toHaveProperty("createHonuaAppStore");
+    expect(root).not.toHaveProperty("selectHonuaAppStoreMetadataCacheModel");
+    expect(root).not.toHaveProperty("createSceneStore");
     expect(root).not.toHaveProperty("createMapLibreSceneAdapter");
-    expect(root).not.toHaveProperty("sceneWorkspaceIntentFromAdapterEvent");
+    expect(root).not.toHaveProperty("sceneStoreIntentFromAdapterEvent");
   });
 });

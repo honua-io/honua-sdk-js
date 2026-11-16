@@ -27,7 +27,7 @@
 
 export {
   assertKeplerCompatibility,
-  createKeplerWorkspaceBridge,
+  createKeplerAppBridge,
   DEFAULT_KEPLER_BRIDGE_LIMITS,
   evaluateKeplerCompatibility,
   KEPLER_BRIDGE_CAPABILITIES,
@@ -35,10 +35,10 @@ export {
   loadKeplerProcessors,
 } from "./bridge.js";
 export type {
-  CreateKeplerWorkspaceBridgeOptions,
+  CreateKeplerAppBridgeOptions,
   KeplerOpenedDataset,
-  KeplerWorkspaceBridge,
-  KeplerWorkspaceMetrics,
+  KeplerAppBridge,
+  KeplerAppMetrics,
 } from "./bridge.js";
 
 export {
@@ -121,7 +121,7 @@ export type {
   KeplerReconciliationEvent,
   KeplerReconciliationOperation,
   KeplerReconciliationPlan,
-  KeplerWorkspaceDatasetState,
+  KeplerAppDatasetState,
 } from "./reconciliation.js";
 
 export {
@@ -186,7 +186,7 @@ export type {
   KeplerResultProjectionRequest,
   KeplerSourceProvenance,
   KeplerTilesetDescriptor,
-  KeplerWorkspaceHost,
+  KeplerAppHost,
   LoadKeplerPeersOptions,
   LoadKeplerProcessorsOptions,
 } from "./types.js";

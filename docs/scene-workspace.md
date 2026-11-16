@@ -50,16 +50,16 @@ adapter imports lazily, and no core or 2D bundle ceiling moved.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createMapLibreSceneAdapter,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
-  sceneWorkspaceIntentFromAdapterEvent,
+  sceneStoreIntentFromAdapterEvent,
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
   selectSceneVisibleLayers,
 } from "@honua/app-platform/scene-workspace";
 import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 
-const workspace = createSceneWorkspace({
+const workspace = createSceneStore({
   sceneId: "incident-command",
   title: "Incident Command Scene",
   layers: {
@@ -112,7 +112,7 @@ const unsubscribeSelection = workspace.subscribe("selection", ({ state }) => {
 });
 
 cesiumAdapter.onCameraChange((camera) => {
-  workspace.dispatch(sceneWorkspaceIntentFromAdapterEvent({ type: "camera-change", camera }, "scene"));
+  workspace.dispatch(sceneStoreIntentFromAdapterEvent({ type: "camera-change", camera }, "scene"));
 });
 
 mapAdapter.onFeatureClick((sourceId, id) => {
@@ -297,9 +297,9 @@ is a boundary to satisfy, not to relax. On the Cesium side, primitive
 `attribution` now reaches terrain providers, tilesets, and models as well as
 imagery.
 
-`SCENE_STATE_SYNC_SLICES` (7) and `SCENE_WORKSPACE_SLICES` (13) are different
+`SCENE_STATE_SYNC_SLICES` (7) and `SCENE_STORE_SLICES` (13) are different
 sizes because they answer different questions, and
-`SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK` names the relationship. The wire
+`SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK` names the relationship. The wire
 vocabulary is what two renderers must agree on; the store vocabulary is what one
 workspace notifies its own subscribers about. `time` (wire) is `timeline`
 (store) — the only rename. `attribution` maps to `null`: it is derived from what
@@ -392,7 +392,7 @@ const diagnostics = diagnoseScenePrimitives(
 );
 
 workspace.dispatch(
-  sceneWorkspaceIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics }, "scene"),
+  sceneStoreIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics }, "scene"),
 );
 ```
 
@@ -832,7 +832,7 @@ optional fields:
 import {
   type CesiumSceneRuntimeTarget,
   type SceneRuntimePrimitive,
-  type SceneWorkspaceState,
+  type SceneStoreState,
   mountScenePrimitivesToCesium,
 } from "@honua/app-platform/scene-workspace";
 
@@ -842,7 +842,7 @@ declare const viewer: {
   clock: CesiumSceneRuntimeTarget["clock"];
 };
 declare const plan: readonly SceneRuntimePrimitive[];
-declare const state: SceneWorkspaceState;
+declare const state: SceneStoreState;
 
 // Opting in: the adapter drives `viewer.clock` from `state.timeline`.
 const target: CesiumSceneRuntimeTarget = {

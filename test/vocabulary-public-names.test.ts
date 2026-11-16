@@ -51,11 +51,7 @@ const exceptions = JSON.parse(
 ) as RetiredNameExceptions;
 // Old names renamed outright (no deprecated aliases): old -> new.
 const renamed = new Map(Object.entries(exceptions.renamed.names));
-const allowed = new Set([
-  ...exceptions.foreignFormat.names,
-  ...exceptions.technicalWorkspace.names,
-  ...exceptions.pendingRename.names,
-]);
+const allowed = new Set([...exceptions.foreignFormat.names, ...exceptions.technicalWorkspace.names]);
 
 function containsRetiredTerm(name: string): boolean {
   const normalized = name.replaceAll("_", "").toLowerCase();
@@ -115,6 +111,10 @@ describe("public names use the Honua vocabulary", () => {
     exported = collectExports();
   }, 120_000);
 
+  it("has no pending beta rename exceptions", () => {
+    expect(exceptions.pendingRename.names).toEqual([]);
+  });
+
   it("exports no retired term outside the reviewed exceptions", () => {
     const unlisted = [...exported.keys()].filter((name) => containsRetiredTerm(name) && !allowed.has(name));
     expect(unlisted).toEqual([]);
@@ -142,6 +142,11 @@ describe("public names use the Honua vocabulary", () => {
       import("../src/collaboration/index.js"),
       import("../src/studio/index.js"),
       import("../src/generated-app/index.js"),
+      import("../src/app-workspace/index.js"),
+      import("../src/scene-workspace/index.js"),
+      import("../src/operator/workspace/index.js"),
+      import("../src/operator/controllers/index.js"),
+      import("../src/kepler/index.js"),
     ]);
     const leaked = modules.flatMap((module) => [...renamed.keys()].filter((name) => name in module));
     expect(leaked).toEqual([]);

@@ -302,8 +302,8 @@ import {
   createHonuaController,
 } from "@honua/app-platform/app-controller";
 import {
-  createHonuaAppWorkspace,
-  selectHonuaAppWorkspaceMetadataCacheModel,
+  createHonuaAppStore,
+  selectHonuaAppStoreMetadataCacheModel,
 } from "@honua/app-platform/app-workspace";
 import {
   CESIUM_SCENE_CAPABILITIES,
@@ -312,10 +312,10 @@ import {
   addCesiumImageryLayer,
   addCesiumModel,
   applyCesiumScenePrimitives,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
   mountScenePrimitivesToCesium,
-  sceneWorkspaceIntentFromAdapterEvent,
+  sceneStoreIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
 import { HONUA_OFFLINE_REGION_VERSION, planOfflineRegionAdmission } from "@honua/sdk/offline";
@@ -354,7 +354,7 @@ import { projectBuildSpecToGeneratedAppManifest } from "@honua/app-platform/gene
 import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/app-platform/studio";
 import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/app-platform/operator";
 import { ChatController } from "@honua/app-platform/operator/controllers";
-import { OperatorWorkspace } from "@honua/app-platform/operator/workspace";
+import { OperatorShell } from "@honua/app-platform/operator/workspace";
 import { DEFAULT_OPERATOR_TOKENS } from "@honua/app-platform/operator/theming";
 import { DEFAULT_MESSAGES } from "@honua/app-platform/operator/i18n";
 import {
@@ -739,14 +739,14 @@ if (typeof createHonuaController !== "function")
   throw new Error("createHonuaController export missing from @honua/sdk/app-controller");
 if (HONUA_CONTROLLER_SNAPSHOT_VERSION !== 1)
   throw new Error("HONUA_CONTROLLER_SNAPSHOT_VERSION export missing from @honua/sdk/app-controller");
-if (typeof createHonuaAppWorkspace !== "function")
-  throw new Error("createHonuaAppWorkspace export missing from @honua/sdk/app-workspace");
-if (typeof selectHonuaAppWorkspaceMetadataCacheModel !== "function")
-  throw new Error("selectHonuaAppWorkspaceMetadataCacheModel export missing from @honua/sdk/app-workspace");
-if (typeof createSceneWorkspace !== "function")
-  throw new Error("createSceneWorkspace export missing from @honua/sdk/scene-workspace");
-if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
-  throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
+if (typeof createHonuaAppStore !== "function")
+  throw new Error("createHonuaAppStore export missing from @honua/sdk/app-workspace");
+if (typeof selectHonuaAppStoreMetadataCacheModel !== "function")
+  throw new Error("selectHonuaAppStoreMetadataCacheModel export missing from @honua/sdk/app-workspace");
+if (typeof createSceneStore !== "function")
+  throw new Error("createSceneStore export missing from @honua/sdk/scene-workspace");
+if (typeof sceneStoreIntentFromAdapterEvent !== "function")
+  throw new Error("sceneStoreIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
 if (typeof addCesiumImageryLayer !== "function" || !CESIUM_SCENE_CAPABILITIES.imagery?.protocols.includes("wmts"))
   throw new Error("Cesium imagery exports missing from @honua/app-platform/scene-workspace");
 if (
@@ -913,8 +913,8 @@ if (OPERATOR_EXECUTION_OUTPUT_KEY !== "result")
   throw new Error("OPERATOR_EXECUTION_OUTPUT_KEY export missing from @honua/sdk/operator");
 if (typeof ChatController !== "function")
   throw new Error("ChatController export missing from @honua/sdk/operator/controllers");
-if (typeof OperatorWorkspace !== "function")
-  throw new Error("OperatorWorkspace export missing from @honua/sdk/operator/workspace");
+if (typeof OperatorShell !== "function")
+  throw new Error("OperatorShell export missing from @honua/sdk/operator/workspace");
 if (typeof DEFAULT_OPERATOR_TOKENS !== "object" || DEFAULT_OPERATOR_TOKENS === null)
   throw new Error("DEFAULT_OPERATOR_TOKENS export missing from @honua/sdk/operator/theming");
 if (typeof DEFAULT_MESSAGES !== "object" || DEFAULT_MESSAGES === null)

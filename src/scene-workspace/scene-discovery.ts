@@ -583,7 +583,7 @@ export function sceneToRuntimePrimitives(
 
 /**
  * Build the workspace layer states for a discovered scene (one per rendered
- * primitive), so a {@link module:scene-workspace/workspace.SceneWorkspace} can
+ * primitive), so a {@link module:scene-workspace/workspace.SceneStore} can
  * seed its layer list from the scene. Pure.
  */
 export function sceneLayerStates(scene: HonuaScene): SceneLayerState[] {

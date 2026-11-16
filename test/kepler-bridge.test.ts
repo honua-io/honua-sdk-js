@@ -9,7 +9,7 @@ import {
   type KeplerPeers,
   type KeplerResultProjectionRequest,
   assertKeplerCompatibility,
-  createKeplerWorkspaceBridge,
+  createKeplerAppBridge,
   evaluateKeplerCompatibility,
   loadKeplerPeers,
   projectResultToKeplerDataset,
@@ -115,9 +115,9 @@ describe("loadKeplerPeers", () => {
   });
 });
 
-describe("createKeplerWorkspaceBridge", () => {
+describe("createKeplerAppBridge", () => {
   it("opens a bounded result through the reusable API and returns the addDataToMap payload", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     const opened = bridge.openResult(resultRequest());
 
     expect(bridge.contractVersion).toBe(KEPLER_BRIDGE_CONTRACT_VERSION);
@@ -160,7 +160,7 @@ describe("createKeplerWorkspaceBridge", () => {
 
   it("dispatches through an attached host, wrapping for the Kepler instance id", () => {
     const dispatched: KeplerAction[] = [];
-    const bridge = createKeplerWorkspaceBridge({
+    const bridge = createKeplerAppBridge({
       peers: peers(),
       host: { dispatch: (action) => dispatched.push(action), instanceId: "ops-replay" },
     });
@@ -173,21 +173,21 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("refuses to re-open the same dataset id", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
 
     expect(() => bridge.openResult(resultRequest())).toThrowError(/is already open/);
   });
 
   it("enforces the workspace dataset budget", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers(), limits: { maxDatasets: 1 } });
+    const bridge = createKeplerAppBridge({ peers: peers(), limits: { maxDatasets: 1 } });
     bridge.openResult(resultRequest());
 
     expect(() => bridge.openResult(resultRequest({ datasetId: "second" }))).toThrowError(/at most 1 datasets/);
   });
 
   it("advances tracked state across a bounded delta and materializes it for a re-dispatch", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
 
     const plan = bridge.reconcile("incidents", {
@@ -204,7 +204,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("re-measures retained bytes after a delta so workspace metrics do not go stale", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     const openedBytes = bridge.metrics.estimatedRowBytes;
 
@@ -221,7 +221,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("shrinks retained bytes when a delta removes rows", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     const openedBytes = bridge.metrics.estimatedRowBytes;
 
@@ -232,7 +232,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("re-measures retained bytes after a snapshot replacement", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     const openedBytes = bridge.metrics.estimatedRowBytes;
 
@@ -252,11 +252,11 @@ describe("createKeplerWorkspaceBridge", () => {
   it("enforces the global retained-byte budget against a dataset grown by a delta", () => {
     // Budget sized to admit the opening projection but not a grown one, so the
     // ceiling can only hold if retained bytes are re-measured after the delta.
-    const probe = createKeplerWorkspaceBridge({ peers: peers() });
+    const probe = createKeplerAppBridge({ peers: peers() });
     probe.openResult(resultRequest());
     const openedBytes = probe.metrics.estimatedRowBytes;
 
-    const bridge = createKeplerWorkspaceBridge({
+    const bridge = createKeplerAppBridge({
       peers: peers(),
       limits: { maxRetainedRowBytes: openedBytes + 8 },
     });
@@ -278,7 +278,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("frees a closed dataset's retained bytes", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     expect(bridge.metrics.estimatedRowBytes).toBeGreaterThan(0);
 
@@ -288,7 +288,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("does not advance tracked state when a rebuild is required", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
 
     const plan = bridge.reconcile("incidents", {
@@ -303,7 +303,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("rejects operations against an unknown dataset", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
 
     try {
       bridge.datasetState("missing");
@@ -315,7 +315,7 @@ describe("createKeplerWorkspaceBridge", () => {
 
   it("closes a dataset and tells an attached host to remove it", () => {
     const dispatched: KeplerAction[] = [];
-    const bridge = createKeplerWorkspaceBridge({
+    const bridge = createKeplerAppBridge({
       peers: peers({ wrapTo: undefined }),
       host: { dispatch: (action) => dispatched.push(action) },
     });
@@ -327,7 +327,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("links shared exploration state using the open dataset's source id", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     const context = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
     const sync = bridge.linkState({
@@ -343,7 +343,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("redacts exported Kepler state by default", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
 
     const result = bridge.exportState({
       config: { mapStyle: { mapStyles: { custom: { accessToken: "pk.eyJhIjoiZXhhbXBsZSJ9" } } } },
@@ -354,7 +354,7 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("disposes linked state and releases retained rows", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers: peers() });
+    const bridge = createKeplerAppBridge({ peers: peers() });
     bridge.openResult(resultRequest());
     const context = createExplorationContext({ datasetId: "ops", sourceIds: ["incidents"] });
     const sync = bridge.linkState({
@@ -372,6 +372,6 @@ describe("createKeplerWorkspaceBridge", () => {
   });
 
   it("requires peers with addDataToMap", () => {
-    expect(() => createKeplerWorkspaceBridge({ peers: {} as KeplerPeers })).toThrowError(/requires KeplerPeers/);
+    expect(() => createKeplerAppBridge({ peers: {} as KeplerPeers })).toThrowError(/requires KeplerPeers/);
   });
 });

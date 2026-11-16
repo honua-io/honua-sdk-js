@@ -243,7 +243,7 @@ export interface HonuaApiKey extends HonuaEntityValidators {
   readonly [extra: string]: unknown;
 }
 
-export interface HonuaWorkspaceSummary extends HonuaEntityValidators {
+export interface HonuaFolderSummary extends HonuaEntityValidators {
   readonly id: string;
   readonly name: string;
   readonly slug?: string;

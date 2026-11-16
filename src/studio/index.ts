@@ -17,7 +17,7 @@
  * (`/api/v{version}/studio`): package-family discovery, draft CRUD with
  * optimistic-generation checking, validate, preview-plan, immutable content
  * versions and comparisons, publish requests, reopen, and rollback requests.
- * It also enumerates: `contentItems.list()` and `drafts.list()` page the
+ * It also enumerates: `content.list()` and `drafts.list()` page the
  * `honua-server#3003` content-browser endpoints with filters, opaque keyset
  * cursors, and a joined publication-registry lifecycle badge per content-item
  * row — plus bounded `listAll()`/`collect()` cursor walks. See that module's
@@ -183,12 +183,12 @@ export {
 export type {
   StudioApiResponse,
   StudioBindingRef,
-  StudioContentItemListOptions,
-  StudioContentItemListResponse,
-  StudioContentItemListRow,
-  StudioContentItemPointers,
-  StudioContentItemPublicationBadge,
-  StudioContentItemState,
+  StudioContentListOptions,
+  StudioContentListResponse,
+  StudioContentListRow,
+  StudioContentPointers,
+  StudioContentPublicationBadge,
+  StudioContentState,
   StudioContentVersion,
   StudioContentVersionListResponse,
   StudioDependencyRef,
@@ -233,7 +233,7 @@ export {
   HONUA_STUDIO_LIST_MAX_PAGES,
   HONUA_STUDIO_PUBLICATION_POLL_INTERVAL_MS,
   HONUA_STUDIO_PUBLICATION_POLL_MAX_ATTEMPTS,
-  HonuaStudioContentItemsClient,
+  HonuaStudioContentClient,
   HonuaStudioContentVersionsClient,
   HonuaStudioDraftsClient,
   HonuaStudioLifecycleClient,

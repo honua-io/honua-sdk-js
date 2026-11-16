@@ -24,15 +24,12 @@ import { projectRemoteSourceToKepler } from "./ingest-remote.js";
 import { DEFAULT_KEPLER_BRIDGE_LIMITS, normalizeKeplerLimits, projectResultToKeplerDataset } from "./ingest.js";
 import type { CreateKeplerLinkedStateSyncOptions, KeplerLinkedStateSync } from "./linked-state.js";
 import { createKeplerLinkedStateSync } from "./linked-state.js";
-import type {
-  KeplerReconciliationEvent,
-  KeplerReconciliationPlan,
-  KeplerWorkspaceDatasetState,
-} from "./reconciliation.js";
+import type { KeplerAppDatasetState, KeplerReconciliationEvent, KeplerReconciliationPlan } from "./reconciliation.js";
 import { estimateKeplerRowBytes, keplerDatasetStateFromProjection, reconcileKeplerDataset } from "./reconciliation.js";
 import type { KeplerRedactionResult, RedactKeplerExportStateOptions } from "./redaction.js";
 import { redactKeplerExportState } from "./redaction.js";
 import type {
+  KeplerAppHost,
   KeplerArrowTableProjectionRequest,
   KeplerBridgeCapability,
   KeplerBridgeLimits,
@@ -45,7 +42,6 @@ import type {
   KeplerRemoteSourceProjection,
   KeplerRemoteSourceProjectionRequest,
   KeplerResultProjectionRequest,
-  KeplerWorkspaceHost,
   LoadKeplerPeersOptions,
   LoadKeplerProcessorsOptions,
 } from "./types.js";
@@ -258,12 +254,12 @@ export async function loadKeplerProcessors(options: LoadKeplerProcessorsOptions)
   });
 }
 
-export interface CreateKeplerWorkspaceBridgeOptions {
+export interface CreateKeplerAppBridgeOptions {
   readonly peers: KeplerPeers;
   /** Optional Kepler processors used by `openArrowTable`. */
   readonly processors?: KeplerProcessors;
   /** Attach a live Kepler store so `open*` also dispatches. Omit to work payload-only. */
-  readonly host?: KeplerWorkspaceHost;
+  readonly host?: KeplerAppHost;
   readonly limits?: Partial<KeplerBridgeLimits>;
 }
 
@@ -276,18 +272,18 @@ export interface KeplerOpenedDataset {
   readonly dispatched: boolean;
 }
 
-export interface KeplerWorkspaceMetrics {
+export interface KeplerAppMetrics {
   readonly datasets: number;
   readonly rows: number;
   readonly estimatedRowBytes: number;
 }
 
-export interface KeplerWorkspaceBridge {
+export interface KeplerAppBridge {
   readonly contractVersion: typeof KEPLER_BRIDGE_CONTRACT_VERSION;
   readonly compatibility: KeplerCompatibility;
   readonly capabilities: readonly KeplerBridgeCapability[];
   readonly limits: KeplerBridgeLimits;
-  readonly metrics: KeplerWorkspaceMetrics;
+  readonly metrics: KeplerAppMetrics;
   readonly datasetIds: readonly string[];
   readonly disposed: boolean;
 
@@ -301,7 +297,7 @@ export interface KeplerWorkspaceBridge {
   openRemoteSource(request: KeplerRemoteSourceProjectionRequest): KeplerRemoteSourceProjection;
 
   /** Current tracked state for an open dataset. */
-  datasetState(datasetId: string): KeplerWorkspaceDatasetState;
+  datasetState(datasetId: string): KeplerAppDatasetState;
   /** Current rows/fields as a Kepler proto dataset, for a bounded re-dispatch. */
   materializeDataset(datasetId: string): KeplerProtoDataset;
   /** Reconcile a snapshot or delta. Bounded plans advance the tracked state. */
@@ -328,13 +324,10 @@ export interface KeplerWorkspaceBridge {
  * projected rows it tracks for reconciliation and every linked-state
  * subscription it created; `dispose()` releases both.
  */
-export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridgeOptions): KeplerWorkspaceBridge {
+export function createKeplerAppBridge(options: CreateKeplerAppBridgeOptions): KeplerAppBridge {
   const peers = options?.peers;
   if (typeof peers !== "object" || peers === null || typeof peers.addDataToMap !== "function") {
-    throw new HonuaKeplerBridgeError(
-      "missing-peer",
-      "createKeplerWorkspaceBridge requires KeplerPeers with addDataToMap.",
-    );
+    throw new HonuaKeplerBridgeError("missing-peer", "createKeplerAppBridge requires KeplerPeers with addDataToMap.");
   }
   const compatibility = assertKeplerCompatibility(peers.version);
   const processors = options.processors;
@@ -346,7 +339,7 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
   if (host !== undefined && typeof host.dispatch !== "function") {
     throw new HonuaKeplerBridgeError("invalid-request", "A Kepler workspace host must implement dispatch(action).");
   }
-  const states = new Map<string, KeplerWorkspaceDatasetState>();
+  const states = new Map<string, KeplerAppDatasetState>();
   const projections = new Map<string, KeplerDatasetProjection>();
   /** Current approximate retained row bytes per open dataset. */
   const retained = new Map<string, number>();
@@ -362,7 +355,7 @@ export function createKeplerWorkspaceBridge(options: CreateKeplerWorkspaceBridge
     }
   }
 
-  function requireState(datasetId: string): KeplerWorkspaceDatasetState {
+  function requireState(datasetId: string): KeplerAppDatasetState {
     const state = states.get(datasetId);
     if (state === undefined) {
       throw new HonuaKeplerBridgeError(

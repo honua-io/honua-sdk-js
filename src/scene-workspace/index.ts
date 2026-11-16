@@ -24,10 +24,10 @@
  */
 
 export {
-  createSceneWorkspace,
-  emptySceneWorkspaceState,
-  reduceSceneWorkspaceState,
-  sceneWorkspaceIntentFromAdapterEvent,
+  createSceneStore,
+  emptySceneStoreState,
+  reduceSceneStoreState,
+  sceneStoreIntentFromAdapterEvent,
   selectSceneDiagnosticsByStatus,
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
@@ -36,7 +36,7 @@ export {
 export {
   SCENE_STATE_SYNC_KIND,
   SCENE_STATE_SYNC_SLICES,
-  SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK,
+  SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK,
   SCENE_STATE_SYNC_VERSION,
   HonuaSceneStateSyncError,
   createSceneStateSynchronizer,
@@ -313,7 +313,7 @@ export type {
   SceneViewOptions,
   SceneViewRequestExecutor,
 } from "./scene-view.js";
-export { SCENE_WORKSPACE_SLICES } from "./types.js";
+export { SCENE_STORE_SLICES } from "./types.js";
 export type {
   MapLibreExtrusionLayerSpecification,
   MapLibreFilterCompilation,
@@ -358,14 +358,14 @@ export type {
   SceneLayerState,
   SceneRealtimeState,
   SceneTimelineState,
-  SceneWorkspace,
-  SceneWorkspaceAdapterEvent,
-  SceneWorkspaceChangeEvent,
-  SceneWorkspaceHistoryEntry,
-  SceneWorkspaceIntent,
-  SceneWorkspaceListener,
-  SceneWorkspaceSlice,
-  SceneWorkspaceSnapshot,
-  SceneWorkspaceState,
-  SceneWorkspaceUnsubscribe,
+  SceneStore,
+  SceneStoreAdapterEvent,
+  SceneStoreChangeEvent,
+  SceneStoreHistoryEntry,
+  SceneStoreIntent,
+  SceneStoreListener,
+  SceneStoreSlice,
+  SceneStoreSnapshot,
+  SceneStoreState,
+  SceneStoreUnsubscribe,
 } from "./types.js";
