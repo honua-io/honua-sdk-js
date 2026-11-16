@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { it } from "node:test";
 
 import { GENERATED_FILES, GENERATED_PREFIXES, isGeneratedReleasePath } from "../../scripts/lib/generated-release-paths.mjs";
-import { refreshPullRequest } from "../../scripts/lib/refresh-release-window.mjs";
+import { refreshPullRequest, refreshReleaseWindows } from "../../scripts/lib/refresh-release-window.mjs";
 import {
   evaluateReleaseWindow,
   loadReleaseWindows,
@@ -36,7 +36,7 @@ function graphqlSnapshot(current) {
 }
 
 function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", status: "modified" }], releases = [draft], tagged = false,
-  rest = restSnapshot(current, files), releaseError, runs = [] } = {}) {
+  rest = restSnapshot(current, files), releaseError, runs = [], sharing = [] } = {}) {
   const calls = [];
   const request = async (url, options = {}) => {
     const endpoint = new URL(url);
@@ -52,9 +52,10 @@ function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", sta
     if (endpoint.pathname.endsWith("/releases")) { if (releaseError) throw releaseError; return releases; }
     if (endpoint.pathname.includes("/git/ref/tags/")) return tagged ? { object: { sha: "a".repeat(40) } } : missingTag();
     if (endpoint.pathname.endsWith("/files")) return files;
+    if (endpoint.pathname.endsWith("/pulls") && endpoint.searchParams.get("state") === "open") return sharing;
     if (endpoint.pathname.endsWith("/check-runs")) return { id: 7 };
     if (endpoint.pathname.endsWith("/check-runs/7")) return body;
-    if (endpoint.pathname.endsWith(`/pulls/${current.pullRequestNumber}`)) return rest;
+    if (/\/pulls\/\d+$/.test(endpoint.pathname)) return rest;
     throw new Error(`Unexpected request: ${url}`);
   };
   return { request, calls };
@@ -145,6 +146,31 @@ it("refreshes the exact PR head from held to passed without merging or weakening
   assert.equal(result.allowed, false);
   assert.equal(result.infrastructureError, undefined, "a disposition failure belongs to the PR, not the run");
   assert.equal(invalid.calls.at(-1).body.conclusion, "failure");
+});
+
+it("leaves a shared head's check to the newest open trunk PR on it", async () => {
+  const other = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" }, head: { sha: input.headSha }, ...overrides });
+  const older = { ...input, body: "missing issue footer" };
+  const superseded = fakeGitHub({ current: older, releases: [], sharing: [other(older.pullRequestNumber), other(older.pullRequestNumber + 1)] });
+  const result = await refreshPullRequest({ repository, pullRequestNumber: older.pullRequestNumber }, {}, superseded.request);
+  assert.equal(result.allowed, true);
+  assert.equal(result.superseded, true);
+  assert.match(result.summary, new RegExp(`#${older.pullRequestNumber + 1} is a newer open PR on the same head`));
+  assert.equal(superseded.calls.filter((call) => call.endpoint.pathname.includes("/check-runs")).length, 0,
+    "an older PR must not write its verdict onto the shared commit");
+
+  const notOwners = [other(input.pullRequestNumber - 1), other(input.pullRequestNumber + 1, { state: "closed" }),
+    other(input.pullRequestNumber + 2, { base: { ref: "release" } }), other(input.pullRequestNumber + 3, { head: { sha: "f".repeat(40) } })];
+  const owning = fakeGitHub({ releases: [], sharing: [other(input.pullRequestNumber), ...notOwners] });
+  const published = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, owning.request);
+  assert.equal(published.superseded, undefined);
+  assert.equal(owning.calls.at(-1).body.conclusion, "success", "the newest open trunk PR on the head still publishes");
+
+  const bulk = fakeGitHub({ releases: [], sharing: [other(input.pullRequestNumber - 1), other(input.pullRequestNumber)] });
+  const results = await refreshReleaseWindows({ repository }, bulk.request);
+  assert.deepEqual(results.map(({ number, superseded }) => [number, superseded]),
+    [[input.pullRequestNumber - 1, true], [input.pullRequestNumber, undefined]]);
+  assert.equal(bulk.calls.filter((call) => call.endpoint.pathname.endsWith("/pulls")).length, 1, "a bulk refresh lists open PRs once");
 });
 
 it("replaces stale green with failure when release reads fail", async () => {

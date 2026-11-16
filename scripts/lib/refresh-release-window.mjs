@@ -12,11 +12,28 @@ async function completeCheck(checkUrl, result, request) {
   });
 }
 
+/**
+ * The required check is published on a commit, so open trunk PRs that share a
+ * head share one check. The newest of them owns it; an older PR that published
+ * its own verdict there would block (or unblock) a PR nobody can fix from its side.
+ */
+function newerPullRequestOnHead(openPulls, pull, pullRequestNumber) {
+  const newer = openPulls.filter((other) => other.state === "open" && other.base?.ref === "trunk" &&
+    other.head?.sha === pull.head.sha && other.number > pullRequestNumber).map((other) => other.number);
+  return newer.length > 0 ? Math.max(...newer) : undefined;
+}
+
 export async function refreshPullRequest(input, options = {}, request = githubRequest) {
   const root = repositoryApi(input.repository);
   const initial = await request(`${root}/pulls/${input.pullRequestNumber}`);
   if (initial.state !== "open" || initial.base?.ref !== "trunk") return { allowed: true, summary: "PR no longer targets trunk." };
   if (!/^[a-f0-9]{40}$/.test(initial.head?.sha)) throw new Error("Missing current PR head SHA.");
+  const openPulls = options.openPulls ?? await readAllPages(`${root}/pulls?state=open&base=trunk`, request);
+  const owner = newerPullRequestOnHead(openPulls, initial, input.pullRequestNumber);
+  if (owner !== undefined) {
+    return { allowed: true, superseded: true,
+      summary: `Not published: #${owner} is a newer open PR on the same head and owns the merge-policy check.` };
+  }
   const check = await request(`${root}/check-runs`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: REQUIRED_DISPOSITION_CHECK, head_sha: initial.head.sha, status: "in_progress",
@@ -45,7 +62,7 @@ export async function refreshReleaseWindows(input, request = githubRequest) {
   const results = [];
   for (const pull of pulls) {
     const result = await refreshPullRequest({ repository: input.repository, pullRequestNumber: pull.number },
-      { detailsUrl: input.detailsUrl }, request);
+      { detailsUrl: input.detailsUrl, ...(input.pullRequestNumber ? {} : { openPulls: pulls }) }, request);
     results.push({ number: pull.number, ...result });
   }
   return results;
