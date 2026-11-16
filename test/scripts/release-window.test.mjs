@@ -161,7 +161,6 @@ const entry = (number, overrides = {}) => ({ number, state: "open", base: { ref:
   head: { sha: input.headSha, repo: { full_name: repository } }, ...overrides });
 const stale = { ...input, pullRequestNumber: input.pullRequestNumber - 1, body: "missing issue footer" };
 const listing = [entry(input.pullRequestNumber), entry(stale.pullRequestNumber)];
-const refreshInput = (api, number = input.pullRequestNumber) => refreshPullRequest({ repository, pullRequestNumber: number }, {}, api.request);
 
 it("publishes one combined verdict for every open trunk PR that shares a head", async () => {
   // Whichever PR's run writes last, the commit carries the same verdict and names the PR to act on.
