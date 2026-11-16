@@ -133,6 +133,7 @@ import type {
   SourceResolver,
   SourceSchema,
 } from "./contract/types.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
@@ -140,7 +141,7 @@ import type { HonuaOdataMetadata } from "./core/odata.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
 import { hasStacConformance } from "./core/stac-conformance.js";
-import { selectHonuaTransport } from "./core/transport-selection.js";
+import { grpcWebRuntimeLoads, selectHonuaTransport } from "./core/transport-selection.js";
 import type {
   HonuaClientOptions,
   HonuaLayerMetadata,
@@ -395,6 +396,13 @@ export interface HonuaConnectionInspection {
   readonly diagnostics: readonly DiscoveryDiagnostic[];
   readonly cacheIdentity: DiscoveryCacheIdentity;
   readonly cacheStatus: ConnectCacheStatus;
+  /**
+   * Transport of the connection's client. On `grpc-web`, source descriptors
+   * carry only the capabilities the gRPC FeatureService serves (no `pbf` or
+   * `sql`; aggregates are computed by the client or refused under a strict
+   * capability policy).
+   */
+  readonly transport: HonuaTransport;
   /** Static object tree and classified asset candidates, when the endpoint is static STAC. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
 }
@@ -583,15 +591,7 @@ export async function connectWithSourceSchemaProjection(
     !options.client &&
     target.protocol === "geoservices-feature-service" &&
     options.clientOptions?.transport === undefined;
-  const transport = selectsTransport
-    ? snapshot
-      ? (snapshot.transport ?? "rest")
-      : await selectHonuaTransport({
-          ...options.clientOptions,
-          baseUrl: target.clientBaseUrl,
-          ...(options.signal ? { signal: options.signal } : {}),
-        })
-    : undefined;
+  const transport = selectsTransport ? await defaultFeatureServiceTransport(snapshot, options, target) : undefined;
   const client = discoveryClient(options, target, transport);
   if (!snapshot) {
     snapshot =
@@ -683,7 +683,7 @@ export async function connectWithSourceSchemaProjection(
           : discovered.diagnostics;
       return Object.freeze({
         ...discovered,
-        descriptor: projectedDescriptor,
+        descriptor: client.isGrpcWeb ? descriptorForGrpcWeb(projectedDescriptor) : projectedDescriptor,
         diagnostics,
         ...(source.metadata || source.crs || source.extent
           ? {
@@ -722,6 +722,7 @@ export async function connectWithSourceSchemaProjection(
     diagnostics: uniqueDiagnostics(inspections.flatMap((entry) => [...entry.diagnostics])),
     cacheIdentity: identity,
     cacheStatus,
+    transport: client.isGrpcWeb ? "grpc-web" : "rest",
     ...(snapshot.stacStatic ? { stacStatic: snapshot.stacStatic } : {}),
   });
 
@@ -1004,6 +1005,32 @@ async function discoverGeoServices(
     evidence: Object.freeze([]),
     sources: discovered.sources,
   });
+}
+
+/**
+ * Transport for a feature service's default client. A cache hit replays the
+ * recorded choice without a request, falling back to REST where this
+ * environment cannot load the gRPC-Web runtime; a miss probes once.
+ */
+async function defaultFeatureServiceTransport(
+  snapshot: ConnectDiscoverySnapshot | undefined,
+  options: ConnectOptions,
+  target: ConnectTarget,
+): Promise<HonuaTransport> {
+  if (snapshot) {
+    const recorded = snapshot.transport ?? "rest";
+    return recorded === "grpc-web" && !(await grpcWebRuntimeLoads(target.clientBaseUrl)) ? "rest" : recorded;
+  }
+  try {
+    return await selectHonuaTransport({
+      ...options.clientOptions,
+      baseUrl: target.clientBaseUrl,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  } catch (error) {
+    if (options.signal?.aborted) throw new HonuaAbortError(undefined, { cause: error });
+    throw error;
+  }
 }
 
 function discoveryClient(
@@ -1835,6 +1862,15 @@ async function validateSnapshot(
     evidence: sharedEvidence,
     sources: Object.freeze(sources),
     ...(stacStatic ? { stacStatic } : {}),
+  });
+}
+
+function descriptorForGrpcWeb(descriptor: SourceDescriptor): SourceDescriptor {
+  const capabilities = descriptor.capabilities;
+  if (!capabilities) return descriptor;
+  return Object.freeze({
+    ...descriptor,
+    capabilities: new Set([...capabilities].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability))),
   });
 }
 

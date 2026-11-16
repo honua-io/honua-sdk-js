@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ConnectDiscoveryCache, ConnectDiscoverySnapshot } from "../src/connect.js";
 import { connect } from "../src/connect.js";
+import { HonuaClient } from "../src/core/client.js";
+import { HonuaAbortError } from "../src/core/errors.js";
 
 const endpoint = "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer";
 const probePath = "/geospatial.v1.FeatureService/DescribeService";
@@ -56,6 +58,10 @@ function base(fetchFn: typeof fetch, cache?: ConnectDiscoveryCache) {
     ...(cache ? { cache } : {}),
   };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("connect() native transport default for GeoServices feature services", () => {
   it("selects gRPC-Web where the server offers it and records the choice in the snapshot", async () => {
@@ -122,5 +128,53 @@ describe("connect() native transport default for GeoServices feature services", 
     await expect(connect(base(serverFetch(grpcAnswer), cache))).rejects.toMatchObject({
       code: "invalid-discovery-cache",
     });
+  });
+
+  it("reports the transport and only gRPC capabilities on the inspection", async () => {
+    const connection = await connect(base(serverFetch(grpcAnswer)));
+    expect(connection.inspection.transport).toBe("grpc-web");
+    const capabilities = [...(connection.inspection.sources[0]?.descriptor.capabilities ?? [])];
+    expect(capabilities).toContain("query");
+    expect(capabilities).not.toContain("pbf");
+    expect(capabilities).not.toContain("sql");
+
+    const rest = await connect(base(serverFetch(restOnlyAnswer)));
+    expect(rest.inspection.transport).toBe("rest");
+  });
+
+  it("re-probes on refresh and records the new answer", async () => {
+    const cache = memoryCache();
+    await connect(base(serverFetch(grpcAnswer), cache));
+    const connection = await connect({ ...base(serverFetch(restOnlyAnswer), cache), refresh: true });
+
+    expect(connection.dataset.client.isGrpcWeb).toBe(false);
+    expect([...cache.values.values()][0]?.transport).toBe("rest");
+  });
+
+  it("replays a recorded gRPC-Web choice as REST where the runtime cannot load", async () => {
+    const cache = memoryCache();
+    await connect(base(serverFetch(grpcAnswer), cache));
+    vi.spyOn(
+      HonuaClient.prototype as unknown as { loadGrpcWebRuntime: () => Promise<unknown> },
+      "loadGrpcWebRuntime",
+    ).mockRejectedValue(new TypeError('Failed to resolve module specifier "@connectrpc/connect-web"'));
+
+    const offline = vi.fn<typeof fetch>();
+    const connection = await connect(base(offline, cache));
+    expect(connection.dataset.client.isGrpcWeb).toBe(false);
+    expect(offline).not.toHaveBeenCalled();
+  });
+
+  it("rejects with HonuaAbortError when the caller aborts during the probe", async () => {
+    const controller = new AbortController();
+    const fetchFn: typeof fetch = (input, init) => {
+      const path = new URL(new Request(input, init).url).pathname;
+      if (!path.endsWith(probePath)) return serverFetch(grpcAnswer)(input, init);
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        setTimeout(() => controller.abort(), 10);
+      });
+    };
+    await expect(connect({ ...base(fetchFn), signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
   });
 });

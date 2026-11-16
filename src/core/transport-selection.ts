@@ -159,3 +159,26 @@ function isGrpcWebAnswer(response: Response): boolean {
   const contentType = response.headers.get("content-type") ?? "";
   return /^application\/grpc-web(?:-text)?(?:[+;]|$)/iu.test(contentType) || response.headers.has("grpc-status");
 }
+
+class RuntimeCheckClient extends HonuaClient {
+  public async runtimeLoads(): Promise<boolean> {
+    try {
+      await this.loadGrpcWebRuntime();
+      await this.loadGrpcAdapter();
+      return true;
+    } catch (error) {
+      if (isGrpcRuntimeLoadFailure(error)) return false;
+      throw error;
+    }
+  }
+}
+
+/**
+ * @internal Whether this environment can load the root client's gRPC-Web
+ * runtime, checked locally without a request. A transport recorded elsewhere
+ * (for example by a server render sharing a discovery cache) is replayed only
+ * where it can run.
+ */
+export function grpcWebRuntimeLoads(baseUrl: string): Promise<boolean> {
+  return new RuntimeCheckClient({ baseUrl, transport: "grpc-web" }).runtimeLoads();
+}
