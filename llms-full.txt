@@ -844,8 +844,10 @@ This SDK ships from a single repository: the canonical package is
 `@honua/sdk-js` (all subpath entrypoints in [`INSTALL.md`](./INSTALL.md) live
 under that name), with the standalone packages in the table above built from
 the same source tree. The MCP server lives in [`mcp/`](./mcp/README.md).
-See [`AGENTS.md`](./AGENTS.md) for contributor instructions and the Specifica
-issue format used for backlog items.
+This repository does not accept outside code contributions. Bug reports, feature
+requests, and interoperability reports are welcome through GitHub Issues. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the policy and security-reporting guidance.
+Maintainer development instructions are in [`AGENTS.md`](./AGENTS.md).
 
 ## Security
 
@@ -1918,7 +1920,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-16 at commit `c0973654f`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-16 at commit `0caf8a8d0`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -6177,9 +6179,9 @@ console.log(redacted, redactions.length, state);
 ## Bridge lifecycle
 
 ```ts doc-test=skip reason="requires the optional @kepler.gl/actions peer and a live Redux store"
-import { createKeplerWorkspaceBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
+import { createKeplerAppBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
 
-const bridge = createKeplerWorkspaceBridge({
+const bridge = createKeplerAppBridge({
   peers: await loadKeplerPeers({ version: "3.2.6" }),
   host: { dispatch: store.dispatch, instanceId: "ops-replay" },
 });
@@ -8052,10 +8054,10 @@ produced it. Nothing here is hand-typed, and the generator recomputes every rate
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-11-02
-(12 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-11-16
+(13 distinct observation dates,
 3 cross-model eval artifacts,
-21 certification artifacts).
+23 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -8171,10 +8173,12 @@ schedule and it fails loudly.
 | 2026-10-05 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 8 | 40 | ❌ fail | `73bdd0e8f70b` |
 | 2026-11-02 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `c8715bcc9e32` |
 | 2026-11-02 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `c8715bcc9e32` |
+| 2026-11-16 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `7596a1918794` |
+| 2026-11-16 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `7596a1918794` |
 
-### Certification failures and skips — 2026-11-02
+### Certification failures and skips — 2026-11-16
 
-From [`mcp/evals/runs/2026-11-02/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-11-16/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
@@ -8191,7 +8195,7 @@ certified surface, published unedited; skips name the reason they could not be c
 
 The same run recorded **54 known standard gaps** — tool families in the
 geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition controls, Composition exploration, Composition interactions, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Platform operations (reference shape), Publishing, unclassified).
-They are enumerated in [`mcp/evals/runs/2026-11-02/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) under `knownGaps`.
+They are enumerated in [`mcp/evals/runs/2026-11-16/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -8251,6 +8255,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-10-05/cert-standalone.json) | 2026-10-05 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `73bdd0e8f70b` |
 | [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-candidate.json) | 2026-11-02 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `c8715bcc9e32` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) | 2026-11-02 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `c8715bcc9e32` |
+| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-candidate.json) | 2026-11-16 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `7596a1918794` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) | 2026-11-16 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `7596a1918794` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published
@@ -11942,7 +11948,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-16 at commit `c0973654f`._
+_Generated 2026-11-16 at commit `0caf8a8d0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11977,7 +11983,7 @@ _Generated 2026-11-16 at commit `c0973654f`._
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1230.5 KiB | 1275.0 KiB | 324.6 KiB | 344.5 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1340.2 KiB | 1395.4 KiB | 357.8 KiB | 391.9 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
+| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 572.9 KiB | 619.8 KiB | 155.9 KiB | 165.2 KiB |

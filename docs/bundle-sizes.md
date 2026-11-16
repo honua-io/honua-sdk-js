@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-16 at commit `c0973654f`._
+_Generated 2026-11-16 at commit `0caf8a8d0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -43,7 +43,7 @@ _Generated 2026-11-16 at commit `c0973654f`._
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1230.5 KiB | 1275.0 KiB | 324.6 KiB | 344.5 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1340.2 KiB | 1395.4 KiB | 357.8 KiB | 391.9 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.5 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
+| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
 | `/react` (react/react-dom external) | 572.9 KiB | 619.8 KiB | 155.9 KiB | 165.2 KiB |
