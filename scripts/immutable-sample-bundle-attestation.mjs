@@ -23,7 +23,7 @@ export const NODE_VERSION = "22.23.3";
 // it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
 // `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "f481ac72af0c4aedb24901e448b89ed3dfadfe27a59018ed9a72ed2d0f9ff81e";
+  "39cccb8ed2d11b3cc3263a780431b20859ec6153ee59afd6ef21501eb73c754f";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
