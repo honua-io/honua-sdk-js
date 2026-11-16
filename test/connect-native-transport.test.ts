@@ -167,15 +167,18 @@ it("connect() replays a recorded gRPC-Web choice as REST where the runtime canno
 
 it("connect() rejects with HonuaAbortError when the caller aborts during the probe", async () => {
   const controller = new AbortController();
+  const reason = new Error("Discovery cancelled by caller");
   const fetchFn: typeof fetch = (input, init) => {
     const path = new URL(new Request(input, init).url).pathname;
     if (!path.endsWith(probePath)) return serverFetch(grpcAnswer)(input, init);
     return new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
-      setTimeout(() => controller.abort(), 10);
+      setTimeout(() => controller.abort(reason), 10);
     });
   };
-  await expect(connect({ ...base(fetchFn), signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
+  const error = await connect({ ...base(fetchFn), signal: controller.signal }).catch((error: unknown) => error);
+  expect(error).toBeInstanceOf(HonuaAbortError);
+  expect((error as HonuaAbortError).cause).toBe(reason);
 });
 
 it("connect() resolves decisions and capability profiles to the gRPC set on gRPC-Web", async () => {

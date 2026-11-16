@@ -505,6 +505,9 @@ root. Endpoints must be absolute HTTP(S) URLs without user info,
 identity-bearing query parameters, or fragments; authentication belongs in
 `clientOptions`. `signal` cancels metadata work and
 settles `connect()` even when a caller cache hook ignores its supplied signal.
+Before discovery, during cache waits, and during the default transport probe,
+`connect()` rejects cancellation with `HonuaAbortError` (`core.cancelled`), whose
+`cause` preserves the exact `signal.reason`, including primitive and null reasons.
 Cache implementations remain responsible for stopping their own late work.
 `refresh: true` skips the caller cache read and forwards conditional-refresh
 semantics to the client's metadata cache.

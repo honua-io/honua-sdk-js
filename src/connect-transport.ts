@@ -42,7 +42,7 @@ export async function defaultFeatureServiceTransport(
       ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (error) {
-    if (options.signal?.aborted) throw new HonuaAbortError(undefined, { cause: error });
+    if (options.signal?.aborted) throw new HonuaAbortError(undefined, { cause: options.signal.reason });
     throw error;
   }
 }
