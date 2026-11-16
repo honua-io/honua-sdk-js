@@ -24,7 +24,7 @@ case "$1 $2" in
   "run view") echo "$RUN_HEAD" ;;
   "run watch") exit "$STRICT_EXIT" ;;
   "pr checks") echo "$CHECKS" ;;
-  "api repos/"*) echo '[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"gate"},{"context":"disposition"},{"context":"review"}]}}]' ;;
+  "api repos/"*) echo '["gate","disposition","review"]' ;;
   "pr view") echo "$PR_JSON" ;;
   "pr merge"|"pr close"|"workflow run") [[ "$GH_TOKEN" == fresh-app ]] ;;
   *) exit 99 ;;
