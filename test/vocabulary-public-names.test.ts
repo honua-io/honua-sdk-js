@@ -153,8 +153,9 @@ describe("docs and examples use the current names", () => {
   const SKIPPED = new Set(["node_modules", "dist", "decisions"]);
 
   const DOC_FILE = /\.(md|ts|tsx|mjs|html)$/;
-  // The one doc that lists the old names, as the migration table.
+  // Migration references retain old names so readers can find their replacements.
   const RENAMES_DOC = path.join("docs", "vocabulary-renames.md");
+  const MIGRATION_REFERENCES = new Set([RENAMES_DOC, path.join("docs", "changelog", "map-api.md")]);
 
   function documentFiles(entry: string): string[] {
     const full = path.join(ROOT, entry);
@@ -169,7 +170,7 @@ describe("docs and examples use the current names", () => {
     // Docs also named the bare server type MapPackage; the wire field mapPackageId stays.
     const pattern = new RegExp(`\\b(${[...renamed.keys(), "MapPackage"].join("|")})\\b`);
     const offenders = DOC_ROOTS.flatMap(documentFiles).filter(
-      (file) => file !== RENAMES_DOC && pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
+      (file) => !MIGRATION_REFERENCES.has(file) && pattern.test(readFileSync(path.join(ROOT, file), "utf8")),
     );
     expect(offenders).toEqual([]);
   });
