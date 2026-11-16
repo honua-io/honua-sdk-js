@@ -467,11 +467,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .sidebar li a:hover{background:var(--accent-soft);text-decoration:none}
 .sidebar li.active a{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .content{flex:1 1 auto;min-width:0;padding:1.5rem 0 3rem;max-width:100%}
+.content a{overflow-wrap:anywhere}
 .content h1{font-size:2rem;line-height:1.2;margin-top:.5rem}
 .content h2{margin-top:2rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
 .content img{max-width:100%;height:auto}
 .content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1rem;overflow-x:auto;font-size:.88rem}
 .content code{background:var(--code-bg);padding:.15em .4em;border-radius:4px;font-size:.88em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.content :not(pre)>code{overflow-wrap:anywhere}
 .content pre code{background:none;padding:0;font-size:1em}
 .content table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%;margin:1rem 0}
 .content th,.content td{border:1px solid var(--border);padding:.45rem .7rem;text-align:left}
