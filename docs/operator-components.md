@@ -14,10 +14,10 @@ React, Web Components, plain DOM, or native shells while reusing the same state
 and transport contract.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { OperatorWorkspace } from "@honua/app-platform/operator";
+import { OperatorShell } from "@honua/app-platform/operator";
 import { HonuaClient } from "@honua/sdk-js";
 
-const workspace = new OperatorWorkspace({
+const workspace = new OperatorShell({
   client: operatorClient,
   mapFactory: () => ({ map }),
   mapLoadOptions: {
@@ -50,8 +50,8 @@ The workspace composes six controller surfaces:
 - `ClarificationController` submits typed clarification answers back through the shared client.
 - `PlanReviewController` loads, revises, and accepts server-produced plans without mutating steps locally.
 - `ExecutionController` adapts the shared `IJobRun` contract and emits every progress and terminal transition.
-- `MapWorkspaceController` loads result `HonuaMapDocument` objects through the runtime instead of owning MapLibre source/style logic.
-- `BuilderWorkspaceController` exposes app package preview handles for host-owned sandbox rendering.
+- `MapController` loads result `HonuaMapDocument` objects through the runtime instead of owning MapLibre source/style logic.
+- `BuilderController` exposes app package preview handles for host-owned sandbox rendering.
 - `ApprovalController` surfaces server-rendered policy decisions and never upgrades deferred or denied outcomes locally.
 
 The public extension points are controller subscriptions, workspace events,

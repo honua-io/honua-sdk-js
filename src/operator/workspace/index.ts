@@ -5,12 +5,12 @@
  *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
  */
-export { OperatorWorkspace } from "./workspace.js";
-export type { OperatorWorkspaceOptions } from "./workspace.js";
+export { OperatorShell } from "./workspace.js";
+export type { OperatorShellOptions } from "./workspace.js";
 export type {
   Unsubscribe,
-  WorkspaceEvent,
-  WorkspaceEventListener,
+  OperatorShellEvent,
+  OperatorShellEventListener,
 } from "./events.js";
 export type {
   AnalysisIntent,

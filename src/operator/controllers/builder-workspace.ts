@@ -1,5 +1,5 @@
 /**
- * `BuilderWorkspaceController` — mirrors `MapWorkspaceController` for an
+ * `BuilderController` — mirrors `MapController` for an
  * `AppVersion`. The controller does not execute the app; it surfaces a
  * `PreviewHandle` carrying the bundle URL the embedder mounts inside an
  * `<iframe sandbox>`.
@@ -20,13 +20,13 @@ export interface PreviewHandle {
   readonly mapPackage: HonuaMapDocument | undefined;
 }
 
-export type BuilderWorkspaceEvent =
+export type BuilderEvent =
   | { kind: "package-loaded"; pkg: AppVersion }
   | { kind: "package-refined"; pkg: AppVersion }
   | { kind: "map-bound"; pkg: HonuaMapDocument }
   | { kind: "error"; error: HonuaOperatorAppError };
 
-export interface BuilderWorkspaceControllerOptions {
+export interface BuilderControllerOptions {
   client: OperatorClient;
   telemetry?: OperatorTelemetry;
   /**
@@ -43,11 +43,11 @@ const defaultEntryUrl = (pkg: AppVersion): string | undefined => {
   return pkg.assets.find((asset) => asset.url)?.url;
 };
 
-export class BuilderWorkspaceController {
+export class BuilderController {
   readonly #client: OperatorClient;
   readonly #telemetry: OperatorTelemetry | undefined;
   readonly #resolveEntryUrl: (pkg: AppVersion) => string | undefined;
-  readonly #bag = new ListenerBag<BuilderWorkspaceEvent>();
+  readonly #bag = new ListenerBag<BuilderEvent>();
   #pkg: AppVersion | undefined;
   #boundMap: HonuaMapDocument | undefined;
   #activeIntentId: string | undefined;
@@ -57,7 +57,7 @@ export class BuilderWorkspaceController {
   // refineApp() cannot overwrite a newer package.
   #opGeneration = 0;
 
-  public constructor(options: BuilderWorkspaceControllerOptions) {
+  public constructor(options: BuilderControllerOptions) {
     this.#client = options.client;
     this.#telemetry = options.telemetry;
     this.#resolveEntryUrl = options.resolveEntryUrl ?? defaultEntryUrl;
@@ -67,7 +67,7 @@ export class BuilderWorkspaceController {
     return this.#pkg;
   }
 
-  public on(listener: (event: BuilderWorkspaceEvent) => void): Unsubscribe {
+  public on(listener: (event: BuilderEvent) => void): Unsubscribe {
     return this.#bag.on(listener);
   }
 

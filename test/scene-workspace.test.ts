@@ -6,10 +6,10 @@ import { sourceFeatureSelectionTarget } from "../src/exploration/index.js";
 import {
   type SceneRuntimePrimitive,
   applyMapLibreScenePrimitives,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
-  emptySceneWorkspaceState,
-  sceneWorkspaceIntentFromAdapterEvent,
+  emptySceneStoreState,
+  sceneStoreIntentFromAdapterEvent,
   selectSceneDiagnosticsByStatus,
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
@@ -20,7 +20,7 @@ import {
 
 describe("scene workspace", () => {
   it("models scene layers, camera, timeline, evidence, realtime, and history without a renderer", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const layerListener = vi.fn();
     const allListener = vi.fn();
     workspace.subscribe("layers", layerListener);
@@ -91,7 +91,7 @@ describe("scene workspace", () => {
   });
 
   it("keeps scene, map, table, and detail selection targets source-qualified", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const sceneTarget = sourceFeatureSelectionTarget("scene-assets", "asset-101");
     const mapTarget = sourceFeatureSelectionTarget("work-orders", "asset-101");
 
@@ -105,7 +105,7 @@ describe("scene workspace", () => {
   });
 
   it("keeps primitive, filter, selection, and detail state synchronized for scene-linked views", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const selected = sourceFeatureSelectionTarget("scene-assets", "asset-101");
 
     workspace.dispatch({
@@ -161,7 +161,7 @@ describe("scene workspace", () => {
   });
 
   it("rejects credential-bearing and malformed imagery before workspace serialization", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const unsafePrimitives: SceneRuntimePrimitive[] = [
       {
         kind: "imagery-layer",
@@ -287,7 +287,7 @@ describe("scene workspace", () => {
     "database_password",
     "client_credential",
   ])("rejects credential-shaped imagery key alias %s in URLs and parameters", (key) => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const encodedKey = encodeURIComponent(key);
     expect(() =>
       workspace.dispatch({
@@ -358,7 +358,7 @@ describe("scene workspace", () => {
     "keyframe",
     "signatureAlgorithm",
   ])("preserves ordinary imagery service parameter %s", (key) => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     expect(() =>
       workspace.dispatch({
         kind: "set-primitives",
@@ -520,16 +520,16 @@ describe("scene workspace", () => {
     expect(calls.map((call) => call.method)).toEqual(["addSource", "setTerrain"]);
     expect(result.status).toBe("degraded");
 
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     workspace.dispatch(
-      sceneWorkspaceIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics: result.diagnostics }),
+      sceneStoreIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics: result.diagnostics }),
     );
     expect(selectSceneDiagnosticsByStatus(workspace.state, "degraded")).toHaveLength(1);
   });
 
   it("translates renderer adapter events into workspace intents", () => {
-    const workspace = createSceneWorkspace();
-    const intent = sceneWorkspaceIntentFromAdapterEvent(
+    const workspace = createSceneStore();
+    const intent = sceneStoreIntentFromAdapterEvent(
       {
         type: "selection-change",
         selection: [sourceFeatureSelectionTarget("scene-assets", "asset-9")],
@@ -544,7 +544,7 @@ describe("scene workspace", () => {
   });
 
   it("snapshots and restores serializable scene state", () => {
-    const workspace = createSceneWorkspace({
+    const workspace = createSceneStore({
       sceneId: "initial",
       layers: { initial: { id: "initial", visible: true } },
     });
@@ -575,7 +575,7 @@ describe("scene workspace", () => {
         },
       },
     };
-    const workspace = createSceneWorkspace(initial);
+    const workspace = createSceneStore(initial);
 
     initial.layers.assets.visible = false;
     (selected as { id: string }).id = "mutated";
@@ -594,7 +594,7 @@ describe("scene workspace", () => {
   });
 
   it("timestamps history with dispatch time when callers do not supply at", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const before = Date.now();
 
     workspace.dispatch({ kind: "set-scene", sceneId: "live-scene" });
@@ -605,7 +605,7 @@ describe("scene workspace", () => {
   });
 
   it("disposes subscriptions and rejects later dispatches", () => {
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
     const listener = vi.fn();
     workspace.subscribe("scene", listener);
     workspace.dispose();
@@ -620,6 +620,6 @@ describe("scene workspace", () => {
     const source = files.map((file) => fs.readFileSync(path.join(sceneWorkspaceRoot, file), "utf8")).join("\n");
 
     expect(source).not.toMatch(/from "cesium"|from 'cesium'|maplibre-gl/);
-    expect(emptySceneWorkspaceState().realtime.status).toBe("idle");
+    expect(emptySceneStoreState().realtime.status).toBe("idle");
   });
 });

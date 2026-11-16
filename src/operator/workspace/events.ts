@@ -1,7 +1,7 @@
 /**
- * `WorkspaceEvent` — typed event union the `OperatorWorkspace` emits as
+ * `OperatorShellEvent` — typed event union the `OperatorShell` emits as
  * the cross-surface state machine advances. Embedders subscribe via
- * `OperatorWorkspace.on()` to hook intermediate transitions without
+ * `OperatorShell.on()` to hook intermediate transitions without
  * subclassing controllers.
  *
  * @module
@@ -22,7 +22,7 @@ import type {
   PublishingPlan,
 } from "./types.js";
 
-export type WorkspaceEvent =
+export type OperatorShellEvent =
   | { kind: "turn-updated"; turn: ConversationTurn }
   | { kind: "intent-drafted"; intent: AnalysisIntent | BuilderIntent }
   | { kind: "clarification-needed"; intent: AnalysisIntent | BuilderIntent }
@@ -41,5 +41,5 @@ export type WorkspaceEvent =
   | { kind: "approval-resolved"; decision: ApprovalDecision }
   | { kind: "error"; error: HonuaOperatorError; recoverable: boolean };
 
-export type WorkspaceEventListener = (event: WorkspaceEvent) => void;
+export type OperatorShellEventListener = (event: OperatorShellEvent) => void;
 export type Unsubscribe = () => void;

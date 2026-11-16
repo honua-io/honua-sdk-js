@@ -164,7 +164,7 @@ describe("self-approval :: Studio publication submissions", () => {
       ["lifecycle", studio],
       ["packageFamilies", studio.packageFamilies],
       ["drafts", studio.drafts],
-      ["contentItems", studio.contentItems],
+      ["contentItems", studio.content],
       ["contentVersions", studio.contentVersions],
       ["publicationRequests", studio.publicationRequests],
       ["rollbackRequests", studio.rollbackRequests],

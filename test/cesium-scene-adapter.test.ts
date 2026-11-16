@@ -136,7 +136,7 @@ import {
   cameraStateToCesiumView,
   cesiumCameraToSceneState,
   createCesiumSceneAdapter,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
   modelLayerToCesiumPlacement,
   pickCesiumFeatureAttributes,
@@ -361,7 +361,7 @@ describe("cesium scene adapter", () => {
   it("drives the adapter from a workspace camera dispatch via apply()", async () => {
     const camera = createMockCesiumCamera();
     const adapter = createCesiumSceneAdapter({ target: { camera } });
-    const workspace = createSceneWorkspace();
+    const workspace = createSceneStore();
 
     const cameraState: SceneCameraState = {
       longitude: 12.4924,
@@ -2137,7 +2137,7 @@ describe("cesium scene adapter", () => {
     });
 
     it("refuses to serialize a credential-bearing model binding into workspace state", () => {
-      const workspace = createSceneWorkspace();
+      const workspace = createSceneStore();
       const dispatchPrimitive = (primitive: SceneModelLayerPrimitive) => () => {
         workspace.dispatch({ kind: "set-primitives", primitives: [primitive] });
       };

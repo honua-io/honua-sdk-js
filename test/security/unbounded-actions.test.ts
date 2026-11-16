@@ -98,7 +98,7 @@ describe("unbounded actions :: pagination caps", () => {
     }));
     const studio = new HonuaStudioLifecycleClient({ client });
 
-    const collected = await studio.contentItems.collect();
+    const collected = await studio.content.collect();
 
     expect(requests).toHaveLength(HONUA_STUDIO_LIST_MAX_PAGES);
     expect(collected.pages).toBe(HONUA_STUDIO_LIST_MAX_PAGES);
@@ -117,7 +117,7 @@ describe("unbounded actions :: pagination caps", () => {
     }));
     const studio = new HonuaStudioLifecycleClient({ client });
 
-    await expect(studio.contentItems.collect({ cursor: "stuck" })).rejects.toSatisfy(
+    await expect(studio.content.collect({ cursor: "stuck" })).rejects.toSatisfy(
       (error: unknown) => isHonuaStudioError(error) && error.code === "internal",
     );
     expect(requests, "the stall must be caught on the second observation, not at the cap").toHaveLength(1);
@@ -130,8 +130,8 @@ describe("unbounded actions :: pagination caps", () => {
     // disagreement visible, and costs no request at all.
     const { client, requests } = recordingClient();
     const studio = new HonuaStudioLifecycleClient({ client });
-    await expect(studio.contentItems.list({ limit: HONUA_STUDIO_LIST_MAX_LIMIT + 1 })).rejects.toThrow(TypeError);
-    await expect(studio.contentItems.list({ limit: 0 })).rejects.toThrow(TypeError);
+    await expect(studio.content.list({ limit: HONUA_STUDIO_LIST_MAX_LIMIT + 1 })).rejects.toThrow(TypeError);
+    await expect(studio.content.list({ limit: 0 })).rejects.toThrow(TypeError);
     expect(requests).toHaveLength(0);
   });
 
@@ -142,7 +142,7 @@ describe("unbounded actions :: pagination caps", () => {
     const { client, requests } = recordingClient();
     const studio = new HonuaStudioLifecycleClient({ client });
     for (const maxPages of [Number.POSITIVE_INFINITY, 0, -1, 1.5, Number.NaN]) {
-      const walk = studio.contentItems.collect({}, { maxPages });
+      const walk = studio.content.collect({}, { maxPages });
       await expect(walk, `maxPages: ${maxPages} must be refused`).rejects.toThrow(TypeError);
     }
     expect(requests).toHaveLength(0);

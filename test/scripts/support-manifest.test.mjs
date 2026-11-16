@@ -361,7 +361,7 @@ test("the Cesium scene surface is beta with an explicit, exhaustive export list"
     "the server-attached SceneView container must stay experimental",
   );
   assert.ok(tier.exports.includes("createCesiumSceneAdapter"));
-  assert.ok(tier.exports.includes("createSceneWorkspace"));
+  assert.ok(tier.exports.includes("createSceneStore"));
 });
 
 test("a surface tier fails closed on an unclassified, double-classified, or mistiered export", () => {

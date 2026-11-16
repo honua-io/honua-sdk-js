@@ -226,3 +226,123 @@ ids (`honua_map_package.v1`) and `schemas/honua-map-package.v1.json`.
 Error and status messages say "map document" where they said "MapPackage" or "map package".
 
 Not yet renamed (follow-up, renamed outright when done): the `HonuaMapRuntime#mapPackage` getter and the `"package-loaded"` and `"package-refined"` builder event kinds.
+
+## Beta state and content APIs
+
+The beta app and scene orchestration APIs now use **store** names. Operator UI composition uses **shell** names; Studio listing uses **content** and server grouping uses **folder**. Rename imports and type references using the table below; no deprecated aliases remain. The entrypoint paths remain unchanged. Access the renamed grouping and listing clients through `controlPlane.folders` and `studio.content` instead of `controlPlane.workspaces` and `studio.contentItems`.
+
+The saved app-state document still uses the `honua.saved-workspace` format identifier. Server routes, capability keys, generated schema names and wire fields remain unchanged.
+
+| Previous export | Current export |
+| --- | --- |
+| `BuilderWorkspaceController` | `BuilderController` |
+| `BuilderWorkspaceControllerOptions` | `BuilderControllerOptions` |
+| `BuilderWorkspaceEvent` | `BuilderEvent` |
+| `CreateKeplerWorkspaceBridgeOptions` | `CreateKeplerAppBridgeOptions` |
+| `HONUA_SAVED_WORKSPACE_DOCUMENT_KIND` | `HONUA_SAVED_APP_STATE_DOCUMENT_KIND` |
+| `HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION` | `HONUA_SAVED_APP_STATE_DOCUMENT_VERSION` |
+| `HonuaAppWorkspace` | `HonuaAppStore` |
+| `HonuaAppWorkspaceChangeEvent` | `HonuaAppStoreChangeEvent` |
+| `HonuaAppWorkspaceChartModel` | `HonuaAppStoreChartModel` |
+| `HonuaAppWorkspaceDetailModel` | `HonuaAppStoreDetailModel` |
+| `HonuaAppWorkspaceDraftEntry` | `HonuaAppStoreDraftEntry` |
+| `HonuaAppWorkspaceDraftState` | `HonuaAppStoreDraftState` |
+| `HonuaAppWorkspaceEquality` | `HonuaAppStoreEquality` |
+| `HonuaAppWorkspaceExplorationReference` | `HonuaAppStoreExplorationReference` |
+| `HonuaAppWorkspaceExplorationState` | `HonuaAppStoreExplorationState` |
+| `HonuaAppWorkspaceFilterModel` | `HonuaAppStoreFilterModel` |
+| `HonuaAppWorkspaceIntent` | `HonuaAppStoreIntent` |
+| `HonuaAppWorkspaceJobEntry` | `HonuaAppStoreJobEntry` |
+| `HonuaAppWorkspaceJobModel` | `HonuaAppStoreJobModel` |
+| `HonuaAppWorkspaceJobState` | `HonuaAppStoreJobState` |
+| `HonuaAppWorkspaceLayoutState` | `HonuaAppStoreLayoutState` |
+| `HonuaAppWorkspaceListener` | `HonuaAppStoreListener` |
+| `HonuaAppWorkspaceMapModel` | `HonuaAppStoreMapModel` |
+| `HonuaAppWorkspaceMetadataCacheModel` | `HonuaAppStoreMetadataCacheModel` |
+| `HonuaAppWorkspaceOptions` | `HonuaAppStoreOptions` |
+| `HonuaAppWorkspacePanelState` | `HonuaAppStorePanelState` |
+| `HonuaAppWorkspaceRealtimeModel` | `HonuaAppStoreRealtimeModel` |
+| `HonuaAppWorkspaceRealtimeState` | `HonuaAppStoreRealtimeState` |
+| `HonuaAppWorkspaceReviewableIntent` | `HonuaAppStoreReviewableIntent` |
+| `HonuaAppWorkspaceSavedStateMetadata` | `HonuaAppStoreSavedStateMetadata` |
+| `HonuaAppWorkspaceSelector` | `HonuaAppStoreSelector` |
+| `HonuaAppWorkspaceSelectorListener` | `HonuaAppStoreSelectorListener` |
+| `HonuaAppWorkspaceSlice` | `HonuaAppStoreSlice` |
+| `HonuaAppWorkspaceSnapshot` | `HonuaAppStoreSnapshot` |
+| `HonuaAppWorkspaceSourceState` | `HonuaAppStoreSourceState` |
+| `HonuaAppWorkspaceState` | `HonuaAppStoreState` |
+| `HonuaAppWorkspaceTableModel` | `HonuaAppStoreTableModel` |
+| `HonuaSavedWorkspaceAnalysisOutput` | `HonuaSavedAppStateAnalysisOutput` |
+| `HonuaSavedWorkspaceCreateOptions` | `HonuaSavedAppStateCreateOptions` |
+| `HonuaSavedWorkspaceDocument` | `HonuaSavedAppStateDocument` |
+| `HonuaSavedWorkspaceDocumentKind` | `HonuaSavedAppStateDocumentKind` |
+| `HonuaSavedWorkspaceDocumentVersion` | `HonuaSavedAppStateDocumentVersion` |
+| `HonuaSavedWorkspaceHydrateOptions` | `HonuaSavedAppStateHydrateOptions` |
+| `HonuaSavedWorkspaceJob` | `HonuaSavedAppStateJob` |
+| `HonuaSavedWorkspaceLayer` | `HonuaSavedAppStateLayer` |
+| `HonuaSavedWorkspaceMcpSummary` | `HonuaSavedAppStateMcpSummary` |
+| `HonuaSavedWorkspaceMigrationMetadata` | `HonuaSavedAppStateMigrationMetadata` |
+| `HonuaSavedWorkspaceMigrationStep` | `HonuaSavedAppStateMigrationStep` |
+| `HonuaSavedWorkspaceQuery` | `HonuaSavedAppStateQuery` |
+| `HonuaSavedWorkspaceSelectedFeature` | `HonuaSavedAppStateSelectedFeature` |
+| `HonuaSavedWorkspaceSource` | `HonuaSavedAppStateSource` |
+| `HonuaSavedWorkspaceStyle` | `HonuaSavedAppStateStyle` |
+| `HonuaSavedWorkspaceValidationError` | `HonuaSavedAppStateValidationError` |
+| `HonuaSavedWorkspaceValidationResult` | `HonuaSavedAppStateValidationResult` |
+| `HonuaStudioContentItemsClient` | `HonuaStudioContentClient` |
+| `HonuaWorkspaceProjectState` | `HonuaAppProjectState` |
+| `HonuaWorkspaceSessionState` | `HonuaAppSessionState` |
+| `HonuaWorkspaceSummary` | `HonuaFolderSummary` |
+| `HonuaWorkspacesClient` | `HonuaFoldersClient` |
+| `KeplerWorkspaceBridge` | `KeplerAppBridge` |
+| `KeplerWorkspaceDatasetState` | `KeplerAppDatasetState` |
+| `KeplerWorkspaceHost` | `KeplerAppHost` |
+| `KeplerWorkspaceMetrics` | `KeplerAppMetrics` |
+| `MapWorkspaceController` | `MapController` |
+| `MapWorkspaceControllerOptions` | `MapControllerOptions` |
+| `MapWorkspaceEvent` | `MapEvent` |
+| `OperatorWorkspace` | `OperatorShell` |
+| `OperatorWorkspaceOptions` | `OperatorShellOptions` |
+| `SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK` | `SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK` |
+| `SCENE_WORKSPACE_SLICES` | `SCENE_STORE_SLICES` |
+| `SceneWorkspace` | `SceneStore` |
+| `SceneWorkspaceAdapterEvent` | `SceneStoreAdapterEvent` |
+| `SceneWorkspaceChangeEvent` | `SceneStoreChangeEvent` |
+| `SceneWorkspaceHistoryEntry` | `SceneStoreHistoryEntry` |
+| `SceneWorkspaceIntent` | `SceneStoreIntent` |
+| `SceneWorkspaceListener` | `SceneStoreListener` |
+| `SceneWorkspaceSlice` | `SceneStoreSlice` |
+| `SceneWorkspaceSnapshot` | `SceneStoreSnapshot` |
+| `SceneWorkspaceState` | `SceneStoreState` |
+| `SceneWorkspaceUnsubscribe` | `SceneStoreUnsubscribe` |
+| `StudioContentItemListOptions` | `StudioContentListOptions` |
+| `StudioContentItemListResponse` | `StudioContentListResponse` |
+| `StudioContentItemListRow` | `StudioContentListRow` |
+| `StudioContentItemPointers` | `StudioContentPointers` |
+| `StudioContentItemPublicationBadge` | `StudioContentPublicationBadge` |
+| `StudioContentItemState` | `StudioContentState` |
+| `WorkspaceEvent` | `OperatorShellEvent` |
+| `WorkspaceEventListener` | `OperatorShellEventListener` |
+| `assertHonuaSavedWorkspaceDocument` | `assertHonuaSavedAppStateDocument` |
+| `bindHonuaAppWorkspaceSelector` | `bindHonuaAppStoreSelector` |
+| `createHonuaAppWorkspace` | `createHonuaAppStore` |
+| `createHonuaAppWorkspaceFromSavedDocument` | `createHonuaAppStoreFromSavedDocument` |
+| `createHonuaSavedWorkspaceDocument` | `createHonuaSavedAppStateDocument` |
+| `createKeplerWorkspaceBridge` | `createKeplerAppBridge` |
+| `createSceneWorkspace` | `createSceneStore` |
+| `emptySceneWorkspaceState` | `emptySceneStoreState` |
+| `hydrateHonuaSavedWorkspaceState` | `hydrateHonuaSavedAppState` |
+| `reattachHonuaSavedWorkspaceArtifacts` | `reattachHonuaSavedAppStateArtifacts` |
+| `reduceSceneWorkspaceState` | `reduceSceneStoreState` |
+| `sceneWorkspaceIntentFromAdapterEvent` | `sceneStoreIntentFromAdapterEvent` |
+| `selectHonuaAppWorkspaceChartModel` | `selectHonuaAppStoreChartModel` |
+| `selectHonuaAppWorkspaceDetailModel` | `selectHonuaAppStoreDetailModel` |
+| `selectHonuaAppWorkspaceDrafts` | `selectHonuaAppStoreDrafts` |
+| `selectHonuaAppWorkspaceFilterModel` | `selectHonuaAppStoreFilterModel` |
+| `selectHonuaAppWorkspaceJobModel` | `selectHonuaAppStoreJobModel` |
+| `selectHonuaAppWorkspaceMapModel` | `selectHonuaAppStoreMapModel` |
+| `selectHonuaAppWorkspaceMetadataCacheModel` | `selectHonuaAppStoreMetadataCacheModel` |
+| `selectHonuaAppWorkspaceRealtimeModel` | `selectHonuaAppStoreRealtimeModel` |
+| `selectHonuaAppWorkspaceTableModel` | `selectHonuaAppStoreTableModel` |
+| `summarizeHonuaSavedWorkspaceForMcp` | `summarizeHonuaSavedAppStateForMcp` |
+| `validateHonuaSavedWorkspaceDocument` | `validateHonuaSavedAppStateDocument` |

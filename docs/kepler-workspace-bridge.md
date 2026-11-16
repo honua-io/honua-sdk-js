@@ -225,9 +225,9 @@ console.log(redacted, redactions.length, state);
 ## Bridge lifecycle
 
 ```ts doc-test=skip reason="requires the optional @kepler.gl/actions peer and a live Redux store"
-import { createKeplerWorkspaceBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
+import { createKeplerAppBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
 
-const bridge = createKeplerWorkspaceBridge({
+const bridge = createKeplerAppBridge({
   peers: await loadKeplerPeers({ version: "3.2.6" }),
   host: { dispatch: store.dispatch, instanceId: "ops-replay" },
 });

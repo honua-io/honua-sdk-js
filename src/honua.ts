@@ -338,7 +338,7 @@ export type {
   ShareableInteractionQueryState,
 } from "./interactions/index.js";
 // Experimental scene-workspace surface is subpath-only:
-//   import { createSceneWorkspace } from "@honua/app-platform/scene-workspace";
+//   import { createSceneStore } from "@honua/app-platform/scene-workspace";
 export { HonuaMap } from "./map/index.js";
 export type {
   HonuaMapOptions,
@@ -1347,6 +1347,6 @@ export type {
 // Experimental app-controller / app-workspace / agent-tools / control-plane
 // surfaces are subpath-only — import them from their named subpaths:
 //   import { HonuaController } from "@honua/app-platform/app-controller";
-//   import { HonuaAppWorkspace } from "@honua/app-platform/app-workspace";
+//   import { HonuaAppStore } from "@honua/app-platform/app-workspace";
 //   import { HONUA_AGENT_TOOL_DEFINITIONS } from "@honua/sdk-js/agent-tools";
 //   import { HonuaControlPlaneClient } from "@honua/app-platform/control-plane";

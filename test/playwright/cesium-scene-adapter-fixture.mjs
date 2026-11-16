@@ -487,7 +487,7 @@ const TEMPORAL_TIMES = {
 };
 
 function temporalState(adapter, currentTime, realtime) {
-  const base = adapter.emptySceneWorkspaceState();
+  const base = adapter.emptySceneStoreState();
   return {
     ...base,
     timeline: {

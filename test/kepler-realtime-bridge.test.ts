@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  type KeplerWorkspaceDatasetState,
+  type KeplerAppDatasetState,
   defaultKeplerRealtimeFeatureProjector,
   keplerDatasetStateFromProjection,
   keplerDeltaFromRealtimeEvent,
@@ -44,7 +44,7 @@ function patch(objectid: number, status: string, x = -122.4, y = 37.8): Realtime
   return { id: objectid, feature: { attributes: { objectid, status }, geometry: { x, y } } };
 }
 
-function openState(): KeplerWorkspaceDatasetState {
+function openState(): KeplerAppDatasetState {
   return keplerDatasetStateFromProjection(
     projectResultToKeplerDataset({
       ...projectionRequest,

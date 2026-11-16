@@ -9,10 +9,10 @@
 export { ApprovalController } from "./approval.js";
 export type { ApprovalControllerOptions, ApprovalEvent } from "./approval.js";
 
-export { BuilderWorkspaceController } from "./builder-workspace.js";
+export { BuilderController } from "./builder-workspace.js";
 export type {
-  BuilderWorkspaceControllerOptions,
-  BuilderWorkspaceEvent,
+  BuilderControllerOptions,
+  BuilderEvent,
   PreviewHandle,
 } from "./builder-workspace.js";
 
@@ -29,12 +29,12 @@ export type {
 export { ExecutionController } from "./execution.js";
 export type { ExecutionControllerOptions, ExecutionEvent } from "./execution.js";
 
-export { MapWorkspaceController } from "./map-workspace.js";
+export { MapController } from "./map-workspace.js";
 export type {
   MapFactory,
   MapFactoryResult,
-  MapWorkspaceControllerOptions,
-  MapWorkspaceEvent,
+  MapControllerOptions,
+  MapEvent,
 } from "./map-workspace.js";
 
 export { PlanReviewController } from "./plan-review.js";

@@ -64,7 +64,7 @@ import {
   type SceneRuntimePrimitiveKind,
   summarizeDiagnosticStatus,
 } from "./primitives.js";
-import type { SceneRealtimeState, SceneWorkspaceState } from "./types.js";
+import type { SceneRealtimeState, SceneStoreState } from "./types.js";
 
 /**
  * Default ceiling on the number of live layer handles one mount may own.
@@ -130,7 +130,7 @@ export interface MountScenePrimitivesToCesiumOptions {
    * Its `timeline` slice drives the target's clock (when the host bound one) and
    * its `realtime` slice is recorded as the application's provenance.
    */
-  readonly state?: SceneWorkspaceState;
+  readonly state?: SceneStoreState;
 }
 
 /** Options for {@link MountedCesiumScenePrimitives.apply}. */
@@ -142,7 +142,7 @@ export interface ApplyMountedScenePrimitivesOptions {
    * Its `timeline` slice drives the target's clock (when the host bound one) and
    * its `realtime` slice is recorded as the application's provenance.
    */
-  readonly state?: SceneWorkspaceState;
+  readonly state?: SceneStoreState;
 }
 
 /**

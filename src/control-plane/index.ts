@@ -25,7 +25,7 @@ export {
   HonuaImportsClient,
   HonuaMapDocumentsClient,
   HonuaSharingClient,
-  HonuaWorkspacesClient,
+  HonuaFoldersClient,
   createHonuaControlPlane,
 } from "./client.js";
 export type { HonuaControlPlaneClientOptions } from "./client.js";
@@ -105,7 +105,7 @@ export type {
   HonuaShareRequest,
   HonuaShareResponse,
   HonuaUpdateMapRequest,
-  HonuaWorkspaceSummary,
+  HonuaFolderSummary,
 } from "./types.js";
 
 export * from "./dataset-import/index.js";

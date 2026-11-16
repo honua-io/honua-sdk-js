@@ -14,7 +14,7 @@ import {
   type SceneRuntimeCapabilities,
   type SceneRuntimePrimitive,
   applyMapLibreScenePrimitives,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitive,
   diagnoseScenePrimitives,
   summarizeDiagnosticStatus,
@@ -296,7 +296,7 @@ describe("scene primitive spatial-reference diagnostics (#929)", () => {
 
   describe("serialization round-trip", () => {
     it("round-trips CRS and vertical-datum metadata through workspace state", () => {
-      const workspace = createSceneWorkspace();
+      const workspace = createSceneStore();
       const primitives: SceneRuntimePrimitive[] = [
         terrain({ crs: "EPSG:4326", verticalDatum: "ellipsoidal-wgs84" }),
         imagery({ crs: "OGC:CRS84", verticalDatum: "EPSG:4979" }),
@@ -756,7 +756,7 @@ describe("scene primitive cache and source-version metadata (#1051)", () => {
     });
 
     it("round-trips through workspace serialization with precision and cache", () => {
-      const workspace = createSceneWorkspace();
+      const workspace = createSceneStore();
       const primitives: SceneRuntimePrimitive[] = [
         terrain({
           protocol: "raster-dem",

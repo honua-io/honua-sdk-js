@@ -54,7 +54,7 @@ import {
   diagnoseScenePrimitives,
   summarizeDiagnosticStatus,
 } from "./primitives.js";
-import type { SceneCameraState, SceneWorkspaceState } from "./types.js";
+import type { SceneCameraState, SceneStoreState } from "./types.js";
 
 /**
  * Capabilities advertised by the Cesium adapter. Unlike the MapLibre 2.5D
@@ -1361,7 +1361,7 @@ export function pickCesiumFeatureAttributes(
 export async function applyCesiumScenePrimitives(
   target: CesiumSceneRuntimeTarget,
   primitives: readonly SceneRuntimePrimitive[],
-  state?: SceneWorkspaceState,
+  state?: SceneStoreState,
 ): Promise<ScenePrimitiveApplyResult & { readonly layers: ReadonlyMap<string, CesiumLayerHandle> }> {
   const application = await applyCesiumScenePrimitivesInternal(target, primitives, {
     ...(state ? { state } : {}),
@@ -1456,7 +1456,7 @@ export interface ApplyCesiumScenePrimitivesInternalOptions {
    * is deliberately outside the plan, so it can never displace a mounted
    * binding.
    */
-  readonly state?: SceneWorkspaceState;
+  readonly state?: SceneStoreState;
 }
 
 /**
@@ -1689,7 +1689,7 @@ export function createCesiumSceneAdapter(
     capabilities: CESIUM_SCENE_CAPABILITIES,
     ...(target
       ? {
-          apply: (primitives: readonly SceneRuntimePrimitive[], state?: SceneWorkspaceState) =>
+          apply: (primitives: readonly SceneRuntimePrimitive[], state?: SceneStoreState) =>
             applyCesiumScenePrimitives(target, primitives, state),
         }
       : {}),

@@ -39,6 +39,24 @@ describe("control-plane client", () => {
     expect(HonuaControlPlaneClient).toBeTypeOf("function");
   });
 
+  it("lists folders through the existing server route and capability", async () => {
+    const controlPlane = clientFor(({ url }) => {
+      expect(url.pathname).toBe("/api/v1/admin/workspaces");
+      return new Response(JSON.stringify({ items: [{ id: "folder-1", name: "Operations" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    expect("workspaces" in controlPlane).toBe(false);
+    const result = await controlPlane.folders.list();
+    expect(result.supported).toBe(true);
+    if (result.supported) expect(result.value.items).toEqual([{ id: "folder-1", name: "Operations" }]);
+
+    const unsupported = await clientFor(() => new Response("{}", { status: 404 })).folders.list();
+    expect(unsupported).toMatchObject({ supported: false, capability: "workspaces" });
+  });
+
   it("lists hosted maps with cursor pagination and validators", async () => {
     const contract = fixture("hosted-map-list.v1.json");
     const requests: Array<{ path: string; headers: HeadersInit | undefined }> = [];
