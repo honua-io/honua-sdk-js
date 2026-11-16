@@ -122,7 +122,7 @@ export function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | u
   if (!signal) return pending;
   if (signal.aborted) {
     void pending.catch(() => undefined);
-    throw new HonuaAbortError();
+    throw new HonuaAbortError(undefined, { cause: signal.reason });
   }
   return new Promise<T>((resolve, reject) => {
     let settled = false;
@@ -132,7 +132,7 @@ export function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | u
       signal.removeEventListener("abort", abort);
       callback();
     };
-    const abort = () => finish(() => reject(new HonuaAbortError()));
+    const abort = () => finish(() => reject(new HonuaAbortError(undefined, { cause: signal.reason })));
     signal.addEventListener("abort", abort, { once: true });
     pending.then(
       (result) => finish(() => resolve(result)),

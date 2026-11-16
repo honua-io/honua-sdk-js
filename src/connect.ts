@@ -2575,7 +2575,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new HonuaAbortError();
+  if (signal?.aborted) throw new HonuaAbortError(undefined, { cause: signal.reason });
 }
 
 function uniqueDiagnostics(values: readonly DiscoveryDiagnostic[]): readonly DiscoveryDiagnostic[] {
