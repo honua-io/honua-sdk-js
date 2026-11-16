@@ -1,6 +1,6 @@
 import { honuaCacheValidatorFromHeaders } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
-import { HonuaHttpError } from "../core/errors.js";
+import { isHonuaError } from "../core/errors.js";
 import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { QueryMethod } from "../core/types.js";
 import type { HonuaMapDocument } from "../runtime/index.js";
@@ -568,8 +568,14 @@ function supported<T>(value: T): HonuaControlPlaneResult<T> {
 }
 
 function unsupportedFromError<T>(capability: HonuaControlPlaneCapability, error: unknown): HonuaControlPlaneResult<T> {
-  if (error instanceof HonuaHttpError && (error.statusCode === 404 || error.statusCode === 501)) {
-    return unsupportedFromStatus(capability, error.statusCode, error.body);
+  // Split packages carry separate copies of the SDK error constructors.
+  if (
+    isHonuaError(error) &&
+    (error.sdkCode === "core.http.rejected" || error.sdkCode === "core.http.transient") &&
+    "statusCode" in error &&
+    (error.statusCode === 404 || error.statusCode === 501)
+  ) {
+    return unsupportedFromStatus(capability, error.statusCode, "body" in error ? error.body : undefined);
   }
   throw error;
 }
