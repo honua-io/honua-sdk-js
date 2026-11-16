@@ -1,37 +1,37 @@
 import { HonuaCollaborationError } from "./errors.js";
 import type {
-  SavedMapCollaborationCapabilities,
-  SavedMapCollaborationEnvelope,
-  SavedMapCollaborationErrorCode,
-  SavedMapCollaborationEvent,
-  SavedMapCollaborationJoinRequest,
-  SavedMapCollaborationJoinResult,
-  SavedMapCollaborationObserver,
-  SavedMapCollaborationSessionRef,
-  SavedMapCollaborationSnapshot,
-  SavedMapCollaborationSubscriptionHandle,
-  SavedMapCollaborationTransport,
-  SavedMapCommittedOperation,
-  SavedMapCursor,
-  SavedMapEditOperation,
-  SavedMapFeatureLock,
-  SavedMapFeatureLockReleaseRequest,
-  SavedMapFeatureLockRequest,
-  SavedMapFollowTarget,
-  SavedMapOperationReplayRequest,
-  SavedMapOperationReplayResult,
-  SavedMapOperationSubmitRequest,
-  SavedMapSelection,
+  MapCollaborationCapabilities,
+  MapCollaborationEnvelope,
+  MapCollaborationErrorCode,
+  MapCollaborationEvent,
+  MapCollaborationJoinRequest,
+  MapCollaborationJoinResult,
+  MapCollaborationObserver,
+  MapCollaborationSessionRef,
+  MapCollaborationSnapshot,
+  MapCollaborationSubscriptionHandle,
+  MapCollaborationTransport,
+  MapCommittedOperation,
+  MapCursor,
+  MapEditOperation,
+  MapFeatureLock,
+  MapFeatureLockReleaseRequest,
+  MapFeatureLockRequest,
+  MapFollowTarget,
+  MapOperationReplayRequest,
+  MapOperationReplayResult,
+  MapOperationSubmitRequest,
+  MapSelection,
 } from "./types.js";
 
-export interface FixtureSavedMapCollaborationTransportOptions {
+export interface FixtureMapCollaborationTransportOptions {
   readonly now?: () => Date;
-  readonly capabilities?: Partial<SavedMapCollaborationCapabilities>;
+  readonly capabilities?: Partial<MapCollaborationCapabilities>;
   readonly deniedMapIds?: ReadonlyArray<string>;
   readonly unsupportedMapIds?: ReadonlyArray<string>;
 }
 
-const DEFAULT_CAPABILITIES: SavedMapCollaborationCapabilities = {
+const DEFAULT_CAPABILITIES: MapCollaborationCapabilities = {
   cursors: true,
   selections: true,
   follow: true,
@@ -42,27 +42,25 @@ const DEFAULT_CAPABILITIES: SavedMapCollaborationCapabilities = {
 
 interface FixtureMapState<TPayload> {
   sequence: number;
-  participants: Map<string, SavedMapCollaborationJoinResult<TPayload>["snapshot"]["participants"][number]>;
-  sessions: Map<string, SavedMapCollaborationSessionRef>;
-  cursors: Map<string, SavedMapCursor>;
-  selections: Map<string, SavedMapSelection>;
-  followTargets: Map<string, SavedMapFollowTarget>;
-  locks: Map<string, SavedMapFeatureLock>;
-  operations: Array<SavedMapCommittedOperation<TPayload>>;
-  eventLog: Array<SavedMapCollaborationEnvelope<TPayload>>;
-  subscribers: Map<string, SavedMapCollaborationObserver<TPayload>>;
-  resyncError: { code: SavedMapCollaborationErrorCode; message: string } | undefined;
+  participants: Map<string, MapCollaborationJoinResult<TPayload>["snapshot"]["participants"][number]>;
+  sessions: Map<string, MapCollaborationSessionRef>;
+  cursors: Map<string, MapCursor>;
+  selections: Map<string, MapSelection>;
+  followTargets: Map<string, MapFollowTarget>;
+  locks: Map<string, MapFeatureLock>;
+  operations: Array<MapCommittedOperation<TPayload>>;
+  eventLog: Array<MapCollaborationEnvelope<TPayload>>;
+  subscribers: Map<string, MapCollaborationObserver<TPayload>>;
+  resyncError: { code: MapCollaborationErrorCode; message: string } | undefined;
 }
 
-export function createFixtureSavedMapCollaborationTransport<TPayload = unknown>(
-  options: FixtureSavedMapCollaborationTransportOptions = {},
-): FixtureSavedMapCollaborationTransport<TPayload> {
-  return new FixtureSavedMapCollaborationTransport<TPayload>(options);
+export function createFixtureMapCollaborationTransport<TPayload = unknown>(
+  options: FixtureMapCollaborationTransportOptions = {},
+): FixtureMapCollaborationTransport<TPayload> {
+  return new FixtureMapCollaborationTransport<TPayload>(options);
 }
 
-export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
-  implements SavedMapCollaborationTransport<TPayload>
-{
+export class FixtureMapCollaborationTransport<TPayload = unknown> implements MapCollaborationTransport<TPayload> {
   public readonly capabilities = {
     kind: "mock" as const,
     resumable: true,
@@ -72,21 +70,21 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   readonly #maps = new Map<string, FixtureMapState<TPayload>>();
   readonly #now: () => Date;
-  readonly #capabilities: SavedMapCollaborationCapabilities;
+  readonly #capabilities: MapCollaborationCapabilities;
   readonly #deniedMapIds: ReadonlySet<string>;
   readonly #unsupportedMapIds: ReadonlySet<string>;
   #sessionCounter = 0;
   #lockCounter = 0;
   #operationCounter = 0;
 
-  public constructor(options: FixtureSavedMapCollaborationTransportOptions = {}) {
+  public constructor(options: FixtureMapCollaborationTransportOptions = {}) {
     this.#now = options.now ?? (() => new Date());
     this.#capabilities = { ...DEFAULT_CAPABILITIES, ...options.capabilities };
     this.#deniedMapIds = new Set(options.deniedMapIds ?? []);
     this.#unsupportedMapIds = new Set(options.unsupportedMapIds ?? []);
   }
 
-  public async join(request: SavedMapCollaborationJoinRequest): Promise<SavedMapCollaborationJoinResult<TPayload>> {
+  public async join(request: MapCollaborationJoinRequest): Promise<MapCollaborationJoinResult<TPayload>> {
     this.rejectUnavailableMap(request.mapId);
     const map = this.mapState(request.mapId);
     if (map.resyncError && (request.resumeFrom?.cursor || request.resumeFrom?.sequence !== undefined)) {
@@ -122,7 +120,7 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
     };
   }
 
-  public async leave(session: SavedMapCollaborationSessionRef): Promise<void> {
+  public async leave(session: MapCollaborationSessionRef): Promise<void> {
     const map = this.mapState(session.mapId);
     map.sessions.delete(session.sessionId);
     map.participants.delete(session.participantId);
@@ -143,9 +141,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public subscribe(
-    session: SavedMapCollaborationSessionRef,
-    observer: SavedMapCollaborationObserver<TPayload>,
-  ): SavedMapCollaborationSubscriptionHandle {
+    session: MapCollaborationSessionRef,
+    observer: MapCollaborationObserver<TPayload>,
+  ): MapCollaborationSubscriptionHandle {
     const map = this.mapState(session.mapId);
     map.subscribers.set(session.sessionId, observer);
     observer.next(this.snapshotEnvelope(session.mapId, session, map));
@@ -161,9 +159,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async publishCursor(
-    session: SavedMapCollaborationSessionRef,
-    cursor: SavedMapCursor,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>> {
+    session: MapCollaborationSessionRef,
+    cursor: MapCursor,
+  ): Promise<MapCollaborationEnvelope<TPayload>> {
     const map = this.mapState(session.mapId);
     const updated = { ...cursor, updatedAt: cursor.updatedAt ?? this.nowIso() };
     map.cursors.set(session.participantId, updated);
@@ -176,9 +174,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async publishSelection(
-    session: SavedMapCollaborationSessionRef,
-    selection: SavedMapSelection,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>> {
+    session: MapCollaborationSessionRef,
+    selection: MapSelection,
+  ): Promise<MapCollaborationEnvelope<TPayload>> {
     const map = this.mapState(session.mapId);
     const updated = { ...selection, updatedAt: selection.updatedAt ?? this.nowIso() };
     map.selections.set(session.participantId, updated);
@@ -191,9 +189,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async publishFollow(
-    session: SavedMapCollaborationSessionRef,
-    follow: SavedMapFollowTarget,
-  ): Promise<SavedMapCollaborationEnvelope<TPayload>> {
+    session: MapCollaborationSessionRef,
+    follow: MapFollowTarget,
+  ): Promise<MapCollaborationEnvelope<TPayload>> {
     const map = this.mapState(session.mapId);
     const updated = { ...follow, updatedAt: follow.updatedAt ?? this.nowIso() };
     map.followTargets.set(session.participantId, updated);
@@ -206,9 +204,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async claimFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockRequest,
-  ): Promise<SavedMapFeatureLock> {
+    session: MapCollaborationSessionRef,
+    request: MapFeatureLockRequest,
+  ): Promise<MapFeatureLock> {
     const map = this.mapState(session.mapId);
     const key = lockKey(request);
     const existing = map.locks.get(key);
@@ -222,8 +220,8 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async releaseFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockReleaseRequest,
+    session: MapCollaborationSessionRef,
+    request: MapFeatureLockReleaseRequest,
   ): Promise<void> {
     const map = this.mapState(session.mapId);
     const key = lockKey(request);
@@ -248,9 +246,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async renewFeatureLock(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockRequest,
-  ): Promise<SavedMapFeatureLock> {
+    session: MapCollaborationSessionRef,
+    request: MapFeatureLockRequest,
+  ): Promise<MapFeatureLock> {
     const map = this.mapState(session.mapId);
     const key = lockKey(request);
     const existing = map.locks.get(key);
@@ -266,9 +264,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async submitOperation(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapOperationSubmitRequest<TPayload>,
-  ): Promise<SavedMapCommittedOperation<TPayload>> {
+    session: MapCollaborationSessionRef,
+    request: MapOperationSubmitRequest<TPayload>,
+  ): Promise<MapCommittedOperation<TPayload>> {
     const map = this.mapState(session.mapId);
     if (request.expectedRevision !== undefined && request.expectedRevision !== map.operations.length) {
       throw new HonuaCollaborationError("conflict", "Saved-map operation revision conflict.", {
@@ -285,9 +283,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   public async replayOperations(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapOperationReplayRequest = {},
-  ): Promise<SavedMapOperationReplayResult<TPayload>> {
+    session: MapCollaborationSessionRef,
+    request: MapOperationReplayRequest = {},
+  ): Promise<MapOperationReplayResult<TPayload>> {
     const map = this.mapState(session.mapId);
     if (map.resyncError) {
       throw new HonuaCollaborationError(map.resyncError.code, map.resyncError.message, { resyncRequired: true });
@@ -313,7 +311,7 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   private rejectUnavailableMap(mapId: string): void {
     if (this.#deniedMapIds.has(mapId)) {
-      throw new HonuaCollaborationError("permission-denied", "Collaboration access denied for saved map.");
+      throw new HonuaCollaborationError("permission-denied", "Collaboration access denied for Map.");
     }
     if (this.#unsupportedMapIds.has(mapId)) {
       throw new HonuaCollaborationError("unsupported-collaboration", "Saved-map collaboration is not supported.");
@@ -343,8 +341,8 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   private appendAndFanOut(
     map: FixtureMapState<TPayload>,
-    envelope: SavedMapCollaborationEnvelope<TPayload>,
-  ): SavedMapCollaborationEnvelope<TPayload> {
+    envelope: MapCollaborationEnvelope<TPayload>,
+  ): MapCollaborationEnvelope<TPayload> {
     map.sequence = envelope.sequence;
     map.eventLog.push(envelope);
     for (const observer of map.subscribers.values()) observer.next(envelope);
@@ -354,8 +352,8 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   private snapshot(
     mapId: string,
     map: FixtureMapState<TPayload>,
-    status: SavedMapCollaborationSnapshot<TPayload>["status"],
-  ): SavedMapCollaborationSnapshot<TPayload> {
+    status: MapCollaborationSnapshot<TPayload>["status"],
+  ): MapCollaborationSnapshot<TPayload> {
     return {
       mapId,
       sequence: map.sequence,
@@ -373,9 +371,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   private envelope(
     mapId: string,
-    session: SavedMapCollaborationSessionRef,
-    event: SavedMapCollaborationEvent<TPayload>,
-  ): SavedMapCollaborationEnvelope<TPayload> {
+    session: MapCollaborationSessionRef,
+    event: MapCollaborationEvent<TPayload>,
+  ): MapCollaborationEnvelope<TPayload> {
     const map = this.mapState(mapId);
     const sequence = map.sequence + 1;
     return {
@@ -393,9 +391,9 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   private snapshotEnvelope(
     mapId: string,
-    session: SavedMapCollaborationSessionRef,
+    session: MapCollaborationSessionRef,
     map: FixtureMapState<TPayload>,
-  ): SavedMapCollaborationEnvelope<TPayload> {
+  ): MapCollaborationEnvelope<TPayload> {
     return {
       envelopeVersion: "honua.saved-map-collaboration.v1",
       mapId,
@@ -414,10 +412,10 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
 
   private errorEnvelope(
     mapId: string,
-    session: SavedMapCollaborationSessionRef,
-    code: SavedMapCollaborationErrorCode,
+    session: MapCollaborationSessionRef,
+    code: MapCollaborationErrorCode,
     message: string,
-  ): SavedMapCollaborationEnvelope<TPayload> {
+  ): MapCollaborationEnvelope<TPayload> {
     return this.envelope(mapId, session, {
       type: "error",
       code,
@@ -427,11 +425,7 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
     });
   }
 
-  private lockFor(
-    session: SavedMapCollaborationSessionRef,
-    request: SavedMapFeatureLockRequest,
-    token: string,
-  ): SavedMapFeatureLock {
+  private lockFor(session: MapCollaborationSessionRef, request: MapFeatureLockRequest, token: string): MapFeatureLock {
     const claimedAt = this.nowIso();
     return {
       mapId: session.mapId,
@@ -449,11 +443,11 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 
   private operationFor(
-    session: SavedMapCollaborationSessionRef,
-    operation: SavedMapEditOperation<TPayload>,
+    session: MapCollaborationSessionRef,
+    operation: MapEditOperation<TPayload>,
     sequence: number,
     revision: number,
-  ): SavedMapCommittedOperation<TPayload> {
+  ): MapCommittedOperation<TPayload> {
     return {
       ...operation,
       id: operation.id ?? `fixture-operation-${++this.#operationCounter}`,
@@ -471,21 +465,21 @@ export class FixtureSavedMapCollaborationTransport<TPayload = unknown>
   }
 }
 
-function lockKey(request: Pick<SavedMapFeatureLockRequest, "featureId" | "sourceId" | "layerId">): string {
+function lockKey(request: Pick<MapFeatureLockRequest, "featureId" | "sourceId" | "layerId">): string {
   return `${request.sourceId ?? ""}:${request.layerId ?? ""}:${String(request.featureId)}`;
 }
 
-function tokenMatches(lock: SavedMapFeatureLock, token: string | undefined): boolean {
+function tokenMatches(lock: MapFeatureLock, token: string | undefined): boolean {
   return token === undefined || token === lock.token;
 }
 
-function isExpired(lock: SavedMapFeatureLock, now: Date): boolean {
+function isExpired(lock: MapFeatureLock, now: Date): boolean {
   return lock.expiresAt !== undefined && new Date(lock.expiresAt).getTime() <= now.getTime();
 }
 
 function sequenceFromReplayRequest<TPayload>(
   map: FixtureMapState<TPayload>,
-  request: SavedMapOperationReplayRequest,
+  request: MapOperationReplayRequest,
 ): number {
   if (request.afterSequence !== undefined) return request.afterSequence;
   if (!request.afterCursor) return 0;
@@ -493,7 +487,7 @@ function sequenceFromReplayRequest<TPayload>(
   if (!match) throw new HonuaCollaborationError("stale-cursor", "Replay cursor is not valid for this transport.");
   const sequence = Number(match[1]);
   if (sequence > map.sequence) {
-    throw new HonuaCollaborationError("stale-cursor", "Replay cursor is newer than the saved-map stream.", {
+    throw new HonuaCollaborationError("stale-cursor", "Replay cursor is newer than the Map stream.", {
       resyncRequired: true,
     });
   }

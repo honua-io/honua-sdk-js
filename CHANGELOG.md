@@ -17,6 +17,17 @@ All notable changes to `@honua/sdk-js` are documented here. We follow
 > minor release until `1.0.0`, and are subpath-only (never re-exported from the root
 > or `/honua` barrels).
 
+## Unreleased
+
+### Breaking changes
+
+- Map APIs use `Map` instead of `SavedMap`: `HonuaSavedMapsClient` → `HonuaMapsClient`,
+  `HonuaSavedMap` → `HonuaMap`, `HonuaSavedMapSummary` → `HonuaMapSummary`, and
+  `HonuaCreateSavedMapRequest` / `HonuaUpdateSavedMapRequest` → the corresponding `Map` request types.
+  `client.savedMaps` is now `client.maps`. Collaboration exports replace `SavedMap` with `Map`,
+  including the client, session, transport, fixture and event types; `joinSavedMap` is now `joinMap`.
+  See [every renamed export](docs/vocabulary-renames.md). The old names are removed without aliases.
+
 ## Recent highlights (curated)
 
 - **0.0.10-alpha** — Adds the saved-map collaboration client with reconnect/replay,

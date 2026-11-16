@@ -14,6 +14,7 @@ const RETIRED_TERMS = [
   "webmap",
   "hostedlayer",
   "hostedmap",
+  "savedmap",
   "portalitem",
   "apitoken",
   "servingtarget",
@@ -138,6 +139,7 @@ describe("public names use the Honua vocabulary", () => {
     const modules = await Promise.all([
       import("../src/runtime/index.js"),
       import("../src/control-plane/index.js"),
+      import("../src/collaboration/index.js"),
       import("../src/studio/index.js"),
       import("../src/generated-app/index.js"),
     ]);

@@ -103,7 +103,7 @@ export interface HonuaEntityValidators {
   readonly lastModified?: string;
 }
 
-export interface HonuaSavedMapSummary extends HonuaEntityValidators {
+export interface HonuaMapSummary extends HonuaEntityValidators {
   readonly id: string;
   readonly title: string;
   readonly workspaceId?: string;
@@ -116,13 +116,13 @@ export interface HonuaSavedMapSummary extends HonuaEntityValidators {
   readonly [extra: string]: unknown;
 }
 
-export interface HonuaSavedMap extends HonuaSavedMapSummary {
+export interface HonuaMap extends HonuaMapSummary {
   readonly description?: string;
   readonly sourceDescriptors?: readonly HonuaControlPlaneSourceDescriptor[];
   readonly mapPackage?: HonuaMapDocument;
 }
 
-export interface HonuaCreateSavedMapRequest {
+export interface HonuaCreateMapRequest {
   readonly title: string;
   readonly workspaceId?: string;
   readonly description?: string;
@@ -132,7 +132,7 @@ export interface HonuaCreateSavedMapRequest {
   readonly metadata?: Record<string, unknown>;
 }
 
-export type HonuaUpdateSavedMapRequest = Partial<HonuaCreateSavedMapRequest> & {
+export type HonuaUpdateMapRequest = Partial<HonuaCreateMapRequest> & {
   readonly ifMatch?: string;
 };
 

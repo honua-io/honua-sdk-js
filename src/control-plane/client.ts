@@ -21,17 +21,17 @@ import {
   type HonuaControlPlaneRawRequest,
   type HonuaControlPlaneRequestOptions,
   type HonuaControlPlaneResult,
-  type HonuaCreateSavedMapRequest,
+  type HonuaCreateMapRequest,
   type HonuaImportCreateRequest,
+  type HonuaMap,
   type HonuaMapDocumentSummary,
+  type HonuaMapSummary,
   type HonuaProblemDetails,
   type HonuaPublishMapDocumentRequest,
   type HonuaPublishMapDocumentResponse,
-  type HonuaSavedMap,
-  type HonuaSavedMapSummary,
   type HonuaShareRequest,
   type HonuaShareResponse,
-  type HonuaUpdateSavedMapRequest,
+  type HonuaUpdateMapRequest,
   type HonuaWorkspaceSummary,
 } from "./types.js";
 
@@ -48,7 +48,7 @@ export class HonuaControlPlaneClient {
   readonly #client: HonuaClient;
   readonly #basePath: string;
 
-  public readonly savedMaps: HonuaSavedMapsClient;
+  public readonly maps: HonuaMapsClient;
   public readonly mapDocuments: HonuaMapDocumentsClient;
   public readonly imports: HonuaImportsClient;
   public readonly apiKeys: HonuaApiKeysClient;
@@ -59,7 +59,7 @@ export class HonuaControlPlaneClient {
   public constructor(options: HonuaControlPlaneClientOptions) {
     this.#client = options.client;
     this.#basePath = normalizeBasePath(options.basePath ?? HONUA_CONTROL_PLANE_BASE_PATH);
-    this.savedMaps = new HonuaSavedMapsClient(this);
+    this.maps = new HonuaMapsClient(this);
     this.mapDocuments = new HonuaMapDocumentsClient(this);
     this.imports = new HonuaImportsClient(this);
     this.apiKeys = new HonuaApiKeysClient(this);
@@ -169,7 +169,7 @@ export class HonuaControlPlaneClient {
   }
 }
 
-export class HonuaSavedMapsClient {
+export class HonuaMapsClient {
   readonly #controlPlane: HonuaControlPlaneClient;
 
   public constructor(controlPlane: HonuaControlPlaneClient) {
@@ -178,14 +178,11 @@ export class HonuaSavedMapsClient {
 
   public list(
     options: HonuaControlPlaneListOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaSavedMapSummary>>> {
+  ): Promise<HonuaControlPlaneResult<HonuaControlPlanePage<HonuaMapSummary>>> {
     return this.#controlPlane.requestPage("hosted-maps", "/maps", options);
   }
 
-  public get(
-    mapId: string,
-    options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
+  public get(mapId: string, options: HonuaControlPlaneRequestOptions = {}): Promise<HonuaControlPlaneResult<HonuaMap>> {
     return this.#controlPlane.requestJson(
       "hosted-maps",
       "GET",
@@ -196,17 +193,17 @@ export class HonuaSavedMapsClient {
   }
 
   public create(
-    request: HonuaCreateSavedMapRequest,
+    request: HonuaCreateMapRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
+  ): Promise<HonuaControlPlaneResult<HonuaMap>> {
     return this.#controlPlane.requestJson("hosted-maps", "POST", "/maps", request, options);
   }
 
   public update(
     mapId: string,
-    request: HonuaUpdateSavedMapRequest,
+    request: HonuaUpdateMapRequest,
     options: HonuaControlPlaneRequestOptions = {},
-  ): Promise<HonuaControlPlaneResult<HonuaSavedMap>> {
+  ): Promise<HonuaControlPlaneResult<HonuaMap>> {
     const { ifMatch, ...body } = request;
     return this.#controlPlane.requestJson("hosted-maps", "PATCH", `/maps/${encodeURIComponent(mapId)}`, body, {
       ...options,

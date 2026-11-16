@@ -170,7 +170,7 @@ export type {
   NormalizedHonuaMetadataRequestOptions,
 } from "./core/cache-state.js";
 // Experimental collaboration surface is subpath-only:
-//   import { HonuaSavedMapCollaborationClient } from "@honua/app-platform/collaboration";
+//   import { HonuaMapCollaborationClient } from "@honua/app-platform/collaboration";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export {

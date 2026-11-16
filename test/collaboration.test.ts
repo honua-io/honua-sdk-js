@@ -2,21 +2,21 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   HonuaCollaborationError,
-  createFixtureSavedMapCollaborationTransport,
-  createHonuaSavedMapCollaboration,
+  createFixtureMapCollaborationTransport,
+  createHonuaMapCollaboration,
 } from "../src/collaboration/index.js";
 
-describe("saved-map collaboration client", () => {
+describe("Map collaboration client", () => {
   it("fans out same-map session snapshots through the fixture transport", async () => {
-    const transport = createFixtureSavedMapCollaborationTransport({
+    const transport = createFixtureMapCollaborationTransport({
       now: () => new Date("2026-05-11T10:00:00.000Z"),
     });
-    const client = createHonuaSavedMapCollaboration({ transport });
-    const sessionA = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice", displayName: "Alice" });
+    const client = createHonuaMapCollaboration({ transport });
+    const sessionA = await client.joinMap({ mapId: "map-ops", participantId: "alice", displayName: "Alice" });
     const listenerA = vi.fn();
     sessionA.subscribe(listenerA);
 
-    const sessionB = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob", displayName: "Bob" });
+    const sessionB = await client.joinMap({ mapId: "map-ops", participantId: "bob", displayName: "Bob" });
 
     expect(sessionA.snapshot.participants.map((participant) => participant.id)).toEqual(["alice", "bob"]);
     expect(sessionB.snapshot.participants.map((participant) => participant.id)).toEqual(["alice", "bob"]);
@@ -29,13 +29,13 @@ describe("saved-map collaboration client", () => {
   });
 
   it("publishes cursor and selection updates to collaborators", async () => {
-    const client = createHonuaSavedMapCollaboration({
-      transport: createFixtureSavedMapCollaborationTransport({
+    const client = createHonuaMapCollaboration({
+      transport: createFixtureMapCollaborationTransport({
         now: () => new Date("2026-05-11T10:00:00.000Z"),
       }),
     });
-    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
-    const bob = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob" });
+    const alice = await client.joinMap({ mapId: "map-ops", participantId: "alice" });
+    const bob = await client.joinMap({ mapId: "map-ops", participantId: "bob" });
 
     await alice.publishCursor({ x: 10, y: 20, sourceId: "parcels" });
     await bob.publishSelection({ ids: [7], sourceId: "parcels", mode: "replace" });
@@ -45,13 +45,13 @@ describe("saved-map collaboration client", () => {
   });
 
   it("returns typed feature lock conflicts and supports release/renew", async () => {
-    const client = createHonuaSavedMapCollaboration({
-      transport: createFixtureSavedMapCollaborationTransport({
+    const client = createHonuaMapCollaboration({
+      transport: createFixtureMapCollaborationTransport({
         now: () => new Date("2026-05-11T10:00:00.000Z"),
       }),
     });
-    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
-    const bob = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob" });
+    const alice = await client.joinMap({ mapId: "map-ops", participantId: "alice" });
+    const bob = await client.joinMap({ mapId: "map-ops", participantId: "bob" });
 
     const lock = await alice.claimFeatureLock({ sourceId: "parcels", featureId: "parcel-1", ttlMs: 30_000 });
     await expect(bob.claimFeatureLock({ sourceId: "parcels", featureId: "parcel-1" })).rejects.toMatchObject({
@@ -71,14 +71,14 @@ describe("saved-map collaboration client", () => {
     expect(bobLock.ownerId).toBe("bob");
   });
 
-  it("appends saved-map edit operations and replays from cursors", async () => {
-    const client = createHonuaSavedMapCollaboration({
-      transport: createFixtureSavedMapCollaborationTransport({
+  it("appends Map edit operations and replays from cursors", async () => {
+    const client = createHonuaMapCollaboration({
+      transport: createFixtureMapCollaborationTransport({
         now: () => new Date("2026-05-11T10:00:00.000Z"),
       }),
     });
-    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
-    const bob = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob" });
+    const alice = await client.joinMap({ mapId: "map-ops", participantId: "alice" });
+    const bob = await client.joinMap({ mapId: "map-ops", participantId: "bob" });
 
     const first = await alice.submitOperation({
       expectedRevision: 0,
@@ -109,13 +109,13 @@ describe("saved-map collaboration client", () => {
   });
 
   it("reconnects deterministically by replaying operations from the last cursor", async () => {
-    const client = createHonuaSavedMapCollaboration({
-      transport: createFixtureSavedMapCollaborationTransport({
+    const client = createHonuaMapCollaboration({
+      transport: createFixtureMapCollaborationTransport({
         now: () => new Date("2026-05-11T10:00:00.000Z"),
       }),
     });
-    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
-    const bob = await client.joinSavedMap({ mapId: "map-ops", participantId: "bob" });
+    const alice = await client.joinMap({ mapId: "map-ops", participantId: "alice" });
+    const bob = await client.joinMap({ mapId: "map-ops", participantId: "bob" });
     const listener = vi.fn();
     alice.subscribe(listener);
 
@@ -141,11 +141,11 @@ describe("saved-map collaboration client", () => {
   });
 
   it("surfaces deterministic resync and stale cursor errors", async () => {
-    const transport = createFixtureSavedMapCollaborationTransport({
+    const transport = createFixtureMapCollaborationTransport({
       now: () => new Date("2026-05-11T10:00:00.000Z"),
     });
-    const client = createHonuaSavedMapCollaboration({ transport });
-    const alice = await client.joinSavedMap({ mapId: "map-ops", participantId: "alice" });
+    const client = createHonuaMapCollaboration({ transport });
+    const alice = await client.joinMap({ mapId: "map-ops", participantId: "alice" });
     const listener = vi.fn();
     alice.subscribe(listener);
 

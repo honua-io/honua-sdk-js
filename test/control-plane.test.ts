@@ -50,7 +50,7 @@ describe("control-plane client", () => {
       });
     });
 
-    const result = await controlPlane.savedMaps.list({ workspaceId: "workspace-ops", limit: 2 });
+    const result = await controlPlane.maps.list({ workspaceId: "workspace-ops", limit: 2 });
 
     expect(requests[0]?.path).toBe(contract.request.path);
     expect(requests[0]?.headers).toMatchObject({ Accept: "application/json" });
@@ -191,7 +191,7 @@ describe("control-plane client", () => {
       return new Response(JSON.stringify({ items: [], pagination: {} }), { status: 200 });
     });
 
-    const result = await controlPlane.savedMaps.list({ refresh: true });
+    const result = await controlPlane.maps.list({ refresh: true });
     const requestHeaders = new Headers(headers);
 
     expect(result.supported).toBe(true);
@@ -206,7 +206,7 @@ describe("control-plane client", () => {
       return new Response(null, { status: 304 });
     });
 
-    const result = await controlPlane.savedMaps.list({
+    const result = await controlPlane.maps.list({
       validator: { etag: '"maps-v1"', lastModified: "Mon, 11 May 2026 10:00:00 GMT" },
     });
     const requestHeaders = new Headers(headers);
@@ -280,7 +280,7 @@ describe("control-plane client", () => {
     const contract = fixture("unsupported-capability.v1.json");
     const controlPlane = clientFor(() => new Response(JSON.stringify(contract.response.body), { status: 404 }));
 
-    const result = await controlPlane.savedMaps.list();
+    const result = await controlPlane.maps.list();
 
     expect(result).toEqual({
       supported: false,
@@ -304,7 +304,7 @@ describe("control-plane client", () => {
         ),
     );
 
-    const hostedMapPackage = await controlPlane.savedMaps.getMapDocumentLocator("map-ops");
+    const hostedMapPackage = await controlPlane.maps.getMapDocumentLocator("map-ops");
     expect(hostedMapPackage).toEqual({
       supported: true,
       value: { path: "/api/v1/admin/maps/map-ops/package" },
