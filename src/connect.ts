@@ -6,12 +6,7 @@ import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
  * FeatureServer and MapServer URLs are recognized without trial requests.
  * Ambiguous URLs still require an explicit protocol. No endpoint is probed as
  * a different protocol when discovery fails.
- *
- * Transport is separate from protocol detection. For a GeoServices feature
- * service with no caller client or `clientOptions.transport`, a cache miss
- * makes one gRPC-Web probe (see `createHonuaClient`) and the default client
- * reads and edits over gRPC-Web where the server offers it. The snapshot
- * records that choice, so a cache hit replays it without a request.
+ * Transport selection for feature services is separate; see `connect-transport.ts`.
  *
  * @experimental
  */
@@ -101,6 +96,7 @@ import {
   mapLibreTileMatrixTemplate,
 } from "./connect-raster-evidence.js";
 import { unavailableSourceSchemaState } from "./connect-schema.js";
+import { assertCachedTransport, defaultFeatureServiceTransport } from "./connect-transport.js";
 import { canonicalizeUrlQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
@@ -142,7 +138,6 @@ import type { HonuaOdataMetadata } from "./core/odata.js";
 import { negotiateOgcCapabilities } from "./core/ogc-conformance.js";
 import { findOgcLink, ogcApiFeaturesLayout } from "./core/ogc-endpoint-layout.js";
 import { hasStacConformance } from "./core/stac-conformance.js";
-import { grpcWebRuntimeLoads, selectHonuaTransport } from "./core/transport-selection.js";
 import type {
   HonuaClientOptions,
   HonuaLayerMetadata,
@@ -583,11 +578,7 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const selectsTransport =
-    !options.client &&
-    target.protocol === "geoservices-feature-service" &&
-    options.clientOptions?.transport === undefined;
-  const transport = selectsTransport ? await defaultFeatureServiceTransport(snapshot, options, target) : undefined;
+  const transport = await defaultFeatureServiceTransport(snapshot, options, target);
   const client = discoveryClient(options, target, transport);
   if (!snapshot) {
     snapshot =
@@ -1002,32 +993,6 @@ async function discoverGeoServices(
     evidence: Object.freeze([]),
     sources: discovered.sources,
   });
-}
-
-/**
- * Transport for a feature service's default client. A cache hit replays the
- * recorded choice without a request, falling back to REST where this
- * environment cannot load the gRPC-Web runtime; a miss probes once.
- */
-async function defaultFeatureServiceTransport(
-  snapshot: ConnectDiscoverySnapshot | undefined,
-  options: ConnectOptions,
-  target: ConnectTarget,
-): Promise<HonuaTransport> {
-  if (snapshot) {
-    const recorded = snapshot.transport ?? "rest";
-    return recorded === "grpc-web" && !(await grpcWebRuntimeLoads(target.clientBaseUrl)) ? "rest" : recorded;
-  }
-  try {
-    return await selectHonuaTransport({
-      ...options.clientOptions,
-      baseUrl: target.clientBaseUrl,
-      ...(options.signal ? { signal: options.signal } : {}),
-    });
-  } catch (error) {
-    if (options.signal?.aborted) throw new HonuaAbortError(undefined, { cause: error });
-    throw error;
-  }
 }
 
 function discoveryClient(
@@ -1679,13 +1644,7 @@ async function validateSnapshot(
       expectedIdentityKey: identity.key,
     });
   }
-  if (
-    owned.transport !== undefined &&
-    (target.protocol !== "geoservices-feature-service" ||
-      (owned.transport !== "rest" && owned.transport !== "grpc-web"))
-  ) {
-    throw new HonuaDiscoveryError("invalid-discovery-cache", "Discovery cache records an invalid transport.");
-  }
+  assertCachedTransport(owned.transport, target.protocol);
   const sharedEvidence = validateCachedEvidence(target.protocol, owned.evidence, true);
   const sourceIds = new Set<string>();
   const sources = owned.sources.map((source) => {
