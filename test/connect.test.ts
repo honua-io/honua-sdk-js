@@ -773,7 +773,7 @@ describe("connect", () => {
       endpoint: "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer?f=pjson",
       protocol: "auto",
       authorizationScopeFingerprint: "role:viewer:v1",
-      clientOptions: { fetchFn },
+      clientOptions: { fetchFn, transport: "rest" },
     });
 
     expect(connection.inspection.protocol).toBe("geoservices-feature-service");
@@ -885,7 +885,7 @@ describe("connect", () => {
       endpoint: "https://example.test/arcgis/rest/services/Legacy/Parcels/FeatureServer/0",
       protocol: "auto",
       authorizationScopeFingerprint: "anonymous",
-      clientOptions: { fetchFn },
+      clientOptions: { fetchFn, transport: "rest" },
     });
 
     expect([...connection.source().capabilities]).toEqual(expect.arrayContaining(["queryExtent", "queryObjectIds"]));
@@ -924,7 +924,7 @@ describe("connect", () => {
       endpoint: "https://example.test/arcgis/rest/services/Mixed/Parcels/FeatureServer",
       protocol: "auto",
       authorizationScopeFingerprint: "anonymous",
-      clientOptions: { fetchFn },
+      clientOptions: { fetchFn, transport: "rest" },
     });
 
     expect(connection.source("0").capabilities.has("query")).toBe(true);

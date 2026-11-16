@@ -6,6 +6,7 @@ import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
  * FeatureServer and MapServer URLs are recognized without trial requests.
  * Ambiguous URLs still require an explicit protocol. No endpoint is probed as
  * a different protocol when discovery fails.
+ * Transport selection for feature services is separate; see `connect-transport.ts`.
  *
  * @experimental
  */
@@ -95,6 +96,7 @@ import {
   mapLibreTileMatrixTemplate,
 } from "./connect-raster-evidence.js";
 import { unavailableSourceSchemaState } from "./connect-schema.js";
+import { assertCachedTransport, defaultFeatureServiceTransport } from "./connect-transport.js";
 import { canonicalizeUrlQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
@@ -111,6 +113,7 @@ import {
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
+  resolveTransportDiscoveryCapabilities,
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesModuleLike } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
@@ -127,6 +130,7 @@ import type {
   SourceResolver,
   SourceSchema,
 } from "./contract/types.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
@@ -141,6 +145,7 @@ import type {
   HonuaOgcCollectionsResponse,
   HonuaOgcLandingResponse,
   HonuaStacLandingResponse,
+  HonuaTransport,
   OgcEndpointLayout,
 } from "./core/types.js";
 import { classifyWmsFeatureInfoFormat, reviewedWmsQueryCrs } from "./core/wms-feature-info.js";
@@ -291,6 +296,12 @@ export interface ConnectDiscoverySnapshot {
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
   /** Present only for a bounded static Catalog/Collection/Item connection. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
+  /**
+   * Transport the default client selected for a GeoServices feature service:
+   * gRPC-Web where the server offers it, REST otherwise. A cache hit replays it
+   * without probing; a snapshot without it replays as REST.
+   */
+  readonly transport?: HonuaTransport;
 }
 
 export interface ConnectOptions {
@@ -381,6 +392,8 @@ export interface HonuaConnectionInspection {
   readonly diagnostics: readonly DiscoveryDiagnostic[];
   readonly cacheIdentity: DiscoveryCacheIdentity;
   readonly cacheStatus: ConnectCacheStatus;
+  /** Transport of the connection's client; on `grpc-web` capabilities resolve to the gRPC FeatureService set. */
+  readonly transport: HonuaTransport;
   /** Static object tree and classified asset candidates, when the endpoint is static STAC. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
 }
@@ -565,7 +578,8 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const client = discoveryClient(options, target);
+  const transport = await defaultFeatureServiceTransport(snapshot, options, target);
+  const client = discoveryClient(options, target, transport);
   if (!snapshot) {
     snapshot =
       target.protocol === "grpc"
@@ -593,6 +607,7 @@ export async function connectWithSourceSchemaProjection(
                             : target.protocol === "wms" || target.protocol === "wmts"
                               ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                               : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+    if (transport) snapshot = Object.freeze({ ...snapshot, transport });
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -608,13 +623,19 @@ export async function connectWithSourceSchemaProjection(
     cacheStatus = options.refresh === true ? "refreshed" : cacheStatus;
   }
 
+  // A gRPC-Web client serves only the gRPC FeatureService set for feature services.
+  const transportLimit =
+    client.isGrpcWeb && snapshot.protocol === "geoservices-feature-service"
+      ? PROTOCOL_DEFAULT_CAPABILITIES.grpc
+      : undefined;
   const inspections = Object.freeze(
     snapshot.sources.map((source) => {
-      const resolution = resolveDiscoveryCapabilities(
-        snapshot.protocol,
-        source.evidence ?? snapshot.evidence,
-        options.capabilityPolicy,
-      );
+      const resolution = resolveTransportDiscoveryCapabilities({
+        protocol: snapshot.protocol,
+        evidence: source.evidence ?? snapshot.evidence,
+        policy: options.capabilityPolicy,
+        transportLimit,
+      });
       const descriptor: SourceDescriptor = {
         id: source.id,
         protocol: snapshot.protocol,
@@ -694,6 +715,7 @@ export async function connectWithSourceSchemaProjection(
     diagnostics: uniqueDiagnostics(inspections.flatMap((entry) => [...entry.diagnostics])),
     cacheIdentity: identity,
     cacheStatus,
+    transport: client.isGrpcWeb ? "grpc-web" : "rest",
     ...(snapshot.stacStatic ? { stacStatic: snapshot.stacStatic } : {}),
   });
 
@@ -978,12 +1000,17 @@ async function discoverGeoServices(
   });
 }
 
-function discoveryClient(options: ConnectOptions, target: ConnectTarget): HonuaClient {
+function discoveryClient(
+  options: ConnectOptions,
+  target: ConnectTarget,
+  transport: HonuaTransport | undefined,
+): HonuaClient {
   const client =
     options.client ??
     new HonuaClient({
       ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
       ...options.clientOptions,
+      ...(transport ? { transport } : {}),
       baseUrl: target.clientBaseUrl,
     });
   if (target.protocol === "grpc" && !client.isGrpcWeb) {
@@ -1622,6 +1649,7 @@ async function validateSnapshot(
       expectedIdentityKey: identity.key,
     });
   }
+  assertCachedTransport(owned.transport, target.protocol);
   const sharedEvidence = validateCachedEvidence(target.protocol, owned.evidence, true);
   const sourceIds = new Set<string>();
   const sources = owned.sources.map((source) => {

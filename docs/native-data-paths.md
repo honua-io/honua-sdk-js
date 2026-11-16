@@ -123,6 +123,22 @@ selects this transport automatically. `new HonuaClient` from the default entrypo
 still defaults to REST for existing applications; `createHonuaClient` is the
 native-first constructor.
 
+`connect()` and `createHonua().connect()` on a GeoServices FeatureServer URL select
+the transport the same way when you pass neither `client` nor
+`clientOptions.transport`. A cache miss makes one probe; the cached discovery
+snapshot records the result, so a cache hit replays it without any request.
+Snapshots written before this change, or by a caller that passed `client` or
+`clientOptions.transport`, carry no choice and replay as REST. A recorded gRPC-Web
+choice replays as REST where the gRPC runtime cannot load. A probe that gets a
+non-gRPC answer (such as a transient gateway 502) or no answer in time records REST
+until a connection with `refresh: true` probes again. `connection.inspection.transport` reports the
+choice. On gRPC-Web the descriptors, capability decisions and capability
+profiles carry only the capabilities the gRPC FeatureService serves: no `pbf` or `sql`, and aggregates are computed by the client
+or refused under a strict capability policy; pass `clientOptions.transport: "rest"`
+to keep the GeoServices REST capabilities. In a browser the default client cannot load the gRPC peers from a bundle, so
+`connect()` does not probe there and stays on REST; pass
+`client: await createHonuaClient({ baseUrl })` from `@honua/sdk-js/grpc-web`.
+
 ## Public files and private snapshots
 
 Ordinary gRPC calls are POST requests and are not CDN-cacheable. Publish public,

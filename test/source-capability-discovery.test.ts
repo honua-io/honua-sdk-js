@@ -747,7 +747,7 @@ describe("connectWithSourceCapabilities", () => {
         endpoint: "https://example.test/arcgis/rest/services/Public/Parcels/FeatureServer/0",
         protocol: "auto",
         authorizationScopeFingerprint: "role:editor:v1",
-        clientOptions: { fetchFn },
+        clientOptions: { fetchFn, transport: "rest" },
         cache: {
           get: () => undefined,
           set: (_identity, snapshot) => {
