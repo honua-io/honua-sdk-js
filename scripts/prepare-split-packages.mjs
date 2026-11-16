@@ -169,6 +169,7 @@ function createSdkPackage() {
     "connect-endpoint",
     "connect-pmtiles-cache-validation",
     "connect-pmtiles-inspection",
+    "connect-transport",
   ]) {
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
