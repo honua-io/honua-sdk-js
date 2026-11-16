@@ -1,3 +1,9 @@
+---
+type: reference
+title: "Map API changelog"
+description: "Breaking Map API changes and the complete public export rename list."
+resource: "https://www.npmjs.com/package/@honua/sdk-js"
+---
 # Map API changelog
 
 ## Unreleased: Map vocabulary
