@@ -467,6 +467,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .sidebar li a:hover{background:var(--accent-soft);text-decoration:none}
 .sidebar li.active a{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .content{flex:1 1 auto;min-width:0;padding:1.5rem 0 3rem;max-width:100%}
+.content a{overflow-wrap:anywhere}
 .content h1{font-size:2rem;line-height:1.2;margin-top:.5rem}
 .content h2{margin-top:2rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
 .content img{max-width:100%;height:auto}
