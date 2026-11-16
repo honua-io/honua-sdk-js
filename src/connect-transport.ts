@@ -17,10 +17,12 @@ import type { HonuaTransport } from "./core/types.js";
 
 /**
  * Transport for a feature service's default client, or `undefined` when the
- * caller chose the client or transport, or the target is not a feature
- * service. A cache hit replays the recorded choice without a request, falling
- * back to REST where this environment cannot load the gRPC-Web runtime; a miss
- * probes once.
+ * caller chose the client or transport, the target is not a feature service,
+ * or the code runs in a browser document (the root client cannot load the
+ * gRPC-Web runtime from a bundle, and trying logs a failed module request;
+ * browsers pass a client from `@honua/sdk-js/grpc-web`). A cache hit replays
+ * the recorded choice without a request, falling back to REST where this
+ * environment cannot load the gRPC-Web runtime; a miss probes once.
  */
 export async function defaultFeatureServiceTransport(
   snapshot: ConnectDiscoverySnapshot | undefined,
@@ -28,7 +30,7 @@ export async function defaultFeatureServiceTransport(
   target: ConnectTarget,
 ): Promise<HonuaTransport | undefined> {
   if (options.client || target.protocol !== "geoservices-feature-service") return undefined;
-  if (options.clientOptions?.transport !== undefined) return undefined;
+  if (options.clientOptions?.transport !== undefined || inBrowserDocument()) return undefined;
   if (snapshot) {
     const recorded = snapshot.transport ?? "rest";
     return recorded === "grpc-web" && !(await grpcWebRuntimeLoads(target.clientBaseUrl)) ? "rest" : recorded;
@@ -43,6 +45,10 @@ export async function defaultFeatureServiceTransport(
     if (options.signal?.aborted) throw new HonuaAbortError(undefined, { cause: error });
     throw error;
   }
+}
+
+function inBrowserDocument(): boolean {
+  return typeof (globalThis as { document?: unknown }).document !== "undefined";
 }
 
 /** Refuse a cached transport that is not REST or gRPC-Web, or sits on another protocol. */

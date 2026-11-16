@@ -196,4 +196,18 @@ describe("connect() native transport default for GeoServices feature services", 
     expect(pbf).toMatchObject({ effective: "unsupported" });
     expect(source.supports("pbf")).toBe(false);
   });
+
+  it("leaves a browser document on REST without probing or recording a choice", async () => {
+    vi.stubGlobal("document", {});
+    try {
+      const requests: string[] = [];
+      const cache = memoryCache();
+      const connection = await connect(base(serverFetch(grpcAnswer, requests), cache));
+      expect(connection.dataset.client.isGrpcWeb).toBe(false);
+      expect(requests.some((path) => path.endsWith(probePath))).toBe(false);
+      expect([...cache.values.values()][0]?.transport).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

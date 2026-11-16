@@ -135,9 +135,9 @@ until a connection with `refresh: true` probes again. `connection.inspection.tra
 choice. On gRPC-Web the descriptors, capability decisions and capability
 profiles carry only the capabilities the gRPC FeatureService serves: no `pbf` or `sql`, and aggregates are computed by the client
 or refused under a strict capability policy; pass `clientOptions.transport: "rest"`
-to keep the GeoServices REST capabilities. In a browser bundle pass
-`client: await createHonuaClient({ baseUrl })` from `@honua/sdk-js/grpc-web`; the
-default client cannot load the gRPC peers there and stays on REST.
+to keep the GeoServices REST capabilities. In a browser the default client cannot load the gRPC peers from a bundle, so
+`connect()` does not probe there and stays on REST; pass
+`client: await createHonuaClient({ baseUrl })` from `@honua/sdk-js/grpc-web`.
 
 ## Public files and private snapshots
 
