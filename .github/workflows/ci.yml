@@ -171,7 +171,7 @@ jobs:
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
       - name: Test authenticated second-review summary admission
-        run: node --test test/scripts/second-review-summary.test.mjs
+        run: node --test test/scripts/second-review-summary.test.mjs test/scripts/second-review-failure.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
@@ -377,7 +377,7 @@ jobs:
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
       - name: Test authenticated second-review summary admission
-        run: node --test test/scripts/second-review-summary.test.mjs
+        run: node --test test/scripts/second-review-summary.test.mjs test/scripts/second-review-failure.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
