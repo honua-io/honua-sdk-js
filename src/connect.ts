@@ -623,15 +623,18 @@ export async function connectWithSourceSchemaProjection(
     cacheStatus = options.refresh === true ? "refreshed" : cacheStatus;
   }
 
+  // A gRPC-Web client serves only the gRPC FeatureService set for feature services.
+  const transportLimit =
+    client.isGrpcWeb && snapshot.protocol === "geoservices-feature-service"
+      ? PROTOCOL_DEFAULT_CAPABILITIES.grpc
+      : undefined;
   const inspections = Object.freeze(
     snapshot.sources.map((source) => {
       const resolution = resolveTransportDiscoveryCapabilities({
         protocol: snapshot.protocol,
         evidence: source.evidence ?? snapshot.evidence,
-        ...(options.capabilityPolicy ? { policy: options.capabilityPolicy } : {}),
-        ...(client.isGrpcWeb && snapshot.protocol === "geoservices-feature-service"
-          ? { transportLimit: PROTOCOL_DEFAULT_CAPABILITIES.grpc }
-          : {}),
+        policy: options.capabilityPolicy,
+        transportLimit,
       });
       const descriptor: SourceDescriptor = {
         id: source.id,

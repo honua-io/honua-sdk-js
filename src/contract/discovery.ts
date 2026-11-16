@@ -267,8 +267,8 @@ export function resolveDiscoveryCapabilities(
 export function resolveTransportDiscoveryCapabilities(request: {
   readonly protocol: Protocol;
   readonly evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[];
-  readonly policy?: DiscoveryCapabilityPolicy;
-  readonly transportLimit?: ReadonlySet<Capability>;
+  readonly policy?: DiscoveryCapabilityPolicy | undefined;
+  readonly transportLimit?: ReadonlySet<Capability> | undefined;
 }): DiscoveryCapabilityResolution {
   const { protocol, evidence, policy = {}, transportLimit } = request;
   const adapter = DISCOVERY_ADAPTER_MAXIMA.get(protocol);
