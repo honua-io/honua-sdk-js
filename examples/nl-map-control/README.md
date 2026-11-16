@@ -118,8 +118,8 @@ Actual authenticated qualification passed the bounded gate with Bedrock Haiku
 cases and 4/4 safety controls, zero unexpected executions, median 4.182 seconds
 and maximum 10.373 seconds. Distance refinement succeeded on its second bounded
 attempt. The exact source, corpus/harness, external bridge, provider request IDs,
-and all nine earlier failed attempts are retained in
-[the qualification evidence](../../docs/evidence/ask-map-2051/README.md).
+and all nine earlier failed attempts were recorded in the qualification
+evidence.
 Earlier Haiku runs reached only 5/6 supported cases; Sonnet did not qualify.
 This is evidence for this configuration and ten-case sample only. Recorded replay
 is reported separately. Experimental API promotion stays with #1459.

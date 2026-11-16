@@ -14,9 +14,8 @@ consumer within the prior limit at 532,989 gzip bytes. Review then identified
 legitimate Esri positions with unset optional measures: the rendering adapter
 must project spatial coordinates rather than discard those features. That
 correction measured 1,994,371 raw / 533,062 gzip bytes under default peer
-resolution, 62 gzip bytes above the previous ceiling. The retained
-[local adjustment evidence](evidence/feature-geometry-2188/budget-adjustment.json)
-binds the prepared inputs and package to that failed measurement.
+resolution, 62 gzip bytes above the previous ceiling. The local adjustment
+bound the prepared inputs and package to that failed measurement.
 
 This PR adds 1,000 bytes to the gzip ceiling, retaining the 2,010,000-byte raw
 limit. Every peer/worker identity check, duplicate-runtime check, measurement
@@ -38,14 +37,9 @@ reports the same 6.15.0 totals. The new limits carry the earlier renderer's
 headroom forward with rounding, leaving 19,030 raw / 1,208 gzip bytes above the
 measured 6.15.0 graph. They remain below the example's looser Vite ceilings.
 
-The [comparison](evidence/first-map-renderer-2164/comparison.json) retains the
-dependency change and receipt digests. The
-[6.14.0 receipt](evidence/first-map-renderer-2164/6.14.0.receipt.json) and
-[6.15.0 receipt](evidence/first-map-renderer-2164/6.15.0.receipt.json) preserve their
-original verdicts against the old limits; they are not rewritten as passing
-evidence. Their saved consumer locks permit reproduction with `--local-tarball
---consumer-lock docs/evidence/first-map-renderer-2164/6.15.0.consumer-lock.json`.
-This comparison did not measure CPU. The peer, worker, duplicate-runtime,
+The comparison recorded the dependency change and receipt digests. The 6.14.0
+and 6.15.0 receipts kept their original verdicts against the old limits; they
+were not rewritten as passing evidence. This comparison did not measure CPU. The peer, worker, duplicate-runtime,
 measurement-scope and CPU checks are unchanged, and qualification still requires
 a fresh packed execution against the new limits plus the calibrated hosted CPU
 gate. No renderer downgrade or dependency-resolution override is required.
@@ -68,15 +62,14 @@ The gzip ceiling was explicitly raised by 1,000 bytes in PR #2010 after renderer
 tree-shaking reduced the installed bundle. CI's fresh consumer resolved MapLibre
 6.14.0 and measured 1,968,771 raw / 524,289 gzip bytes; the fixed-dependency
 comparison on 6.13.0 measured 1,969,286 / 523,861. The raw-byte ceiling, peer
-identity checks, measurement scope, and CPU limits remain unchanged. The
-[basemap receipts](evidence/basemap-1717/README.md) retain both measurements and
-the passing calibrated CPU result. Historical receipts below retain their
-then-current ceilings.
+identity checks, measurement scope, and CPU limits remain unchanged. The basemap
+receipts recorded both measurements and the passing calibrated CPU result.
+Historical results below are stated against their then-current ceilings.
 
 Run `npm run test:installed-quickstart` to install the manifest-pinned public SDK
 and peers into a fresh consumer, check its npm integrity, build the canonical
 quickstart through public package entrypoints, and measure the written chunks.
-The receipt is `test-results/installed-quickstart-budget.json`. It includes the
+The run writes its receipt to `test-results/installed-quickstart-budget.json`. It includes the
 package identity, dependency versions and integrities, lock digest, SDK module
 count, MapLibre module origins, and actual byte measurements. The existing
 budget counts Rollup/Vite chunks; worker assets stay in the sample's final-byte
@@ -134,12 +127,12 @@ declared runtime peer beside the SDK too. MapLibre 5's legacy entry fields and
 MapLibre 6's export map are both supported. Worker and stylesheet subpaths
 resolve from the same installed peer, with its public export map enforced.
 
-The retained reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
+The reproduction on `@honua/sdk-js@0.1.9-beta.0` measured 2,953,782 /
 773,645 written chunk bytes before the fix and 1,979,893 / 523,377 after it.
 The source-mode build measured 1,953,828 / 516,171. No ceiling changed.
 
 This is a bundle regression receipt, not a live-server certification receipt.
-The historical #39 installed-example receipt still records #1584 as failed.
+The #39 installed-example certification recorded #1584 as failed.
 The issue's corrected coordinated-candidate publication and certification rerun
 remain outstanding; a successful harness repair must not rewrite historical
 failed candidate evidence or certify an unpublished replacement package.
@@ -151,9 +144,8 @@ the peer, worker and stylesheet fixes and both defect injections are retained.
 The runner now uses the native npm launcher and normalized module paths, with
 its isolated consumer inside the worktree's `test-results` directory.
 
-`test-results/installed-quickstart-budget.windows.json` retains the public
-`0.1.9-beta.0` integrity and full dependency resolution, including MapLibre
-`6.9.0`. Removing the peer fix reproduces two renderer copies and measures
+The replay recorded the public `0.1.9-beta.0` integrity and full dependency
+resolution, including MapLibre `6.9.0`. Removing the peer fix reproduces two renderer copies and measures
 3,108,365 JavaScript / 831,838 gzip bytes. The corrected graph contains one
 renderer, and its worker and CSS share the installed peer, but it still measures
 2,050,733 / 550,795 bytes. **The frozen 1,990,000 / 524,000 limits fail.**
@@ -171,8 +163,7 @@ and a passing rerun under the original limits remain required to close #1584.
 
 ### Measured packed-development comparison (2026-10-11)
 
-[Recorded receipts and consumer locks](./evidence/distribution-1413/) bind this
-comparison to source `5aac8654325f20845dc37a386f0f8999d683bb83` and its admitted
+The recorded receipts and consumer locks bound this comparison to source `5aac8654325f20845dc37a386f0f8999d683bb83` and its admitted
 SDK Verification producer artifact from run `38128568010`. Both installs used
 identical dependency versions and integrities, including MapLibre 6.13.0, and
 identical packed SDK integrity. The lockfile hashes differ because each local
@@ -218,8 +209,8 @@ merge receipt is recorded separately from the exact-head producer receipt. A cha
 browser major, throttle, missing sample or exceeded ceiling fails admission and
 requires fresh calibration. Local machines can still use measurement-only mode.
 
-[The calibration receipt and consumer lock](./evidence/distribution-1413/)
-preserve the packed identity and dependency resolution. The live/default graph
+The calibration receipt and consumer lock recorded the packed identity and
+dependency resolution. The live/default graph
 passed the unchanged 1,990,000 JavaScript / 524,000 gzip byte ceilings at
 1,887,373 / 503,941 bytes. The separate fixture graph is used for execution,
 never substituted for the ordinary byte verdict. Current trace aggregation

@@ -306,9 +306,13 @@ async function main(argv) {
 
     // ── Joins ─────────────────────────────────────────────────
     const installedReceiptPath = "test-results/installed-package-certification.json";
+    const installedReceiptText = await readFile(join(root, installedReceiptPath), "utf8").catch((error) => {
+      if (error?.code !== "ENOENT") throw error;
+      throw new Error(`${installedReceiptPath} is missing; run npm run certify:installed-package first to produce it.`);
+    });
     receipt.joins = {
       installedPackageCertification: joinInstalledPackageReceipt({
-        installedReceipt: JSON.parse(await readFile(join(root, installedReceiptPath), "utf8")),
+        installedReceipt: JSON.parse(installedReceiptText),
         installedReceiptPath,
         installedPackage: pinned,
         denominator: JSON.parse(await readFile(join(root, "config/certification-denominator.v1.json"), "utf8")),
