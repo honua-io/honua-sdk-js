@@ -34,7 +34,7 @@ function fixture() {
   return { client, source, queryFeatures, queryFeaturesStream, fetchFn };
 }
 
-describe("gRPC temporal filters", () => {
+describe("unsupported gRPC temporal filters", () => {
   it.each(["0", "null,1767225600000", "", 0])("rejects an explicit unsupported time parameter: %j", (time) => {
     expect(() => toProtoQueryRequest({ serviceId: "published", layerId: 0, extraParams: { time } })).toThrow(
       HonuaCapabilityNotSupportedError,
@@ -54,7 +54,9 @@ describe("gRPC temporal filters", () => {
     expect(queryFeaturesStream).not.toHaveBeenCalled();
     expect(fetchFn).not.toHaveBeenCalled();
   });
+});
 
+describe("supported gRPC temporal filters", () => {
   it("preserves field-bound temporal predicates in unary and streaming requests", async () => {
     const { source, queryFeatures, fetchFn } = fixture();
     const temporalFilter = { ...window, field: "REPORTED_AT" };
