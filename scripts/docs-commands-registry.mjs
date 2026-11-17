@@ -35,10 +35,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { checkDocumentedCommands, parseNpxInvocation } from "./docs-executable-commands.mjs";
+import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
 import { runNpmSync, runNpxSync } from "./lib/npm-cli.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CANDIDATE_PATH = "config/installed-package-certification.v1.json";
+const LEGACY_CANDIDATE_PATH = "config/installed-package-certification.v1.json";
 
 // npm reports these before it spawns anything, so seeing one means no executable
 // ran. Everything else came out of an executable that npm did resolve and start.
@@ -49,10 +50,20 @@ const RESOLUTION_FAILURES = [
   { pattern: /could not resolve dependency|ERESOLVE/i, reason: "default dependency resolution refused the install" },
 ];
 
-function readCandidate(projectRoot) {
-  const candidate = JSON.parse(fs.readFileSync(path.join(projectRoot, CANDIDATE_PATH), "utf8"));
+/**
+ * The candidate this lane certifies: the same input installed certification
+ * reads. Under `HONUA_INSTALLED_CANDIDATE_MODE=release-snapshot` (what
+ * select-installed-candidate.mjs sets for a committed or dispatched snapshot
+ * selection) that is the admitted honua-release snapshot; the legacy September
+ * pin is only the explicit diagnostic default when no mode is selected.
+ */
+export async function loadCandidate({ projectRoot = ROOT, env = process.env } = {}) {
+  const candidate = await readInstalledCandidateInput({ repositoryRoot: projectRoot, env });
   const names = new Set(candidate.packages.map((entry) => entry.coordinate));
-  return { ...candidate, names };
+  const source = candidate.releaseInput
+    ? { kind: candidate.releaseInput.kind, candidateRevision: candidate.releaseInput.candidateRevision, reviewedRevision: candidate.releaseInput.reviewedRevision }
+    : { kind: "legacy-regression", path: LEGACY_CANDIDATE_PATH };
+  return { ...candidate, names, source };
 }
 
 /**
@@ -160,8 +171,8 @@ function installedIdentity(cwd, env, candidate) {
   return { mode: "default-resolution", packages, registry: candidate.package.registry };
 }
 
-export function runDocumentedCommands({ projectRoot = ROOT, timeoutMs = 300_000 } = {}) {
-  const candidate = readCandidate(projectRoot);
+export async function runDocumentedCommands({ projectRoot = ROOT, timeoutMs = 300_000, env: inputEnv = process.env } = {}) {
+  const candidate = await loadCandidate({ projectRoot, env: inputEnv });
   const report = checkDocumentedCommands(projectRoot);
   const invocations = candidateInvocations(report, candidate);
   if (invocations.length === 0) throw new Error("no documented command names a candidate package; nothing would be proven");
@@ -170,7 +181,7 @@ export function runDocumentedCommands({ projectRoot = ROOT, timeoutMs = 300_000 
   const cwd = path.join(work, "consumer");
   // An isolated cache and prefix keep a warm host cache and a global install out
   // of the result without editing the command a reader would type.
-  const env = { ...process.env, npm_config_cache: path.join(work, "cache"), npm_config_prefix: path.join(work, "prefix"), npm_config_update_notifier: "false" };
+  const env = { ...inputEnv, npm_config_cache: path.join(work, "cache"), npm_config_prefix: path.join(work, "prefix"), npm_config_update_notifier: "false" };
   try {
     const install = installedIdentity(cwd, env, candidate);
     const observations = invocations.map((invocation) => {
@@ -213,7 +224,7 @@ export function runDocumentedCommands({ projectRoot = ROOT, timeoutMs = 300_000 
     const failed = observations.filter((entry) => entry.verdict === "fail").length;
     const summary = { fail: failed, pass: observations.length - failed, total: observations.length };
     return {
-      candidate: { package: candidate.package, release: candidate.release, source: CANDIDATE_PATH },
+      candidate: { package: candidate.package, release: candidate.release, source: candidate.source },
       control,
       generatedAt: new Date().toISOString(),
       install,
@@ -228,10 +239,10 @@ export function runDocumentedCommands({ projectRoot = ROOT, timeoutMs = 300_000 
   }
 }
 
-function main() {
+async function main() {
   const outputIndex = process.argv.indexOf("--output");
   const output = outputIndex >= 0 ? process.argv[outputIndex + 1] : "test-results/documented-command-execution.json";
-  const receipt = runDocumentedCommands();
+  const receipt = await runDocumentedCommands();
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), `${JSON.stringify(receipt, null, 2)}\n`);
   for (const observation of receipt.observations) {
@@ -244,7 +255,7 @@ function main() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    main();
+    await main();
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
