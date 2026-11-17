@@ -566,7 +566,7 @@ honua query maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --format geojson
 honua explain maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --json   # the plan, no server call
 honua stac collections
 honua geocode "1 Honolulu Pl, HI"
-honua tiles maui-parcels 12/267/1805 -o tile.png
+honua tiles maui-parcels 12/912/1809 -o tile.png
 ```
 
 Render a map image of a bounding box:
