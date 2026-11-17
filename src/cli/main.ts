@@ -111,6 +111,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "if-match" },
   { name: "idempotency-key" },
   { name: "count", boolean: true },
+  { name: "image", boolean: true },
   { name: "json", boolean: true },
   { name: "dry-run", boolean: true },
   { name: "yes", boolean: true },
@@ -202,6 +203,8 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
 MAPS
   honua map export <service>[/<layers>] --bbox ... --size WxH [-o out.png]
   honua tiles <service> <z>/<x>/<y> [-o tile.png]
+      Cached map tile from the service's MapServer
+      --image              Read the ImageServer tile cache instead (--format png|jpg|tif)
 
   honua map publish [<mapId>] --package <json|@file> [options]
       Publish a map document through the shared control-plane command layer.
@@ -251,7 +254,7 @@ GLOBAL OPTIONS
 EXAMPLES
   HONUA_BASE_URL=https://demo.honua.io honua services
   honua query maui-parcels/1 --count
-  honua query maui-parcels/1 --where "TMK LIKE '2%'" --limit 5
+  honua query maui-parcels/1 --where "zone = '1'" --limit 5
   honua stac collections
 `;
 

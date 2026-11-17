@@ -34,6 +34,7 @@ import type {
   MapDocumentPublishInput,
 } from "../../control-plane/index.js";
 import { mapDocumentPublishCommand } from "../../control-plane/index.js";
+import { encodeServiceIdPath } from "../../core/path-utils.js";
 import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
@@ -240,8 +241,11 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
 
   const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
-  // Esri tile addressing is level/row/col == z/y/x.
-  const url = client.imageService(service).tileUrl(z, y, x, format);
+  // Esri tile addressing is level/row/col == z/y/x. Every published service has a
+  // MapServer tile cache; an ImageServer has one only when it is cached, so it is opt-in.
+  const url = getBoolean(parsed, "image")
+    ? client.imageService(service).tileUrl(z, y, x, format)
+    : `${client.serverBaseUrl}/rest/services/${encodeServiceIdPath(service)}/MapServer/tile/${z}/${y}/${x}`;
 
   const outPath = getString(parsed, "output");
   if (outPath) {
