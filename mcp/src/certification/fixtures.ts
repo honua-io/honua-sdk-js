@@ -21,6 +21,12 @@ export interface RoundTripEnv {
   sourceRef?: string;
   /** Numeric field on `sourceRef` usable for an aggregate round trip. */
   statisticField?: string;
+  /**
+   * Argument name for the layer index in a GeoServices layer reference. A live
+   * honua-server `/mcp` binds `serviceLayerIndex`; the offline mock and the
+   * standalone surface follow the vendored reference schemas (`layerId`).
+   */
+  layerKey?: "layerId" | "serviceLayerIndex";
 }
 
 /** Resolve round-trip identifiers from the environment, with safe fallbacks. */
@@ -54,7 +60,8 @@ export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<s
   // Source-addressed tools round-trip through the protocol-neutral reference
   // when the target provides one (#1005), and otherwise through the deprecated
   // GeoServices pair — so both addressing modes stay certified.
-  const target: Record<string, unknown> = env.sourceRef ? { source: env.sourceRef } : { serviceId, layerId };
+  const layerRef: Record<string, unknown> = { serviceId, [env.layerKey ?? "layerId"]: layerId };
+  const target: Record<string, unknown> = env.sourceRef ? { source: env.sourceRef } : layerRef;
   const statisticField = env.statisticField ?? "OBJECTID";
   return {
     // ── Platform-free standalone surface tools (issues #369, #1005). Round-tripped
@@ -75,7 +82,7 @@ export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<s
     honua_list_layers: {},
     honua_list_capabilities: {},
     honua_query_features: { ...target, limit: 1 },
-    honua_render_map: { layers: [{ serviceId, layerId }], bbox: [-77.1, 38.8, -76.9, 39.0] },
+    honua_render_map: { layers: [layerRef], bbox: [-77.1, 38.8, -76.9, 39.0] },
     honua_geocode_address: { address },
     honua_solve_route: {
       stops: [
@@ -122,7 +129,7 @@ export function resolveEditTarget(env: NodeJS.ProcessEnv = process.env): EditTar
  * A deliberately invalid argument set for the error-shape contract. Certification
  * picks the first advertised tool that has an entry here and calls it with these
  * args, expecting a structured `ValidationFailed` tool result (not a protocol
- * error). `honua_query_features` requires `layerId`, so omitting it is invalid.
+ * error). `honua_query_features` requires a layer index, so omitting it is invalid.
  */
 export function buildInvalidArgsInputs(): Record<string, Record<string, unknown>> {
   return {

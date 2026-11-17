@@ -187,6 +187,22 @@ interface AdvertisedTool {
  * a recorded OGC collection instead (#1005). An explicit `HONUA_MCP_SOURCE`
  * always wins.
  */
+const LAYER_ADDRESSED_TOOLS = new Set(["honua_describe_layer", "honua_query_features"]);
+
+/**
+ * The layer-index argument the target advertises. honua-server's map tools take
+ * `serviceLayerIndex`; the reference schemas and the offline mock take `layerId`.
+ */
+export function advertisedLayerKey(
+  tools: readonly { name: string; inputSchema?: unknown }[],
+): "layerId" | "serviceLayerIndex" {
+  const declares = tools.some((tool) => {
+    const properties = (tool.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties;
+    return LAYER_ADDRESSED_TOOLS.has(tool.name) && properties?.serviceLayerIndex !== undefined;
+  });
+  return declares ? "serviceLayerIndex" : "layerId";
+}
+
 function withTargetRoundTripDefaults(env: RoundTripEnv, targetMode: CertTargetMode): RoundTripEnv {
   if (targetMode !== "standalone-ogc" || env.sourceRef) {
     return env;
@@ -218,6 +234,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   const platformFree = isStandaloneTargetMode(options.targetMode);
 
   const advertisedNames = new Set(advertisedTools.map((t) => t.name));
+  roundTripEnv = { ...roundTripEnv, layerKey: advertisedLayerKey(advertisedTools) };
 
   // `HONUA_MCP_SERVICE_ID=discover`: bind the round trips to the first layer the
   // candidate actually publishes instead of a seeded id it may not have.
