@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { HonuaAbortError } from "../src/core/errors.js";
-import { sharedTask } from "../src/publication/abort.js";
-import { artifactRangeReader } from "../src/publication/range-reader.js";
+import { sharedTask } from "../src/export/abort.js";
+import { artifactRangeReader } from "../src/export/range-reader.js";
 
 const URL_UNDER_TEST = "https://data.example.test/parcels.parquet";
 const FILE_BYTES = 1_000;

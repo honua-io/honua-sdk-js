@@ -9,13 +9,13 @@ import { PROTOCOL_DEFAULT_CAPABILITIES } from "../src/contract/types.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import { polygon } from "../src/core/spatial-filter.js";
-import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import {
   HonuaPublicationError,
   createPublicationDataset,
   openPublication,
   verifyPmtilesArtifact,
-} from "../src/publication/index.js";
+} from "../src/export/index.js";
+import { GeoparquetRuntime } from "../src/geoparquet/index.js";
 import { decodeTileLayer } from "./helpers/mvt-decode.js";
 import {
   FIXTURE_STAMP,

@@ -2,7 +2,8 @@
 // CORS preflight, an optional per-response delay, and a log of every request
 // with the bytes it sent. `rangeSupport` imitates other hosts: "get-only"
 // answers HEAD with the whole length and status 200 as many CDNs do, "none"
-// ignores Range entirely.
+// ignores Range entirely. `head: false` answers HEAD with 405, as some
+// object-storage gateways and CDNs configured for GET only do.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -69,7 +70,7 @@ function sendFile({ request, response, entry }, { file, contents, cacheControl, 
 }
 
 /**
- * @param {{ files: Record<string, string>, delayMs?: number, cors?: boolean, cacheControl?: string, rangeSupport?: "full" | "get-only" | "none" }} options
+ * @param {{ files: Record<string, string>, delayMs?: number, cors?: boolean, cacheControl?: string, rangeSupport?: "full" | "get-only" | "none", head?: boolean }} options
  *   files maps a URL path (for example "/maui/parcels.parquet") to a file on disk.
  */
 export async function startStaticRangeServer({
@@ -78,6 +79,7 @@ export async function startStaticRangeServer({
   cors = true,
   cacheControl = "no-cache",
   rangeSupport = "full",
+  head = true,
 }) {
   const requests = [];
   const cache = new Map();
@@ -87,6 +89,11 @@ export async function startStaticRangeServer({
     requests.push(entry);
     if (cors) setCorsHeaders(response);
     const file = files[url.pathname];
+    if (!head && request.method === "HEAD") {
+      entry.status = 405;
+      response.writeHead(405, { allow: "GET" }).end();
+      return;
+    }
     if (request.method === "OPTIONS" || !file) {
       entry.status = request.method === "OPTIONS" ? 204 : 404;
       response.writeHead(entry.status).end();

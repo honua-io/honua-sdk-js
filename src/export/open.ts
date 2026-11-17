@@ -1,15 +1,16 @@
 import { type DescribePmtilesArchiveDeps, describePmtilesArchive } from "../contract/pmtiles.js";
 import type { SourceDescriptor } from "../contract/types.js";
-import { PROTOCOL_DEFAULT_CAPABILITIES } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import {
   type PublicationBounds,
   type PublicationDescriptorV1,
   type PublicationField,
+  type PublicationGeometry,
   type PublicationIdentity,
   validatePublicationDescriptor,
 } from "./descriptor.js";
 import { HonuaPublicationError } from "./errors.js";
+import { pairedSourceDescriptors } from "./pair.js";
 
 /** When the published data was read from its source and when this version went live. */
 export interface PublicationFreshness {
@@ -26,16 +27,32 @@ export interface PublicationDisplay {
   readonly sourceLayer: string;
   /** Tile property that carries the stable identity; use it as MapLibre `promoteId`. */
   readonly promoteId: string;
-  readonly minzoom: number;
-  readonly maxzoom: number;
+  /** Zoom range of the archive, when the document records it; MapLibre reads it from the archive header otherwise. */
+  readonly minzoom?: number;
+  readonly maxzoom?: number;
   readonly bounds: PublicationBounds;
   readonly attribution?: string;
 }
 
-/** An opened, validated paired publication. */
+/** The GeoParquet artifact that answers queries and lookups, at the size its document records. */
+export interface PublicationQueryArtifact {
+  readonly url: string;
+  readonly bytes: number;
+  /** Columns the artifact holds besides geometry; all of them are public fields. */
+  readonly fields: readonly string[];
+}
+
+/** An opened, validated paired publication: a descriptor v1 or a Honua Export collection. */
 export interface Publication {
   readonly url: string;
-  readonly descriptor: PublicationDescriptorV1;
+  /** Publication id (descriptor v1) or Export collection id. */
+  readonly id: string;
+  /** The descriptor v1 this publication was opened from; absent for an Export collection. */
+  readonly descriptor?: PublicationDescriptorV1;
+  readonly geometry: PublicationGeometry;
+  readonly queryArtifact: PublicationQueryArtifact;
+  /** The stamp both artifacts must carry in their metadata. */
+  readonly stamp: PublicationStamp;
   readonly publicFields: readonly PublicationField[];
   readonly identity: PublicationIdentity;
   readonly freshness: PublicationFreshness;
@@ -45,6 +62,12 @@ export interface Publication {
   readonly liveSourceUrl?: string;
   /** Source descriptors for `createDataset`: PMTiles for display, GeoParquet for queries. */
   sourceDescriptors(id?: string): { readonly display: SourceDescriptor; readonly query: SourceDescriptor };
+}
+
+/** A publication opened from a descriptor v1: the descriptor and the archive zoom range are always present. */
+export interface DescriptorPublication extends Publication {
+  readonly descriptor: PublicationDescriptorV1;
+  readonly display: PublicationDisplay & { readonly minzoom: number; readonly maxzoom: number };
 }
 
 export interface OpenPublicationOptions {
@@ -59,9 +82,13 @@ function absoluteUrl(reference: string, base: string): string {
   return new URL(reference, base).href;
 }
 
-function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publication {
+function pick<T extends object, K extends keyof T>(source: T, ...keys: K[]): Pick<T, K> {
+  return Object.fromEntries(keys.map((key) => [key, source[key]])) as Pick<T, K>;
+}
+
+function publicationFrom(url: string, descriptor: PublicationDescriptorV1): DescriptorPublication {
   const { artifacts, capture, identity } = descriptor;
-  const display: PublicationDisplay = Object.freeze({
+  const display = Object.freeze({
     pmtilesUrl: absoluteUrl(artifacts.pmtiles.href, url),
     sourceLayer: artifacts.pmtiles.vectorLayer,
     promoteId: identity.pmtilesProperty,
@@ -74,7 +101,11 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
   const geometry = descriptor.geometry;
   return Object.freeze({
     url,
+    id: descriptor.publicationId,
     descriptor,
+    geometry,
+    queryArtifact: Object.freeze({ url: geoparquetUrl, ...pick(artifacts.geoparquet, "bytes", "fields") }),
+    stamp: Object.freeze({ ...pick(descriptor, "publicationId", "version"), captureId: capture.captureId }),
     publicFields: Object.freeze(descriptor.fields.filter((field) => field.public)),
     identity,
     freshness: Object.freeze({
@@ -87,28 +118,8 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
     display,
     geoparquetUrl,
     ...(descriptor.links.source ? { liveSourceUrl: descriptor.links.source } : {}),
-    sourceDescriptors(id = descriptor.publicationId) {
-      return Object.freeze({
-        display: Object.freeze({
-          id: `${id}-display`,
-          protocol: "pmtiles",
-          locator: Object.freeze({ url: display.pmtilesUrl }),
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.pmtiles,
-        }),
-        query: Object.freeze({
-          id,
-          protocol: "geoparquet",
-          locator: Object.freeze({
-            url: geoparquetUrl,
-            geoparquet: Object.freeze({
-              geometryColumn: geometry.column,
-              ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
-            }),
-          }),
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
-        }),
-      });
-    },
+    sourceDescriptors: (id = descriptor.publicationId) =>
+      pairedSourceDescriptors(id, { pmtilesUrl: display.pmtilesUrl, geoparquetUrl, geometry }),
   });
 }
 
@@ -127,7 +138,7 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  *
  * @example
  * ```ts
- * import { openPublication, publicationDriverFactory, publicationSource } from "@honua/sdk-js/publication";
+ * import { openPublication, publicationDriverFactory, publicationSource } from "@honua/sdk-js/export";
  *
  * const parcels = await openPublication("https://data.example.gov/parcels/2026-11-13/descriptor.json");
  * map.addSource("parcels", { type: "vector", url: `pmtiles://${parcels.display.pmtilesUrl}`, promoteId: parcels.display.promoteId });
@@ -140,7 +151,10 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  * });
  * ```
  */
-export async function openPublication(url: string, options: OpenPublicationOptions = {}): Promise<Publication> {
+export async function openPublication(
+  url: string,
+  options: OpenPublicationOptions = {},
+): Promise<DescriptorPublication> {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (options.signal?.aborted) throw new HonuaAbortError();
   const headers = new Headers(options.headers);
@@ -181,17 +195,17 @@ export function assertArtifactStamp(
   artifact: "pmtiles" | "geoparquet",
   stamp: unknown,
 ): void {
-  const expected = publication.descriptor;
+  const expected = publication.stamp;
   const actual = stamp as Partial<PublicationStamp> | undefined;
   if (
-    actual?.captureId !== expected.capture.captureId ||
+    actual?.captureId !== expected.captureId ||
     actual.publicationId !== expected.publicationId ||
     actual.version !== expected.version
   ) {
     throw new HonuaPublicationError(
       "artifact-mismatch",
-      `The ${artifact} artifact does not carry capture ${expected.capture.captureId} of ${expected.publicationId} ${expected.version}; it belongs to another capture or version.`,
-      { detail: { artifact, expected: expected.capture.captureId, actual: actual?.captureId ?? null } },
+      `The ${artifact} artifact does not carry capture ${expected.captureId} of ${expected.publicationId} ${expected.version}; it belongs to another capture or version.`,
+      { detail: { artifact, expected: expected.captureId, actual: actual?.captureId ?? null } },
     );
   }
 }

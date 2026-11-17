@@ -5,14 +5,14 @@ import { fileURLToPath } from "node:url";
 import { DuckDBInstance } from "@duckdb/node-api";
 import { afterEach } from "vitest";
 
-import { GeoparquetRuntime } from "../../src/geoparquet/index.js";
-import { createNodeDuckDbDriver } from "../../src/geoparquet/node.js";
 import {
   type Publication,
   type PublicationSourceOptions,
   openPublication,
   publicationSource,
-} from "../../src/publication/index.js";
+} from "../../src/export/index.js";
+import { GeoparquetRuntime } from "../../src/geoparquet/index.js";
+import { createNodeDuckDbDriver } from "../../src/geoparquet/node.js";
 import { startStaticRangeServer } from "./static-range-server.mjs";
 
 export const FIXTURE_DIRECTORY = fileURLToPath(new URL("../fixtures/publication/maui-parcels/", import.meta.url));

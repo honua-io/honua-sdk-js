@@ -34,11 +34,9 @@ export function publicFieldGuard(publication: Publication, sourceId: string): Pu
       }
       for (const name of referencedFields(request)) {
         if (!allowed.has(name)) {
-          throw new HonuaPublicationError(
-            "non-public-field",
-            `${name} is not a public field of ${publication.descriptor.publicationId}.`,
-            { detail: { field: name } },
-          );
+          throw new HonuaPublicationError("non-public-field", `${name} is not a public field of ${publication.id}.`, {
+            detail: { field: name },
+          });
         }
       }
       return request.outFields && request.outFields.length > 0 ? request : { ...request, outFields: names };

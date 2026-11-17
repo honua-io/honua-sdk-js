@@ -63,7 +63,7 @@ export const DYNAMIC_STAC_CAPABILITY_STATUS = Object.freeze({
 
 export type StacSearchMethod = "GET" | "POST" | "auto";
 export type StacAssetFormat = "cog" | "pmtiles" | "geoparquet" | "geoarrow" | "raster" | "unsupported";
-export type StacKnownAssetRole = "data" | "visual" | "thumbnail" | "overview" | "metadata";
+export type StacKnownAssetRole = "data" | "visual" | "thumbnail" | "overview" | "metadata" | "style";
 export type StacAssetRole = StacKnownAssetRole | (string & {});
 export type StacCommonBandName =
   | "coastal"
@@ -317,7 +317,11 @@ export class DynamicStacClient {
     options: StacAssetSelectionOptions = {},
   ): Promise<DynamicStacAssetDescriptor> {
     const candidates = await this.assets(item, options);
-    const selected = candidates.find((asset) => asset.handoff !== undefined && asset.maturity !== "unavailable");
+    const usable = candidates.filter((asset) => asset.handoff !== undefined && asset.maturity !== "unavailable");
+    const selected =
+      usable.find((asset) => asset.roles.includes("data")) ??
+      usable.find((asset) => asset.roles.includes("visual")) ??
+      usable[0];
     if (!selected) {
       throw new HonuaCapabilityNotSupportedError("asset-handoff", "stac", String(item.id), {
         context: { roles: options.roles, formats: options.formats, assetKeys: options.assetKeys },
@@ -389,6 +393,7 @@ function describeAsset(
     bands,
     evidence,
   };
+  if (isPresentationOnly(roles)) return base;
   switch (format) {
     case "cog":
       return { ...base, handoff: { kind: "cog", href, packageExport: "@honua/sdk-js/cog" } };
@@ -440,6 +445,13 @@ function rasterBands(asset: HonuaStacAsset): readonly StacRasterBandDescriptor[]
 function itemBaseUrl(item: HonuaStacItemResponse, fallback: string): string {
   const self = item.links?.find((link) => link.rel === "self" && typeof link.href === "string");
   return self ? new URL(self.href, fallback).href : fallback;
+}
+
+/** A thumbnail or style describes how to show the data; it is never the data handed to a reader. */
+function isPresentationOnly(roles: readonly StacAssetRole[]): boolean {
+  return (
+    (roles.includes("thumbnail") || roles.includes("style")) && !roles.includes("data") && !roles.includes("visual")
+  );
 }
 
 function normalizeRoles(roles: readonly string[] | undefined): readonly StacAssetRole[] {
