@@ -226,6 +226,27 @@ async function mapExport(parsed: ParsedArgs, ctx: CommandContext): Promise<void>
   }
 }
 
+/**
+ * Every published service has a MapServer tile cache; an ImageServer has one only
+ * when it is cached, so `--image` opts in. Esri tile addressing is level/row/col == z/y/x.
+ */
+function tileRequestUrl(
+  parsed: ParsedArgs,
+  client: ReturnType<typeof createClient>,
+  { service, z, x, y }: { service: string; z: number; x: number; y: number },
+): string {
+  const format = getString(parsed, "format");
+  if (!getBoolean(parsed, "image")) {
+    if (format !== undefined) {
+      throw new ArgError(
+        "--format applies to ImageServer tiles; add --image, or drop --format for the cached map tile.",
+      );
+    }
+    return `${client.serverBaseUrl}/rest/services/${encodeServiceIdPath(service)}/MapServer/tile/${z}/${y}/${x}`;
+  }
+  return client.imageService(service).tileUrl(z, y, x, (format ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff");
+}
+
 export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const service = parsed.positionals[0];
   const zxy = parsed.positionals[1];
@@ -237,19 +258,8 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     throw new ArgError(`Expected "<z>/<x>/<y>" integers, got: ${zxy}`);
   }
   const [z, x, y] = parts;
-  const image = getBoolean(parsed, "image");
-  if (!image && getString(parsed, "format") !== undefined) {
-    throw new ArgError("--format applies to ImageServer tiles; add --image, or drop --format for the cached map tile.");
-  }
-  const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
-
   const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
-  const client = createClient(connection);
-  // Esri tile addressing is level/row/col == z/y/x. Every published service has a
-  // MapServer tile cache; an ImageServer has one only when it is cached, so it is opt-in.
-  const url = image
-    ? client.imageService(service).tileUrl(z, y, x, format)
-    : `${client.serverBaseUrl}/rest/services/${encodeServiceIdPath(service)}/MapServer/tile/${z}/${y}/${x}`;
+  const url = tileRequestUrl(parsed, createClient(connection), { service, z, x, y });
 
   const outPath = getString(parsed, "output");
   if (outPath) {
