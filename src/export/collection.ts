@@ -149,9 +149,9 @@ const READ_ROLES = ["data", "visual", "style", "thumbnail"];
 
 function asset(key: string, value: unknown, base: string): ExportAsset | undefined {
   const path = `assets.${key}`;
-  if (!isObject(value)) invalid(path, "must be an object");
-  const roles = Array.isArray(value.roles) ? value.roles : [];
+  const roles = isObject(value) && Array.isArray(value.roles) ? value.roles : [];
   if (!roles.some((role) => READ_ROLES.includes(role as string))) return undefined;
+  if (!isObject(value)) invalid(path, "must be an object");
   const href = text(value, "href", `${path}.href`);
   const size = value["file:size"];
   if (size !== undefined && !(Number.isSafeInteger(size) && (size as number) > 0)) {
@@ -240,8 +240,19 @@ function honuaFacts(document: JsonObject): ExportHonuaFacts | undefined {
   if (!facts.publicFields.includes(facts.identity.field)) {
     invalid("honua:public_fields", `must include the identity field ${facts.identity.field}`);
   }
+  assertOneIdentityName(facts.identity);
   assertTextIdentity(document, facts.identity.field);
   return Object.freeze(facts);
+}
+
+/** Lookups filter on the GeoParquet column and queries on the field, so both must name the same column. */
+function assertOneIdentityName(identity: ExportHonuaFacts["identity"]): void {
+  if (identity.geoparquetColumn !== identity.field) {
+    invalid("honua:identity.geoparquet_column", `must equal the identity field ${identity.field}`);
+  }
+  if (identity.pmtilesProperty !== identity.field) {
+    invalid("honua:identity.pmtiles_property", `must equal the identity field ${identity.field}`);
+  }
 }
 
 /** Lookups compare identities as text, so a numeric identity column would silently match nothing. */

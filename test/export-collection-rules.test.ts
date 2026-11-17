@@ -85,6 +85,21 @@ describe("Honua Export paired view prerequisites", () => {
     expect(failurePath({ ...MAUI, "table:columns": columns })).toBe("honua:identity.field");
   });
 
+  it("refuses an identity whose GeoParquet column or PMTiles property differs from the field", () => {
+    const identity = MAUI["honua:identity"] as Record<string, string>;
+    expect(failurePath({ ...MAUI, "honua:identity": { ...identity, geoparquet_column: "tmk" } })).toBe(
+      "honua:identity.geoparquet_column",
+    );
+    expect(failurePath({ ...MAUI, "honua:identity": { ...identity, pmtiles_property: "tmk" } })).toBe(
+      "honua:identity.pmtiles_property",
+    );
+  });
+
+  it("skips a null asset it does not read", () => {
+    const assets = { ...(PORTOLAN_EXAMPLE.assets as object), readme: null };
+    expect(exportFromCollection({ ...PORTOLAN_EXAMPLE, assets }, URL_BASE).collection.data.key).toBe("data");
+  });
+
   it("refuses queries that name a column outside the public fields", async () => {
     const host = await serveExport(MAUI);
     hosts.push(host);
