@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { queryFilter } from "../src/contract/query-filter.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
-import { openPublication, verifyPmtilesArtifact } from "../src/publication/index.js";
+import { openPublication, verifyPmtilesArtifact } from "../src/export/index.js";
 import {
   LEADING_ZERO_PARCEL,
   MERGED_MULTIPART_PARCEL,

@@ -15,7 +15,7 @@ import {
   createPublicationDataset,
   openPublication,
   verifyPmtilesArtifact,
-} from "../src/publication/index.js";
+} from "../src/export/index.js";
 import { decodeTileLayer } from "./helpers/mvt-decode.js";
 import {
   FIXTURE_STAMP,

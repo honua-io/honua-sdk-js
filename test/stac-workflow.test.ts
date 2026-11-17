@@ -268,6 +268,29 @@ describe("dynamic STAC workflows", () => {
     expect((await stac.assets(unsupported))[0]).toMatchObject({ format: "unsupported", maturity: "unavailable" });
   });
 
+  it("selects the data or visual asset, never a thumbnail or style listed first", async () => {
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1" });
+    const item: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: {
+        thumbnail: { href: "./preview.png", type: "image/png", roles: ["thumbnail"] },
+        style: { href: "./style.json", type: "application/vnd.mapbox.style+json", roles: ["style", "default"] },
+        tiles: { href: "./maui.pmtiles", type: "application/vnd.pmtiles", roles: ["visual"] },
+        data: { href: "./maui.parquet", type: "application/vnd.apache.parquet", roles: ["data"] },
+      },
+      stac_extensions: undefined,
+    };
+
+    expect((await stac.selectAsset(item)).key).toBe("data");
+    expect((await stac.selectAsset(item, { assetKeys: ["thumbnail", "style", "tiles"] })).key).toBe("tiles");
+    const described = Object.fromEntries((await stac.assets(item)).map((asset) => [asset.key, asset]));
+    expect(described.thumbnail?.handoff).toBeUndefined();
+    expect(described.style).toMatchObject({ roles: ["style", "default"], format: "unsupported" });
+    await expect(stac.selectAsset(item, { assetKeys: ["thumbnail", "style"] })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
+  });
+
   it("filters asset formats before refreshing signed URLs", async () => {
     const refreshAssetUrl = vi.fn(async ({ assetKey }: { assetKey: string }) => {
       if (assetKey === "tiles") throw new Error("excluded PMTiles asset must not be signed");

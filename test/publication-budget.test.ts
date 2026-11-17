@@ -4,7 +4,7 @@ import { queryFilter } from "../src/contract/query-filter.js";
 import type { Query, Result, Source } from "../src/contract/types.js";
 import { HonuaAbortError } from "../src/core/errors.js";
 import { GeoparquetRuntime } from "../src/geoparquet/index.js";
-import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/publication/index.js";
+import { HonuaPublicationError, PUBLICATION_LOOKUP_BUDGET } from "../src/export/index.js";
 import {
   FIXTURE_DESCRIPTOR,
   FIXTURE_STAMP,

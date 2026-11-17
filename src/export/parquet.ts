@@ -80,7 +80,7 @@ function decodeGeometries(
   shape: RecordShape,
   rows: readonly ParquetRow[],
 ): readonly unknown[] {
-  const { column, encoding } = publication.descriptor.geometry;
+  const { column, encoding } = publication.geometry;
   const values = rows.map((row) => row[column] ?? null);
   if (encoding === "wkb") return values;
   const kind = encoding.slice("geoarrow-".length) as GeoParquetNativeGeometryKind;
@@ -106,11 +106,11 @@ function rangeBytes(ranges: readonly { readonly startByte: number; readonly endB
 }
 
 export function publicationParquet(publication: Publication, fetchImpl: typeof fetch): PublicationParquet {
-  const artifact = publication.descriptor.artifacts.geoparquet;
-  const reader: ArtifactRangeReader = artifactRangeReader(publication.geoparquetUrl, artifact.bytes, fetchImpl);
+  const artifact = publication.queryArtifact;
+  const reader: ArtifactRangeReader = artifactRangeReader(artifact.url, artifact.bytes, fetchImpl);
   const columns = artifact.fields;
-  const readColumns = [...columns, publication.descriptor.geometry.column];
-  const decodesWkb = publication.descriptor.geometry.encoding === "wkb";
+  const readColumns = [...columns, publication.geometry.column];
+  const decodesWkb = publication.geometry.encoding === "wkb";
 
   const verifiedMetadata = sharedTask(async (signal) => {
     const file = reader.view(signal);
@@ -151,7 +151,7 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
       read: async () =>
         resultFrom<T>(
           publication,
-          { columns, dimensions: geometryDimensions(metadata, publication.descriptor.geometry.column) },
+          { columns, dimensions: geometryDimensions(metadata, publication.geometry.column) },
           await parquet.parquetReadObjects({ ...prepared.options, rowFormat: "object", useBloomFilters: false }),
         ),
     };

@@ -37,7 +37,7 @@ export function createPublicationDataset(
   const descriptors = publication.sourceDescriptors(options.id);
   const resolver = publicationResolver(publication, sourceOptions);
   const dataset = createDataset({
-    id: publication.descriptor.publicationId,
+    id: publication.id,
     client,
     skipCompatibilityCheck: true,
     sources: [descriptors.display, descriptors.query],

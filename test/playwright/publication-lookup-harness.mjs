@@ -27,7 +27,7 @@ import {
   openPublication,
   publicationDriverFactory,
   publicationSource,
-} from "./src/publication/index.ts";
+} from "./src/export/index.ts";
 
 const status = document.querySelector("#status");
 let runtime;

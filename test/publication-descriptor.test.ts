@@ -9,7 +9,7 @@ import {
   HonuaPublicationError,
   publicationDescriptorIssues,
   validatePublicationDescriptor,
-} from "../src/publication/index.js";
+} from "../src/export/index.js";
 
 const repoFile = (relative: string) => fileURLToPath(new URL(`../${relative}`, import.meta.url));
 const readJson = (relative: string) => JSON.parse(readFileSync(repoFile(relative), "utf8"));

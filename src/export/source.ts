@@ -61,7 +61,7 @@ function renderedIdentity(publication: Publication, feature: RenderedPublication
   if (typeof value === "string") return value;
   throw new HonuaPublicationError(
     "artifact-mismatch",
-    `The selected feature has no text ${pmtilesProperty} property, so it cannot be resolved to a ${publication.descriptor.publicationId} record.`,
+    `The selected feature has no text ${pmtilesProperty} property, so it cannot be resolved to a ${publication.id} record.`,
     { detail: { property: pmtilesProperty, received: value === undefined ? "missing" : typeof value } },
   );
 }

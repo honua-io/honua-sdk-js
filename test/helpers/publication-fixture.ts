@@ -12,7 +12,7 @@ import {
   type PublicationSourceOptions,
   openPublication,
   publicationSource,
-} from "../../src/publication/index.js";
+} from "../../src/export/index.js";
 import { startStaticRangeServer } from "./static-range-server.mjs";
 
 export const FIXTURE_DIRECTORY = fileURLToPath(new URL("../fixtures/publication/maui-parcels/", import.meta.url));

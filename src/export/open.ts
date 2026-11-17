@@ -6,6 +6,7 @@ import {
   type PublicationBounds,
   type PublicationDescriptorV1,
   type PublicationField,
+  type PublicationGeometry,
   type PublicationIdentity,
   validatePublicationDescriptor,
 } from "./descriptor.js";
@@ -26,16 +27,32 @@ export interface PublicationDisplay {
   readonly sourceLayer: string;
   /** Tile property that carries the stable identity; use it as MapLibre `promoteId`. */
   readonly promoteId: string;
-  readonly minzoom: number;
-  readonly maxzoom: number;
+  /** Zoom range of the archive, when the document records it; MapLibre reads it from the archive header otherwise. */
+  readonly minzoom?: number;
+  readonly maxzoom?: number;
   readonly bounds: PublicationBounds;
   readonly attribution?: string;
 }
 
-/** An opened, validated paired publication. */
+/** The GeoParquet artifact that answers queries and lookups, at the size its document records. */
+export interface PublicationQueryArtifact {
+  readonly url: string;
+  readonly bytes: number;
+  /** Columns the artifact holds besides geometry; all of them are public fields. */
+  readonly fields: readonly string[];
+}
+
+/** An opened, validated paired publication: a descriptor v1 or a Honua Export collection. */
 export interface Publication {
   readonly url: string;
-  readonly descriptor: PublicationDescriptorV1;
+  /** Publication id (descriptor v1) or Export collection id. */
+  readonly id: string;
+  /** The descriptor v1 this publication was opened from; absent for an Export collection. */
+  readonly descriptor?: PublicationDescriptorV1;
+  readonly geometry: PublicationGeometry;
+  readonly queryArtifact: PublicationQueryArtifact;
+  /** The stamp both artifacts must carry in their metadata. */
+  readonly stamp: PublicationStamp;
   readonly publicFields: readonly PublicationField[];
   readonly identity: PublicationIdentity;
   readonly freshness: PublicationFreshness;
@@ -74,7 +91,19 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
   const geometry = descriptor.geometry;
   return Object.freeze({
     url,
+    id: descriptor.publicationId,
     descriptor,
+    geometry,
+    queryArtifact: Object.freeze({
+      url: geoparquetUrl,
+      bytes: artifacts.geoparquet.bytes,
+      fields: artifacts.geoparquet.fields,
+    }),
+    stamp: Object.freeze({
+      publicationId: descriptor.publicationId,
+      version: descriptor.version,
+      captureId: capture.captureId,
+    }),
     publicFields: Object.freeze(descriptor.fields.filter((field) => field.public)),
     identity,
     freshness: Object.freeze({
@@ -127,7 +156,7 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  *
  * @example
  * ```ts
- * import { openPublication, publicationDriverFactory, publicationSource } from "@honua/sdk-js/publication";
+ * import { openPublication, publicationDriverFactory, publicationSource } from "@honua/sdk-js/export";
  *
  * const parcels = await openPublication("https://data.example.gov/parcels/2026-11-13/descriptor.json");
  * map.addSource("parcels", { type: "vector", url: `pmtiles://${parcels.display.pmtilesUrl}`, promoteId: parcels.display.promoteId });
@@ -181,17 +210,17 @@ export function assertArtifactStamp(
   artifact: "pmtiles" | "geoparquet",
   stamp: unknown,
 ): void {
-  const expected = publication.descriptor;
+  const expected = publication.stamp;
   const actual = stamp as Partial<PublicationStamp> | undefined;
   if (
-    actual?.captureId !== expected.capture.captureId ||
+    actual?.captureId !== expected.captureId ||
     actual.publicationId !== expected.publicationId ||
     actual.version !== expected.version
   ) {
     throw new HonuaPublicationError(
       "artifact-mismatch",
-      `The ${artifact} artifact does not carry capture ${expected.capture.captureId} of ${expected.publicationId} ${expected.version}; it belongs to another capture or version.`,
-      { detail: { artifact, expected: expected.capture.captureId, actual: actual?.captureId ?? null } },
+      `The ${artifact} artifact does not carry capture ${expected.captureId} of ${expected.publicationId} ${expected.version}; it belongs to another capture or version.`,
+      { detail: { artifact, expected: expected.captureId, actual: actual?.captureId ?? null } },
     );
   }
 }
