@@ -63,7 +63,7 @@ export function auditDocsSite(siteDir) {
         }
         if (fs.statSync(targetFile).isDirectory()) targetFile = path.join(targetFile, "index.html");
       }
-      const missing = missingFragment(siteDir, file, targetFile, href, frag, idsFor);
+      const missing = missingFragment({ siteDir, file, targetFile, href, frag, idsFor });
       if (missing?.api) broken.push(missing.item);
       else if (missing) fragWarnings.push(missing.item);
     }
@@ -95,11 +95,11 @@ function main() {
   process.stdout.write("link-check: all internal links resolve\n");
 }
 
-function missingFragment(siteDir, file, targetFile, href, frag, idsFor) {
-  if (!frag || !targetFile.endsWith(".html")) return null;
-  if (idsFor(targetFile).has(decodeURIComponent(frag))) return null;
-  const item = { file, href, reason: `no #${frag} in target` };
-  const api = isUnderApi(siteDir, file) || isUnderApi(siteDir, targetFile);
+function missingFragment(check) {
+  if (!check.frag || !check.targetFile.endsWith(".html")) return null;
+  if (check.idsFor(check.targetFile).has(decodeURIComponent(check.frag))) return null;
+  const item = { file: check.file, href: check.href, reason: `no #${check.frag} in target` };
+  const api = isUnderApi(check.siteDir, check.file) || isUnderApi(check.siteDir, check.targetFile);
   return { api, item };
 }
 
