@@ -85,6 +85,15 @@ describe("Honua Export paired view prerequisites", () => {
     expect(failurePath({ ...MAUI, "table:columns": columns })).toBe("honua:identity.field");
   });
 
+  it("refuses queries that name a column outside the public fields", async () => {
+    const host = await serveExport(MAUI);
+    hosts.push(host);
+    const source = publicationSource((await openExport(host.url)).publication!, { driverFactory: nodeDriver });
+    await expect(source.query({ outFields: ["internal_note"] })).rejects.toMatchObject({ code: "non-public-field" });
+  });
+});
+
+describe("Export collection identity and asset shape", () => {
   it("refuses an identity whose GeoParquet column or PMTiles property differs from the field", () => {
     const identity = MAUI["honua:identity"] as Record<string, string>;
     expect(failurePath({ ...MAUI, "honua:identity": { ...identity, geoparquet_column: "tmk" } })).toBe(
@@ -98,12 +107,5 @@ describe("Honua Export paired view prerequisites", () => {
   it("skips a null asset it does not read", () => {
     const assets = { ...(PORTOLAN_EXAMPLE.assets as object), readme: null };
     expect(exportFromCollection({ ...PORTOLAN_EXAMPLE, assets }, URL_BASE).collection.data.key).toBe("data");
-  });
-
-  it("refuses queries that name a column outside the public fields", async () => {
-    const host = await serveExport(MAUI);
-    hosts.push(host);
-    const source = publicationSource((await openExport(host.url)).publication!, { driverFactory: nodeDriver });
-    await expect(source.query({ outFields: ["internal_note"] })).rejects.toMatchObject({ code: "non-public-field" });
   });
 });
