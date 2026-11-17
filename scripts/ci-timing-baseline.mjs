@@ -9,12 +9,12 @@
 // `collect` needs an authenticated `gh`; `report` is offline, so the committed
 // baseline can be re-rendered and re-checked by anyone without credentials.
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { formatBaselineReport, summarizeRuns } from "./lib/ci-timing-baseline.mjs";
+import { ghWithRetry } from "./lib/gh-transient-retry.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_REPOSITORY = "honua-io/honua-sdk-js";
@@ -31,7 +31,7 @@ function optionValue(argv, flag, fallback) {
 }
 
 function gh(args) {
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, timeout: 300_000 });
+  return ghWithRetry(args);
 }
 
 function collect(argv) {

@@ -14,6 +14,20 @@ on:
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
+    inputs:
+      candidate_mode:
+        description: Execute against the approved current snapshot, an explicit snapshot, or the retained legacy regression
+        type: choice
+        default: current-release
+        options: [current-release, release-snapshot, legacy-regression]
+      reviewed_release_sha:
+        description: Immutable reviewed honua-release trunk commit; required for release-snapshot
+        type: string
+        default: ""
+      candidate_ref:
+        description: Immutable nightly candidate commit SHA, exactly 40 lowercase hex characters; required for release-snapshot
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -33,13 +47,52 @@ jobs:
     # was a published package, correctly named, whose documented `npx` form still
     # could not pick an executable. `docs:commands:check` answers that per pull
     # request from manifests on disk; this answers it from the registry, in a
-    # consumer that has never seen this repository, against the pinned candidate.
+    # consumer that has never seen this repository, against the same admitted
+    # candidate installed-package certification selects. With
+    # no committed selection a scheduled run fails closed; it never falls back to
+    # the September legacy pin.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
+      - name: Select the approved installed candidate
+        id: candidate
+        env:
+          CANDIDATE_MODE: ${{ inputs.candidate_mode }}
+          REVIEWED_RELEASE_SHA: ${{ inputs.reviewed_release_sha }}
+          CANDIDATE_REF: ${{ inputs.candidate_ref }}
+        run: node scripts/select-installed-candidate.mjs
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.candidate.outputs.mode == 'release-snapshot'
+        with:
+          repository: honua-io/honua-release
+          ref: ${{ steps.candidate.outputs.reviewed_release_sha }}
+          path: .tmp/honua-release-input
+          fetch-depth: 0
+      - uses: honua-io/honua-release/.github/actions/candidate-input@88ccc3d3fd0dad93c44b505575a6320de637e4ae # v2026.1-321-g88ccc3d candidate-input snapshot
+        id: release_input
+        if: steps.candidate.outputs.mode == 'release-snapshot'
+        with:
+          candidate_ref: ${{ steps.candidate.outputs.candidate_ref }}
+          reviewed_release_sha: ${{ steps.candidate.outputs.reviewed_release_sha }}
+          checkout_directory: .tmp/honua-release-input
+      - name: Bind the run to the adopted release bytes
+        if: steps.candidate.outputs.mode == 'release-snapshot'
+        env:
+          RELEASE_SHA: ${{ steps.candidate.outputs.reviewed_release_sha }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_ref }}
+          MANIFEST_SHA256: ${{ steps.release_input.outputs.manifest_sha256 }}
+          MATRIX_SHA256: ${{ steps.release_input.outputs.matrix_sha256 }}
+        run: |
+          {
+            echo "HONUA_RELEASE_INPUT_DIRECTORY=$GITHUB_WORKSPACE/.tmp/honua-release-input"
+            echo "HONUA_RELEASE_REVIEWED_SHA=$RELEASE_SHA"
+            echo "HONUA_RELEASE_CANDIDATE_SHA=$CANDIDATE_SHA"
+            echo "HONUA_RELEASE_MANIFEST_SHA256=$MANIFEST_SHA256"
+            echo "HONUA_RELEASE_MATRIX_SHA256=$MATRIX_SHA256"
+          } >> "$GITHUB_ENV"
       - name: Install repository dependencies
         # `--ignore-scripts`: the lane reads manifests to find the documented
         # commands and installs the candidate itself; it never needs this tree built.
