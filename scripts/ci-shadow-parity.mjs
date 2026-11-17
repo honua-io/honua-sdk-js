@@ -11,7 +11,6 @@
 // by anyone without credentials -- which is the point of committing it rather
 // than quoting a number from a run log.
 
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +22,7 @@ import {
   PROMOTION_SAMPLE_THRESHOLD,
   summarizeParity,
 } from "./lib/ci-shadow-parity.mjs";
+import { ghWithRetry } from "./lib/gh-transient-retry.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_REPOSITORY = "honua-io/honua-sdk-js";
@@ -42,7 +42,7 @@ function optionValue(argv, flag, fallback) {
 }
 
 function gh(args) {
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, timeout: 300_000 });
+  return ghWithRetry(args);
 }
 
 function fetchRuns({ repository, workflow, event, limit }) {
