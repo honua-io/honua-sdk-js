@@ -28,6 +28,18 @@ test("API index sends unpublished LICENSE and package.json links to the reposito
   assert.equal(repairApiHref("media/evals", context), "media/evals");
 });
 
+test("API index sends the rewritten MCP evals link to the repository directory", () => {
+  const evals = {
+    ...context,
+    repoKind: (repoPath) => (repoPath === "mcp/evals" ? "dir" : context.repoKind(repoPath)),
+  };
+  assert.equal(
+    repairApiHref("media/evals", evals),
+    "https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals",
+  );
+  assert.equal(repairApiHref("media/coding-agent-evals.md", { ...evals, siteExists: () => true }), "media/coding-agent-evals.md");
+});
+
 test("repairing a published API tree rewrites only the missing root files", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "api-docs-"));
   const repo = path.join(root, "repo");
@@ -46,5 +58,12 @@ test("repairing a published API tree rewrites only the missing root files", () =
   assert.match(html, /href="https:\/\/github.com\/honua-io\/honua-sdk-js\/blob\/trunk\/LICENSE"/);
   assert.match(html, /href="https:\/\/github.com\/honua-io\/honua-sdk-js\/blob\/trunk\/package.json"/);
   assert.match(html, /href="interfaces\/kept.html"/);
+  fs.mkdirSync(path.join(repo, "mcp", "evals"), { recursive: true });
+  fs.writeFileSync(path.join(api, "index.html"), '<a href="media/evals">mcp/evals/runs/</a>\n');
+  assert.equal(repairPublishedApiDocs(api, repo), 1);
+  assert.match(
+    fs.readFileSync(path.join(api, "index.html"), "utf8"),
+    /href="https:\/\/github.com\/honua-io\/honua-sdk-js\/tree\/trunk\/mcp\/evals"/,
+  );
   fs.rmSync(root, { recursive: true, force: true });
 });

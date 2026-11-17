@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 const BLOB = "https://github.com/honua-io/honua-sdk-js/blob/trunk";
+const TREE = "https://github.com/honua-io/honua-sdk-js/tree/trunk";
 const ROOT_FILES = new Set(["LICENSE", "package.json"]);
+const MEDIA_ROOTS = ["docs", "mcp", "examples", "src"];
 
 function isExternal(href) {
   return /^(?:[a-z][a-z0-9+.-]*:|\/\/|#|mailto:|tel:)/i.test(href);
@@ -20,6 +22,20 @@ function rootRepoFile(raw) {
   return ROOT_FILES.has(stripped) ? stripped : null;
 }
 
+// TypeDoc stores a README-relative directory link under media/<rest>.
+// Put it back on the repository path that still exists.
+function mediaRepoTarget(raw, repoKind) {
+  if (!raw.startsWith("media/")) return null;
+  const rest = raw.slice("media/".length);
+  if (rest === "" || rest.split("/").includes("..")) return null;
+  for (const root of MEDIA_ROOTS) {
+    const candidate = `${root}/${rest}`;
+    const kind = repoKind(candidate);
+    if (kind) return { path: candidate, kind };
+  }
+  return null;
+}
+
 // TypeDoc publishes the README as the API index and leaves repository-root
 // files as relative links. The guide builder already sends those to GitHub.
 export function repairApiHref(href, { pageDir, siteExists, repoKind }) {
@@ -30,8 +46,14 @@ export function repairApiHref(href, { pageDir, siteExists, repoKind }) {
   if (sitePath.startsWith("../") || path.posix.isAbsolute(sitePath)) return href;
   if (siteExists(sitePath)) return href;
   const repo = rootRepoFile(raw);
-  if (!repo || repoKind(repo) !== "file") return href;
-  const url = `${BLOB}/${repo}`;
+  if (repo && repoKind(repo) === "file") {
+    const url = `${BLOB}/${repo}`;
+    return frag ? `${url}#${frag}` : url;
+  }
+  const media = mediaRepoTarget(raw, repoKind);
+  if (!media) return href;
+  const base = media.kind === "dir" ? TREE : BLOB;
+  const url = `${base}/${media.path}`;
   return frag ? `${url}#${frag}` : url;
 }
 
