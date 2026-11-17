@@ -75,6 +75,8 @@ export type {
   HonuaMountedApplication,
   MountHonuaApplicationOptions,
 } from "./application-context.js";
+export { adoptHonuaSdkSource } from "./sdk-source.js";
+export type { HonuaSdkSource } from "./sdk-source.js";
 
 // Supported feature inspection workflow (issue #1298).
 export {
