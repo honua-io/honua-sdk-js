@@ -38,6 +38,10 @@ describe("CLI tiles", () => {
     );
   });
 
+  it("rejects --format without --image instead of ignoring it", async () => {
+    await expect(tileUrl({ format: "jpg" })).rejects.toThrow(/--image/);
+  });
+
   it("saves the map tile bytes with -o", async () => {
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       requests.push(new URL(String(input)));

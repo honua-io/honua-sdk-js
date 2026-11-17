@@ -237,13 +237,17 @@ export async function tilesCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     throw new ArgError(`Expected "<z>/<x>/<y>" integers, got: ${zxy}`);
   }
   const [z, x, y] = parts;
+  const image = getBoolean(parsed, "image");
+  if (!image && getString(parsed, "format") !== undefined) {
+    throw new ArgError("--format applies to ImageServer tiles; add --image, or drop --format for the cached map tile.");
+  }
   const format = (getString(parsed, "format") ?? "png") as "png" | "jpg" | "jpeg" | "tif" | "tiff";
 
   const connection = resolveConnection({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, bearerToken: ctx.bearerToken });
   const client = createClient(connection);
   // Esri tile addressing is level/row/col == z/y/x. Every published service has a
   // MapServer tile cache; an ImageServer has one only when it is cached, so it is opt-in.
-  const url = getBoolean(parsed, "image")
+  const url = image
     ? client.imageService(service).tileUrl(z, y, x, format)
     : `${client.serverBaseUrl}/rest/services/${encodeServiceIdPath(service)}/MapServer/tile/${z}/${y}/${x}`;
 
