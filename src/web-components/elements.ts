@@ -136,6 +136,10 @@ const globalDom = globalThis as typeof globalThis & {
   customElements?: CustomElementRegistry;
 };
 
+/** How far, in CSS pixels, a touch or pen press may travel and still count as a tap on a table row. */
+const FEATURE_TABLE_TAP_SLOP_PX = 10;
+/** How long, after a touch or pen tap, the click the browser synthesises for it is still that tap's click. */
+const FEATURE_TABLE_TAP_CLICK_WINDOW_MS = 500;
 const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);
 
 abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElementBase {
@@ -1266,7 +1270,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       row.addEventListener("keydown", (event) => this.#onRowKeydown(event as KeyboardEvent, row));
     }
     for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
-      cell.addEventListener("pointerdown", () => this.#selectCellFromPointer(cell));
+      cell.addEventListener("pointerdown", (event) => this.#onCellPointerdown(event as PointerEvent, cell));
       cell.addEventListener("focus", () => this.#focusCell(cell));
       cell.addEventListener("keydown", (event) => this.#onGridKeydown(event as KeyboardEvent, cell));
     }
@@ -1312,38 +1316,66 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   /**
-   * Pointer selection has to happen on pointerdown. Focus publishes a new
+   * Mouse selection has to happen on pointerdown. Focus publishes a new
    * shadow tree before click, so the pressed cell is gone by the time click
    * would have selected it. The click that follows pointerup is the same
    * gesture and must not select a second time.
+   *
+   * Touch and pen presses also start scrolls, so they select only on a
+   * completed tap: the same pointer released within the slop, never cancelled.
    */
-  #selectCellFromPointer(cell: HTMLTableCellElement): void {
+  #onCellPointerdown(event: PointerEvent, cell: HTMLTableCellElement): void {
     const row = cell.closest<HTMLTableRowElement>("tr");
     if (!row) return;
+    const tap = event.pointerType === "touch" || event.pointerType === "pen";
+    if (!tap) this.#selectCell(row, cell);
+    let moved = false;
+    const outsideSlop = (next: PointerEvent) =>
+      Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) > FEATURE_TABLE_TAP_SLOP_PX;
+    const onMove = (next: Event) => {
+      if ((next as PointerEvent).pointerId === event.pointerId && outsideSlop(next as PointerEvent)) moved = true;
+    };
+    const onUp = (up: PointerEvent) => {
+      if (tap && !moved && !outsideSlop(up)) this.#selectCell(row, cell);
+    };
+    this.#trackPointerGesture(event, onMove, onUp);
+  }
+
+  #selectCell(row: HTMLTableRowElement, cell: HTMLTableCellElement): void {
     const rowKey = row.dataset.rowKey;
     const field = cell.dataset.field;
-    const gesture = ++this.#pointerGesture;
-    this.#ignoreClickSelection = true;
     this.selectRow(row);
     if (this.#table && rowKey && field) {
       this.#table.setFocus({ rowKey, field });
       this.#restoreFocusedCell();
     }
+  }
+
+  #trackPointerGesture(down: PointerEvent, onMove: (event: Event) => void, onUp: (event: PointerEvent) => void): void {
     this.#endPointerGesture?.();
+    const gesture = ++this.#pointerGesture;
+    this.#ignoreClickSelection = true;
     const doc = this.ownerDocument;
-    const release = () => {
+    const tap = down.pointerType === "touch" || down.pointerType === "pen";
+    const clickWindowMs = tap ? FEATURE_TABLE_TAP_CLICK_WINDOW_MS : 0;
+    const release = (event?: Event) => {
+      if (event && (event as PointerEvent).pointerId !== down.pointerId) return;
+      doc.removeEventListener("pointermove", onMove);
       doc.removeEventListener("pointerup", release);
       doc.removeEventListener("pointercancel", release);
       if (this.#endPointerGesture === release) this.#endPointerGesture = undefined;
+      if (event?.type === "pointerup") onUp(event as PointerEvent);
       // The click is dispatched after pointerup listeners return. A held press
       // must not clear the flag before that click, and a press that never
       // produces a click must not swallow a later one. The release can land
-      // outside the host, so the document observes it.
+      // outside the host, so the document observes it. A touch or pen click
+      // comes from a later tap gesture, so its window is longer.
       setTimeout(() => {
         if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
-      }, 0);
+      }, clickWindowMs);
     };
     this.#endPointerGesture = release;
+    doc.addEventListener("pointermove", onMove);
     doc.addEventListener("pointerup", release);
     doc.addEventListener("pointercancel", release);
   }
