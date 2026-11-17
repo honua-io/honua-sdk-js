@@ -335,12 +335,18 @@ function sidebar(sitePath, navGroups, titles, activeDoc) {
     parts.push(`<p class="nav-group">${escapeHtml(group.title)}</p><ul>`);
     for (const doc of group.docs) {
       const to = repoPathToSitePath(doc);
-      const cls = doc === activeDoc ? ' class="active"' : "";
-      parts.push(`<li${cls}><a href="${relativeUrl(sitePath, to)}">${escapeHtml(titles.get(doc))}</a></li>`);
+      const active = doc === activeDoc;
+      const cls = active ? ' class="active"' : "";
+      const current = active ? ' aria-current="page"' : "";
+      parts.push(`<li${cls}><a href="${relativeUrl(sitePath, to)}"${current}>${escapeHtml(titles.get(doc))}</a></li>`);
     }
     parts.push("</ul>");
   }
   parts.push("</nav></aside>");
+  // The sidebar is its own scroll box (45vh on phones); bring the current page into it without moving the window.
+  parts.push(
+    `<script>(()=>{const s=document.querySelector(".sidebar"),a=s&&s.querySelector("li.active a");if(a)s.scrollTop+=a.getBoundingClientRect().top-s.getBoundingClientRect().top-s.clientHeight/3;})();</script>`,
+  );
   return parts.join("\n");
 }
 
@@ -450,6 +456,8 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+/* scroll-padding-top must exceed the one-row sticky .topbar height (about 51px; .sidebar uses top:64px). */
+html{scroll-padding-top:5rem}
 .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 .topbar .brand{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--fg)}
 .topbar-links{display:flex;flex-wrap:wrap;gap:1rem;margin-left:auto;font-size:.92rem}
@@ -467,7 +475,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .sidebar li a{display:block;padding:.2rem .5rem;border-radius:5px;color:var(--fg)}
 .sidebar li a:hover{background:var(--accent-soft);text-decoration:none}
 .sidebar li.active a{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.content{flex:1 1 auto;min-width:0;padding:1.5rem 0 3rem;max-width:100%}
+.content{flex:1 1 auto;min-width:0;padding:1.5rem 0 3rem;max-width:100%;overflow-wrap:break-word}
 .content a{overflow-wrap:anywhere}
 .content h1{font-size:2rem;line-height:1.2;margin-top:.5rem}
 .content h2{margin-top:2rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
@@ -524,7 +532,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
 .demo-card-details .demo-facts{margin:.75rem 0 .2rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}
-@media (max-width:820px){.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:none;width:100%;border-bottom:1px solid var(--border)}}
+@media (max-width:820px){html{scroll-padding-top:1rem}.topbar{position:static}.layout{flex-direction:column;padding:0 1rem}.sidebar{position:static;flex-basis:auto;max-height:45vh;width:100%;border-bottom:1px solid var(--border)}}
 @media (max-width:520px){.demo-facts{grid-template-columns:1fr}.demo-facts dd{margin-bottom:.35rem}}
 `;
 
