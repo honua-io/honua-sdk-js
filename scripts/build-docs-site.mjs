@@ -28,6 +28,7 @@ import {
   renderGalleryContent,
   verifyGalleryProjectionIntegrity,
 } from "./lib/docs-gallery.mjs";
+import { repairPublishedApiDocs } from "./lib/repair-api-doc-links.mjs";
 import { parseJsonDocument } from "./sample-contract.mjs";
 import { markdownBody } from "./lib/docs-markdown.mjs";
 
@@ -661,6 +662,7 @@ ${renderMarkdown(readme, { sourcePath: "README.md", sitePath: "index.html" })}`;
   let apiPages = 0;
   if (fs.existsSync(API_SRC)) {
     copyDir(API_SRC, path.join(OUT, "api"));
+    repairPublishedApiDocs(path.join(OUT, "api"), ROOT);
     decorateApiIndex();
     apiPages = walkCount(path.join(OUT, "api"), ".html");
   } else {
