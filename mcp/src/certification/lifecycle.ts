@@ -38,6 +38,8 @@ const MAX_FEATURE_PAGES = 20;
 
 export interface DeepContractOptions {
   client: Client;
+  /** Layer-index argument name the target advertises (see `advertisedLayerKey`). */
+  layerKey?: "layerId" | "serviceLayerIndex";
   advertisedToolNames: Set<string>;
   /** Whether the backend is the disposable offline mock (auto-allows mutation). */
   isDisposableBackend: boolean;
@@ -134,7 +136,7 @@ async function runMutatingRoundTrip(
       featureAttributes(
         await callTool(client, QUERY_TOOL, {
           serviceId: target.serviceId,
-          layerId: target.layerId,
+          [options.layerKey ?? "layerId"]: target.layerId,
           objectIds: [objectId],
         }),
       ).some((a) => Number(a.OBJECTID) === objectId);
@@ -152,7 +154,7 @@ async function runMutatingRoundTrip(
         : featureAttributes(
             await callTool(client, QUERY_TOOL, {
               serviceId: target.serviceId,
-              layerId: target.layerId,
+              [options.layerKey ?? "layerId"]: target.layerId,
               objectIds: [objectId],
             }),
           )[0]?.NAME;
@@ -165,7 +167,7 @@ async function runMutatingRoundTrip(
       featureAttributes(
         await callTool(client, QUERY_TOOL, {
           serviceId: target.serviceId,
-          layerId: target.layerId,
+          [options.layerKey ?? "layerId"]: target.layerId,
           objectIds: [objectId],
         }),
       ).every((a) => Number(a.OBJECTID) !== objectId);
@@ -360,7 +362,11 @@ async function runQueryPagination(options: DeepContractOptions, target: EditTarg
     const pages: ListPage[] = [];
     let cursor: string | undefined;
     for (let i = 0; i < MAX_FEATURE_PAGES; i++) {
-      const args: Record<string, unknown> = { serviceId: target.serviceId, layerId: target.layerId, limit: PAGE_LIMIT };
+      const args: Record<string, unknown> = {
+        serviceId: target.serviceId,
+        [options.layerKey ?? "layerId"]: target.layerId,
+        limit: PAGE_LIMIT,
+      };
       if (cursor) {
         args.cursor = cursor;
       }

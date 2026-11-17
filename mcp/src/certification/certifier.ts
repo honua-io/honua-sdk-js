@@ -179,14 +179,6 @@ interface AdvertisedTool {
   annotations?: { readOnlyHint?: boolean };
 }
 
-/**
- * Bind the round-trip inputs to what the target actually serves.
- *
- * The non-GeoServices lane has no `serviceId`/`layerId` at all, so the
- * source-addressed tools round-trip through the protocol-neutral reference for
- * a recorded OGC collection instead (#1005). An explicit `HONUA_MCP_SOURCE`
- * always wins.
- */
 const LAYER_ADDRESSED_TOOLS = new Set(["honua_describe_layer", "honua_query_features"]);
 
 /**
@@ -203,6 +195,14 @@ export function advertisedLayerKey(
   return declares ? "serviceLayerIndex" : "layerId";
 }
 
+/**
+ * Bind the round-trip inputs to what the target actually serves.
+ *
+ * The non-GeoServices lane has no `serviceId`/`layerId` at all, so the
+ * source-addressed tools round-trip through the protocol-neutral reference for
+ * a recorded OGC collection instead (#1005). An explicit `HONUA_MCP_SOURCE`
+ * always wins.
+ */
 function withTargetRoundTripDefaults(env: RoundTripEnv, targetMode: CertTargetMode): RoundTripEnv {
   if (targetMode !== "standalone-ogc" || env.sourceRef) {
     return env;
@@ -281,6 +281,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
     client,
     advertisedToolNames: advertisedNames,
     isDisposableBackend: options.backend === "mock-upstream",
+    layerKey: roundTripEnv.layerKey,
     connectUnauthenticated: options.connectUnauthenticated,
     env,
     ...(targetResolution?.status === "blocked" ? { targetUnavailable: targetResolution.detail } : {}),
