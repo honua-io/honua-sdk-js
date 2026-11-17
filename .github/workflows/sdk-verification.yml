@@ -188,6 +188,11 @@ jobs:
       - name: Test shadow-parity policy
         run: node --test test/scripts/ci-shadow-parity.test.mjs
 
+      # Both collectors make 60+ gh calls per run; one transient GitHub 5xx
+      # must be retried, not fail the readout.
+      - name: Test gh transient-error retry
+        run: node --test test/scripts/gh-retry.test.mjs
+
       # A raw control byte makes git classify a policy source as binary, and a
       # binary diff is a diff nobody reviewed. This has happened twice already
       # (#1332, #1334); the guard covers every policy source rather than the one
