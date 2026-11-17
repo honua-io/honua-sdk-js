@@ -20,7 +20,8 @@ export type HonuaSdkSource<T = Record<string, unknown>> = Omit<Source<T>, "proto
  *
  * The compiler still checks every member except the typed `protocol()` and
  * `adapter()` results. The function returns the same object; it does not wrap
- * or copy the source.
+ * or copy the source, so `protocol()` and `adapter()` still return the SDK's
+ * own adapter instances.
  */
 export function adoptHonuaSdkSource<T = Record<string, unknown>>(source: HonuaSdkSource<T>): Source<T> {
   return source as Source<T>;

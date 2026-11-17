@@ -8,7 +8,7 @@ const SPLIT_PACKAGES = [
 
 // The app-platform consumer sits inside the packed @honua/sdk-js consumer, so
 // @honua/sdk-js resolves to the installed tarball and the split packages to
-// their generated directories (issue #2635).
+// their generated directories.
 export function prepareAppPlatformSdkSourceConsumer({ projectRoot, consumerRoot }) {
   const splitRoot = path.join(projectRoot, "dist", "packages");
   const missing = SPLIT_PACKAGES.filter(([, directory]) => !fs.existsSync(path.join(splitRoot, directory, "package.json")));

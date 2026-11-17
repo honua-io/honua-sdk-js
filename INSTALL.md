@@ -140,6 +140,10 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/theming` | Operator design-system theme provider + tokens |
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
+`@honua/sdk-js` does not re-export these surfaces. The `@honua/sdk-js/console`
+entrypoint was removed earlier (its projection helpers are owned by the
+`@honua/console` application).
+
 ### Pass an `@honua/sdk-js` source to `@honua/app-platform`
 
 Each package ships its own copy of the contract types, so TypeScript rejects a
@@ -148,7 +152,7 @@ expects a `Source`: the typed `protocol()` and `adapter()` results come from two
 separate adapter maps. Pass the source through `adoptHonuaSdkSource`. It returns
 the same object, and the compiler still checks every other member:
 
-```ts
+```ts doc-test=skip reason="needs a live endpoint; the packed SDK verifier compiles the same binding"
 import { adoptHonuaSdkSource, createHonuaApplicationContext } from "@honua/app-platform/web-components";
 import { connect } from "@honua/sdk-js/honua";
 
@@ -158,11 +162,9 @@ createHonuaApplicationContext({ status: "ready", binding: { source, sourceIdenti
 ```
 
 `createHonuaFeatureTable` takes only the query surface and accepts an SDK
-source directly. Use the helper instead of an `as unknown as` cast.
-
-`@honua/sdk-js` does not re-export these surfaces. The `@honua/sdk-js/console`
-entrypoint was removed earlier (its projection helpers are owned by the
-`@honua/console` application).
+source directly. Use the helper instead of an `as unknown as` cast. The
+objects `protocol()` and `adapter()` return are still `@honua/sdk-js` adapter
+instances, so do not test them with `instanceof` against app-platform classes.
 
 ## Prerequisites
 
