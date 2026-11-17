@@ -238,7 +238,8 @@ ADMIN CONTROL PLANE
   honua admin operations [group]               List generated operation inventory
   honua admin qualify --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>
       Qualify local setup, the bounded workflow view, and style/render.
-      Add --service-id --layer-id --bbox minx,miny,maxx,maxy --yes to apply a discovered preset.
+      Add --service-id --layer-id <service layer index> --bbox minx,miny,maxx,maxy --yes to apply
+      a discovered preset.
       Or replay --style-evidence <file> --style-png <file>. --output writes the redacted receipt.
 
 GLOBAL OPTIONS
