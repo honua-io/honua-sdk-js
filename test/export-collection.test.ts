@@ -63,7 +63,9 @@ describe("a third-party Portolan collection", () => {
     expect(display).toMatchObject({ id: "municipal-boundaries-display", protocol: "pmtiles" });
     expect(query).toMatchObject({ protocol: "geoparquet", locator: { url: `${base}municipal-boundaries.parquet` } });
   });
+});
 
+describe("a third-party Portolan collection without a PMTiles visual or with errors", () => {
   it("draws the data asset when there is no PMTiles visual", () => {
     const { visual: _visual, ...assets } = PORTOLAN_EXAMPLE.assets as Record<string, unknown>;
     const links = (PORTOLAN_EXAMPLE.links as Array<{ rel: string }>).filter((link) => link.rel !== "pmtiles");
@@ -109,7 +111,9 @@ describe("a Honua Export", () => {
     expect(publication.publicFields.map((field) => field.name)).not.toContain("internal_note");
     await verifyPmtilesArtifact(publication);
   });
+});
 
+describe("Honua Export lookups", () => {
   it("answers an identity lookup from a host that refuses HEAD, reading only ranges", async () => {
     const host = await served(mauiExportCollection(), { head: false });
     const opened = await openExport(host.url);
@@ -131,7 +135,9 @@ describe("a Honua Export", () => {
     const source = publicationSource((await openExport(host.url)).publication!, { driverFactory: nodeDriver });
     await expect(source.lookup(MERGED_MULTIPART_PARCEL)).rejects.toMatchObject({ code: "artifact-mismatch" });
   });
+});
 
+describe("Honua Export collection rules", () => {
   it("has no paired view when the data asset does not record its size", () => {
     const collection = mauiExportCollection();
     const assets = collection.assets as Record<string, Record<string, unknown>>;

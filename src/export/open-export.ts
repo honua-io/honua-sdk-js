@@ -3,7 +3,12 @@ import { PROTOCOL_DEFAULT_CAPABILITIES } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import { type ExportCollection, PARQUET_MEDIA_TYPE, readExportCollection } from "./collection.js";
 import { HonuaPublicationError } from "./errors.js";
-import type { OpenPublicationOptions, Publication, PublicationDisplay } from "./open.js";
+import {
+  type OpenPublicationOptions,
+  type Publication,
+  type PublicationDisplay,
+  pairedSourceDescriptors,
+} from "./open.js";
 
 /** How a map draws the Export: its PMTiles `visual` asset, or the `data` asset itself. */
 export type ExportRenderPath = "visual" | "data";
@@ -96,8 +101,6 @@ function publicationOf(
   if (!honua || !display?.promoteId || data.type !== PARQUET_MEDIA_TYPE || data.bytes === undefined) return undefined;
   const version = collection.version ?? collection.updated ?? honua.captureId;
   const publicFields = collection.fields.filter((field) => field.public);
-  const sourceDescriptors = (id = collection.id) =>
-    Object.freeze({ display: displayDescriptor(display, id)!, query: queryDescriptor(collection, id)! });
   return Object.freeze({
     url,
     id: collection.id,
@@ -119,7 +122,12 @@ function publicationOf(
     }),
     display: display as PublicationDisplay,
     geoparquetUrl: data.url,
-    sourceDescriptors,
+    sourceDescriptors: (id = collection.id) =>
+      pairedSourceDescriptors(id, {
+        pmtilesUrl: display.pmtilesUrl,
+        geoparquetUrl: data.url,
+        geometry: honua.geometry,
+      }),
   });
 }
 

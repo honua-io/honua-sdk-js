@@ -76,6 +76,38 @@ function absoluteUrl(reference: string, base: string): string {
   return new URL(reference, base).href;
 }
 
+function pick<T extends object, K extends keyof T>(source: T, ...keys: K[]): Pick<T, K> {
+  return Object.fromEntries(keys.map((key) => [key, source[key]])) as Pick<T, K>;
+}
+
+/** The PMTiles display and GeoParquet query descriptors of a paired publication, for `createDataset`. */
+export function pairedSourceDescriptors(
+  id: string,
+  pair: { readonly pmtilesUrl: string; readonly geoparquetUrl: string; readonly geometry: PublicationGeometry },
+): { readonly display: SourceDescriptor; readonly query: SourceDescriptor } {
+  const { geometry } = pair;
+  return Object.freeze({
+    display: Object.freeze({
+      id: `${id}-display`,
+      protocol: "pmtiles",
+      locator: Object.freeze({ url: pair.pmtilesUrl }),
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.pmtiles,
+    }),
+    query: Object.freeze({
+      id,
+      protocol: "geoparquet",
+      locator: Object.freeze({
+        url: pair.geoparquetUrl,
+        geoparquet: Object.freeze({
+          geometryColumn: geometry.column,
+          ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
+        }),
+      }),
+      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
+    }),
+  });
+}
+
 function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publication {
   const { artifacts, capture, identity } = descriptor;
   const display: PublicationDisplay = Object.freeze({
@@ -94,16 +126,8 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
     id: descriptor.publicationId,
     descriptor,
     geometry,
-    queryArtifact: Object.freeze({
-      url: geoparquetUrl,
-      bytes: artifacts.geoparquet.bytes,
-      fields: artifacts.geoparquet.fields,
-    }),
-    stamp: Object.freeze({
-      publicationId: descriptor.publicationId,
-      version: descriptor.version,
-      captureId: capture.captureId,
-    }),
+    queryArtifact: Object.freeze({ url: geoparquetUrl, ...pick(artifacts.geoparquet, "bytes", "fields") }),
+    stamp: Object.freeze({ ...pick(descriptor, "publicationId", "version"), captureId: capture.captureId }),
     publicFields: Object.freeze(descriptor.fields.filter((field) => field.public)),
     identity,
     freshness: Object.freeze({
@@ -116,28 +140,8 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
     display,
     geoparquetUrl,
     ...(descriptor.links.source ? { liveSourceUrl: descriptor.links.source } : {}),
-    sourceDescriptors(id = descriptor.publicationId) {
-      return Object.freeze({
-        display: Object.freeze({
-          id: `${id}-display`,
-          protocol: "pmtiles",
-          locator: Object.freeze({ url: display.pmtilesUrl }),
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.pmtiles,
-        }),
-        query: Object.freeze({
-          id,
-          protocol: "geoparquet",
-          locator: Object.freeze({
-            url: geoparquetUrl,
-            geoparquet: Object.freeze({
-              geometryColumn: geometry.column,
-              ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
-            }),
-          }),
-          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
-        }),
-      });
-    },
+    sourceDescriptors: (id = descriptor.publicationId) =>
+      pairedSourceDescriptors(id, { pmtilesUrl: display.pmtilesUrl, geoparquetUrl, geometry }),
   });
 }
 

@@ -7,23 +7,66 @@ import { FIXTURE_DESCRIPTOR, FIXTURE_DIRECTORY } from "./publication-fixture.js"
 import { startStaticRangeServer } from "./static-range-server.mjs";
 
 const TABLE_TYPES: Record<string, string> = { string: "string", integer: "int64", number: "double" };
+const STAC_EXTENSIONS = [
+  "https://stac-extensions.github.io/web-map-links/v1.3.0/schema.json",
+  "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+  "https://stac-extensions.github.io/table/v1.2.0/schema.json",
+  "https://stac-extensions.github.io/version/v1.2.0/schema.json",
+];
+
+type Descriptor = typeof FIXTURE_DESCRIPTOR;
+
+function honuaExtension(d: Descriptor): Record<string, unknown> {
+  return {
+    "honua:capture_id": d.capture.captureId,
+    "honua:captured_at": d.capture.capturedAt,
+    "honua:source_revision": d.capture.sourceRevision,
+    "honua:identity": {
+      field: d.identity.field,
+      pmtiles_property: d.identity.pmtilesProperty,
+      geoparquet_column: d.identity.geoparquetColumn,
+    },
+    "honua:geometry": { column: d.geometry.column, encoding: d.geometry.encoding, bbox_column: d.geometry.bboxColumn },
+    "honua:public_fields": d.artifacts.geoparquet.fields,
+  };
+}
+
+function tableColumns(d: Descriptor): Array<Record<string, string>> {
+  return [
+    ...d.fields.map((field: { name: string; type: string }) => ({
+      name: field.name,
+      type: TABLE_TYPES[field.type] ?? field.type,
+    })),
+    { name: d.geometry.column, type: "binary" },
+    { name: "internal_note", type: "string" },
+  ];
+}
+
+function fileAsset(href: string, type: string, role: string): Record<string, unknown> {
+  const bytes = statSync(path.join(FIXTURE_DIRECTORY, href.slice(2))).size;
+  return { href, type, roles: [role], "file:size": bytes };
+}
+
+function exportLinks(d: Descriptor): Array<Record<string, unknown>> {
+  return [
+    { rel: "root", href: "../catalog.json", type: "application/json" },
+    { rel: "parent", href: "../catalog.json", type: "application/json" },
+    {
+      rel: "pmtiles",
+      href: "./parcels.pmtiles",
+      type: "application/vnd.pmtiles",
+      "pmtiles:layers": [d.artifacts.pmtiles.vectorLayer],
+    },
+  ];
+}
 
 /** The Maui pair fixture described as a Honua Export: one Portolan collection with the honua: extension. */
 export function mauiExportCollection(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const d = FIXTURE_DESCRIPTOR;
-  const parquetBytes = statSync(path.join(FIXTURE_DIRECTORY, "parcels.parquet")).size;
-  const pmtilesBytes = statSync(path.join(FIXTURE_DIRECTORY, "parcels.pmtiles")).size;
   return {
     type: "Collection",
     stac_version: "1.1.0",
-    stac_extensions: [
-      PORTOLAN_SCHEMA,
-      "https://stac-extensions.github.io/web-map-links/v1.3.0/schema.json",
-      "https://stac-extensions.github.io/file/v2.1.0/schema.json",
-      "https://stac-extensions.github.io/table/v1.2.0/schema.json",
-      "https://stac-extensions.github.io/version/v1.2.0/schema.json",
-      HONUA_STAC_EXTENSION,
-    ],
+    stac_extensions: [...STAC_EXTENSIONS, PORTOLAN_SCHEMA, HONUA_STAC_EXTENSION],
     id: d.publicationId,
     title: d.title,
     description: "Maui County parcels exported as GeoParquet and PMTiles (test fixture subset).",
@@ -35,49 +78,14 @@ export function mauiExportCollection(overrides: Record<string, unknown> = {}): R
       { name: "Honua", roles: ["host"], url: "https://honua.io" },
     ],
     extent: { spatial: { bbox: [d.bounds] }, temporal: { interval: [[d.capture.capturedAt, null]] } },
-    "table:columns": [
-      ...d.fields.map((field: { name: string; type: string }) => ({
-        name: field.name,
-        type: TABLE_TYPES[field.type] ?? field.type,
-      })),
-      { name: d.geometry.column, type: "binary" },
-      { name: "internal_note", type: "string" },
-    ],
-    "honua:capture_id": d.capture.captureId,
-    "honua:captured_at": d.capture.capturedAt,
-    "honua:source_revision": d.capture.sourceRevision,
-    "honua:identity": {
-      field: d.identity.field,
-      pmtiles_property: d.identity.pmtilesProperty,
-      geoparquet_column: d.identity.geoparquetColumn,
-    },
-    "honua:geometry": { column: d.geometry.column, encoding: d.geometry.encoding, bbox_column: d.geometry.bboxColumn },
-    "honua:public_fields": d.artifacts.geoparquet.fields,
+    "table:columns": tableColumns(d),
+    ...honuaExtension(d),
     assets: {
-      data: {
-        href: "./parcels.parquet",
-        type: "application/vnd.apache.parquet",
-        roles: ["data"],
-        "file:size": parquetBytes,
-      },
-      visual: {
-        href: "./parcels.pmtiles",
-        type: "application/vnd.pmtiles",
-        roles: ["visual"],
-        "file:size": pmtilesBytes,
-      },
+      data: fileAsset("./parcels.parquet", "application/vnd.apache.parquet", "data"),
+      visual: fileAsset("./parcels.pmtiles", "application/vnd.pmtiles", "visual"),
       thumbnail: { href: "./thumbnail.png", type: "image/png", roles: ["thumbnail"] },
     },
-    links: [
-      { rel: "root", href: "../catalog.json", type: "application/json" },
-      { rel: "parent", href: "../catalog.json", type: "application/json" },
-      {
-        rel: "pmtiles",
-        href: "./parcels.pmtiles",
-        type: "application/vnd.pmtiles",
-        "pmtiles:layers": [d.artifacts.pmtiles.vectorLayer],
-      },
-    ],
+    links: exportLinks(d),
     ...overrides,
   };
 }

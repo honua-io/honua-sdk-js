@@ -237,6 +237,20 @@ function attributionOf(document: JsonObject): string | undefined {
   return names.length > 0 ? [...new Set(names)].join(", ") : undefined;
 }
 
+function assetsByRole(document: JsonObject, url: string) {
+  if (!isObject(document.assets)) invalid("assets", "must be an object");
+  const assets = Object.entries(document.assets).map(([key, value]) => asset(key, value, url));
+  const data = rolesOf(assets, "data");
+  if (data.length !== 1) invalid("assets", `must have exactly one data asset (found ${data.length})`);
+  const isDefault = (entry: ExportAsset) => Number(entry.roles.includes("default"));
+  return {
+    data: data[0]!,
+    visual: rolesOf(assets, "visual").find((entry) => entry.type === PMTILES_MEDIA_TYPE),
+    styles: Object.freeze(rolesOf(assets, "style").sort((left, right) => isDefault(right) - isDefault(left))),
+    thumbnail: rolesOf(assets, "thumbnail")[0],
+  };
+}
+
 /**
  * Validate a Portolan STAC collection document (STAC 1.1) and read the facts
  * the SDK needs: the `data` asset, the `visual` / `style` / `thumbnail` assets,
@@ -251,15 +265,7 @@ export function readExportCollection(document: unknown, url: string): ExportColl
   }
   const extensions = Array.isArray(document.stac_extensions) ? document.stac_extensions : [];
   if (!extensions.includes(PORTOLAN_SCHEMA)) invalid("stac_extensions", `must declare ${PORTOLAN_SCHEMA}`);
-  if (!isObject(document.assets)) invalid("assets", "must be an object");
-  const assets = Object.entries(document.assets).map(([key, value]) => asset(key, value, url));
-  const data = rolesOf(assets, "data");
-  if (data.length !== 1) invalid("assets", `must have exactly one data asset (found ${data.length})`);
-  const visual = rolesOf(assets, "visual").find((entry) => entry.type === PMTILES_MEDIA_TYPE);
-  const thumbnail = rolesOf(assets, "thumbnail")[0];
-  const styles = rolesOf(assets, "style").sort(
-    (left, right) => Number(right.roles.includes("default")) - Number(left.roles.includes("default")),
-  );
+  const { data, visual, styles, thumbnail } = assetsByRole(document, url);
   const honua = honuaFacts(document);
   const updated = optionalText(document, "updated");
   const version = optionalText(document, "version");
@@ -275,9 +281,9 @@ export function readExportCollection(document: unknown, url: string): ExportColl
     bounds: bounds(document),
     ...(attribution ? { attribution } : {}),
     fields: tableFields(document, honua ? new Set(honua.publicFields) : undefined),
-    data: data[0]!,
+    data,
     ...(visual ? { visual } : {}),
-    styles: Object.freeze(styles),
+    styles,
     ...(thumbnail ? { thumbnail } : {}),
     ...(pmtiles ? { pmtiles } : {}),
     ...(honua ? { honua } : {}),
