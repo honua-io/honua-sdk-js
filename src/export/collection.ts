@@ -121,19 +121,37 @@ function stringList(value: unknown, path: string): readonly string[] {
 function bounds(document: JsonObject): PublicationBounds {
   const spatial = isObject(document.extent) && isObject(document.extent.spatial) ? document.extent.spatial : undefined;
   const first = Array.isArray(spatial?.bbox) ? (spatial.bbox[0] as unknown) : undefined;
-  if (!Array.isArray(first) || first.length !== 4 || first.some((value) => !Number.isFinite(value))) {
-    invalid("extent.spatial.bbox[0]", "must be four finite WGS84 numbers");
+  const valid = Array.isArray(first) && (first.length === 4 || first.length === 6);
+  if (!valid || first.some((value) => !Number.isFinite(value))) {
+    invalid("extent.spatial.bbox[0]", "must be four (or six, with heights) finite WGS84 numbers");
   }
-  const [west, south, east, north] = first as number[];
-  if (south > north || west < -180 || east > 180 || south < -90 || north > 90) {
+  const [west, south, east, north] = first.length === 6 ? [first[0], first[1], first[3], first[4]] : first;
+  if (south! > north! || west! < -180 || east! > 180 || south! < -90 || north! > 90) {
     invalid("extent.spatial.bbox[0]", "must lie within WGS84 with south <= north");
   }
-  return Object.freeze([west, south, east, north] as const);
+  return Object.freeze([west!, south!, east!, north!] as const);
 }
 
-function asset(key: string, value: unknown, base: string): ExportAsset {
+/** Resolve `href` against the document URL; only http(s) locations are read. */
+export function resolveHref(href: string, base: string, path: string): string {
+  let resolved: URL;
+  try {
+    resolved = new URL(href, base);
+  } catch {
+    invalid(path, `does not resolve to a URL against ${base}`);
+  }
+  if (resolved.protocol !== "https:" && resolved.protocol !== "http:") invalid(path, "must be an http(s) URL");
+  return resolved.href;
+}
+
+/** Roles whose assets the SDK reads; other assets may omit `type` and `roles`, as STAC allows. */
+const READ_ROLES = ["data", "visual", "style", "thumbnail"];
+
+function asset(key: string, value: unknown, base: string): ExportAsset | undefined {
   const path = `assets.${key}`;
   if (!isObject(value)) invalid(path, "must be an object");
+  const roles = Array.isArray(value.roles) ? value.roles : [];
+  if (!roles.some((role) => READ_ROLES.includes(role as string))) return undefined;
   const href = text(value, "href", `${path}.href`);
   const size = value["file:size"];
   if (size !== undefined && !(Number.isSafeInteger(size) && (size as number) > 0)) {
@@ -145,7 +163,7 @@ function asset(key: string, value: unknown, base: string): ExportAsset {
   const title = optionalText(value, "title", `${path}.title`);
   return Object.freeze({
     key,
-    url: new URL(href, base).href,
+    url: resolveHref(href, base, `${path}.href`),
     type: text(value, "type", `${path}.type`),
     roles: stringList(value.roles, `${path}.roles`),
     ...(title ? { title } : {}),
@@ -158,9 +176,11 @@ function pmtilesLink(document: JsonObject, base: string): ExportCollection["pmti
   const links = Array.isArray(document.links) ? document.links : invalid("links", "must be a list");
   const link = links.find((entry): entry is JsonObject => isObject(entry) && entry.rel === "pmtiles");
   if (!link) return undefined;
+  const layers = link["pmtiles:layers"];
   return Object.freeze({
-    url: new URL(text(link, "href", "links[rel=pmtiles].href"), base).href,
-    layers: stringList(link["pmtiles:layers"], "links[rel=pmtiles].pmtiles:layers"),
+    url: resolveHref(text(link, "href", "links[rel=pmtiles].href"), base, "links[rel=pmtiles].href"),
+    // Raster archives have no vector layers; the web-map-links extension requires them for vector tiles only.
+    layers: layers === undefined ? Object.freeze([]) : stringList(layers, "links[rel=pmtiles].pmtiles:layers"),
   });
 }
 
@@ -220,7 +240,16 @@ function honuaFacts(document: JsonObject): ExportHonuaFacts | undefined {
   if (!facts.publicFields.includes(facts.identity.field)) {
     invalid("honua:public_fields", `must include the identity field ${facts.identity.field}`);
   }
+  assertTextIdentity(document, facts.identity.field);
   return Object.freeze(facts);
+}
+
+/** Lookups compare identities as text, so a numeric identity column would silently match nothing. */
+function assertTextIdentity(document: JsonObject, field: string): void {
+  const columns = Array.isArray(document["table:columns"]) ? document["table:columns"] : [];
+  const column = columns.find((entry): entry is JsonObject => isObject(entry) && entry.name === field);
+  if (column && column.type !== "string")
+    invalid("honua:identity.field", `must name a string column (${field} is ${String(column.type)})`);
 }
 
 function rolesOf(assets: readonly ExportAsset[], role: string): ExportAsset[] {
@@ -239,7 +268,9 @@ function attributionOf(document: JsonObject): string | undefined {
 
 function assetsByRole(document: JsonObject, url: string) {
   if (!isObject(document.assets)) invalid("assets", "must be an object");
-  const assets = Object.entries(document.assets).map(([key, value]) => asset(key, value, url));
+  const assets = Object.entries(document.assets)
+    .map(([key, value]) => asset(key, value, url))
+    .filter((entry): entry is ExportAsset => entry !== undefined);
   const data = rolesOf(assets, "data");
   if (data.length !== 1) invalid("assets", `must have exactly one data asset (found ${data.length})`);
   const isDefault = (entry: ExportAsset) => Number(entry.roles.includes("default"));

@@ -1,6 +1,5 @@
 import { type DescribePmtilesArchiveDeps, describePmtilesArchive } from "../contract/pmtiles.js";
 import type { SourceDescriptor } from "../contract/types.js";
-import { PROTOCOL_DEFAULT_CAPABILITIES } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import {
   type PublicationBounds,
@@ -11,6 +10,7 @@ import {
   validatePublicationDescriptor,
 } from "./descriptor.js";
 import { HonuaPublicationError } from "./errors.js";
+import { pairedSourceDescriptors } from "./pair.js";
 
 /** When the published data was read from its source and when this version went live. */
 export interface PublicationFreshness {
@@ -64,6 +64,12 @@ export interface Publication {
   sourceDescriptors(id?: string): { readonly display: SourceDescriptor; readonly query: SourceDescriptor };
 }
 
+/** A publication opened from a descriptor v1: the descriptor and the archive zoom range are always present. */
+export interface DescriptorPublication extends Publication {
+  readonly descriptor: PublicationDescriptorV1;
+  readonly display: PublicationDisplay & { readonly minzoom: number; readonly maxzoom: number };
+}
+
 export interface OpenPublicationOptions {
   readonly fetch?: typeof fetch;
   readonly signal?: AbortSignal;
@@ -80,37 +86,9 @@ function pick<T extends object, K extends keyof T>(source: T, ...keys: K[]): Pic
   return Object.fromEntries(keys.map((key) => [key, source[key]])) as Pick<T, K>;
 }
 
-/** The PMTiles display and GeoParquet query descriptors of a paired publication, for `createDataset`. */
-export function pairedSourceDescriptors(
-  id: string,
-  pair: { readonly pmtilesUrl: string; readonly geoparquetUrl: string; readonly geometry: PublicationGeometry },
-): { readonly display: SourceDescriptor; readonly query: SourceDescriptor } {
-  const { geometry } = pair;
-  return Object.freeze({
-    display: Object.freeze({
-      id: `${id}-display`,
-      protocol: "pmtiles",
-      locator: Object.freeze({ url: pair.pmtilesUrl }),
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.pmtiles,
-    }),
-    query: Object.freeze({
-      id,
-      protocol: "geoparquet",
-      locator: Object.freeze({
-        url: pair.geoparquetUrl,
-        geoparquet: Object.freeze({
-          geometryColumn: geometry.column,
-          ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
-        }),
-      }),
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
-    }),
-  });
-}
-
-function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publication {
+function publicationFrom(url: string, descriptor: PublicationDescriptorV1): DescriptorPublication {
   const { artifacts, capture, identity } = descriptor;
-  const display: PublicationDisplay = Object.freeze({
+  const display = Object.freeze({
     pmtilesUrl: absoluteUrl(artifacts.pmtiles.href, url),
     sourceLayer: artifacts.pmtiles.vectorLayer,
     promoteId: identity.pmtilesProperty,
@@ -173,7 +151,10 @@ function publicationFrom(url: string, descriptor: PublicationDescriptorV1): Publ
  * });
  * ```
  */
-export async function openPublication(url: string, options: OpenPublicationOptions = {}): Promise<Publication> {
+export async function openPublication(
+  url: string,
+  options: OpenPublicationOptions = {},
+): Promise<DescriptorPublication> {
   const fetchImpl = options.fetch ?? globalThis.fetch;
   if (options.signal?.aborted) throw new HonuaAbortError();
   const headers = new Headers(options.headers);

@@ -3,12 +3,8 @@ import { PROTOCOL_DEFAULT_CAPABILITIES } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import { type ExportCollection, PARQUET_MEDIA_TYPE, readExportCollection } from "./collection.js";
 import { HonuaPublicationError } from "./errors.js";
-import {
-  type OpenPublicationOptions,
-  type Publication,
-  type PublicationDisplay,
-  pairedSourceDescriptors,
-} from "./open.js";
+import type { OpenPublicationOptions, Publication, PublicationDisplay } from "./open.js";
+import { pairedSourceDescriptors } from "./pair.js";
 
 /** How a map draws the Export: its PMTiles `visual` asset, or the `data` asset itself. */
 export type ExportRenderPath = "visual" | "data";
@@ -30,31 +26,34 @@ export interface HonuaExport {
   /**
    * The paired PMTiles + GeoParquet view with identity lookups, selection and
    * public-field guards. Present when the collection is a Honua Export
-   * (`honua:` extension) with a GeoParquet data asset of recorded size and a PMTiles visual.
+   * (`honua:` extension) with a `version`, a GeoParquet data asset of recorded
+   * size and a vector PMTiles visual whose layer the `rel: pmtiles` link names.
    */
   readonly publication?: Publication;
+  /** `query` is the plain GeoParquet source of a third-party collection; a Honua Export queries through `publication`. */
   sourceDescriptors(id?: string): ExportSourceDescriptors;
 }
 
 export type OpenExportOptions = OpenPublicationOptions;
 
-/** PMTiles display settings of an Export; `promoteId` is set on a Honua Export, whose tiles carry the identity. */
-export type ExportDisplay = Omit<PublicationDisplay, "promoteId"> & { readonly promoteId?: string };
+/**
+ * PMTiles display settings of an Export. `sourceLayer` is set for vector
+ * archives (raster archives have none); `promoteId` is set on a Honua Export,
+ * whose tiles carry the identity.
+ */
+export type ExportDisplay = Omit<PublicationDisplay, "promoteId" | "sourceLayer"> & {
+  readonly sourceLayer?: string;
+  readonly promoteId?: string;
+};
 
 function displayOf(collection: ExportCollection): ExportDisplay | undefined {
   const pmtilesUrl = collection.visual?.url ?? collection.pmtiles?.url;
   if (!pmtilesUrl) return undefined;
-  const sourceLayer = collection.pmtiles?.layers[0];
-  if (!sourceLayer) {
-    throw new HonuaPublicationError(
-      "invalid-descriptor",
-      'Export collection registers PMTiles without a rel "pmtiles" link naming its layers.',
-      { detail: { path: "links[rel=pmtiles]" } },
-    );
-  }
+  // Layer names describe the linked archive only; a visual asset elsewhere keeps no layer name.
+  const sourceLayer = collection.pmtiles?.url === pmtilesUrl ? collection.pmtiles.layers[0] : undefined;
   return Object.freeze({
     pmtilesUrl,
-    sourceLayer,
+    ...(sourceLayer ? { sourceLayer } : {}),
     ...(collection.honua ? { promoteId: collection.honua.identity.pmtilesProperty } : {}),
     bounds: collection.bounds,
     ...(collection.attribution ? { attribution: collection.attribution } : {}),
@@ -62,22 +61,12 @@ function displayOf(collection: ExportCollection): ExportDisplay | undefined {
 }
 
 function queryDescriptor(collection: ExportCollection, id: string): SourceDescriptor | undefined {
-  if (collection.data.type !== PARQUET_MEDIA_TYPE) return undefined;
-  const geometry = collection.honua?.geometry;
+  // A Honua Export names non-public columns; only its guarded paired view may query it.
+  if (collection.data.type !== PARQUET_MEDIA_TYPE || collection.honua) return undefined;
   return Object.freeze({
     id,
     protocol: "geoparquet",
-    locator: Object.freeze({
-      url: collection.data.url,
-      ...(geometry
-        ? {
-            geoparquet: Object.freeze({
-              geometryColumn: geometry.column,
-              ...(geometry.bboxColumn ? { bboxColumn: geometry.bboxColumn } : {}),
-            }),
-          }
-        : {}),
-    }),
+    locator: Object.freeze({ url: collection.data.url }),
     capabilities: PROTOCOL_DEFAULT_CAPABILITIES.geoparquet,
   });
 }
@@ -97,9 +86,10 @@ function publicationOf(
   collection: ExportCollection,
   display: ExportDisplay | undefined,
 ): Publication | undefined {
-  const { honua, data } = collection;
-  if (!honua || !display?.promoteId || data.type !== PARQUET_MEDIA_TYPE || data.bytes === undefined) return undefined;
-  const version = collection.version ?? collection.updated ?? honua.captureId;
+  const { honua, data, version } = collection;
+  const sourceLayer = display?.sourceLayer;
+  const paired = honua && sourceLayer && version && data.type === PARQUET_MEDIA_TYPE && data.bytes !== undefined;
+  if (!paired) return undefined;
   const publicFields = collection.fields.filter((field) => field.public);
   return Object.freeze({
     url,
@@ -120,11 +110,11 @@ function publicationOf(
       publishedAt: collection.updated ?? honua.capturedAt,
       sourceRevision: honua.sourceRevision,
     }),
-    display: display as PublicationDisplay,
+    display: Object.freeze({ ...display, sourceLayer, promoteId: honua.identity.pmtilesProperty }),
     geoparquetUrl: data.url,
     sourceDescriptors: (id = collection.id) =>
       pairedSourceDescriptors(id, {
-        pmtilesUrl: display.pmtilesUrl,
+        pmtilesUrl: display!.pmtilesUrl,
         geoparquetUrl: data.url,
         geometry: honua.geometry,
       }),
@@ -149,7 +139,8 @@ export function exportFromCollection(document: unknown, url: string): HonuaExpor
 
 /**
  * Open an Export from its STAC collection document (Portolan profile). Public
- * Exports need no sign-in; pass `headers` for a signed-in route. Any Portolan
+ * Exports need no sign-in. `headers` apply to the document request only; for
+ * signed-in files, pass a `fetch` to `publicationSource` that adds them. Any Portolan
  * collection opens for display and queries; identity lookups and selection
  * need a Honua Export, whose `publication` view is then set.
  *

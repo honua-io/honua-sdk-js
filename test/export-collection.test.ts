@@ -145,6 +145,7 @@ describe("Honua Export collection rules", () => {
     const opened = exportFromCollection({ ...collection, assets: { ...assets, data } }, THIRD_PARTY_URL);
     expect(opened.publication).toBeUndefined();
     expect(opened.display?.promoteId).toBe("tmk_txt");
+    expect(opened.sourceDescriptors().query).toBeUndefined();
   });
 
   it("rejects a honua: extension whose public fields leave out the identity", () => {
