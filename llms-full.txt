@@ -950,7 +950,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/grpc-web` | Browser-bundleable native `HonuaClient`; install the optional Buf/Connect peers before importing ([native conversion guide](./docs/native-app-conversion.md)). |
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/pmtiles` | Authenticated bounded archive inspection plus experimental Honua archive/publish jobs, status/cancellation, strict public/signed/range-proxy descriptors, and truthful cleanup dispositions ([guide](./docs/pmtiles-lifecycle.md)). |
-| `@honua/sdk-js/publication` | Open a paired PMTiles + GeoParquet publication (publication descriptor v1): typed retrieval and validation, PMTiles display settings, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |
+| `@honua/sdk-js/export` | Open an Export: a Portolan STAC collection (pinned v0.3.0) of PMTiles + GeoParquet files, with any collection drawn through its `visual` or `data` asset and read without HEAD requests at the recorded `file:size`; on a Honua Export (`honua:` extension), plus the paired publication descriptor v1, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |
 | `@honua/sdk-js/stac` | Experimental dynamic STAC search, bounded pagination, signed asset refresh, and typed handoffs to the canonical COG, PMTiles, columnar, and runtime entrypoints ([walkthrough](./docs/walkthroughs/search-stac-and-open-assets.md)). |
 | `@honua/sdk-js/raster` | Experimental bounded raster sessions across dynamic-STAC/direct COG, ImageServer, OGC API Coverages, and WCS, with explicit band/range semantics and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
@@ -1014,6 +1014,28 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 `@honua/sdk-js` does not re-export these surfaces. The `@honua/sdk-js/console`
 entrypoint was removed earlier (its projection helpers are owned by the
 `@honua/console` application).
+
+### Pass an `@honua/sdk-js` source to `@honua/app-platform`
+
+Each package ships its own copy of the contract types, so TypeScript rejects a
+source from `@honua/sdk-js` (or `@honua/sdk`) where an app-platform component
+expects a `Source`: the typed `protocol()` and `adapter()` results come from two
+separate adapter maps. Pass the source through `adoptHonuaSdkSource`. It returns
+the same object, and the compiler still checks every other member:
+
+```ts doc-test=skip reason="needs a live endpoint; the packed SDK verifier compiles the same binding"
+import { adoptHonuaSdkSource, createHonuaApplicationContext } from "@honua/app-platform/web-components";
+import { connect } from "@honua/sdk-js/honua";
+
+const connection = await connect({ endpoint, protocol: "geoservices-feature-service", authorizationScopeFingerprint });
+const source = adoptHonuaSdkSource(connection.source());
+createHonuaApplicationContext({ status: "ready", binding: { source, sourceIdentity: source.descriptor.id } });
+```
+
+`createHonuaFeatureTable` takes only the query surface and accepts an SDK
+source directly. Use the helper instead of an `as unknown as` cast. The
+objects `protocol()` and `adapter()` return are still `@honua/sdk-js` adapter
+instances, so do not test them with `instanceof` against app-platform classes.
 
 ## Prerequisites
 
@@ -1920,7 +1942,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-17 at commit `4500fdc91`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-17 at commit `acf32e962`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11948,7 +11970,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-17 at commit `4500fdc91`._
+_Generated 2026-11-17 at commit `acf32e962`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11981,8 +12003,8 @@ _Generated 2026-11-17 at commit `4500fdc91`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.9 KiB | 16.1 KiB |
 | `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 334.9 KiB | 364.2 KiB | 89.6 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1230.5 KiB | 1275.0 KiB | 324.6 KiB | 344.5 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1340.2 KiB | 1395.4 KiB | 357.8 KiB | 391.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1231.0 KiB | 1275.0 KiB | 324.8 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1340.8 KiB | 1395.4 KiB | 358.0 KiB | 391.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
