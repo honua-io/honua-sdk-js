@@ -1020,22 +1020,38 @@ jobs:
         run: |
           set -euo pipefail
           # GENERATED passed the commit-subject and changed-path allowlists before
-          # publication. Rebind the still-open same-repository PR and its remote
-          # branch to that immutable approved commit after the bounded check wait.
+          # publication. Rebind the PR to that immutable approved commit after
+          # the bounded check wait, including a protected merge during validation.
           post_wait_pr="$(gh pr view "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --json state,headRefName,headRefOid,baseRefName,baseRefOid)"
+            --json state,headRefName,headRefOid,baseRefName,baseRefOid,mergeCommit)"
           post_wait_state="$(jq -r '.state' <<<"$post_wait_pr")"
           post_wait_head_ref="$(jq -r '.headRefName' <<<"$post_wait_pr")"
           post_wait_head="$(jq -r '.headRefOid' <<<"$post_wait_pr")"
           post_wait_base_ref="$(jq -r '.baseRefName' <<<"$post_wait_pr")"
           post_wait_base="$(jq -r '.baseRefOid' <<<"$post_wait_pr")"
           expected_head_ref="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          if [[ "$post_wait_state" != "OPEN" || \
-                "$post_wait_head_ref" != "$expected_head_ref" || \
+          if [[ "$post_wait_head_ref" != "$expected_head_ref" || \
                 "$post_wait_head" != "$GENERATED" || \
-                "$post_wait_base_ref" != "trunk" || \
-                "$post_wait_base" != "$GITHUB_SHA" ]]; then
+                "$post_wait_base_ref" != "trunk" ]]; then
+            echo "Regeneration PR #$PR_NUMBER drifted after validation."
+            exit 1
+          fi
+          if [[ "$post_wait_state" == "MERGED" ]]; then
+            merge_commit="$(jq -r '.mergeCommit.oid // empty' <<<"$post_wait_pr")"
+            git fetch origin trunk
+            current_trunk="$(git rev-parse refs/remotes/origin/trunk)"
+            if [[ -z "$merge_commit" ]] || \
+               ! git merge-base --is-ancestor "$GITHUB_SHA" "$GENERATED" || \
+               ! git merge-base --is-ancestor "$GENERATED" "$merge_commit" || \
+               ! git merge-base --is-ancestor "$merge_commit" "$current_trunk"; then
+              echo "Merged regeneration PR #$PR_NUMBER does not preserve the approved generated commit on trunk."
+              exit 1
+            fi
+            gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+            exit 0
+          fi
+          if [[ "$post_wait_state" != "OPEN" || "$post_wait_base" != "$GITHUB_SHA" ]]; then
             echo "Regeneration PR #$PR_NUMBER drifted after validation."
             exit 1
           fi
