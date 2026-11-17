@@ -27,7 +27,7 @@ import { stacCommand } from "./commands/stac.js";
 import { studioCommand } from "./commands/studio.js";
 import { printLine } from "./output.js";
 
-export const CLI_VERSION = "0.1.0";
+export const CLI_VERSION = "0.4.0"; // x-release-please-version
 
 const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
