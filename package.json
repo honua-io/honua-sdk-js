@@ -747,6 +747,7 @@
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@duckdb/node-api": "^2.0.0-r.1",
+    "@honua/honua-migrate": "0.3.0-beta.0",
     "@kepler.gl/actions": "^3.0.0",
     "@kepler.gl/processors": "^3.0.0",
     "@turf/area": "^7.0.0",
@@ -793,6 +794,9 @@
       "optional": true
     },
     "@duckdb/node-api": {
+      "optional": true
+    },
+    "@honua/honua-migrate": {
       "optional": true
     },
     "@kepler.gl/actions": {

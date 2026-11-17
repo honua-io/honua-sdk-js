@@ -42,6 +42,8 @@ describe("legacy JavaScript migration forwarders", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+      peerDependenciesMeta?: Record<string, { optional?: boolean }>;
       files?: string[];
       scripts?: Record<string, string>;
     };
@@ -60,6 +62,8 @@ describe("legacy JavaScript migration forwarders", () => {
 
     expect(manifest.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
     expect(manifest.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
+    expect(manifest.peerDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
+    expect(manifest.peerDependenciesMeta?.["@honua/honua-migrate"]?.optional).toBe(true);
     expect(manifest.files).toContain("scripts/run-legacy-migration-cli.mjs");
     expect(manifest.scripts?.["verify:migration-forwarder-tarball"]).toContain(
       "verify-migration-forwarder-tarball.mjs",

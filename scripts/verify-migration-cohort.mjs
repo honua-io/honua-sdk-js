@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-// Prepublication installs a packed SDK the way a consumer does. The migrator
-// stays a dev dependency of this repository: the published migrator pin does
-// not resolve, so a consumer install must not pull it.
+// A consumer install of the SDK must succeed without the optional migrator peer.
+// The offline forwarder tarball proves the migration subpath when that peer is installed.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -397,6 +396,12 @@ export async function verifyMigrationCohort(argv) {
       assert.equal(proof.artifacts[0].integrity, installedSdk.integrity, "installed SDK integrity differs from publication");
       assert.equal(proof.artifacts[0].tarball, installedSdk.resolved, "installed SDK URL differs from publication");
     }
+    const legacyCli = path.join(consumer, "node_modules", SDK, "scripts/run-legacy-migration-cli.mjs");
+    const missing = spawnSync(process.execPath, [legacyCli], {
+      cwd: consumer, env: options.env, encoding: "utf8", timeout: 60_000,
+    });
+    assert.notEqual(missing.status, 0, "the compatibility command should fail without the migrator");
+    assert.match(`${missing.stderr ?? ""}`, /Install @honua\/honua-migrate/);
     receipt.status = "passed";
   } catch (error) {
     receipt.error = migrationCohortDiagnostic(error);
