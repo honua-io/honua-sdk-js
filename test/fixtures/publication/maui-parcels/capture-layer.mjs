@@ -31,6 +31,14 @@ async function fetchJson(url, body) {
   }
 }
 
+// drawingInfo is presentation only, and some ArcGIS servers return a freshly
+// randomised renderer colour ramp on every read, so it is left out of the
+// metadata digest that detects a changed layer.
+function revisionMetadata(metadata) {
+  const { drawingInfo, ...described } = metadata;
+  return described;
+}
+
 async function readLayerState(sourceUrl) {
   const metadata = await fetchJson(`${sourceUrl}?f=json`);
   const ids = await fetchJson(`${sourceUrl}/query`, { where: "1=1", returnIdsOnly: "true", f: "json" });
@@ -38,7 +46,7 @@ async function readLayerState(sourceUrl) {
   return {
     metadata,
     objectIds,
-    metadataSha256: sha256(JSON.stringify(metadata)),
+    metadataSha256: sha256(JSON.stringify(revisionMetadata(metadata))),
     idsSha256: sha256(objectIds.join(",")),
   };
 }
