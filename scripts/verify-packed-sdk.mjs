@@ -16,6 +16,7 @@ import {
   typeSmokeSource,
   validateInstalledManifest,
 } from "./lib/packed-sdk-smoke.mjs";
+import { prepareAppPlatformSdkSourceConsumer } from "./lib/app-platform-sdk-source-consumer.mjs";
 import { prepareNlMapConsumer } from "./lib/nl-map-packed-consumer.mjs";
 import { npmExecLocalArgs, runNpmSync } from "./lib/npm-cli.mjs";
 
@@ -519,6 +520,12 @@ void module;
     process.execPath,
     [path.join(projectRoot, "node_modules", "vite", "bin", "vite.js"), "build", "--config", "vite.config.mjs"],
     { cwd: nlMapRoot, timeout: 120_000 },
+  );
+  run(
+    "installed app-platform binding of an @honua/sdk-js source",
+    process.execPath,
+    [path.join(projectRoot, "node_modules", "typescript", "bin", "tsc"), "-p", "tsconfig.json"],
+    { cwd: prepareAppPlatformSdkSourceConsumer({ projectRoot, consumerRoot }) },
   );
 
   const installedHonua = (...args) => npmExecLocalArgs("honua", args);
