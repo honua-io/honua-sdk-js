@@ -1,0 +1,10 @@
+{
+  "source": "honua-server src/Honua.Ai/Features/Protocols/Mcp/Mcp/MapTools/MapToolModels.cs",
+  "serverSha": "532565bc7215d4b9ce9657bc110cbd0366076e31",
+  "tools": {
+    "honua_get_style": ["styleId", "serviceId", "serviceLayerIndex", "encoding", "includeStylesheet"],
+    "honua_apply_style_preset": ["dryRun", "serviceId", "serviceLayerIndex", "styleId"],
+    "honua_render_map": ["layers", "bbox", "bboxSrid", "width", "height", "transparent", "maxInlineBytes"]
+  },
+  "renderLayer": ["serviceId", "serviceLayerIndex"]
+}

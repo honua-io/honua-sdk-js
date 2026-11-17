@@ -587,7 +587,7 @@ async function runStyleRender(
     baseline = structured(
       await client.callTool("honua_get_style", {
         serviceId: target.serviceId,
-        layerId: target.layerId,
+        serviceLayerIndex: target.layerId,
         includeStylesheet: true,
       }),
     );
@@ -606,19 +606,19 @@ async function runStyleRender(
   const applied = structured(
     await client.callTool("honua_apply_style_preset", {
       serviceId: target.serviceId,
-      layerId: target.layerId,
+      serviceLayerIndex: target.layerId,
       styleId: discoveredStyleId,
     }),
   );
   const confirmed = structured(
-    await client.callTool("honua_get_style", { serviceId: target.serviceId, layerId: target.layerId }),
+    await client.callTool("honua_get_style", { serviceId: target.serviceId, serviceLayerIndex: target.layerId }),
   );
   if (!isStyleVersion(applied.styleVersion) || !isStyleVersion(confirmed.styleVersion)) {
     return { error: "style apply/read-back did not return an integer styleVersion" };
   }
   const rendered = structured(
     await client.callTool("honua_render_map", {
-      layers: [{ serviceId: target.serviceId, layerId: target.layerId }],
+      layers: [{ serviceId: target.serviceId, serviceLayerIndex: target.layerId }],
       bbox: [...target.bbox],
       bboxSrid: 4326,
       width: RENDER_WIDTH,

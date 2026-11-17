@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
@@ -16,6 +16,20 @@ import {
 } from "../src/cli/bounded-qualification.js";
 import { LOCAL_INSTALL_MCP_PACKAGE, LOCAL_INSTALL_SERVER_IMAGE } from "../src/local-install.js";
 import { McpClient } from "../src/studio-agent/mcp-client.js";
+
+// Argument names the server's MCP map tools bind, pinned in the fixture.
+const SERVER_MAP_TOOL_ARGUMENTS = JSON.parse(
+  readFileSync(new URL("./fixtures/honua-server-mcp-map-tool-arguments.json", import.meta.url), "utf8"),
+) as { readonly tools: Record<string, readonly string[]>; readonly renderLayer: readonly string[] };
+
+function expectServerBindsArguments(name: string | undefined, args: Record<string, unknown>): void {
+  const bound = SERVER_MAP_TOOL_ARGUMENTS.tools[name ?? ""];
+  expect(bound, `server map tool ${name}`).toBeDefined();
+  expect(bound).toEqual(expect.arrayContaining(Object.keys(args)));
+  for (const layer of (args.layers ?? []) as Record<string, unknown>[]) {
+    expect(SERVER_MAP_TOOL_ARGUMENTS.renderLayer).toEqual(expect.arrayContaining(Object.keys(layer)));
+  }
+}
 
 const cleanup: string[] = [];
 afterEach(() => {
@@ -330,10 +344,11 @@ describe("bounded setup qualification", () => {
         };
         if (body.method === "tools/call") {
           const args = body.params?.arguments ?? {};
-          if ("layerId" in args) layerCalls.push(args.layerId);
+          expectServerBindsArguments(body.params?.name, args);
+          if ("serviceLayerIndex" in args) layerCalls.push(args.serviceLayerIndex);
           if (body.params?.name === "honua_render_map") {
-            const layers = args.layers as Array<{ layerId: unknown }>;
-            layerCalls.push(layers[0].layerId);
+            const layers = args.layers as Array<{ serviceLayerIndex: unknown }>;
+            layerCalls.push(layers[0].serviceLayerIndex);
             expect(args).toMatchObject({ width: 512, height: 512, bboxSrid: 4326 });
             return json({
               jsonrpc: "2.0",
@@ -496,7 +511,7 @@ describe("bounded setup qualification", () => {
         if (
           body.method === "tools/call" &&
           body.params?.name === "honua_get_style" &&
-          body.params.arguments?.layerId !== undefined
+          body.params.arguments?.serviceLayerIndex !== undefined
         ) {
           layerStyleReads += 1;
           if (layerStyleReads === 1) {
