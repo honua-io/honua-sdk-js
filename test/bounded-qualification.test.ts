@@ -22,13 +22,17 @@ const SERVER_MAP_TOOL_ARGUMENTS = JSON.parse(
   readFileSync(new URL("./fixtures/honua-server-mcp-map-tool-arguments.json", import.meta.url), "utf8"),
 ) as { readonly tools: Record<string, readonly string[]>; readonly renderLayer: readonly string[] };
 
-function expectServerBindsArguments(name: string | undefined, args: Record<string, unknown>): void {
+/** Checks a map tool call against the server's argument names and returns the layer indexes it addresses. */
+function serverBoundLayerIndexes(name: string | undefined, args: Record<string, unknown>): unknown[] {
   const bound = SERVER_MAP_TOOL_ARGUMENTS.tools[name ?? ""];
   expect(bound, `server map tool ${name}`).toBeDefined();
   expect(bound).toEqual(expect.arrayContaining(Object.keys(args)));
-  for (const layer of (args.layers ?? []) as Record<string, unknown>[]) {
+  const layers = (args.layers ?? []) as Record<string, unknown>[];
+  for (const layer of layers) {
     expect(SERVER_MAP_TOOL_ARGUMENTS.renderLayer).toEqual(expect.arrayContaining(Object.keys(layer)));
   }
+  const direct = "serviceLayerIndex" in args ? [args.serviceLayerIndex] : [];
+  return [...direct, ...layers.map((layer) => layer.serviceLayerIndex)];
 }
 
 const cleanup: string[] = [];
@@ -344,11 +348,8 @@ describe("bounded setup qualification", () => {
         };
         if (body.method === "tools/call") {
           const args = body.params?.arguments ?? {};
-          expectServerBindsArguments(body.params?.name, args);
-          if ("serviceLayerIndex" in args) layerCalls.push(args.serviceLayerIndex);
+          layerCalls.push(...serverBoundLayerIndexes(body.params?.name, args));
           if (body.params?.name === "honua_render_map") {
-            const layers = args.layers as Array<{ serviceLayerIndex: unknown }>;
-            layerCalls.push(layers[0].serviceLayerIndex);
             expect(args).toMatchObject({ width: 512, height: 512, bboxSrid: 4326 });
             return json({
               jsonrpc: "2.0",
