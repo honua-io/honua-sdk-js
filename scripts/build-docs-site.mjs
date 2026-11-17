@@ -335,12 +335,18 @@ function sidebar(sitePath, navGroups, titles, activeDoc) {
     parts.push(`<p class="nav-group">${escapeHtml(group.title)}</p><ul>`);
     for (const doc of group.docs) {
       const to = repoPathToSitePath(doc);
-      const cls = doc === activeDoc ? ' class="active"' : "";
-      parts.push(`<li${cls}><a href="${relativeUrl(sitePath, to)}">${escapeHtml(titles.get(doc))}</a></li>`);
+      const active = doc === activeDoc;
+      const cls = active ? ' class="active"' : "";
+      const current = active ? ' aria-current="page"' : "";
+      parts.push(`<li${cls}><a href="${relativeUrl(sitePath, to)}"${current}>${escapeHtml(titles.get(doc))}</a></li>`);
     }
     parts.push("</ul>");
   }
   parts.push("</nav></aside>");
+  // The sidebar is its own scroll box (45vh on phones); bring the current page into it without moving the window.
+  parts.push(
+    `<script>(()=>{const s=document.querySelector(".sidebar"),a=s&&s.querySelector("li.active a");if(a)s.scrollTop+=a.getBoundingClientRect().top-s.getBoundingClientRect().top-s.clientHeight/3;})();</script>`,
+  );
   return parts.join("\n");
 }
 
@@ -450,6 +456,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+/* scroll-padding-top must exceed the one-row sticky .topbar height (about 51px; .sidebar uses top:64px). */
 html{scroll-padding-top:5rem}
 .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;padding:.75rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 .topbar .brand{font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--fg)}
