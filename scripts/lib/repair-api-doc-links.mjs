@@ -36,6 +36,19 @@ function mediaRepoTarget(raw, repoKind) {
   return null;
 }
 
+function withFragment(url, frag) {
+  return frag ? `${url}#${frag}` : url;
+}
+
+function unpublishedRepoUrl(raw, frag, repoKind) {
+  const repo = rootRepoFile(raw);
+  if (repo && repoKind(repo) === "file") return withFragment(`${BLOB}/${repo}`, frag);
+  const media = mediaRepoTarget(raw, repoKind);
+  if (!media) return null;
+  const base = media.kind === "dir" ? TREE : BLOB;
+  return withFragment(`${base}/${media.path}`, frag);
+}
+
 // TypeDoc publishes the README as the API index and leaves repository-root
 // files as relative links. The guide builder already sends those to GitHub.
 export function repairApiHref(href, { pageDir, siteExists, repoKind }) {
@@ -45,16 +58,7 @@ export function repairApiHref(href, { pageDir, siteExists, repoKind }) {
   const sitePath = path.posix.normalize(path.posix.join(pageDir, raw));
   if (sitePath.startsWith("../") || path.posix.isAbsolute(sitePath)) return href;
   if (siteExists(sitePath)) return href;
-  const repo = rootRepoFile(raw);
-  if (repo && repoKind(repo) === "file") {
-    const url = `${BLOB}/${repo}`;
-    return frag ? `${url}#${frag}` : url;
-  }
-  const media = mediaRepoTarget(raw, repoKind);
-  if (!media) return href;
-  const base = media.kind === "dir" ? TREE : BLOB;
-  const url = `${base}/${media.path}`;
-  return frag ? `${url}#${frag}` : url;
+  return unpublishedRepoUrl(raw, frag, repoKind) ?? href;
 }
 
 export function collectIds(html) {
