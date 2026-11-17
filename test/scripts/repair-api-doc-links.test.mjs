@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { repairApiHref, repairPublishedApiDocs } from "../../scripts/lib/repair-api-doc-links.mjs";
+import { auditDocsSite } from "../../scripts/check-docs-site-links.mjs";
+import {
+  dropMissingHierarchySummaries,
+  repairApiHref,
+  repairPublishedApiDocs,
+} from "../../scripts/lib/repair-api-doc-links.mjs";
 
 const context = {
   pageDir: "",
@@ -65,5 +70,41 @@ test("repairing a published API tree rewrites only the missing root files", () =
     fs.readFileSync(path.join(api, "index.html"), "utf8"),
     /href="https:\/\/github.com\/honua-io\/honua-sdk-js\/tree\/trunk\/mcp\/evals"/,
   );
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("a hierarchy summary with no anchor is removed and a real anchor stays", () => {
+  const ids = new Set(["runtime.RuntimeSelectionInteractionOptions"]);
+  const html = [
+    '<h4>Hierarchy (<a href="../hierarchy.html#runtime.RuntimePointerInteractionOptions">View Summary</a>)</h4>',
+    '<h4>Hierarchy (<a href="../hierarchy.html#runtime.RuntimeSelectionInteractionOptions">View Summary</a>)</h4>',
+  ].join("");
+  const next = dropMissingHierarchySummaries(html, ids);
+  assert.equal(next.includes("RuntimePointerInteractionOptions"), false);
+  assert.match(next, /href="\.\.\/hierarchy.html#runtime.RuntimeSelectionInteractionOptions"/);
+});
+
+test("the API link check fails a missing hierarchy anchor and passes after repair", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "api-docs-"));
+  const repo = path.join(root, "repo");
+  const site = path.join(root, "site");
+  const api = path.join(site, "api");
+  fs.mkdirSync(path.join(api, "interfaces"), { recursive: true });
+  fs.mkdirSync(repo, { recursive: true });
+  fs.writeFileSync(path.join(repo, "LICENSE"), "license\n");
+  fs.writeFileSync(
+    path.join(api, "hierarchy.html"),
+    '<ul class="tsd-full-hierarchy"><li id="runtime.RuntimeSelectionInteractionOptions"></li></ul>\n',
+  );
+  fs.writeFileSync(
+    path.join(api, "interfaces", "runtime.RuntimePointerInteractionOptions.html"),
+    '<h4>Hierarchy (<a href="../hierarchy.html#runtime.RuntimePointerInteractionOptions">View Summary</a>)</h4>\n',
+  );
+  const before = auditDocsSite(site);
+  assert.equal(before.broken.length, 1);
+  assert.match(before.broken[0].href, /RuntimePointerInteractionOptions/);
+  repairPublishedApiDocs(api, repo);
+  const after = auditDocsSite(site);
+  assert.deepEqual(after.broken, []);
   fs.rmSync(root, { recursive: true, force: true });
 });

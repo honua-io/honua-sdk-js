@@ -57,11 +57,30 @@ export function repairApiHref(href, { pageDir, siteExists, repoKind }) {
   return frag ? `${url}#${frag}` : url;
 }
 
+export function collectIds(html) {
+  const ids = new Set();
+  for (const match of html.matchAll(/\sid="([^"]+)"/g)) ids.add(match[1]);
+  return ids;
+}
+
+// The symbol page already shows the hierarchy. Drop "View Summary" when the
+// hierarchy page has no element with that id, which happens when the parent
+// is a type alias TypeDoc does not place in the summary.
+export function dropMissingHierarchySummaries(html, hierarchyIds) {
+  return html.replace(/ \(<a href="([^"]+)">View Summary<\/a>\)/g, (full, href) => {
+    const [raw, frag] = splitFragment(href);
+    if (!raw.endsWith("hierarchy.html") || frag === "") return full;
+    return hierarchyIds.has(decodeURIComponent(frag)) ? full : "";
+  });
+}
+
 export function repairApiHtml(html, context) {
-  return html.replace(/(href|src)="([^"]*)"/g, (match, attr, href) => {
+  const rewritten = html.replace(/(href|src)="([^"]*)"/g, (match, attr, href) => {
     const next = repairApiHref(href, context);
     return next === href ? match : `${attr}="${next}"`;
   });
+  if (!context.hierarchyIds) return rewritten;
+  return dropMissingHierarchySummaries(rewritten, context.hierarchyIds);
 }
 
 function walkHtml(dir) {
@@ -92,6 +111,8 @@ function repoKind(repoRoot, repoPath) {
 }
 
 export function repairPublishedApiDocs(apiRoot, repoRoot) {
+  const hierarchyPath = path.join(apiRoot, "hierarchy.html");
+  const hierarchyIds = fs.existsSync(hierarchyPath) ? collectIds(fs.readFileSync(hierarchyPath, "utf8")) : null;
   let changed = 0;
   for (const file of walkHtml(apiRoot)) {
     const rel = path.relative(apiRoot, file).split(path.sep).join("/");
@@ -101,6 +122,7 @@ export function repairPublishedApiDocs(apiRoot, repoRoot) {
       pageDir: pageDir === "." ? "" : pageDir,
       siteExists: (sitePath) => siteExists(apiRoot, sitePath),
       repoKind: (repoPath) => repoKind(repoRoot, repoPath),
+      hierarchyIds,
     });
     if (next === html) continue;
     fs.writeFileSync(file, next);
