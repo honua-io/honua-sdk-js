@@ -4,7 +4,8 @@
 // descriptor links.
 //
 //   node build-pair.mjs capture --source <parcel layer URL> --out <capture dir>
-//   node build-pair.mjs build --capture <capture dir> --out <output dir> [--subset fixture]
+//   node build-pair.mjs capture-zoning [--source <zoning layer URL>] --out <zoning capture dir>
+//   node build-pair.mjs build --capture <capture dir> --out <output dir> [--subset fixture] [--zoning <zoning capture dir>]
 //
 // `capture` reads the layer once (ids first, then pages of features in
 // WGS 84) and refuses to finish if the layer's id set or metadata changed while
@@ -12,6 +13,8 @@
 // only, so both carry the same capture id. `--subset fixture` publishes the
 // small committed fixture (a bounding box of the same capture). The descriptor
 // links the live Honua layer that serves the same parcels for server queries.
+// `--zoning` adds each parcel's county zoning district (zoning-join.mjs) to
+// both artifacts; ZONING_SOURCE is the County of Maui zoning layer.
 // Large outputs
 // belong under the ignored `.artifacts/` directory. Requires Docker (tippecanoe
 // image built from the tagged source, see pmtiles-archive.mjs) and Node 22.
@@ -23,6 +26,7 @@ import { DuckDBInstance } from "@duckdb/node-api";
 
 import { captureLayer, sha256 } from "./capture-layer.mjs";
 import { runTippecanoe, withPublicationMetadata } from "./pmtiles-archive.mjs";
+import { ZONING_FIELD_NAMES, joinZoning, readZoningCapture, zoningFields } from "./zoning-join.mjs";
 
 const ROW_GROUP_ROWS = 2048;
 // A dictionary as large as a row group makes DuckDB write a bloom filter for
@@ -40,6 +44,7 @@ const BLANK_MEANS_ABSENT = new Set(["nhoodcode"]);
 const LIVE_LAYER = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 const FIXTURE_BOUNDS = [-156.494, 20.902, -156.484, 20.911];
 const SOURCE_LICENSE_URL = "https://planning.hawaii.gov/gis/download-gis-data-expanded/";
+const ZONING_SOURCE = "https://geodata.hawaii.gov/arcgis/rest/services/ParcelsZoning/MapServer/33";
 
 const PUBLIC_FIELDS = [
   { name: "tmk_txt", type: "string", title: "Tax map key", description: "Nine-digit parcel number" },
@@ -64,6 +69,7 @@ const PRIVATE_FIELDS = [
   { name: "homeowner", type: "string", title: "Homeowner exemption" },
 ];
 const PMTILES_FIELDS = [IDENTITY_FIELD, "pittcode", "nhoodcode", "gisacres"];
+const ZONING_PMTILES_FIELDS = ["zoning_code", "zoning_district"];
 
 const DUCKDB_COLUMN_TYPES = {
   tmk_txt: "VARCHAR",
@@ -78,6 +84,18 @@ const DUCKDB_COLUMN_TYPES = {
   geometry: "STRUCT(x DOUBLE, y DOUBLE)[][][]",
   bbox: "STRUCT(xmin DOUBLE, ymin DOUBLE, xmax DOUBLE, ymax DOUBLE)",
 };
+
+// What one build publishes: the base parcel fields, plus zoning when joined.
+function layoutFor(zoning) {
+  if (!zoning) return { publicFields: PUBLIC_FIELDS, columnTypes: DUCKDB_COLUMN_TYPES, pmtilesFields: PMTILES_FIELDS, zoning };
+  const { geometry, bbox, ...attributeColumns } = DUCKDB_COLUMN_TYPES;
+  return {
+    publicFields: [...PUBLIC_FIELDS, ...zoningFields(zoning.record)],
+    columnTypes: { ...attributeColumns, zoning_code: "VARCHAR", zoning_district: "VARCHAR", geometry, bbox },
+    pmtilesFields: [...PMTILES_FIELDS, ...ZONING_PMTILES_FIELDS],
+    zoning,
+  };
+}
 
 function parseArguments(argv) {
   const [command, ...rest] = argv;
@@ -218,12 +236,12 @@ function sqlString(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-async function writeGeoParquet(parcels, publicationStamp, directory) {
+async function writeGeoParquet(parcels, { publicationStamp, directory, columnTypes }) {
   const rowsPath = path.join(directory, "parcels.rows.ndjson");
   const ordered = inHilbertOrder(parcels);
   fs.writeFileSync(rowsPath, `${ordered.map((parcel) => JSON.stringify(parquetRow(parcel))).join("\n")}\n`);
   const target = path.join(directory, "parcels.parquet");
-  const columns = Object.entries(DUCKDB_COLUMN_TYPES)
+  const columns = Object.entries(columnTypes)
     .map(([name, type]) => `${sqlString(name)}: ${sqlString(type)}`)
     .join(", ");
   const kv = {
@@ -250,10 +268,10 @@ async function writeGeoParquet(parcels, publicationStamp, directory) {
   return target;
 }
 
-function tileFeature(parcel) {
+function tileFeature(parcel, fields) {
   return {
     type: "Feature",
-    properties: Object.fromEntries(PMTILES_FIELDS.map((name) => [name, parcel.attributes[name]])),
+    properties: Object.fromEntries(fields.map((name) => [name, parcel.attributes[name]])),
     geometry:
       parcel.polygons.length === 1
         ? { type: "Polygon", coordinates: parcel.polygons[0] }
@@ -278,7 +296,7 @@ function artifactRecord(file, mediaType, fields, captureId) {
   return { href: path.basename(file), mediaType, bytes: bytes.length, sha256: sha256(bytes), captureId, fields };
 }
 
-async function descriptorFor({ record, parcels, version, subset, pmtilesPath, parquetPath, bounds }) {
+async function descriptorFor({ record, parcels, version, subset, pmtilesPath, parquetPath, bounds, layout, zoningCounts }) {
   const captureId = record.captureId;
   return {
     $schema: "https://honua.io/schemas/publication-descriptor.v1.schema.json",
@@ -297,18 +315,18 @@ async function descriptorFor({ record, parcels, version, subset, pmtilesPath, pa
     },
     bounds: bounds.map((value) => Number(value.toFixed(7))),
     crs: { source: record.sourceCrs, geoparquet: "OGC:CRS84", pmtiles: "EPSG:3857" },
-    fields: [...PUBLIC_FIELDS.map((field) => ({ ...field, public: true })), ...PRIVATE_FIELDS.map((field) => ({ ...field, public: false }))],
+    fields: [...layout.publicFields.map((field) => ({ ...field, public: true })), ...PRIVATE_FIELDS.map((field) => ({ ...field, public: false }))],
     identity: { field: IDENTITY_FIELD, type: "string", pmtilesProperty: IDENTITY_FIELD, geoparquetColumn: IDENTITY_FIELD },
     geometry: { column: "geometry", encoding: "geoarrow-multipolygon", types: ["MultiPolygon"], bboxColumn: "bbox" },
     artifacts: {
       pmtiles: {
-        ...artifactRecord(pmtilesPath, "application/vnd.pmtiles", PMTILES_FIELDS, captureId),
+        ...artifactRecord(pmtilesPath, "application/vnd.pmtiles", layout.pmtilesFields, captureId),
         vectorLayer: PMTILES_LAYER,
         minzoom: PMTILES_MIN_ZOOM,
         maxzoom: PMTILES_MAX_ZOOM,
       },
       geoparquet: {
-        ...artifactRecord(parquetPath, "application/vnd.apache.parquet", PUBLIC_FIELDS.map((field) => field.name), captureId),
+        ...artifactRecord(parquetPath, "application/vnd.apache.parquet", layout.publicFields.map((field) => field.name), captureId),
         rowGroups: await rowGroupCount(parquetPath),
         sortedBy: SORT_ORDER,
       },
@@ -320,15 +338,25 @@ async function descriptorFor({ record, parcels, version, subset, pmtilesPath, pa
         { name: "capture-consistency", status: "passed" },
         { name: "public-fields-only", status: "passed" },
         { name: "identity-unique", status: "passed" },
+        ...(zoningCounts ? [zoningCheck(zoningCounts)] : []),
       ],
     },
     links: { stac: stacItemPath(subset), source: LIVE_LAYER },
     provenance: {
       publisher: "County of Maui",
       license: "public-domain",
-      attribution: record.attribution,
+      attribution: layout.zoning ? `${record.attribution} | zoning: ${zoningAttribution(layout.zoning.record)}` : record.attribution,
     },
   };
+}
+
+function zoningCheck({ zoned, unzoned, slivers }) {
+  const detail = `${zoned} parcels zoned; ${unzoned} without a district (${slivers} under the minimum share)`;
+  return { name: "zoning-join", status: "passed", detail };
+}
+
+function zoningAttribution(record) {
+  return record.attribution ?? record.layerName;
 }
 
 function stacItemPath(subset) {
@@ -339,7 +367,16 @@ function stacAsset(artifact, title) {
   return { href: `../${artifact.href}`, type: artifact.mediaType, title, "file:size": artifact.bytes, "file:checksum": `1220${artifact.sha256}` };
 }
 
-function stacItemFor(descriptor, record) {
+function zoningStac(zoning) {
+  if (!zoning) return { providers: [], links: [] };
+  return {
+    providers: [{ name: zoningAttribution(zoning.record).split(";")[0].trim(), roles: ["producer", "licensor"], url: zoning.record.sourceUrl }],
+    links: [{ rel: "via", href: zoning.record.sourceUrl, title: `${zoning.record.layerName} (${zoning.record.captureId})` }],
+  };
+}
+
+function stacItemFor(descriptor, record, zoning) {
+  const zoningParts = zoningStac(zoning);
   const [west, south, east, north] = descriptor.bounds;
   return {
     type: "Feature",
@@ -356,13 +393,14 @@ function stacItemFor(descriptor, record) {
       datetime: record.capturedAt,
       created: descriptor.publishedAt,
       license: "other",
-      providers: [{ name: descriptor.provenance.publisher, roles: ["producer", "licensor"], url: record.sourceUrl }],
+      providers: [{ name: descriptor.provenance.publisher, roles: ["producer", "licensor"], url: record.sourceUrl }, ...zoningParts.providers],
       "honua:captureId": record.captureId,
       "honua:featureCount": descriptor.capture.featureCount,
     },
     links: [
       { rel: "describedby", href: "../descriptor.json", type: "application/json", title: "Publication descriptor v1" },
       { rel: "via", href: record.sourceUrl, title: record.layerName },
+      ...zoningParts.links,
       { rel: "license", href: SOURCE_LICENSE_URL, title: descriptor.provenance.license },
     ],
     assets: {
@@ -372,7 +410,7 @@ function stacItemFor(descriptor, record) {
   };
 }
 
-async function build({ capture: captureDir, out, subset, version }) {
+async function build({ capture: captureDir, out, subset, version, zoning: zoningDir }) {
   if (!captureDir || !out) throw new Error("build needs --capture and --out");
   if (subset !== undefined && subset !== "fixture") throw new Error("--subset accepts only 'fixture'");
   fs.mkdirSync(out, { recursive: true });
@@ -382,15 +420,17 @@ async function build({ capture: captureDir, out, subset, version }) {
   const all = mergeRecordsSharingIdentity(captured.trimEnd().split("\n").map((line) => JSON.parse(line)));
   for (const parcel of all) parcel.bounds = boundsOf(parcel.polygons);
   const parcels = subset ? all.filter((parcel) => intersects(parcel.bounds, FIXTURE_BOUNDS)) : all;
+  const layout = layoutFor(zoningDir ? readZoningCapture(zoningDir) : undefined);
+  const zoningCounts = layout.zoning ? await joinZoning(parcels, layout.zoning, out) : undefined;
   const publicationVersion = version ?? record.capturedAt.replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const publicationStamp = {
     publicationId: subset ? `${PUBLICATION_ID}-fixture` : PUBLICATION_ID,
     version: publicationVersion,
     captureId: record.captureId,
   };
-  const parquetPath = await writeGeoParquet(parcels, publicationStamp, out);
+  const parquetPath = await writeGeoParquet(parcels, { publicationStamp, directory: out, columnTypes: layout.columnTypes });
   const rawPmtiles = runTippecanoe({
-    features: parcels.map(tileFeature),
+    features: parcels.map((parcel) => tileFeature(parcel, layout.pmtilesFields)),
     directory: out,
     layer: PMTILES_LAYER,
     minZoom: PMTILES_MIN_ZOOM,
@@ -405,20 +445,28 @@ async function build({ capture: captureDir, out, subset, version }) {
     pmtilesPath,
     parquetPath,
     bounds: unionBounds(parcels),
+    layout,
+    zoningCounts,
   });
   fs.writeFileSync(path.join(out, "descriptor.json"), `${JSON.stringify(descriptor, null, 2)}\n`);
   const stacItemFile = path.join(out, stacItemPath(subset));
   fs.mkdirSync(path.dirname(stacItemFile), { recursive: true });
-  fs.writeFileSync(stacItemFile, `${JSON.stringify(stacItemFor(descriptor, record), null, 2)}\n`);
+  fs.writeFileSync(stacItemFile, `${JSON.stringify(stacItemFor(descriptor, record, layout.zoning), null, 2)}\n`);
+  process.stdout.write(buildSummary(parcels, descriptor, zoningCounts));
+}
+
+function buildSummary(parcels, descriptor, zoningCounts) {
   const multipart = parcels.filter((parcel) => parcel.polygons.length > 1).length;
   const nullNeighborhood = parcels.filter((parcel) => parcel.attributes.nhoodcode === null).length;
-  process.stdout.write(
+  const zoning = zoningCounts ? ` zoned=${zoningCounts.zoned} unzoned=${zoningCounts.unzoned} slivers=${zoningCounts.slivers}` : "";
+  return (
     `parcels=${parcels.length} multipart=${multipart} nullNhoodcode=${nullNeighborhood} ` +
-      `geoparquet=${descriptor.artifacts.geoparquet.bytes}B pmtiles=${descriptor.artifacts.pmtiles.bytes}B\n`,
+    `geoparquet=${descriptor.artifacts.geoparquet.bytes}B pmtiles=${descriptor.artifacts.pmtiles.bytes}B${zoning}\n`
   );
 }
 
 const { command, options } = parseArguments(process.argv.slice(2));
 if (command === "capture") await captureLayer({ ...options, fieldNames: PUBLIC_FIELDS.map((field) => field.name) });
+else if (command === "capture-zoning") await captureLayer({ source: ZONING_SOURCE, ...options, fieldNames: ZONING_FIELD_NAMES });
 else if (command === "build") await build(options);
-else throw new Error("usage: build-pair.mjs capture|build [options]");
+else throw new Error("usage: build-pair.mjs capture|capture-zoning|build [options]");
