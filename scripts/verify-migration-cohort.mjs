@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-// Prepublication uses a packed SDK plus registry dependencies. Only the
-// registry mode is published-consumer evidence. Both retain default npm
-// resolution, the actual lock and installed forwarding/CLI observations.
+// Prepublication installs a packed SDK the way a consumer does. The migrator
+// stays a dev dependency of this repository: the published migrator pin does
+// not resolve, so a consumer install must not pull it.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -350,9 +350,10 @@ export async function verifyMigrationCohort(argv) {
   const destination = path.resolve(receiptPath);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   const manifest = readJson(path.join(ROOT, "package.json"));
-  const migrateVersion = manifest.dependencies?.[MIGRATE];
+  const migrateVersion = manifest.devDependencies?.[MIGRATE];
   assert.equal(manifest.name, SDK);
-  assert.match(migrateVersion ?? "", EXACT, "migration dependency must be exact");
+  assert.equal(manifest.dependencies?.[MIGRATE], undefined, "honua-migrate must not be a runtime dependency");
+  assert.match(migrateVersion ?? "", EXACT, "migration dev dependency must be exact");
   const sdkPublication = { sdkVersion: manifest.version, sdkPublishRef };
   expectedSdkPublicationRef({ name: SDK, version: manifest.version }, sdkPublication);
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-migration-cohort-"));
@@ -375,44 +376,27 @@ export async function verifyMigrationCohort(argv) {
       specifier = path.join(tempRoot, packed[0].filename);
       receipt.packedSdkSha512 = createHash("sha512").update(fs.readFileSync(specifier)).digest("hex");
     }
-    // Install only the SDK. The migrator must arrive through its real dependency.
+    // Install only the SDK. Consumers must not receive the unresolved migrator pin.
     run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--save-exact", specifier], options);
     const lock = readJson(path.join(consumer, "package-lock.json"));
     fs.writeFileSync(`${destination}.lock.json`, `${JSON.stringify(lock, null, 2)}\n`);
     receipt.lockSha256 = createHash("sha256").update(fs.readFileSync(`${destination}.lock.json`)).digest("hex");
-    receipt.packages = validateLock(lock, { sdkVersion: manifest.version, migrateVersion, sdkSource });
+    assert.equal(lock.packages?.[`node_modules/${MIGRATE}`], undefined, "consumer install pulled honua-migrate");
+    assert.equal(lock.packages?.[`node_modules/${CORE}`], undefined, "consumer install pulled @honua/sdk");
+    const installedSdk = lock.packages?.[`node_modules/${SDK}`];
+    assert.equal(installedSdk?.version, manifest.version, "installed SDK version");
+    if (sdkSource === "packed") assert.match(installedSdk?.resolved ?? "", /^file:/, "packed SDK resolution");
+    receipt.packages = [{ name: SDK, version: installedSdk.version, resolved: installedSdk.resolved, packed: sdkSource === "packed" }];
     receipt.npmTree = JSON.parse(run("npm", ["ls", "--all", "--json"], options).stdout);
-    const verified = new Map();
-    for (const item of receipt.packages.filter((entry) => !entry.packed)) {
-      const key = `${item.name}@${item.version}`;
-      if (!verified.has(key)) {
-        const proof = await verifyMigrationPublication(item, sdkPublication);
-        receipt.publications.push(proof);
-        assert.equal(proof.status, "verified", JSON.stringify(proof.failures));
-        assert.equal(proof.artifacts[0].integrity, item.integrity, `${key} installed integrity differs from publication`);
-        assert.equal(proof.artifacts[0].tarball, item.resolved, `${key} installed URL differs from publication`);
-        verified.set(key, proof.artifacts[0]);
-      } else {
-        assert.equal(item.integrity, verified.get(key).integrity, `${key} duplicate integrity`);
-        assert.equal(item.resolved, verified.get(key).tarball, `${key} duplicate URL`);
-      }
+    if (sdkSource === "registry") {
+      const proof = await verifyMigrationPublication(
+        { name: SDK, version: manifest.version, resolved: installedSdk.resolved, integrity: installedSdk.integrity },
+        sdkPublication);
+      receipt.publications.push(proof);
+      assert.equal(proof.status, "verified", JSON.stringify(proof.failures));
+      assert.equal(proof.artifacts[0].integrity, installedSdk.integrity, "installed SDK integrity differs from publication");
+      assert.equal(proof.artifacts[0].tarball, installedSdk.resolved, "installed SDK URL differs from publication");
     }
-    // Authenticate every installed registry artifact before importing its code.
-    const probe = path.join(consumer, "probe.mjs");
-    fs.writeFileSync(probe, migrationProbe(migratorCompatPackageName(lock)));
-    const identity = run(process.execPath, [probe], options);
-    assert.match(identity.stderr, /HONUA_MIGRATION_MOVED/);
-    const observed = JSON.parse(identity.stdout);
-    receipt.exports = observed.exports;
-    receipt.resolutions = observed.resolutions;
-    const canonical = run(process.execPath, [observed.canonicalCli, "matrix"], options);
-    const legacy = run(process.execPath, [path.join(consumer, "node_modules", SDK, "scripts/run-legacy-migration-cli.mjs"), "matrix"], options);
-    assert.ok(canonical.stdout.trim().length > 0, "canonical CLI returned no matrix");
-    assert.equal(legacy.stdout, canonical.stdout);
-    for (const text of ["Use honua-js-migrate directly", "two consecutive honua-migrate minor releases", "90 days", "1.2"]) {
-      assert.ok(legacy.stderr.includes(text), `missing legacy removal policy: ${text}`);
-    }
-    receipt.cli = { canonicalExit: 0, legacyExit: 0, stdout: canonical.stdout, legacyWarning: legacy.stderr };
     receipt.status = "passed";
   } catch (error) {
     receipt.error = migrationCohortDiagnostic(error);

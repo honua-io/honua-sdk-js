@@ -41,6 +41,7 @@ describe("legacy JavaScript migration forwarders", () => {
   it("keeps all SDK migration npm scripts on the compatibility runner", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")) as {
       dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
       files?: string[];
       scripts?: Record<string, string>;
     };
@@ -49,6 +50,7 @@ describe("legacy JavaScript migration forwarders", () => {
         string,
         {
           dependencies?: Record<string, string>;
+          devDependencies?: Record<string, string>;
           version?: string;
           bin?: Record<string, string>;
           engines?: { node?: string };
@@ -56,12 +58,14 @@ describe("legacy JavaScript migration forwarders", () => {
       >;
     };
 
-    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
+    expect(manifest.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
+    expect(manifest.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
     expect(manifest.files).toContain("scripts/run-legacy-migration-cli.mjs");
     expect(manifest.scripts?.["verify:migration-forwarder-tarball"]).toContain(
       "verify-migration-forwarder-tarball.mjs",
     );
-    expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
+    expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
+    expect(lock.packages?.[""]?.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.version).toBe("0.3.0-beta.0");
     expect(lock.packages?.["node_modules/@honua/honua-migrate"]?.bin).toEqual({
       "honua-js-migrate": "dist/migration/cli.js",
