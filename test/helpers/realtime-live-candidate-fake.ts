@@ -47,6 +47,8 @@ const DEFAULT_TENANT = "public";
 export interface FakeCandidateDefects {
   /** Deliver every layer's feature changes to every feature subscription. */
   readonly leakForeignFeatures?: boolean;
+  /** Replay every tenant's observations after a resume cursor, not only the caller's. */
+  readonly leakForeignObservationReplay?: boolean;
   /** Drop a feature-stream WebSocket without a close frame when authorization ends (honua-server#4776). */
   readonly featureWebSocketAbortsWithoutClose?: boolean;
   /** Answer 404 instead of 401 when an OData credential is missing, expired or revoked (honua-server#4778). */
@@ -150,6 +152,41 @@ function featureFrame(event: FeatureEvent): Json {
   };
 }
 
+/**
+ * Observation history and live subscribers. A subscription is resumable: it
+ * replays the caller's observations after an `observations:` cursor.
+ */
+class ObservationLog {
+  private readonly history: Observation[] = [];
+  private readonly subscribers = new Set<(observation: Observation) => void>();
+
+  constructor(private readonly defects: FakeCandidateDefects) {}
+
+  record(iotId: number, tenant: string, result: number): void {
+    const observation = { position: this.history.length + 1, iotId, tenant, result };
+    this.history.push(observation);
+    for (const subscriber of this.subscribers) subscriber(observation);
+  }
+
+  subscribe(url: URL, tenant: string, emit: (event: string, frame: Json) => void): () => void {
+    emit("status", { status: "connected", datastreamId: 1, semantics: "resumable" });
+    const resumeFrom = familyPosition(url.searchParams.get("cursor") ?? "", "observations");
+    const owned = (observation: Observation) => observation.tenant === tenant;
+    const replay =
+      resumeFrom === null
+        ? []
+        : this.history.filter(
+            (item) => (owned(item) || this.defects.leakForeignObservationReplay === true) && item.position > resumeFrom,
+          );
+    for (const observation of replay) emit("observations", observationBatch(observation));
+    const onObservation = (observation: Observation) => {
+      if (owned(observation)) emit("observations", observationBatch(observation));
+    };
+    this.subscribers.add(onObservation);
+    return () => this.subscribers.delete(onObservation);
+  }
+}
+
 export async function startFakeCandidate(options: FakeCandidateOptions): Promise<FakeCandidate> {
   const minuteMs = options.minuteMs ?? 1_500;
   const revalidationMs = options.revalidationMs ?? 100;
@@ -160,9 +197,8 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
   const relayIds = new Set<string>();
   const events: FeatureEvent[] = [];
   const observationIds = new Map<string, number>();
-  const observations: Observation[] = [];
   const featureSubscribers = new Set<(event: FeatureEvent) => void>();
-  const observationSubscribers = new Set<(observation: Observation) => void>();
+  const observationLog = new ObservationLog(defects);
   const openStreams = new Set<() => void>();
   const sockets = new Set<Duplex>();
   const webSockets = new WebSocketServer({ noServer: true });
@@ -307,9 +343,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
       // Ids are allocated per tenant, so two tenants' observations share ids.
       const iotId = (observationIds.get(tenant) ?? 0) + 1;
       observationIds.set(tenant, iotId);
-      const observation = { position: observations.length + 1, iotId, tenant, result: body.result };
-      observations.push(observation);
-      for (const subscriber of observationSubscribers) subscriber(observation);
+      observationLog.record(iotId, tenant, body.result);
       sendJson(response, 201, { "@iot.id": iotId, datastreamId: 1, result: body.result });
       return;
     }
@@ -382,17 +416,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     emit: (event: string, frame: Json) => void,
   ) {
     if (scope.layerId === null) {
-      emit("status", { status: "connected", datastreamId: 1, semantics: "resumable" });
-      const resumeFrom = familyPosition(url.searchParams.get("cursor") ?? "", "observations");
-      const owned = (observation: Observation) => observation.tenant === scope.credential.tenant;
-      const replay =
-        resumeFrom === null ? [] : observations.filter((item) => owned(item) && item.position > resumeFrom);
-      for (const observation of replay) emit("observations", observationBatch(observation));
-      const onObservation = (observation: Observation) => {
-        if (owned(observation)) emit("observations", observationBatch(observation));
-      };
-      observationSubscribers.add(onObservation);
-      return () => observationSubscribers.delete(onObservation);
+      return observationLog.subscribe(url, scope.credential.tenant, emit);
     }
     emit("status", { type: "status", status: "connected" });
     emit("status", { type: "status", status: "subscribed", subscriptionId: "default" });

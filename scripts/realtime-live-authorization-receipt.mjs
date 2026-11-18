@@ -640,6 +640,7 @@ function streamingAdapter(surface, transport) {
       // The subscription names tenant-a's layer, so a changed credential that
       // presents it with tenant-a's cursor must be refused outright.
       scopedSubscription: true,
+      cursorFamily: "features",
       open: (context, token, { tenant = OWN, cursor } = {}) => open(context, featureStreamPath(tenant, token, cursor)),
       ready: (frame) => frame.json?.status === "subscribed",
       isData: (frame) => frame.json?.type === "feature-change",
@@ -658,6 +659,7 @@ function streamingAdapter(surface, transport) {
     // Observations stream in committed batches with observations-family resume
     // cursors; the datastream is shared, so tenancy comes from the credential.
     scopedSubscription: false,
+    cursorFamily: "observations",
     open: (context, token, { cursor } = {}) => open(context, observationStreamPath(token, cursor)),
     ready: (frame) => frame.json?.status === "connected",
     isData: (frame) => Array.isArray(frame.json?.observations),
@@ -674,10 +676,10 @@ function observationRows(json) {
   return Array.isArray(json?.observations) ? json.observations : [];
 }
 
-/** Position of a family resume cursor such as `features:25`, for ordering two cursors of one family. */
-function cursorPosition(cursor) {
-  const match = /^[a-z]+:([0-9]+)$/u.exec(String(cursor));
-  return match ? Number(match[1]) : Number.NaN;
+/** Position of a `<family>:<n>` resume cursor such as `features:25`; NaN for any other family or shape. */
+function cursorPosition(cursor, family) {
+  const match = /^([a-z]+):([0-9]+)$/u.exec(String(cursor));
+  return match?.[1] === family ? Number(match[2]) : Number.NaN;
 }
 
 /** Whether a raw frame or response carries a mutation that belongs to a tenant other than `tenant`. */
@@ -867,6 +869,9 @@ async function streamingBoundaryScenario(context, adapter, recorder) {
   } catch (error) {
     recorder.assert("old-credential-terminated", false, errorMessage(error));
   }
+  // Written between the last delivered cursor and the gap, so a replay that
+  // ignores tenancy delivers it to the replacement before the gap it waits for.
+  recorder.mutation(await adapter.inject(context, FOREIGN, key, "foreign-after-boundary"));
   const gap = recorder.mutation(await adapter.inject(context, OWN, key, "after-boundary"));
   await delay(context.timing.negativeSettleMs);
   connection.close();
@@ -909,7 +914,7 @@ async function streamingBoundaryScenario(context, adapter, recorder) {
     const replayed = await resumed.stream.waitFor((frame) => adapter.matches(frame, gap), context.timing.deliveryTimeoutMs, "replacement replay");
     recorder.assert(
       "replacement-resume",
-      cursorPosition(adapter.cursorOf(replayed)) > cursorPosition(lastCursor) &&
+      cursorPosition(adapter.cursorOf(replayed), adapter.cursorFamily) > cursorPosition(lastCursor, adapter.cursorFamily) &&
         !resumed.stream.frames.some((frame) => adapter.matches(frame, before)),
       `replayed the after-boundary mutation at cursor ${adapter.cursorOf(replayed)} from last delivered cursor ${lastCursor}`,
     );
@@ -988,6 +993,7 @@ async function streamingScopeChangeScenario(context, adapter, recorder) {
   const delivered = await connection.stream.waitFor((frame) => adapter.matches(frame, first), context.timing.deliveryTimeoutMs, "original delivery");
   const lastCursor = adapter.cursorOf(delivered);
   connection.close();
+  recorder.mutation(await adapter.inject(context, FOREIGN, key, "foreign-gap"));
   const gap = recorder.mutation(await adapter.inject(context, OWN, key, "gap"));
 
   const foreignCredential = await issuePortalToken(context, { tenant: FOREIGN, roles: [LIVE_AUTHORIZATION_TOPOLOGY.readerRole], subject: `reader-${FOREIGN}` });
@@ -1007,9 +1013,9 @@ async function streamingScopeChangeScenario(context, adapter, recorder) {
     recorder.assert("changed-scope-rejected", true, changed.join("; "));
   } else {
     // An observation subscription names no tenant-owned resource, so the
-    // changed scope is the credential itself: tenant-b's stream must never see
-    // tenant-a's gap or later observations while its own arrive.
-    const foreignConnection = await openReady(context, recorder, adapter, foreignCredential.token, {}, FOREIGN, "changed scope");
+    // changed scope is the credential itself: resuming from tenant-a's cursor,
+    // tenant-b's stream must never see tenant-a's gap or later observations.
+    const foreignConnection = await openReady(context, recorder, adapter, foreignCredential.token, { cursor: lastCursor }, FOREIGN, "changed scope");
     try {
       const ownLater = recorder.mutation(await adapter.inject(context, OWN, key, "after-change"));
       const foreignLater = recorder.mutation(await adapter.inject(context, FOREIGN, key, "changed-tenant"));

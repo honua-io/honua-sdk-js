@@ -220,6 +220,31 @@ describe("live authorization receipt against a candidate that delivers live fram
   });
 });
 
+describe("live authorization receipt against a candidate whose observation replay ignores tenancy", () => {
+  let candidate: FakeCandidate;
+  let receipt: LiveAuthorizationReceipt;
+
+  beforeAll(async () => {
+    ({ candidate, receipt } = await mint({ leakForeignObservationReplay: true }));
+  }, RUN_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await candidate?.close();
+  });
+
+  it("fails every SensorThings row that resumes from a cursor", () => {
+    const summary = summarizeLiveAuthorizationReceipt(receipt).join("\n");
+    for (const transport of ["sse", "websocket"]) {
+      for (const scenario of ["token-expiry", "token-revocation", "tenant-scope-change"]) {
+        const item = row(receipt, "sensorthings", transport, scenario);
+        expect(item.result, summary).toBe("failed");
+        expect(assertion(item, "no-cross-tenant-payload"), summary).toMatchObject({ passed: false });
+      }
+      expect(row(receipt, "feature-stream", transport, "token-expiry").result, summary).toBe("passed");
+    }
+  });
+});
+
 describe("live authorization receipt against a defective candidate", () => {
   let candidate: FakeCandidate;
   let receipt: LiveAuthorizationReceipt;
