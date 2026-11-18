@@ -18,6 +18,7 @@ function readOptionalMigratorPin(): {
   };
   lock: {
     packages?: Record<string, {
+      dependencies?: Record<string, string>;
       version?: string;
       bin?: Record<string, string>;
       engines?: { node?: string };
