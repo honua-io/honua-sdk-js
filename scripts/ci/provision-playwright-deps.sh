@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+browser="${1:-chromium}"
+
 ubuntu_sources="${HONUA_UBUNTU_APT_SOURCES:-/etc/apt/sources.list.d/ubuntu.sources}"
 if [[ ! -f "$ubuntu_sources" ]]; then
   echo "::error::Ubuntu's signed apt sources are required for browser dependencies"
@@ -15,7 +17,7 @@ chmod 755 "$apt_state" "$apt_state/sources" "$apt_state/lists"
 install -m 644 "$ubuntu_sources" "$apt_state/sources/ubuntu.sources"
 
 version="$(node -p 'require("./package-lock.json").packages["node_modules/playwright"].version')"
-plan="$(npx --yes "playwright@${version}" install-deps --dry-run chromium)"
+plan="$(npx --yes "playwright@${version}" install-deps --dry-run "$browser")"
 packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \([^"]*\)".*/\1/p' <<<"$plan")"
 if [[ -z "$packages" ]]; then
   echo "::error::Could not read Playwright's OS dependency list"
@@ -23,7 +25,7 @@ if [[ -z "$packages" ]]; then
   exit 1
 fi
 
-# Chromium's system libraries come from Ubuntu; unrelated SDK feeds must not
+# Browser system libraries come from Ubuntu; unrelated SDK feeds must not
 # make their provisioning fail. Keep the runner's signing keys and source file.
 apt_options=(-o Dir::Etc::sourcelist=/dev/null
   -o "Dir::Etc::sourceparts=$apt_state/sources"
