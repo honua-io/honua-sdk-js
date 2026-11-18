@@ -90,6 +90,14 @@ test("an Ubuntu mirror failure is retried using the same isolated signed sources
   const { result, calls } = runStep("verify-package", "retry");
   assert.equal(result.status, 0, result.stderr);
   assert.equal(calls.filter(args => args.includes("update")).length, 2);
+  assert.match(result.stdout, /attempt 1 failed with status 100/);
+});
+
+test("a cold package index is given longer than the minute that dies on its last file", () => {
+  const script = readFileSync(path.join(root, "scripts/ci/provision-playwright-deps.sh"), "utf8");
+  const update = script.match(/timeout --kill-after=10s (\d+)s apt-get "\$\{apt_options\[@\]\}" update/);
+  assert.ok(update, "apt-get update must stay under the root timeout");
+  assert.ok(Number(update[1]) >= 90, `update timeout ${update[1]}s ends before a cold index finishes`);
 });
 
 test("a sustained Ubuntu outage fails closed after three bounded attempts", () => {

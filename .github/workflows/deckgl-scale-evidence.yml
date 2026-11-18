@@ -41,7 +41,7 @@ jobs:
       # Ubuntu sources only, with bounded apt retries, so a mirror fault
       # fails inside the step timeout instead of consuming the job.
       - name: Install Chromium
-        timeout-minutes: 20
+        timeout-minutes: 23
         run: |
           scripts/ci/provision-playwright-deps.sh
           npx playwright install chromium
