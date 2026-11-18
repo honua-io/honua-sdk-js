@@ -47,6 +47,15 @@ for attempt in 1 2 3; do
   fi
   if (( attempt < 3 )); then
     echo "::warning::Browser OS dependency attempt ${attempt} failed with status ${status}; retrying"
+    # A regional mirror can trickle at ~100 KB/s without erroring, so apt never
+    # falls over to another mirror and WebKit's 125 MB outlives every attempt.
+    # Retry against Canonical's primary archive; Signed-By and the security
+    # stanza are unchanged, so packages are still verified with the same keys.
+    # arm64 runners use ports.ubuntu.com, which archive.ubuntu.com cannot serve.
+    if [[ "$(dpkg --print-architecture)" == amd64 ]]; then
+      sed -E -i '/^URIs:/{/security\.ubuntu\.com/!s#^URIs:.*#URIs: http://archive.ubuntu.com/ubuntu/#}' \
+        "$apt_state/sources/ubuntu.sources"
+    fi
     sudo timeout --kill-after=10s 30s dpkg --configure -a || true
     sleep $((attempt * 15))
   fi
