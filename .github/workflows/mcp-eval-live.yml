@@ -15,9 +15,10 @@ name: MCP Live Cross-Model Eval
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   HONUA_MCP_AUTH_TOKEN  — bearer token for the live /mcp
 #   HONUA_MCP_API_KEY     — x-api-key for the live /mcp
-#   AWS_ACCESS_KEY_ID     — AWS credentials with Bedrock InvokeModel access
-#   AWS_SECRET_ACCESS_KEY
-#   AWS_SESSION_TOKEN     — optional, for temporary credentials
+#
+# AWS credentials are not stored: each leg runs in the `bedrock-eval` environment
+# (trunk only) and assumes the GitHub OIDC role honua-sdk-js-gha-bedrock-eval from
+# honua-iac bootstrap/aws-ci-oidc-roles, which trusts only that environment.
 on:
   workflow_dispatch:
     inputs:
@@ -99,6 +100,13 @@ jobs:
     name: MCP live eval (${{ matrix.slug }})
     needs: prep
     runs-on: ubuntu-latest
+    # Bedrock credentials come from GitHub OIDC: honua-iac
+    # bootstrap/aws-ci-oidc-roles trusts only jobs in this environment.
+    environment: bedrock-eval
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 110
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prep.outputs.matrix) }}
@@ -127,6 +135,13 @@ jobs:
       - name: Build MCP package
         run: npm run build
 
+      - name: Configure AWS credentials for Bedrock (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::585192672263:role/honua-sdk-js-gha-bedrock-eval
+          role-duration-seconds: 7200
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Run live eval (Bedrock, ${{ matrix.model }})
         env:
           # Auth-enforced live lane: no dev-auth bypass. The selected single auth
@@ -137,12 +152,9 @@ jobs:
           HONUA_API_KEY: ${{ inputs.auth_mode == 'api-key' && secrets.HONUA_MCP_API_KEY || '' }}
           HONUA_EVAL_REQUIRE_AUTH: ${{ inputs.require_auth }}
           # Bedrock driver: opt-in flag + model id. Credentials come from the AWS
-          # credential chain populated by the secrets below.
+          # credential chain the OIDC step above populated.
           HONUA_EVAL_BEDROCK: "1"
           HONUA_EVAL_BEDROCK_MODEL: ${{ matrix.model }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: >
           node dist/src/eval/cli.js
           --corpus ${{ inputs.corpus }}

@@ -116,7 +116,9 @@ named surface and expect the same numbers.
 - **Paid cross-model eval** (`.github/workflows/mcp-eval-live.yml`) — manual only.
   Runs the corpus through Bedrock models (`us.anthropic.claude-opus-4-6-v1`,
   `us.amazon.nova-2-lite-v1:0`) against a live surface, then appends the artifacts
-  and regenerates the leaderboard. All model usage goes through AWS Bedrock.
+  and regenerates the leaderboard. All model usage goes through AWS Bedrock, with
+  short-lived credentials from GitHub OIDC (job environment `bedrock-eval`); no
+  access key is stored.
 
 Seed data under `runs/2026-07-05/` is the first real cross-model run: Claude Opus
 4.6 8/8 and Nova 2 Lite 5/8 on the operator corpus against the authenticated live
