@@ -115,7 +115,7 @@ const hints = await pelias.suggest("honol");   // dedicated /v1/autocomplete end
 **Usage policy / attribution**: depends on the datasets your instance is
 built from (OSM, OpenAddresses, Who's On First, geonames, …) and on your
 hosting provider's terms. Override `attribution` / `usagePolicyUrl` to match;
-see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
+see <https://github.com/pelias/documentation/blob/master/data-sources.md>.
 
 ### Honua facade
 

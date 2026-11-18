@@ -61,9 +61,8 @@ const DEMOS = [
   { id: "demo-public-safety", file: "demo-public-safety.html",   ready: "canvas" },
   { id: "demo-esri-leaflet",  file: "demo-esri-leaflet.html",    ready: ".leaflet-container, canvas" },
   { id: "demo-editing",       file: "demo-editing.html",         ready: "canvas" },
-  { id: "demo-imagery-terrain", file: "demo-imagery-terrain.html", ready: "canvas" },
   { id: "demo-maui-3d",       file: "demo-maui-3d.html",         ready: "canvas" },
-  { id: "demo-sdk-controls",  file: "demo-sdk-controls.html",    ready: "canvas, honua-legend, honua-basemap-switcher" },
+  { id: "demo-webmap-app",    file: "demo-webmap-app.html",      ready: "canvas" },
 ];
 
 const only = process.argv[2];
