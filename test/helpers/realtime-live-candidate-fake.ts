@@ -47,6 +47,8 @@ const DEFAULT_TENANT = "public";
 export interface FakeCandidateDefects {
   /** Deliver every layer's feature changes to every feature subscription. */
   readonly leakForeignFeatures?: boolean;
+  /** Replay every tenant's observations after a resume cursor, not only the caller's. */
+  readonly leakForeignObservationReplay?: boolean;
   /** Drop a feature-stream WebSocket without a close frame when authorization ends (honua-server#4776). */
   readonly featureWebSocketAbortsWithoutClose?: boolean;
   /** Answer 404 instead of 401 when an OData credential is missing, expired or revoked (honua-server#4778). */
@@ -100,6 +102,7 @@ interface FeatureEvent {
 }
 
 interface Observation {
+  readonly position: number;
   readonly iotId: number;
   readonly tenant: string;
   readonly result: number;
@@ -122,16 +125,66 @@ function rejectUpgrade(socket: Duplex, status: number, reason: string): void {
   socket.end(`HTTP/1.1 ${status} ${reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
 }
 
+/** Position of an `<family>:<n>` resume cursor, or null when the cursor is not of that family. */
+function familyPosition(cursor: string, family: string): number | null {
+  const match = new RegExp(`^${family}:([0-9]+)$`, "u").exec(cursor);
+  return match ? Number(match[1]) : null;
+}
+
+function observationBatch(observation: Observation): Json {
+  return {
+    cursor: `observations:${observation.position}`,
+    datastreamId: 1,
+    observations: [{ id: observation.iotId, result: observation.result }],
+  };
+}
+
 function featureFrame(event: FeatureEvent): Json {
   return {
     type: "feature-change",
     cursor: event.cursor,
+    resumeCursor: `features:${event.cursor}`,
     serviceId: "test_service",
     layerId: event.layerId,
     objectId: event.objectId,
     operation: "insert",
     attributes: { name: event.name, objectid: event.objectId },
   };
+}
+
+/**
+ * Observation history and live subscribers. A subscription is resumable: it
+ * replays the caller's observations after an `observations:` cursor.
+ */
+class ObservationLog {
+  private readonly history: Observation[] = [];
+  private readonly subscribers = new Set<(observation: Observation) => void>();
+
+  constructor(private readonly defects: FakeCandidateDefects) {}
+
+  record(iotId: number, tenant: string, result: number): void {
+    const observation = { position: this.history.length + 1, iotId, tenant, result };
+    this.history.push(observation);
+    for (const subscriber of this.subscribers) subscriber(observation);
+  }
+
+  subscribe(url: URL, tenant: string, emit: (event: string, frame: Json) => void): () => void {
+    emit("status", { status: "connected", datastreamId: 1, semantics: "resumable" });
+    const resumeFrom = familyPosition(url.searchParams.get("cursor") ?? "", "observations");
+    const owned = (observation: Observation) => observation.tenant === tenant;
+    const replay =
+      resumeFrom === null
+        ? []
+        : this.history.filter(
+            (item) => (owned(item) || this.defects.leakForeignObservationReplay === true) && item.position > resumeFrom,
+          );
+    for (const observation of replay) emit("observations", observationBatch(observation));
+    const onObservation = (observation: Observation) => {
+      if (owned(observation)) emit("observations", observationBatch(observation));
+    };
+    this.subscribers.add(onObservation);
+    return () => this.subscribers.delete(onObservation);
+  }
 }
 
 export async function startFakeCandidate(options: FakeCandidateOptions): Promise<FakeCandidate> {
@@ -145,7 +198,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
   const events: FeatureEvent[] = [];
   const observationIds = new Map<string, number>();
   const featureSubscribers = new Set<(event: FeatureEvent) => void>();
-  const observationSubscribers = new Set<(observation: Observation) => void>();
+  const observationLog = new ObservationLog(defects);
   const openStreams = new Set<() => void>();
   const sockets = new Set<Duplex>();
   const webSockets = new WebSocketServer({ noServer: true });
@@ -290,8 +343,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
       // Ids are allocated per tenant, so two tenants' observations share ids.
       const iotId = (observationIds.get(tenant) ?? 0) + 1;
       observationIds.set(tenant, iotId);
-      const observation = { iotId, tenant, result: body.result };
-      for (const subscriber of observationSubscribers) subscriber(observation);
+      observationLog.record(iotId, tenant, body.result);
       sendJson(response, 201, { "@iot.id": iotId, datastreamId: 1, result: body.result });
       return;
     }
@@ -347,7 +399,9 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     const credential = validCredential(token);
     if (!credential) return { status: 401, reason: "Unauthorized" };
     if (url.pathname === "/sta/v1.1/ObservationsStream") {
-      if (url.searchParams.has("cursor")) return { status: 400, reason: "Bad Request" };
+      const resume = url.searchParams.get("cursor");
+      if (resume !== null && familyPosition(resume, "observations") === null)
+        return { status: 400, reason: "Bad Request" };
       return { credential, layerId: null };
     }
     const layer = url.searchParams.get("layers") ?? "";
@@ -362,24 +416,18 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     emit: (event: string, frame: Json) => void,
   ) {
     if (scope.layerId === null) {
-      emit("status", { status: "connected", datastreamId: 1 });
-      const onObservation = (observation: Observation) => {
-        if (observation.tenant === scope.credential.tenant) {
-          emit("observation", { "@iot.id": observation.iotId, datastreamId: 1, result: observation.result });
-        }
-      };
-      observationSubscribers.add(onObservation);
-      return () => observationSubscribers.delete(onObservation);
+      return observationLog.subscribe(url, scope.credential.tenant, emit);
     }
     emit("status", { type: "status", status: "connected" });
     emit("status", { type: "status", status: "subscribed", subscriptionId: "default" });
     const layerId = scope.layerId;
     const replayFrom = url.searchParams.get("cursor");
-    if (replayFrom !== null) {
-      for (const event of events) {
-        if (event.layerId === layerId && event.cursor > Number(replayFrom)) emit("feature-change", featureFrame(event));
-      }
-    }
+    const since = replayFrom === null ? null : familyPosition(replayFrom, "features");
+    // Like the candidate, a pre-family numeric cursor resets to the head instead of replaying.
+    if (replayFrom !== null && since === null)
+      emit("reset", { type: "reset", reason: "cursor-epoch", head: `features:${cursor}` });
+    const replay = since === null ? [] : events.filter((event) => event.layerId === layerId && event.cursor > since);
+    for (const event of replay) emit("feature-change", featureFrame(event));
     let active = true;
     const deliver = (event: FeatureEvent) => {
       if (active) emit("feature-change", featureFrame(event));
