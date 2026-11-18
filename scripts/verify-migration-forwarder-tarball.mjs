@@ -75,7 +75,7 @@ function onlyTarball(directory, label) {
 
 const sdkManifest = readJson(path.join(sdkRoot, "package.json"));
 const migrateManifest = readJson(path.join(migratePackageRoot, "package.json"));
-const expectedMigrateVersion = sdkManifest.dependencies?.["@honua/honua-migrate"];
+const expectedMigrateVersion = sdkManifest.devDependencies?.["@honua/honua-migrate"];
 assert.match(expectedMigrateVersion ?? "", /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
 assert.equal(migrateManifest.name, "@honua/honua-migrate");
 assert.equal(migrateManifest.version, expectedMigrateVersion);
