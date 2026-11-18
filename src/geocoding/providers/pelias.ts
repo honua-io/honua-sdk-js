@@ -68,7 +68,7 @@ interface PeliasResponse {
 }
 
 const PELIAS_ATTRIBUTION = "Geocoding by Pelias; data © OpenStreetMap contributors and other dataset licensors";
-const PELIAS_USAGE_POLICY_URL = "https://github.com/pelias/documentation/blob/master/data-licenses.md";
+const PELIAS_USAGE_POLICY_URL = "https://github.com/pelias/documentation/blob/master/data-sources.md";
 const PELIAS_CAPABILITIES: ReadonlyArray<GeocodingCapability> = ["geocode", "reverse", "suggest"];
 
 /**

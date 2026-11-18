@@ -177,7 +177,7 @@ Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 - Provenance: Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.
 - Freshness: Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.
 - Catalog degradation: Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.
-- Live sample: [demo-imagery-terrain.html](https://honua.io/demo-imagery-terrain.html) · [demo-maui-3d.html](https://honua.io/demo-maui-3d.html) · [sample-raster-overlay.html](https://honua.io/sample-raster-overlay.html)
+- Live sample: [demo-maui-3d.html](https://honua.io/demo-maui-3d.html) · [sample-raster-overlay.html](https://honua.io/sample-raster-overlay.html)
 - Supported API imports: `@honua/sdk-js/cog` (`mountStacCogAssetToMapLibre`, `openStacCogAsset`); `@honua/sdk-js/honua` (`HonuaImageService`)
 - honua.io journey: `imagery-terrain-3d`
 - Degradation: The default build replays pinned COG and terrain fixtures; live imagery needs a host-mediated endpoint.

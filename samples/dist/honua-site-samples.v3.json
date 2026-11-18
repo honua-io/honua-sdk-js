@@ -1529,9 +1529,9 @@
     },
     {
       "id": "controls-kit",
-      "route": "demo-sdk-controls.html",
+      "route": "demo-webmap-app.html",
       "ownership": "site-exception",
-      "exceptionReason": "The web-components sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the controls gallery.",
+      "exceptionReason": "The web-components sample retired with the 0.3.0 removal. The live controls are on the map application.",
       "title": "SDK controls",
       "summary": "Former SDK custom-element gallery. The executable sample is removed.",
       "track": "lab",
@@ -1586,7 +1586,7 @@
     },
     {
       "id": "imagery-terrain",
-      "route": "demo-imagery-terrain.html",
+      "route": "demo-maui-3d.html",
       "ownership": "sdk-projection",
       "sampleId": "imagery-cog-quickstart"
     },
@@ -1601,20 +1601,6 @@
       "route": "demo.html",
       "ownership": "sdk-projection",
       "sampleId": "maplibre-quickstart"
-    },
-    {
-      "id": "planning-permitting",
-      "route": "demo-planning-permitting.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned.",
-      "title": "Planning and permitting",
-      "summary": "Site-owned planning and permitting presentation.",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "capabilities": [
-        "editing",
-        "planning"
-      ]
     },
     {
       "id": "public-safety",
