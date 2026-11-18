@@ -6,8 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Installed-package certification
 
-The scheduled workflow and default manual dispatch select the approved current
-release through `config/installed-candidate-selection.v1.json`. This pointer
+The workflow runs by manual dispatch only. Its default mode selects the approved
+current release through `config/installed-candidate-selection.v1.json`. This pointer
 contains only schema `honua.installed-candidate-selection/v1`,
 `reviewedReleaseSha`, and `candidateRef`: two full lowercase commit SHAs. It does
 not copy package versions or server digests. The existing pinned upstream
@@ -21,6 +21,12 @@ legacy cohort. Commit the pointer only after the actual published package set
 and immutable candidate have been admitted, through a reviewed PR. Advancing it
 requires another approved immutable snapshot. The schema is committed separately
 so preparation does not invent an unpublished current candidate.
+
+The daily schedule was removed on 2026-11-18 (#1994). A snapshot is a honua-release
+commit at `refs/nightly-candidates/<sha>`, minted by the honua-release nightly
+train. Since the release redesign that train mints none (its resolver refuses), so
+no selection pointer can be committed and a scheduled run could only fail closed. Candidate-bound installed SDK proof for a release is honua-release
+`gate-installed-clients.yml` (release-promise row `clients-installed`).
 
 For an explicitly selected snapshot, manual dispatch still accepts
 `candidate_mode=release-snapshot`, `reviewed_release_sha`, and `candidate_ref`.
@@ -80,7 +86,7 @@ claims: only receipts from governed execution drivers may be submitted by the
 release orchestrator. Other protocol, CLI/MCP, browser and lifecycle drivers
 remain outstanding; a declared pass is not a substitute for those drivers.
 
-The scheduled workflow preserves failed receipts and runs the executable fixture
+The workflow preserves failed receipts and runs the executable fixture
 when package identity passes. PR CI runs the bounded identity regressions and the
 denominator drift check. Setup/identity failures emit `install.status: "failed"`
 and attribute the unexecuted rows to this issue, rather than reporting passes.
