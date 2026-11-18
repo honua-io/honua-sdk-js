@@ -162,7 +162,7 @@
       "id": "honua-migrate",
       "npmName": "@honua/honua-migrate",
       "source": { "kind": "external-repository", "repository": "honua-io/honua-migrate" },
-      "reason": "Owned and published by honua-io/honua-migrate on its own cadence. This repository only depends on it and proves the forwarder contract offline (scripts/verify-migration-forwarder-tarball.mjs); it is never built or published from this cut."
+      "reason": "Owned and published by honua-io/honua-migrate on its own cadence. This repository pins it as an optional peer and a development dependency, and proves the forwarder contract offline (scripts/verify-migration-forwarder-tarball.mjs); it is never built or published from this cut."
     },
     {
       "id": "create-honua-app-template-vanilla-ts",
