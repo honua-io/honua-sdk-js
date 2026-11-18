@@ -56,13 +56,13 @@ function verificationStep(job) {
   const name = job === "quickstart-budget" ? "Provision Playwright operating-system dependencies" : "Install Playwright browser";
   const expected = ["scripts/ci/provision-playwright-deps.sh"];
   if (job !== "quickstart-budget") expected.push("npx playwright install chromium");
-  return { run: workflow.jobs[job].steps.find(step => step.name === name).run, expected, browser: [] };
+  return { run: workflow.jobs[job].steps.find(step => step.name === name).run, expected, browser: "chromium" };
 }
 
 function firstMapWebKitStep() {
   const run = ciWorkflow.jobs["first-map-webkit"].steps.find(step => step.name === "Install Playwright browser")?.run ?? "";
   const expected = ["scripts/ci/provision-playwright-deps.sh webkit", "npx playwright install webkit"];
-  return { run, expected, browser: ["webkit"] };
+  return { run, expected, browser: "webkit" };
 }
 
 function runStep(step, mode = "ok") {
@@ -77,7 +77,7 @@ function runStep(step, mode = "ok") {
   const log = path.join(directory, "apt.log");
   try {
     assert.deepEqual(step.run.trim().split("\n").map(line => line.trim()).filter(Boolean), step.expected);
-    const result = spawnSync("bash", ["scripts/ci/provision-playwright-deps.sh", ...step.browser], {
+    const result = spawnSync("bash", ["scripts/ci/provision-playwright-deps.sh", step.browser], {
       cwd: root, encoding: "utf8", timeout: 10000,
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, HONUA_UBUNTU_APT_SOURCES: sources,
         RUNNER_TEMP: directory, FAKE_APT_LOG: log, FAKE_APT_MODE: mode },
