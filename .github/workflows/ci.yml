@@ -72,7 +72,8 @@ jobs:
   first-map-webkit:
     name: First Map WebKit
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Three bounded Ubuntu dependency attempts take up to 18 minutes.
+    timeout-minutes: 30
     env:
       HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
       PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/first-map-webkit/report.json
@@ -84,7 +85,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps webkit
+      - name: Install Playwright browser
+        run: |
+          scripts/ci/provision-playwright-deps.sh webkit
+          npx playwright install webkit
       # Reuse the release matrix's complete fixture journey and assertions.
       # This source check does not replace the sealed release-tag matrix.
       - name: Exercise the First Map journey in WebKit
