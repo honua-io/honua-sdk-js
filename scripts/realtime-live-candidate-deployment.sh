@@ -167,6 +167,7 @@ HostValidation__AllowedHosts__1=127.0.0.1
 Metadata__Environment=Production
 Licensing__DevGrantEdition=Pro
 Capabilities__Experimental__Enabled=true
+MultiTenancy__Enabled=true
 MultiTenancy__MultiTenantAdminRoles__0=admin
 Authentication__PortalToken__RequireHttps=false
 Authentication__PortalCredentialVerifier__UseOidc=true

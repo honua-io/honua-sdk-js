@@ -637,11 +637,15 @@ function streamingAdapter(surface, transport) {
     return {
       surface,
       transport,
-      supportsCursor: true,
+      // The subscription names tenant-a's layer, so a changed credential that
+      // presents it with tenant-a's cursor must be refused outright.
+      scopedSubscription: true,
       open: (context, token, { tenant = OWN, cursor } = {}) => open(context, featureStreamPath(tenant, token, cursor)),
       ready: (frame) => frame.json?.status === "subscribed",
       isData: (frame) => frame.json?.type === "feature-change",
-      cursorOf: (frame) => frame.json?.cursor,
+      // A bare numeric cursor is a pre-family cursor the candidate answers with
+      // a cursor-epoch reset; resume with the family cursor it hands out.
+      cursorOf: (frame) => frame.json?.resumeCursor,
       matches: (frame, mutation) => frame.json?.type === "feature-change" && frame.json?.attributes?.name === mutation.id,
       inject: injectFeature,
       resourceId: (tenant) =>
@@ -651,23 +655,35 @@ function streamingAdapter(surface, transport) {
   return {
     surface,
     transport,
-    supportsCursor: false,
+    // Observations stream in committed batches with observations-family resume
+    // cursors; the datastream is shared, so tenancy comes from the credential.
+    scopedSubscription: false,
     open: (context, token, { cursor } = {}) => open(context, observationStreamPath(token, cursor)),
     ready: (frame) => frame.json?.status === "connected",
-    isData: (frame) => frame.json !== undefined && frame.json !== null && "result" in frame.json,
-    cursorOf: () => undefined,
+    isData: (frame) => Array.isArray(frame.json?.observations),
+    cursorOf: (frame) => frame.json?.cursor,
     // Observation ids are not unique across tenants on the candidate, so the
     // marker is the injected result value, which is unique by construction.
-    matches: (frame, mutation) => frame.json?.result === mutation.result,
+    matches: (frame, mutation) => observationRows(frame.json).some((row) => row?.result === mutation.result),
     inject: injectObservation,
     resourceId: (tenant) => `${tenant}/sta/v1.1/Datastreams(${LIVE_AUTHORIZATION_TOPOLOGY.datastreamId})`,
   };
 }
 
+function observationRows(json) {
+  return Array.isArray(json?.observations) ? json.observations : [];
+}
+
+/** Position of a family resume cursor such as `features:25`, for ordering two cursors of one family. */
+function cursorPosition(cursor) {
+  const match = /^[a-z]+:([0-9]+)$/u.exec(String(cursor));
+  return match ? Number(match[1]) : Number.NaN;
+}
+
 /** Whether a raw frame or response carries a mutation that belongs to a tenant other than `tenant`. */
 function foreignMutationsIn(context, raw, tenant) {
-  const json = tryJson(raw.replace(/^(?:event:.*\r?\n)?data: ?/u, ""));
-  const rows = Array.isArray(json?.value) ? json.value : [json];
+  const json = tryJson(raw.replace(/^(?:id:.*\r?\n)?(?:event:.*\r?\n)?data: ?/u, ""));
+  const rows = Array.isArray(json?.value) ? json.value : Array.isArray(json?.observations) ? json.observations : [json];
   return context.mutations.filter((mutation) => {
     if (mutation.tenant === tenant) return false;
     if (raw.includes(mutation.id)) return true;
@@ -888,40 +904,19 @@ async function streamingBoundaryScenario(context, adapter, recorder) {
     subject: `reader-${OWN}`,
     expirationMinutes: 10,
   });
-  if (adapter.supportsCursor) {
-    const resumed = recorder.connection(await adapter.open(context, replacement.token, { tenant: OWN, cursor: lastCursor }), OWN);
-    try {
-      const replayed = await resumed.stream.waitFor((frame) => adapter.matches(frame, gap), context.timing.deliveryTimeoutMs, "replacement replay");
-      recorder.assert(
-        "replacement-resume",
-        Number(adapter.cursorOf(replayed)) > Number(lastCursor) &&
-          !resumed.stream.frames.some((frame) => adapter.matches(frame, before)),
-        `replayed the after-boundary mutation at cursor ${adapter.cursorOf(replayed)} from last delivered cursor ${lastCursor}`,
-      );
-    } catch (error) {
-      recorder.assert("replacement-resume", false, errorMessage(error));
-    } finally {
-      resumed.close();
-    }
-  } else {
-    // SensorThings subscriptions are live-only: a cursor is refused explicitly
-    // and a replacement credential resumes live delivery.
-    const replay = await streamingAttempt(context, recorder, adapter, replacement.token, { cursor: 1 }, OWN);
-    const resumed = await openReady(context, recorder, adapter, replacement.token, {}, OWN, "replacement");
-    try {
-      recorder.mutation(await adapter.inject(context, FOREIGN, key, "foreign-after"));
-      const after = recorder.mutation(await adapter.inject(context, OWN, key, "replacement"));
-      await resumed.stream.waitFor((frame) => adapter.matches(frame, after), context.timing.deliveryTimeoutMs, "replacement delivery");
-      recorder.assert(
-        "replacement-resume",
-        replay.status === 400,
-        `cursor replay answered ${replay.status} (live-only contract); replacement delivered the next owned observation`,
-      );
-    } catch (error) {
-      recorder.assert("replacement-resume", false, errorMessage(error));
-    } finally {
-      resumed.close();
-    }
+  const resumed = recorder.connection(await adapter.open(context, replacement.token, { tenant: OWN, cursor: lastCursor }), OWN);
+  try {
+    const replayed = await resumed.stream.waitFor((frame) => adapter.matches(frame, gap), context.timing.deliveryTimeoutMs, "replacement replay");
+    recorder.assert(
+      "replacement-resume",
+      cursorPosition(adapter.cursorOf(replayed)) > cursorPosition(lastCursor) &&
+        !resumed.stream.frames.some((frame) => adapter.matches(frame, before)),
+      `replayed the after-boundary mutation at cursor ${adapter.cursorOf(replayed)} from last delivered cursor ${lastCursor}`,
+    );
+  } catch (error) {
+    recorder.assert("replacement-resume", false, errorMessage(error));
+  } finally {
+    resumed.close();
   }
 }
 
@@ -997,7 +992,7 @@ async function streamingScopeChangeScenario(context, adapter, recorder) {
 
   const foreignCredential = await issuePortalToken(context, { tenant: FOREIGN, roles: [LIVE_AUTHORIZATION_TOPOLOGY.readerRole], subject: `reader-${FOREIGN}` });
   const unscoped = await issuePortalToken(context, { tenant: null, roles: [LIVE_AUTHORIZATION_TOPOLOGY.readerRole], subject: "reader-unscoped" });
-  if (adapter.supportsCursor) {
+  if (adapter.scopedSubscription) {
     const changed = [];
     for (const [label, token, tenant] of [
       ["tenant-b credential", foreignCredential.token, FOREIGN],
@@ -1011,9 +1006,9 @@ async function streamingScopeChangeScenario(context, adapter, recorder) {
     }
     recorder.assert("changed-scope-rejected", true, changed.join("; "));
   } else {
-    // Observation subscriptions carry no cursor, so the changed scope is the
-    // credential itself: tenant-b's stream must never see tenant-a's gap or
-    // later observations while its own arrive.
+    // An observation subscription names no tenant-owned resource, so the
+    // changed scope is the credential itself: tenant-b's stream must never see
+    // tenant-a's gap or later observations while its own arrive.
     const foreignConnection = await openReady(context, recorder, adapter, foreignCredential.token, {}, FOREIGN, "changed scope");
     try {
       const ownLater = recorder.mutation(await adapter.inject(context, OWN, key, "after-change"));
@@ -1033,16 +1028,14 @@ async function streamingScopeChangeScenario(context, adapter, recorder) {
   }
 
   const replacement = await issuePortalToken(context, { tenant: OWN, roles: [LIVE_AUTHORIZATION_TOPOLOGY.readerRole], subject: `reader-${OWN}` });
-  if (adapter.supportsCursor) {
-    const resumed = recorder.connection(await adapter.open(context, replacement.token, { tenant: OWN, cursor: lastCursor }), OWN);
-    try {
-      await resumed.stream.waitFor((frame) => adapter.matches(frame, gap), context.timing.deliveryTimeoutMs, "same-scope replacement replay");
-      recorder.assert("same-scope-replacement-resume", true, "an unchanged-scope replacement replayed the gap mutation");
-    } catch (error) {
-      recorder.assert("same-scope-replacement-resume", false, errorMessage(error));
-    } finally {
-      resumed.close();
-    }
+  const resumed = recorder.connection(await adapter.open(context, replacement.token, { tenant: OWN, cursor: lastCursor }), OWN);
+  try {
+    await resumed.stream.waitFor((frame) => adapter.matches(frame, gap), context.timing.deliveryTimeoutMs, "same-scope replacement replay");
+    recorder.assert("same-scope-replacement-resume", true, "an unchanged-scope replacement replayed the gap mutation");
+  } catch (error) {
+    recorder.assert("same-scope-replacement-resume", false, errorMessage(error));
+  } finally {
+    resumed.close();
   }
   await rejectedCredentialChecks(context, recorder, [
     { label: "anonymous", run: () => streamingAttempt(context, recorder, adapter, null, { tenant: OWN }, OWN) },

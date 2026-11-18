@@ -100,6 +100,7 @@ interface FeatureEvent {
 }
 
 interface Observation {
+  readonly position: number;
   readonly iotId: number;
   readonly tenant: string;
   readonly result: number;
@@ -122,10 +123,25 @@ function rejectUpgrade(socket: Duplex, status: number, reason: string): void {
   socket.end(`HTTP/1.1 ${status} ${reason}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
 }
 
+/** Position of an `<family>:<n>` resume cursor, or null when the cursor is not of that family. */
+function familyPosition(cursor: string, family: string): number | null {
+  const match = new RegExp(`^${family}:([0-9]+)$`, "u").exec(cursor);
+  return match ? Number(match[1]) : null;
+}
+
+function observationBatch(observation: Observation): Json {
+  return {
+    cursor: `observations:${observation.position}`,
+    datastreamId: 1,
+    observations: [{ id: observation.iotId, result: observation.result }],
+  };
+}
+
 function featureFrame(event: FeatureEvent): Json {
   return {
     type: "feature-change",
     cursor: event.cursor,
+    resumeCursor: `features:${event.cursor}`,
     serviceId: "test_service",
     layerId: event.layerId,
     objectId: event.objectId,
@@ -144,6 +160,7 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
   const relayIds = new Set<string>();
   const events: FeatureEvent[] = [];
   const observationIds = new Map<string, number>();
+  const observations: Observation[] = [];
   const featureSubscribers = new Set<(event: FeatureEvent) => void>();
   const observationSubscribers = new Set<(observation: Observation) => void>();
   const openStreams = new Set<() => void>();
@@ -290,7 +307,8 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
       // Ids are allocated per tenant, so two tenants' observations share ids.
       const iotId = (observationIds.get(tenant) ?? 0) + 1;
       observationIds.set(tenant, iotId);
-      const observation = { iotId, tenant, result: body.result };
+      const observation = { position: observations.length + 1, iotId, tenant, result: body.result };
+      observations.push(observation);
       for (const subscriber of observationSubscribers) subscriber(observation);
       sendJson(response, 201, { "@iot.id": iotId, datastreamId: 1, result: body.result });
       return;
@@ -347,7 +365,9 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     const credential = validCredential(token);
     if (!credential) return { status: 401, reason: "Unauthorized" };
     if (url.pathname === "/sta/v1.1/ObservationsStream") {
-      if (url.searchParams.has("cursor")) return { status: 400, reason: "Bad Request" };
+      const resume = url.searchParams.get("cursor");
+      if (resume !== null && familyPosition(resume, "observations") === null)
+        return { status: 400, reason: "Bad Request" };
       return { credential, layerId: null };
     }
     const layer = url.searchParams.get("layers") ?? "";
@@ -362,11 +382,14 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     emit: (event: string, frame: Json) => void,
   ) {
     if (scope.layerId === null) {
-      emit("status", { status: "connected", datastreamId: 1 });
+      emit("status", { status: "connected", datastreamId: 1, semantics: "resumable" });
+      const resumeFrom = familyPosition(url.searchParams.get("cursor") ?? "", "observations");
+      const owned = (observation: Observation) => observation.tenant === scope.credential.tenant;
+      const replay =
+        resumeFrom === null ? [] : observations.filter((item) => owned(item) && item.position > resumeFrom);
+      for (const observation of replay) emit("observations", observationBatch(observation));
       const onObservation = (observation: Observation) => {
-        if (observation.tenant === scope.credential.tenant) {
-          emit("observation", { "@iot.id": observation.iotId, datastreamId: 1, result: observation.result });
-        }
+        if (owned(observation)) emit("observations", observationBatch(observation));
       };
       observationSubscribers.add(onObservation);
       return () => observationSubscribers.delete(onObservation);
@@ -375,11 +398,12 @@ export async function startFakeCandidate(options: FakeCandidateOptions): Promise
     emit("status", { type: "status", status: "subscribed", subscriptionId: "default" });
     const layerId = scope.layerId;
     const replayFrom = url.searchParams.get("cursor");
-    if (replayFrom !== null) {
-      for (const event of events) {
-        if (event.layerId === layerId && event.cursor > Number(replayFrom)) emit("feature-change", featureFrame(event));
-      }
-    }
+    const since = replayFrom === null ? null : familyPosition(replayFrom, "features");
+    // Like the candidate, a pre-family numeric cursor resets to the head instead of replaying.
+    if (replayFrom !== null && since === null)
+      emit("reset", { type: "reset", reason: "cursor-epoch", head: `features:${cursor}` });
+    const replay = since === null ? [] : events.filter((event) => event.layerId === layerId && event.cursor > since);
+    for (const event of replay) emit("feature-change", featureFrame(event));
     let active = true;
     const deliver = (event: FeatureEvent) => {
       if (active) emit("feature-change", featureFrame(event));
