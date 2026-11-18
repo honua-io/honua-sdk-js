@@ -17,12 +17,15 @@ function readOptionalMigratorPin(): {
     scripts?: Record<string, string>;
   };
   lock: {
-    packages?: Record<string, {
-      dependencies?: Record<string, string>;
-      version?: string;
-      bin?: Record<string, string>;
-      engines?: { node?: string };
-    }>;
+    packages?: Record<
+      string,
+      {
+        dependencies?: Record<string, string>;
+        version?: string;
+        bin?: Record<string, string>;
+        engines?: { node?: string };
+      }
+    >;
   };
 } {
   const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")) as {
@@ -34,13 +37,16 @@ function readOptionalMigratorPin(): {
     scripts?: Record<string, string>;
   };
   const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, "package-lock.json"), "utf8")) as {
-    packages?: Record<string, {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-      version?: string;
-      bin?: Record<string, string>;
-      engines?: { node?: string };
-    }>;
+    packages?: Record<
+      string,
+      {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+        version?: string;
+        bin?: Record<string, string>;
+        engines?: { node?: string };
+      }
+    >;
   };
   expect(manifest.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
   expect(manifest.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
