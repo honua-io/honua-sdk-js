@@ -234,9 +234,10 @@ jobs:
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    # Worst-case OS-dependency provisioning (3 x 300 s + backoff) plus the
-    # five-minute clock and setup; see the workflow test that derives it.
-    timeout-minutes: 25
+    # Worst-case OS-dependency provisioning (3 x update 90s + install 210s,
+    # plus kill grace and backoff) plus the five-minute clock and setup; see
+    # the workflow test that derives it.
+    timeout-minutes: 27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -673,7 +674,9 @@ jobs:
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Worst-case OS-dependency provisioning is about 18 minutes; leave room
+    # for npm ci, the Chromium download and the package checks.
+    timeout-minutes: 25
     # Job permissions replace the workflow grant. actions:read covers recovery
     # run and job reads; contents:read stays for tag and commit resolution.
     # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions

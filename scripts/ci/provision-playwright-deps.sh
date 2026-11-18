@@ -31,17 +31,23 @@ apt_options=(-o Dir::Etc::sourcelist=/dev/null
   -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=30)
 for attempt in 1 2 3; do
   # Root owns the timeout so it signals apt's entire process group.
-  # shellcheck disable=SC2086 # Playwright emits a space-separated package list.
-  if sudo timeout --kill-after=10s 60s apt-get "${apt_options[@]}" update \
-    && sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 210s \
-      apt-get "${apt_options[@]}" install -y --no-install-recommends $packages; then
+  # A cold isolated list directory fetches the full noble indexes. One minute
+  # dies on the last index file and spends the retries before install runs.
+  status=0
+  sudo timeout --kill-after=10s 90s apt-get "${apt_options[@]}" update || status=$?
+  if (( status == 0 )); then
+    # shellcheck disable=SC2086 # Playwright emits a space-separated package list.
+    sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 210s \
+      apt-get "${apt_options[@]}" install -y --no-install-recommends $packages || status=$?
+  fi
+  if (( status == 0 )); then
     exit 0
   fi
   if (( attempt < 3 )); then
-    echo "::warning::Browser OS dependency attempt ${attempt} failed; retrying"
+    echo "::warning::Browser OS dependency attempt ${attempt} failed with status ${status}; retrying"
     sudo timeout --kill-after=10s 30s dpkg --configure -a || true
     sleep $((attempt * 15))
   fi
 done
-echo "::error::Browser OS dependencies could not be provisioned from Ubuntu"
+echo "::error::Browser OS dependencies could not be provisioned from Ubuntu (last status ${status})"
 exit 1
