@@ -29,6 +29,7 @@ if (tool === 'npx') {
   }
   process.exit(0);
 }
+if (tool === 'dpkg' && args[0] === '--print-architecture') { console.log('amd64'); process.exit(0); }
 if (tool !== 'apt-get') process.exit(0);
 fs.appendFileSync(process.env.FAKE_APT_LOG, JSON.stringify(args)+'\n');
 const sources = args.find(arg => arg.startsWith('Dir::Etc::sourceparts='))?.split('=').slice(1).join('=');
@@ -43,7 +44,10 @@ if (process.env.FAKE_APT_MODE === 'private-temp') {
   }
 }
 const files = fs.readdirSync(sources);
-if (files.length !== 1 || !fs.readFileSync(path.join(sources, files[0]), 'utf8').includes('Signed-By: /ubuntu-keyring')) process.exit(101);
+const sourceText = files.length === 1 ? fs.readFileSync(path.join(sources, files[0]), 'utf8') : '';
+if (!sourceText.includes('Signed-By: /ubuntu-keyring')) process.exit(101);
+fs.appendFileSync(process.env.FAKE_APT_LOG+'.sources', JSON.stringify(sourceText)+'\n');
+if (process.env.FAKE_APT_MODE === 'slow-mirror' && args.includes('install') && /ec2\.archive|mirror\+file/.test(sourceText)) process.exit(124);
 if (!args.some(arg => arg.startsWith('Dir::State::lists='))) process.exit(102);
 if (args.includes('update')) {
   const countFile = process.env.FAKE_APT_LOG+'.count';
@@ -66,7 +70,9 @@ function firstMapWebKitStep() {
   return { run, expected, browser: "webkit" };
 }
 
-function runStep(step, mode = "ok") {
+const defaultSources = "Types: deb\nURIs: https://archive.ubuntu.com/ubuntu\nSuites: noble\nComponents: main universe\nSigned-By: /ubuntu-keyring\n";
+
+function runStep(step, mode = "ok", sourceText = defaultSources) {
   const directory = mkdtempSync(path.join(tmpdir(), "sdk-browser-apt-"));
   const bin = path.join(directory, "bin");
   mkdirSync(bin);
@@ -74,7 +80,7 @@ function runStep(step, mode = "ok") {
     writeFileSync(path.join(bin, name), fakeTools, { mode: 0o755 });
   }
   const sources = path.join(directory, "ubuntu.sources");
-  writeFileSync(sources, "Types: deb\nURIs: https://archive.ubuntu.com/ubuntu\nSuites: noble\nComponents: main universe\nSigned-By: /ubuntu-keyring\n");
+  writeFileSync(sources, sourceText);
   const log = path.join(directory, "apt.log");
   try {
     assert.deepEqual(step.run.trim().split("\n").map(line => line.trim()).filter(Boolean), step.expected);
@@ -84,8 +90,8 @@ function runStep(step, mode = "ok") {
         RUNNER_TEMP: directory, FAKE_APT_LOG: log, FAKE_APT_MODE: mode },
     });
     assert.equal(result.error, undefined, String(result.error));
-    const calls = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    return { result, calls };
+    const readLines = file => readFileSync(file, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    return { result, calls: readLines(log), sources: readLines(`${log}.sources`) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -116,6 +122,26 @@ test("an Ubuntu mirror failure is retried using the same isolated signed sources
   assert.equal(calls.filter(args => args.includes("update")).length, 2);
   assert.match(result.stdout, /attempt 1 failed with status 100/);
 });
+
+const regionalSources = "Types: deb\nURIs: mirror+file:/etc/apt/apt-mirrors.txt\nSuites: noble noble-updates\nComponents: main universe\n"
+  + "Signed-By: /ubuntu-keyring\n\nTypes: deb\nURIs: http://security.ubuntu.com/ubuntu\nSuites: noble-security\n"
+  + "Components: main universe\nSigned-By: /ubuntu-keyring\n";
+
+for (const [form, sourceText] of [
+  ["mirror list", regionalSources],
+  ["regional host", regionalSources.replace("mirror+file:/etc/apt/apt-mirrors.txt", "http://us-east-2.ec2.archive.ubuntu.com/ubuntu")],
+]) {
+  test(`a slow ${form} is retried against Canonical's primary archive with the same signing keys`, () => {
+    const { result, sources } = runStep(firstMapWebKitStep(), "slow-mirror", sourceText);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(sources[0], sourceText);
+    const fallback = sources.at(-1);
+    assert.doesNotMatch(fallback, /ec2\.archive|mirror\+file/);
+    assert.match(fallback, /^URIs: http:\/\/archive\.ubuntu\.com\/ubuntu\/$/m);
+    assert.match(fallback, /^URIs: http:\/\/security\.ubuntu\.com\/ubuntu$/m);
+    assert.equal(fallback.match(/Signed-By: \/ubuntu-keyring/g).length, 2);
+  });
+}
 
 test("a cold package index is given longer than the minute that dies on its last file", () => {
   const script = readFileSync(path.join(root, "scripts/ci/provision-playwright-deps.sh"), "utf8");
