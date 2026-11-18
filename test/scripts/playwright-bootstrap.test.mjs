@@ -23,8 +23,9 @@ if (tool === 'sudo') {
 }
 if (tool === 'npx') {
   if (args.includes('--dry-run')) {
-    const packages = args.includes('webkit') ? 'libwoff1 libgstreamer1.0-0' : 'libnss3 libatk-bridge2.0-0';
-    console.log('sh -c "apt-get update && apt-get install -y --no-install-recommends ' + packages + '"');
+    const plans = { chromium: 'libnss3 libatk-bridge2.0-0', webkit: 'libwoff1 libgstreamer1.0-0' };
+    const packages = plans[args.at(-1)];
+    if (packages) console.log('sh -c "apt-get update && apt-get install -y --no-install-recommends ' + packages + '"');
   }
   process.exit(0);
 }
@@ -56,7 +57,7 @@ function verificationStep(job) {
   const name = job === "quickstart-budget" ? "Provision Playwright operating-system dependencies" : "Install Playwright browser";
   const expected = ["scripts/ci/provision-playwright-deps.sh"];
   if (job !== "quickstart-budget") expected.push("npx playwright install chromium");
-  return { run: workflow.jobs[job].steps.find(step => step.name === name).run, expected, browser: "chromium" };
+  return { run: workflow.jobs[job].steps.find(step => step.name === name).run, expected, browser: "" };
 }
 
 function firstMapWebKitStep() {
