@@ -552,7 +552,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-12-18T21:58:45.727Z"
+          "expiresAt": "2026-12-19T08:49:17.581Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -615,7 +615,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-12-18T21:56:39.647Z"
+          "expiresAt": "2026-12-19T08:47:57.275Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -671,7 +671,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-12-18T21:59:08.175Z"
+          "expiresAt": "2026-12-19T08:49:34.518Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1188,7 +1188,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-12-18T22:00:19.216Z"
+          "expiresAt": "2026-12-19T08:50:25.933Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -1529,9 +1529,9 @@
     },
     {
       "id": "controls-kit",
-      "route": "demo-sdk-controls.html",
+      "route": "demo-webmap-app.html",
       "ownership": "site-exception",
-      "exceptionReason": "The web-components sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the controls gallery.",
+      "exceptionReason": "The web-components sample retired with the 0.3.0 removal. The live controls are on the map application.",
       "title": "SDK controls",
       "summary": "Former SDK custom-element gallery. The executable sample is removed.",
       "track": "lab",
@@ -1586,7 +1586,7 @@
     },
     {
       "id": "imagery-terrain",
-      "route": "demo-imagery-terrain.html",
+      "route": "demo-maui-3d.html",
       "ownership": "sdk-projection",
       "sampleId": "imagery-cog-quickstart"
     },
@@ -1601,20 +1601,6 @@
       "route": "demo.html",
       "ownership": "sdk-projection",
       "sampleId": "maplibre-quickstart"
-    },
-    {
-      "id": "planning-permitting",
-      "route": "demo-planning-permitting.html",
-      "ownership": "site-exception",
-      "exceptionReason": "The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned.",
-      "title": "Planning and permitting",
-      "summary": "Site-owned planning and permitting presentation.",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "capabilities": [
-        "editing",
-        "planning"
-      ]
     },
     {
       "id": "public-safety",
