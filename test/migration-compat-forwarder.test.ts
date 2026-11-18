@@ -11,49 +11,44 @@ import * as sdkMigration from "../src/migration-entry.js";
 
 const projectRoot = process.cwd();
 
-function readOptionalMigratorPin(): {
-  manifest: {
-    files?: string[];
-    scripts?: Record<string, string>;
-  };
-  lock: {
-    packages?: Record<
-      string,
-      {
-        dependencies?: Record<string, string>;
-        version?: string;
-        bin?: Record<string, string>;
-        engines?: { node?: string };
-      }
-    >;
-  };
-} {
-  const manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8")) as {
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-    peerDependencies?: Record<string, string>;
-    peerDependenciesMeta?: Record<string, { optional?: boolean }>;
-    files?: string[];
-    scripts?: Record<string, string>;
-  };
-  const lock = JSON.parse(fs.readFileSync(path.join(projectRoot, "package-lock.json"), "utf8")) as {
-    packages?: Record<
-      string,
-      {
-        dependencies?: Record<string, string>;
-        devDependencies?: Record<string, string>;
-        version?: string;
-        bin?: Record<string, string>;
-        engines?: { node?: string };
-      }
-    >;
-  };
+type ManifestFields = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+  files?: string[];
+  scripts?: Record<string, string>;
+};
+
+type LockPackageFields = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  version?: string;
+  bin?: Record<string, string>;
+  engines?: { node?: string };
+};
+
+type LockFileFields = {
+  packages?: Record<string, LockPackageFields>;
+};
+
+function readProjectJson<T>(fileName: string): T {
+  return JSON.parse(fs.readFileSync(path.join(projectRoot, fileName), "utf8")) as T;
+}
+
+function expectMigratorAbsentFromRuntime(manifest: ManifestFields, lock: LockFileFields): void {
   expect(manifest.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
   expect(manifest.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
   expect(manifest.peerDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
   expect(manifest.peerDependenciesMeta?.["@honua/honua-migrate"]?.optional).toBe(true);
   expect(lock.packages?.[""]?.dependencies?.["@honua/honua-migrate"]).toBeUndefined();
   expect(lock.packages?.[""]?.devDependencies?.["@honua/honua-migrate"]).toBe("0.3.0-beta.0");
+}
+
+function readOptionalMigratorPin(): { manifest: ManifestFields; lock: LockFileFields } {
+  const manifest = readProjectJson<ManifestFields>("package.json");
+  const lock = readProjectJson<LockFileFields>("package-lock.json");
+  expectMigratorAbsentFromRuntime(manifest, lock);
   return { manifest, lock };
 }
 
