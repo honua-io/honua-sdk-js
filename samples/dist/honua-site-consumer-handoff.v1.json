@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.schema.json",
       "format": "honua.site.sdk-sample-projection.v2",
       "schemaVersion": 2,
-      "bytes": 57148,
-      "sha256": "abc41c57c95455f320b09d58afd8ef0d11eff6ef77808ade4b5d9b03238205ec",
+      "bytes": 57731,
+      "sha256": "0768ed43ca98a95bf6fa2033ffe3b69bcf0b070987c3ee38ab8ac28b090635a7",
       "schemaBytes": 15143,
       "schemaSha256": "8b8fea558df79884f3d9522737d24043b33b099d234ab64f66f1e624cdc52bbd"
     },
@@ -29,7 +29,7 @@
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
       "bytes": 474451,
-      "sha256": "cb7373648c9dbbc4b29f7dd8e6ffabf5a35d47ca5809990e2f7e41ec335526ea",
+      "sha256": "73d5791761e89663f35a6dc3f95dc32de8de365a02dfb1efe34c6c067bb73105",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45309,
-      "sha256": "638f9cd4034797bdc3fc88fa7da0ac004cf0ffb9c17ecd15c5d27ef8c67bc66c",
+      "sha256": "e89f35e2d687a004c2247f189b499b56233e056bad73620ff0f1822fe68022d4",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -312,7 +312,7 @@
     "cards": 20,
     "qualifiedJourneys": 4,
     "canonicalRoutes": 20,
-    "legacyRoutes": 18,
+    "legacyRoutes": 20,
     "lifecycleNotices": 0,
     "gaps": 455,
     "qualifiedMatrixCells": {
@@ -3838,9 +3838,24 @@
       "reason": "Redirect to the stable canonical SDK sample route."
     },
     {
+      "path": "demo-imagery-terrain.html",
+      "routeIds": [
+        "imagery-terrain"
+      ],
+      "ownership": "sdk-projection",
+      "resolution": "canonical-sample",
+      "sampleId": "imagery-cog-quickstart",
+      "canonicalPath": "samples/imagery-cog-quickstart.html",
+      "httpStatus": 308,
+      "presentation": "permanent-redirect",
+      "title": "Imagery and Terrain journey",
+      "track": "golden",
+      "supportTier": "supported",
+      "reason": "Redirect to the stable canonical SDK sample route."
+    },
+    {
       "path": "demo-maui-3d.html",
       "routeIds": [
-        "imagery-terrain",
         "maui-3d"
       ],
       "ownership": "sdk-projection",
@@ -3853,6 +3868,22 @@
       "track": "golden",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
+    },
+    {
+      "path": "demo-planning-permitting.html",
+      "routeIds": [
+        "planning-permitting"
+      ],
+      "ownership": "site-exception",
+      "resolution": "site-exception",
+      "sampleId": null,
+      "canonicalPath": null,
+      "httpStatus": null,
+      "presentation": "status-page",
+      "title": "Planning and permitting",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "reason": "Display an explicit site-owned exception or retirement status. The SDK planning sample was removed; the property and planning journey on samples.honua.io covers this use case. The route stays site-owned."
     },
     {
       "path": "demo-public-safety.html",
@@ -3871,6 +3902,22 @@
       "reason": "Redirect to the stable canonical SDK sample route."
     },
     {
+      "path": "demo-sdk-controls.html",
+      "routeIds": [
+        "controls-kit"
+      ],
+      "ownership": "site-exception",
+      "resolution": "site-exception",
+      "sampleId": null,
+      "canonicalPath": null,
+      "httpStatus": null,
+      "presentation": "status-page",
+      "title": "SDK controls",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "reason": "Display an explicit site-owned exception or retirement status. The web-components sample retired with the 0.3.0 removal. This route stays site-owned until app-platform publishes the controls gallery."
+    },
+    {
       "path": "demo-two-protocols.html",
       "routeIds": [
         "two-protocols"
@@ -3885,22 +3932,6 @@
       "track": "golden",
       "supportTier": "supported",
       "reason": "Redirect to the stable canonical SDK sample route."
-    },
-    {
-      "path": "demo-webmap-app.html",
-      "routeIds": [
-        "controls-kit"
-      ],
-      "ownership": "site-exception",
-      "resolution": "site-exception",
-      "sampleId": null,
-      "canonicalPath": null,
-      "httpStatus": null,
-      "presentation": "status-page",
-      "title": "SDK controls",
-      "track": "lab",
-      "supportTier": "deprecated",
-      "reason": "Display an explicit site-owned exception or retirement status. The web-components sample retired with the 0.3.0 removal. The live controls are on the map application."
     },
     {
       "path": "demo.html",

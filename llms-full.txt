@@ -1359,7 +1359,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 | <a id="stac-imagery-browser"></a>[`stac-imagery-browser`](../../examples/stac-imagery-browser/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff. |
 | <a id="temporal-playback"></a>[`temporal-playback`](../../examples/temporal-playback/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems(). |
 
-The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 20-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.
+The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.
 
 ---
 
@@ -1707,7 +1707,7 @@ Labels: `fixture` · `authenticated` · `experimental` · `degraded`
 - Provenance: Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.
 - Freshness: Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.
 - Catalog degradation: Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.
-- Live sample: [demo-maui-3d.html](https://honua.io/demo-maui-3d.html) · [sample-raster-overlay.html](https://honua.io/sample-raster-overlay.html)
+- Live sample: [demo-imagery-terrain.html](https://honua.io/demo-imagery-terrain.html) · [demo-maui-3d.html](https://honua.io/demo-maui-3d.html) · [sample-raster-overlay.html](https://honua.io/sample-raster-overlay.html)
 - Supported API imports: `@honua/sdk-js/cog` (`mountStacCogAssetToMapLibre`, `openStacCogAsset`); `@honua/sdk-js/honua` (`HonuaImageService`)
 - honua.io journey: `imagery-terrain-3d`
 - Degradation: The default build replays pinned COG and terrain fixtures; live imagery needs a host-mediated endpoint.
@@ -9089,7 +9089,7 @@ const hints = await pelias.suggest("honol");   // dedicated /v1/autocomplete end
 **Usage policy / attribution**: depends on the datasets your instance is
 built from (OSM, OpenAddresses, Who's On First, geonames, …) and on your
 hosting provider's terms. Override `attribution` / `usagePolicyUrl` to match;
-see <https://github.com/pelias/documentation/blob/master/data-sources.md>.
+see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
 
 ### Honua facade
 
