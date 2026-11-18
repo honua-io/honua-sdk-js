@@ -297,7 +297,7 @@ describe("sample publication contract", () => {
       journeyId: "planning-permitting",
       lifecycle: { state: "active" },
     });
-    expect(catalog.siteMappings).toHaveLength(21);
+    expect(catalog.siteMappings).toHaveLength(20);
   });
 
   it("accepts only the reviewed bounded Coverage and WCS browser command", async () => {
@@ -1117,7 +1117,7 @@ describe("sample publication contract", () => {
       schemaVersion: 3,
     });
     expect(projection.samples).toHaveLength(23);
-    expect(projection.routes).toHaveLength(21);
+    expect(projection.routes).toHaveLength(20);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
@@ -1219,9 +1219,10 @@ describe("sample publication contract", () => {
     ).toEqual(["imagery-cog-quickstart", "imagery-cog-quickstart", "imagery-cog-quickstart"]);
     expect(
       projection.routes
-        .filter((route) => ["editing", "planning-permitting"].includes(String(route.id)))
+        .filter((route) => route.id === "editing")
         .map((route) => String(route.sampleId ?? route.ownership)),
-    ).toEqual(["sketch-editing", "site-exception"]);
+    ).toEqual(["sketch-editing"]);
+    expect(projection.routes.some((route) => route.id === "planning-permitting")).toBe(false);
     expect(projection.samples.some((sample: { id: string }) => sample.id === "two-protocols")).toBe(false);
 
     const malformedProjection = structuredClone(projection);

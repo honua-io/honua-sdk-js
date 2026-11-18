@@ -145,7 +145,9 @@ describe("honua-site consumer handoff", () => {
           cards: 20,
           qualifiedJourneys: 4,
           canonicalRoutes: 20,
-          legacyRoutes: 20,
+          // Shared paths collapse maui-explorer with quickstart-map, and
+          // imagery-terrain with maui-3d, so twenty ids are eighteen routes.
+          legacyRoutes: 18,
           gaps: projectLegacyCapabilitySampleMatrix(inputs.matrix).gaps.length,
         },
       });
@@ -427,8 +429,9 @@ describe("honua-site consumer handoff", () => {
       httpStatus: 308,
       presentation: "permanent-redirect",
     });
-    // control-legend, control-search, controls-kit, hello-webmap, and planning-permitting stay site-owned.
-    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(5);
+    // control-legend, control-search, controls-kit, and hello-webmap stay site-owned.
+    // planning-permitting left the catalog when its honua.io page was deleted.
+    expect(handoff.legacyRoutes.filter((route) => route.resolution === "site-exception")).toHaveLength(4);
     expect(
       handoff.legacyRoutes
         .filter((route) => route.resolution !== "canonical-sample")
