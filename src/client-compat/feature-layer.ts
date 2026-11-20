@@ -1,6 +1,6 @@
 import { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
-import { encodeServiceIdPath } from "../core/path-utils.js";
+import { numericPathSegment, restLayerPath } from "../core/path-utils.js";
 import type {
   ApplyEditsRequest,
   HonuaAddAttachmentResponse,
@@ -817,7 +817,7 @@ export class FeatureLayerCompat {
   public queryAttachments(options: FeatureLayerQueryAttachmentsOptions = {}): Promise<HonuaQueryAttachmentsResponse> {
     return this.client.request({
       method: options.method ?? "GET",
-      path: `/rest/services/${encodeServiceIdPath(this.serviceId)}/FeatureServer/${this.layerId}/queryAttachments`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/queryAttachments`,
       responseFormat: options.responseFormat ?? "json",
       query: {
         ...(options.objectIds === undefined
@@ -834,9 +834,7 @@ export class FeatureLayerCompat {
   public listAttachments(options: FeatureLayerListAttachmentsOptions): Promise<HonuaAttachmentListResponse> {
     return this.client.request({
       method: "GET",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${options.objectId}/attachments`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(options.objectId, "objectId")}/attachments`,
       responseFormat: options.responseFormat ?? "json",
       query: options.extraParams,
     });
@@ -857,9 +855,7 @@ export class FeatureLayerCompat {
 
     return this.client.request({
       method: "POST",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${options.objectId}/deleteAttachments`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(options.objectId, "objectId")}/deleteAttachments`,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
@@ -877,9 +873,7 @@ export class FeatureLayerCompat {
     const sendForm = (form: FormData): Promise<HonuaAddAttachmentResponse> =>
       this.client.request({
         method: "POST",
-        path:
-          `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-          `/FeatureServer/${this.layerId}/${options.objectId}/addAttachment`,
+        path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(options.objectId, "objectId")}/addAttachment`,
         responseFormat: options.responseFormat ?? "json",
         query: options.extraParams,
         body: form,
@@ -901,9 +895,7 @@ export class FeatureLayerCompat {
       form.set("attachmentId", String(options.attachmentId));
       return this.client.request({
         method: "POST",
-        path:
-          `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-          `/FeatureServer/${this.layerId}/${options.objectId}/updateAttachment`,
+        path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(options.objectId, "objectId")}/updateAttachment`,
         responseFormat: options.responseFormat ?? "json",
         query: options.extraParams,
         body: form,

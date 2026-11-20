@@ -1,6 +1,6 @@
 import { HonuaClient } from "../core/client.js";
 import type { HonuaRequestInterceptor } from "../core/types.js";
-import { clientConfig } from "./client-config.js";
+import { clientConfig, isArcGisHostedUrl, isCredentialTargetTrusted } from "./client-config.js";
 import { FeatureLayerCompat } from "./feature-layer.js";
 import { identityManager } from "./identity-manager.js";
 import { createClientTokenInterceptor } from "./request.js";
@@ -130,7 +130,10 @@ interface PortalOpenResultBase {
   baseUrl: string;
   /** Service (folder/name) id parsed from the item URL. */
   serviceId: string;
-  /** Authenticated client bound to `baseUrl`, carrying the portal credential. */
+  /**
+   * Client bound to `baseUrl`. It carries the portal credential only when
+   * `baseUrl` is on the portal origin or in `clientConfig.request.trustedServers`.
+   */
   client: HonuaClient;
 }
 
@@ -291,9 +294,13 @@ export class PortalCompat {
 
   /**
    * Resolve an item (fetching it when given an id), parse its service `url`, and
-   * return an authenticated handle. Feature Service items yield a
-   * {@link FeatureLayerCompat} bound to a client carrying the portal token;
-   * Map/Image Service items yield the resolved `{ baseUrl, serviceId, client }`.
+   * return a service handle. Feature Service items yield a
+   * {@link FeatureLayerCompat}; Map/Image Service items yield the resolved
+   * `{ baseUrl, serviceId, client }`. The client carries the portal token and
+   * API key only when the item URL is on the portal origin, in
+   * `clientConfig.request.trustedServers`, or (for an ArcGIS Online portal) on
+   * an https `*.arcgis.com` host; any other origin gets an unauthenticated
+   * client.
    */
   public async openFeatureLayer(
     itemOrId: string | PortalItem,
@@ -308,7 +315,7 @@ export class PortalCompat {
     if (isFeatureService(item.type, serviceUrl)) {
       const hasLayerId = /\/FeatureServer\/\d+$/i.test(serviceUrl);
       const service = parseFeatureLayerUrl(hasLayerId ? serviceUrl : `${serviceUrl}/0`);
-      const client = this.buildAuthenticatedClient(service.baseUrl);
+      const client = this.buildServiceClient(service.baseUrl);
       let layerId = service.layerId;
       if (!hasLayerId) {
         if (options.layerId !== undefined) {
@@ -338,12 +345,12 @@ export class PortalCompat {
 
     if (isImageService(item.type, serviceUrl)) {
       const parsed = parseImageServiceUrl(serviceUrl);
-      const client = this.buildAuthenticatedClient(parsed.baseUrl);
+      const client = this.buildServiceClient(parsed.baseUrl);
       return { type: "image-service", item, baseUrl: parsed.baseUrl, serviceId: parsed.serviceId, client };
     }
 
     const parsed = parseMapServiceUrl(serviceUrl);
-    const client = this.buildAuthenticatedClient(parsed.baseUrl);
+    const client = this.buildServiceClient(parsed.baseUrl);
     return { type: "map-service", item, baseUrl: parsed.baseUrl, serviceId: parsed.serviceId, client };
   }
 
@@ -363,7 +370,23 @@ export class PortalCompat {
     });
   }
 
-  private buildAuthenticatedClient(baseUrl: string): HonuaClient {
+  /**
+   * The portal origin and trusted servers are trusted; an ArcGIS Online portal
+   * also trusts its hosted services on other https `*.arcgis.com` hosts.
+   */
+  private isTrustedServiceOrigin(baseUrl: string): boolean {
+    if (isCredentialTargetTrusted(baseUrl, this.sharingRestBase)) {
+      return true;
+    }
+    return isArcGisHostedUrl(this.sharingRestBase) && isArcGisHostedUrl(baseUrl);
+  }
+
+  private buildServiceClient(baseUrl: string): HonuaClient {
+    if (!this.isTrustedServiceOrigin(baseUrl)) {
+      // An item URL on another origin gets no portal token or API key unless
+      // that server is listed in clientConfig.request.trustedServers.
+      return new HonuaClient({ baseUrl, fetchFn: this.fetchFn });
+    }
     const interceptors: HonuaRequestInterceptor[] = [];
     if (this.token) {
       interceptors.push(createClientTokenInterceptor({ getToken: () => this.token }));

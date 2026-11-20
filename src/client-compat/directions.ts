@@ -1,4 +1,4 @@
-import { clientConfig } from "./client-config.js";
+import { isArcGisHostedUrl } from "./client-config.js";
 import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
 import {
@@ -8,7 +8,12 @@ import {
   type RouteStopCompat,
   routeStopFromUnknown,
 } from "./route-layer.js";
-import { RouteTaskCompat, type RouteTaskSolveResultCompat, arcGisRouteServiceProvider } from "./route-task.js";
+import {
+  RouteTaskCompat,
+  type RouteTaskSolveResultCompat,
+  arcGisRouteServiceProvider,
+  globalApiKeyForRouteService,
+} from "./route-task.js";
 import { type HonuaWidgetHost, bindHonuaWidgetHost, pushWidgetHostState } from "./widget-host.js";
 
 /** Default `routeServiceUrl` on Esri `DirectionsViewModel` for the 4.x widget apps. */
@@ -296,7 +301,7 @@ async function readTravelModes(url: string, token: string | undefined): Promise<
   if (token) {
     endpoint.searchParams.set("token", token);
   }
-  const response = await fetch(endpoint);
+  const response = await fetch(endpoint, token ? { redirect: "error" } : undefined);
   const json = (await response.json()) as {
     error?: { message?: string };
     supportedTravelModes?: Array<{ name?: string }>;
@@ -334,20 +339,15 @@ function tokenForRouteService(url: string, apiKey: string | undefined): string |
   if (apiKey) {
     return apiKey;
   }
-  if (clientConfig.apiKey) {
-    return clientConfig.apiKey;
+  const globalKey = globalApiKeyForRouteService(url);
+  if (globalKey) {
+    return globalKey;
   }
   const direct = identityManager.findCredential(url);
   if (direct?.token) {
     return direct.token;
   }
-  let host: string;
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    return undefined;
-  }
-  if (host !== "arcgis.com" && !host.endsWith(".arcgis.com")) {
+  if (!isArcGisHostedUrl(url)) {
     return undefined;
   }
   for (let index = identityManager.credentials.length - 1; index >= 0; index -= 1) {
