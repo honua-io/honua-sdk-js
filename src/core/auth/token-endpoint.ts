@@ -7,6 +7,7 @@
  */
 
 import { HonuaAuthError } from "../errors.js";
+import { assertSecureCredentialedBaseUrl } from "../transport-security.js";
 import type { HonuaAuthCredentials } from "../types.js";
 import type { OAuth2TokenResponse, StoredCredential } from "./types.js";
 
@@ -101,7 +102,18 @@ export async function requestToken(options: {
   params: Record<string, string>;
   previous?: StoredCredential;
   signal?: AbortSignal;
+  allowInsecureHttp?: boolean;
 }): Promise<StoredCredential> {
+  const credentialSources = [
+    ...(options.params.client_secret ? ["clientSecret"] : []),
+    ...(options.params.refresh_token ? ["refreshToken"] : []),
+    ...(options.params.code ? ["authorizationCode"] : []),
+  ];
+  assertSecureCredentialedBaseUrl(
+    options.tokenEndpoint,
+    credentialSources.length > 0 ? credentialSources : ["tokenEndpoint"],
+    options.allowInsecureHttp === true,
+  );
   const body = new URLSearchParams(options.params);
   let response: Response;
   try {
