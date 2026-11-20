@@ -1,4 +1,4 @@
-import { clientConfig } from "./client-config.js";
+import { clientConfig, isArcGisHostedUrl, isCredentialTargetTrusted } from "./client-config.js";
 import { CompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
 import { identityManager } from "./identity-manager.js";
 import { coordinateToLonLat } from "./map-view-mount.js";
@@ -290,11 +290,11 @@ export function arcGisRouteServiceProvider(
     if (travelMode !== undefined && travelMode !== null) {
       solveUrl.searchParams.set("travelMode", typeof travelMode === "string" ? travelMode : JSON.stringify(travelMode));
     }
-    const token = apiKey ?? clientConfig.apiKey ?? identityManager.findCredential(url)?.token;
+    const token = apiKey ?? globalApiKeyForRouteService(url) ?? identityManager.findCredential(url)?.token;
     if (token) {
       solveUrl.searchParams.set("token", token);
     }
-    const response = await fetch(solveUrl);
+    const response = await fetch(solveUrl, token ? { redirect: "error" } : undefined);
     const json = (await response.json()) as {
       error?: { message?: string };
       routes?: {
@@ -478,4 +478,20 @@ function haversineDistanceMeters(a: [number, number], b: [number, number]): numb
 
 function toRadians(value: number): number {
   return (value * Math.PI) / 180;
+}
+
+/**
+ * The global `clientConfig.apiKey` for a route service, or `undefined` when the
+ * host is not trusted for it. The key is sent only to ArcGIS-hosted services,
+ * the configured portal origin, or a server in
+ * `clientConfig.request.trustedServers`, so an arbitrary route-service URL
+ * never receives it.
+ */
+export function globalApiKeyForRouteService(url: string): string | undefined {
+  if (!clientConfig.apiKey) {
+    return undefined;
+  }
+  return isArcGisHostedUrl(url) || isCredentialTargetTrusted(url, clientConfig.portalUrl)
+    ? clientConfig.apiKey
+    : undefined;
 }

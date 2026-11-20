@@ -13,7 +13,7 @@ import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { GRPC_INTERNAL } from "./grpc-status.js";
-import { encodeServiceIdPath } from "./path-utils.js";
+import { encodeServiceIdPath, restLayerPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import { assertServiceLayerOrder } from "./service-edit-layers.js";
 import type {
@@ -60,7 +60,7 @@ export async function getLayerMetadata(
   options: HonuaMetadataRequestOptions = {},
 ): Promise<HonuaLayerMetadata> {
   const query = new URLSearchParams({ f: "json" });
-  const path = `/rest/services/${encodeServiceIdPath(serviceId)}/FeatureServer/${layerId}?${query.toString()}`;
+  const path = `${restLayerPath(serviceId, "FeatureServer", layerId)}?${query.toString()}`;
   return transport.requestCachedMetadataJson<HonuaLayerMetadata>(
     `geoservices-feature:${serviceId}:${layerId}`,
     path,
@@ -103,7 +103,7 @@ export async function getMapLayerMetadata(
   options: HonuaMetadataRequestOptions = {},
 ): Promise<HonuaLayerMetadata> {
   const query = new URLSearchParams({ f: "json" });
-  const path = `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/${layerId}?${query.toString()}`;
+  const path = `${restLayerPath(serviceId, "MapServer", layerId)}?${query.toString()}`;
   return transport.requestCachedMetadataJson<HonuaLayerMetadata>(
     `geoservices-map:${serviceId}:${layerId}`,
     path,
@@ -149,7 +149,7 @@ export async function queryFeaturesRest(
   serializeQueryParams(params, request);
   appendQueryExtraParams(params, request);
 
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   const usePbf = preferBinary && method === "GET";
   if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
@@ -194,7 +194,7 @@ export async function queryMapLayer(
   serializeQueryParams(params, request);
   appendQueryExtraParams(params, request);
 
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
+  const path = `${restLayerPath(request.serviceId, "MapServer", request.layerId)}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   if (method === "GET") {
     return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
@@ -218,7 +218,7 @@ export async function applyEdits(
   transport: HonuaProtocolTransport,
   request: ApplyEditsRequest,
 ): Promise<HonuaApplyEditsResponse> {
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/applyEdits`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/applyEdits`;
   const params = new URLSearchParams();
   params.set("f", "json");
   params.set("rollbackOnFailure", String(request.rollbackOnFailure ?? true));
@@ -310,9 +310,7 @@ export async function queryRelatedRecords(
     }
   }
 
-  const path =
-    `/rest/services/${encodeServiceIdPath(request.serviceId)}` +
-    `/FeatureServer/${request.layerId}/queryRelatedRecords`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/queryRelatedRecords`;
   if (method === "GET") {
     return transport.requestJson<HonuaRelatedRecordsResponse>(
       "GET",
@@ -356,8 +354,7 @@ export async function queryMapRelatedRecords(
     }
   }
 
-  const path =
-    `/rest/services/${encodeServiceIdPath(request.serviceId)}` + `/MapServer/${request.layerId}/queryRelatedRecords`;
+  const path = `${restLayerPath(request.serviceId, "MapServer", request.layerId)}/queryRelatedRecords`;
   if (method === "GET") {
     return transport.requestJson<HonuaRelatedRecordsResponse>(
       "GET",

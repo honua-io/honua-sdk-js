@@ -113,18 +113,42 @@ export function stripQuery(value: string): string {
  * A plain `serviceId` without slashes behaves exactly like
  * `encodeURIComponent(serviceId)`. Empty segments produced by leading,
  * trailing, or doubled slashes are dropped so the result never contains
- * stray `/` runs. Use {@link encodePathSegments} instead when empty segments
+ * stray `/` runs. `.` and `..` segments are refused so an untrusted id cannot
+ * address another path on the same host. Use {@link encodePathSegments} instead when empty segments
  * must be preserved verbatim.
  */
 export function encodeServiceIdPath(serviceId: string): string {
+  const segments = serviceId.split("/").filter((segment) => segment.length > 0);
+  if (segments.some(isDotSegment)) {
+    throw new TypeError(`Service id "${serviceId}" must not contain "." or ".." path segments.`);
+  }
   if (!serviceId.includes("/")) {
     return encodeURIComponent(serviceId);
   }
-  return serviceId
-    .split("/")
-    .filter((segment) => segment.length > 0)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  return segments.map((segment) => encodeURIComponent(segment)).join("/");
+}
+
+function isDotSegment(segment: string): boolean {
+  return segment === "." || segment === "..";
+}
+
+/**
+ * Render a layer or object id as a single URL path segment.
+ *
+ * GeoServices layer and object ids are non-negative integers. A value that is
+ * not (for example a string carrying `/` or `..` from an untrusted item) would
+ * otherwise be interpolated verbatim and address a different path on the same
+ * host, so it is refused. Digit-only strings are accepted for object ids that
+ * arrive as text.
+ */
+export function numericPathSegment(value: unknown, label: string): string {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return String(value);
+  }
+  if (typeof value === "string" && /^\d{1,16}$/.test(value) && Number.isSafeInteger(Number(value))) {
+    return value;
+  }
+  throw new TypeError(`${label} must be a non-negative integer.`);
 }
 
 /**
@@ -148,4 +172,13 @@ export function encodePathSegments(value: string): string {
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
+}
+
+/**
+ * `/rest/services/{serviceId}/{server}/{layerId}` with the service id encoded
+ * by {@link encodeServiceIdPath} and the layer id checked by
+ * {@link numericPathSegment}.
+ */
+export function restLayerPath(serviceId: string, server: "FeatureServer" | "MapServer", layerId: unknown): string {
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/${server}/${numericPathSegment(layerId, "layerId")}`;
 }
