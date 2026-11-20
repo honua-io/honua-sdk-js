@@ -10,6 +10,7 @@
  * @packageDocumentation
  */
 
+import { assertSecureCredentialedBaseUrl } from "../transport-security.js";
 import type { HonuaAuthCredentials, HonuaAuthProviderContext } from "../types.js";
 // HonuaAuthCredentials is the declared return type of getCredentials.
 import { InMemoryCredentialStore } from "./credential-store.js";
@@ -39,6 +40,7 @@ export class ClientCredentialsProvider {
   private refreshInFlight: Promise<StoredCredential> | undefined;
 
   public constructor(config: ClientCredentialsConfig) {
+    assertSecureCredentialedBaseUrl(config.tokenEndpoint, ["clientSecret"], config.allowInsecureHttp === true);
     this.config = config;
     this.store = config.store ?? new InMemoryCredentialStore();
     this.serviceKey = resolveServiceKey(config.serviceKey, config.clientId, config.tokenEndpoint);
@@ -103,6 +105,7 @@ export class ClientCredentialsProvider {
         ...this.config.extraTokenParams,
       },
       previous,
+      allowInsecureHttp: this.config.allowInsecureHttp,
     });
     await this.store.set(this.serviceKey, credential);
     this.emit({ type: previous ? "token-refreshed" : "signed-in", credential });

@@ -285,6 +285,13 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
     );
     return;
   }
+  assertEnvelopeXyBounds(geometry, keys);
+  assertOptionalBounds(geometry, "zmin", "zmax", "envelope", keys);
+  assertOptionalBounds(geometry, "mmin", "mmax", "envelope", keys);
+  assertOptionalBounds(geometry, "idmin", "idmax", "envelope", keys);
+}
+
+function assertEnvelopeXyBounds(geometry: Record<string, unknown>, keys: readonly string[]): void {
   const { xmin, ymin, xmax, ymax } = geometry;
   if (![xmin, ymin, xmax, ymax].every(isFiniteNumber)) {
     throw geometryClassificationError(
@@ -294,7 +301,13 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
       "envelope",
     );
   }
-  if ((xmin as number) > (xmax as number) || (ymin as number) > (ymax as number)) {
+  const bounds: readonly [number, number, number, number] = [
+    xmin as number,
+    ymin as number,
+    xmax as number,
+    ymax as number,
+  ];
+  if (bounds[1] > bounds[3] || (bounds[0] > bounds[2] && !isValidAntimeridianEnvelope(geometry, bounds))) {
     throw geometryClassificationError(
       "malformed-geometry",
       "envelope minimum coordinates must not exceed maximum coordinates",
@@ -302,9 +315,33 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
       "envelope",
     );
   }
-  assertOptionalBounds(geometry, "zmin", "zmax", "envelope", keys);
-  assertOptionalBounds(geometry, "mmin", "mmax", "envelope", keys);
-  assertOptionalBounds(geometry, "idmin", "idmax", "envelope", keys);
+}
+
+function isValidAntimeridianEnvelope(
+  geometry: Record<string, unknown>,
+  bounds: readonly [number, number, number, number],
+): boolean {
+  const [xmin, ymin, xmax, ymax] = bounds;
+  if (xmin < -180 || xmin > 180 || xmax < -180 || xmax > 180 || ymin < -90 || ymax > 90) {
+    return false;
+  }
+  const sr = geometry.spatialReference;
+  if (sr === undefined || sr === null) {
+    return true;
+  }
+  if (typeof sr !== "object") {
+    return false;
+  }
+  const record = sr as Record<string, unknown>;
+  const wkid = record.latestWkid ?? record.wkid;
+  if (typeof wkid === "number") {
+    return wkid === 84 || (wkid >= 4000 && wkid < 5000);
+  }
+  if (typeof record.wkt === "string") {
+    const trimmed = record.wkt.trimStart().toUpperCase();
+    return trimmed.startsWith("GEOGCS[") || trimmed.startsWith("GEOGCRS[");
+  }
+  return true;
 }
 
 function assertPositions(geometry: Record<string, unknown>, keys: readonly string[]): void {

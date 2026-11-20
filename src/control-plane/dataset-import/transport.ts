@@ -1,3 +1,4 @@
+import { assertSecureCredentialedBaseUrl } from "../../core/transport-security.js";
 import type { DatasetImportTaskClientOptions } from "./client.js";
 import { DatasetImportTaskApiError } from "./errors.js";
 
@@ -13,6 +14,9 @@ export class DatasetImportWorkspaceTransport {
     const base = new URL(options.baseUrl);
     if (!/^https?:$/.test(base.protocol) || base.username || base.password || base.search || base.hash)
       throw new TypeError("A deployment HTTP(S) URL without credentials, query or fragment is required.");
+    if (options.headers !== undefined) {
+      assertSecureCredentialedBaseUrl(options.baseUrl, ["headers"], options.allowInsecureHttp === true);
+    }
     validId(options.workspaceId);
     validId(options.targetId);
     if (options.originatingTurnId !== undefined) validId(options.originatingTurnId);

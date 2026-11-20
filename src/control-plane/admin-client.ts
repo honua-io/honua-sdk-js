@@ -1,6 +1,10 @@
-import { trimTrailingSlashes } from "../core/path-utils.js";
+import { HonuaNetworkError } from "../core/errors.js";
+import { encodePathSegment, trimTrailingSlashes } from "../core/path-utils.js";
 import type { operations } from "./generated/admin-api.js";
 import { ADMIN_API_BASE_PATH, ADMIN_OPERATIONS, type AdminOperationId } from "./generated/admin-operations.js";
+
+const ADMIN_REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+const ADMIN_MAX_REDIRECTS = 20;
 
 type Operation<Id extends AdminOperationId> = operations[Id];
 type OperationParameters<Id extends AdminOperationId> = Operation<Id> extends {
@@ -131,6 +135,7 @@ function structuredErrorDetail(body: unknown): string | undefined {
  */
 export class HonuaAdminClient {
   readonly #baseUrl: string;
+  readonly #baseOrigin: string;
   readonly #basePath: string;
   readonly #fetch: typeof fetch;
   readonly #headers: Headers;
@@ -148,8 +153,10 @@ export class HonuaAdminClient {
       throw new Error("Admin client requires HTTPS except for exact loopback HTTP development endpoints.");
     }
     this.#baseUrl = baseUrl.toString().replace(/\/+$/, "");
+    this.#baseOrigin = baseUrl.origin;
     this.#basePath = normalizeBasePath(options.basePath ?? ADMIN_API_BASE_PATH);
-    this.#fetch = options.fetchFn ?? fetch;
+    const fetchFn = options.fetchFn;
+    this.#fetch = fetchFn ? (input, init) => fetchFn(input, init) : globalThis.fetch.bind(globalThis);
     this.#headers = new Headers(options.headers);
     this.#credential = options.adminKey ?? options.apiKey;
     if (this.#credential) this.#headers.set("X-API-Key", this.#credential);
@@ -173,17 +180,71 @@ export class HonuaAdminClient {
       headers,
       descriptor.requestContentTypes,
     );
-    const response = await this.#fetch(url, {
+    const response = await this.#fetchWithSafeRedirects(url.toString(), {
       method: descriptor.method,
       headers,
       body,
       signal: request.signal,
-      redirect: "manual",
     });
     const data = await readResponse(response);
     if (!response.ok) throw new HonuaAdminApiError(operationId, response, data);
     return { operationId, data: data as AdminOperationResponse<Id>, response };
   }
+
+  async #fetchWithSafeRedirects(url: string, init: RequestInit): Promise<Response> {
+    let currentUrl = url;
+    let currentInit: RequestInit = init;
+    for (let redirects = 0; ; redirects += 1) {
+      const response = await this.#fetch(currentUrl, { ...currentInit, redirect: "manual" });
+      if (response.type === "opaqueredirect") {
+        throw new HonuaNetworkError(
+          "Refusing to follow an opaque cross-origin redirect; admin credentials would be leaked to the redirect target.",
+          undefined,
+        );
+      }
+      if (!ADMIN_REDIRECT_STATUSES.has(response.status)) {
+        return response;
+      }
+      if (redirects >= ADMIN_MAX_REDIRECTS) {
+        throw new HonuaNetworkError(`Exceeded the maximum of ${ADMIN_MAX_REDIRECTS} redirects.`, undefined);
+      }
+      const target = await resolveSafeAdminRedirectTarget(response, currentUrl, this.#baseOrigin);
+      currentInit = nextAdminRedirectInit(currentInit, response.status);
+      currentUrl = target.toString();
+      await response.body?.cancel().catch(() => undefined);
+    }
+  }
+}
+
+async function resolveSafeAdminRedirectTarget(
+  response: Response,
+  currentUrl: string,
+  baseOrigin: string,
+): Promise<URL> {
+  const location = response.headers.get("location");
+  if (!location) {
+    throw new HonuaNetworkError("Redirect response is missing a Location header.", undefined);
+  }
+  let target: URL;
+  try {
+    target = new URL(location, currentUrl);
+  } catch {
+    throw new HonuaNetworkError(`Redirect response has an invalid Location header: ${location}`, undefined);
+  }
+  if (target.origin !== baseOrigin) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new HonuaNetworkError(
+      `Refusing to follow a cross-origin redirect to ${target.origin}; admin credentials would be leaked.`,
+      undefined,
+    );
+  }
+  return target;
+}
+
+function nextAdminRedirectInit(currentInit: RequestInit, status: number): RequestInit {
+  const method = (currentInit.method ?? "GET").toUpperCase();
+  const downgradeToGet = status === 303 || ((status === 301 || status === 302) && method !== "GET" && method !== "HEAD");
+  return downgradeToGet ? { ...currentInit, method: "GET", body: null } : currentInit;
 }
 
 function isLoopbackHost(hostname: string): boolean {
@@ -222,7 +283,7 @@ function interpolatePath(template: string, parameters: Record<string, unknown> |
       throw new Error(`Missing required admin path parameter: ${name}`);
     }
     used.add(name);
-    return encodeURIComponent(String(value));
+    return encodePathSegment(String(value));
   });
   for (const name of Object.keys(parameters ?? {})) {
     if (!used.has(name)) throw new Error(`Unknown admin path parameter for ${template}: ${name}`);

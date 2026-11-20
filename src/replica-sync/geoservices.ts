@@ -61,7 +61,7 @@
 
 import { screenPersistedString } from "../connect-url-safety.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
-import { encodeServiceIdPath, numericPathSegment } from "../core/path-utils.js";
+import { encodePathSegment, encodeServiceIdPath, numericPathSegment } from "../core/path-utils.js";
 import type { HonuaRawRequest, QueryMethod } from "../core/types.js";
 import { HonuaReplicaSyncError } from "./errors.js";
 import type {
@@ -1425,10 +1425,6 @@ function requireNonEmpty(value: string, label: string): string {
 
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
-}
-
-function encodePathSegment(value: string): string {
-  return encodeURIComponent(value);
 }
 
 /**

@@ -7,6 +7,7 @@
  */
 
 import { HonuaAuthError } from "../errors.js";
+import { assertSecureCredentialedBaseUrl } from "../transport-security.js";
 import type { HonuaAuthCredentials } from "../types.js";
 import type { OAuth2TokenResponse, StoredCredential } from "./types.js";
 
@@ -101,11 +102,51 @@ export async function requestToken(options: {
   params: Record<string, string>;
   previous?: StoredCredential;
   signal?: AbortSignal;
+  allowInsecureHttp?: boolean;
 }): Promise<StoredCredential> {
+  assertSecureTokenEndpoint(options.tokenEndpoint, options.params, options.allowInsecureHttp);
+  const response = await executeTokenFetch(options);
+  const payload = await parseTokenPayload(response);
+
+  if (!response.ok) {
+    throwRejectedGrantError(response, payload);
+  }
+
+  if (!isObject(payload) || typeof payload.access_token !== "string") {
+    throw new HonuaAuthError("refresh_failed", "Token endpoint response is missing an access_token.", {
+      cause: payload,
+    });
+  }
+
+  return credentialFromTokenResponse(payload as unknown as OAuth2TokenResponse, options.previous);
+}
+
+function assertSecureTokenEndpoint(
+  tokenEndpoint: string,
+  params: Record<string, string>,
+  allowInsecureHttp?: boolean,
+): void {
+  const credentialSources = [
+    ...(params.client_secret ? ["clientSecret"] : []),
+    ...(params.refresh_token ? ["refreshToken"] : []),
+    ...(params.code ? ["authorizationCode"] : []),
+  ];
+  assertSecureCredentialedBaseUrl(
+    tokenEndpoint,
+    credentialSources.length > 0 ? credentialSources : ["tokenEndpoint"],
+    allowInsecureHttp === true,
+  );
+}
+
+async function executeTokenFetch(options: {
+  fetchFn: typeof fetch;
+  tokenEndpoint: string;
+  params: Record<string, string>;
+  signal?: AbortSignal;
+}): Promise<Response> {
   const body = new URLSearchParams(options.params);
-  let response: Response;
   try {
-    response = await options.fetchFn(options.tokenEndpoint, {
+    return await options.fetchFn(options.tokenEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -117,41 +158,32 @@ export async function requestToken(options: {
   } catch (cause) {
     throw new HonuaAuthError("refresh_failed", "Token request failed at the transport layer.", { cause });
   }
+}
 
+async function parseTokenPayload(response: Response): Promise<unknown> {
   const text = await response.text();
-  let payload: unknown;
   try {
-    payload = text ? JSON.parse(text) : {};
+    return text ? JSON.parse(text) : {};
   } catch (cause) {
     throw new HonuaAuthError(
       "refresh_failed",
       `Token endpoint returned a non-JSON response (HTTP ${response.status}).`,
-      {
-        cause,
-      },
+      { cause },
     );
   }
+}
 
-  if (!response.ok) {
-    const oauthError = isObject(payload) && typeof payload.error === "string" ? payload.error : undefined;
-    const description =
-      isObject(payload) && typeof payload.error_description === "string" ? payload.error_description : undefined;
-    const message = `Token endpoint rejected the grant (HTTP ${response.status}${oauthError ? `, ${oauthError}` : ""})${
-      description ? `: ${description}` : ""
-    }`;
-    if (oauthError === "invalid_grant") {
-      throw new HonuaAuthError("invalid_grant", message, { cause: payload });
-    }
-    throw new HonuaAuthError("refresh_failed", message, { cause: payload });
+function throwRejectedGrantError(response: Response, payload: unknown): never {
+  const oauthError = isObject(payload) && typeof payload.error === "string" ? payload.error : undefined;
+  const description =
+    isObject(payload) && typeof payload.error_description === "string" ? payload.error_description : undefined;
+  const message = `Token endpoint rejected the grant (HTTP ${response.status}${oauthError ? `, ${oauthError}` : ""})${
+    description ? `: ${description}` : ""
+  }`;
+  if (oauthError === "invalid_grant") {
+    throw new HonuaAuthError("invalid_grant", message, { cause: payload });
   }
-
-  if (!isObject(payload) || typeof payload.access_token !== "string") {
-    throw new HonuaAuthError("refresh_failed", "Token endpoint response is missing an access_token.", {
-      cause: payload,
-    });
-  }
-
-  return credentialFromTokenResponse(payload as unknown as OAuth2TokenResponse, options.previous);
+  throw new HonuaAuthError("refresh_failed", message, { cause: payload });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

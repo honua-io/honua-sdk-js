@@ -37,29 +37,57 @@ import type {
 
 type Position = [number, number, ...number[]];
 
-function isFinitePosition(value: unknown): value is Position {
-  return (
-    Array.isArray(value) &&
-    value.length >= 2 &&
-    typeof value[0] === "number" &&
-    Number.isFinite(value[0]) &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[1])
-  );
+interface EsriDimensionFlags {
+  readonly hasZ: boolean;
+  readonly hasM: boolean;
 }
 
-function collectFinitePositions(value: unknown): Position[] {
+function normalizeEsriPosition(value: unknown, dimensions: EsriDimensionFlags): Position | null {
+  if (
+    !Array.isArray(value) ||
+    value.length < 2 ||
+    typeof value[0] !== "number" ||
+    !Number.isFinite(value[0]) ||
+    typeof value[1] !== "number" ||
+    !Number.isFinite(value[1])
+  ) {
+    return null;
+  }
+
+  // When `hasM === true && hasZ === false`, Esri puts the measure M in index 2
+  // (`[x, y, m]`). Never place M into GeoJSON's elevation (Z) slot.
+  if (dimensions.hasM && !dimensions.hasZ) {
+    return [value[0], value[1]];
+  }
+
+  // GeoJSON RFC 7946 positions only carry `[x, y]` or `[x, y, z]` of finite
+  // numbers. Never emit `[x, y, null, m]` when Z is absent/null and M is set.
+  if (value.length >= 3 && typeof value[2] === "number" && Number.isFinite(value[2])) {
+    return [value[0], value[1], value[2]];
+  }
+
+  return [value[0], value[1]];
+}
+
+function collectFinitePositions(value: unknown, dimensions: EsriDimensionFlags): Position[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.filter(isFinitePosition);
+  const positions: Position[] = [];
+  for (const entry of value) {
+    const normalized = normalizeEsriPosition(entry, dimensions);
+    if (normalized) {
+      positions.push(normalized);
+    }
+  }
+  return positions;
 }
 
-function collectPositionSets(value: unknown): Position[][] {
+function collectPositionSets(value: unknown, dimensions: EsriDimensionFlags): Position[][] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.map((entry) => collectFinitePositions(entry)).filter((entry) => entry.length > 0);
+  return value.map((entry) => collectFinitePositions(entry, dimensions)).filter((entry) => entry.length > 0);
 }
 
 function computeRingSignedArea(ring: readonly Position[]): number {
@@ -257,9 +285,13 @@ export function geoServicesGeometryToGeoJSON(
   }
 
   const candidate = geometry as Record<string, unknown>;
+  const dimensions: EsriDimensionFlags = {
+    hasZ: candidate.hasZ === true,
+    hasM: candidate.hasM === true,
+  };
 
   if (hasNumber(candidate, "x") && hasNumber(candidate, "y")) {
-    if (candidate.z !== undefined && !hasNumber(candidate, "z")) {
+    if (candidate.z !== undefined && candidate.z !== null && !hasNumber(candidate, "z")) {
       return null;
     }
     return {
@@ -267,13 +299,13 @@ export function geoServicesGeometryToGeoJSON(
       coordinates: [
         candidate.x as number,
         candidate.y as number,
-        ...(candidate.z === undefined ? [] : [candidate.z as number]),
+        ...(hasNumber(candidate, "z") ? [candidate.z as number] : []),
       ],
     };
   }
 
   if (Array.isArray(candidate.points)) {
-    const coordinates = collectFinitePositions(candidate.points);
+    const coordinates = collectFinitePositions(candidate.points, dimensions);
     if (coordinates.length < 1) {
       return null;
     }
@@ -284,7 +316,7 @@ export function geoServicesGeometryToGeoJSON(
   }
 
   if (Array.isArray(candidate.paths)) {
-    const coordinates = collectPositionSets(candidate.paths);
+    const coordinates = collectPositionSets(candidate.paths, dimensions);
     if (coordinates.length < 1) {
       return null;
     }
@@ -300,7 +332,7 @@ export function geoServicesGeometryToGeoJSON(
   }
 
   if (Array.isArray(candidate.rings)) {
-    const coordinates = collectPositionSets(candidate.rings);
+    const coordinates = collectPositionSets(candidate.rings, dimensions);
     if (coordinates.length < 1) {
       return null;
     }
@@ -396,6 +428,24 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
   return coordinates.map((ring, index) => rewindRingForEsri(ring, index === 0));
 }
 
+function detectGeoJsonDimensionFlags(positions: Iterable<readonly number[]>): { hasZ?: true; hasM?: true } {
+  let hasZ = false;
+  let hasM = false;
+  for (const position of positions) {
+    if (position.length >= 3) {
+      hasZ = true;
+    }
+    if (position.length >= 4) {
+      hasM = true;
+      break;
+    }
+  }
+  return {
+    ...(hasZ ? { hasZ: true as const } : {}),
+    ...(hasM ? { hasM: true as const } : {}),
+  };
+}
+
 /**
  * Convert a standard GeoJSON geometry back into Esri-JSON geometry, the inverse
  * of {@link geoServicesGeometryToGeoJSON}. `GeometryCollection` is not representable as
@@ -411,6 +461,38 @@ function esriRingsFromPolygon(coordinates: readonly (readonly Position[])[]): Po
  * @returns The equivalent Esri geometry, or `null` when the input is empty or
  *   unrepresentable.
  */
+function pointGeoJsonToGeoServices(
+  coordinates: Position,
+  sr: { spatialReference?: HonuaSpatialReference },
+): GeoServicesPoint | null {
+  const [x, y, z, m] = coordinates;
+  if (
+    typeof x !== "number" ||
+    !Number.isFinite(x) ||
+    typeof y !== "number" ||
+    !Number.isFinite(y) ||
+    (z !== undefined && (typeof z !== "number" || !Number.isFinite(z))) ||
+    (m !== undefined && (typeof m !== "number" || !Number.isFinite(m)))
+  ) {
+    return null;
+  }
+  return {
+    x,
+    y,
+    ...(typeof z === "number" ? { z } : {}),
+    ...(typeof m === "number" ? { m } : {}),
+    ...sr,
+  } satisfies GeoServicesPoint;
+}
+
+function multiPolygonRings(polygons: Position[][][]): Position[][] {
+  const rings: Position[][] = [];
+  for (const polygon of polygons) {
+    rings.push(...esriRingsFromPolygon(polygon));
+  }
+  return rings;
+}
+
 export function geoJsonToGeoServices(
   geometry: GeoJsonGeometry | null | undefined,
   spatialReference?: HonuaSpatialReference,
@@ -421,40 +503,27 @@ export function geoJsonToGeoServices(
   const sr = spatialReference ? { spatialReference } : {};
 
   switch (geometry.type) {
-    case "Point": {
-      const [x, y, z] = geometry.coordinates;
-      if (
-        typeof x !== "number" ||
-        typeof y !== "number" ||
-        (z !== undefined && (typeof z !== "number" || !Number.isFinite(z)))
-      ) {
-        return null;
-      }
-      // Keep the altitude of a 3D position: dropping it would hand back a
-      // different geometry than the source served.
-      return { x, y, ...(typeof z === "number" && Number.isFinite(z) ? { z } : {}), ...sr } satisfies GeoServicesPoint;
-    }
+    case "Point":
+      return pointGeoJsonToGeoServices(geometry.coordinates, sr);
     case "MultiPoint": {
-      return { points: geometry.coordinates.map((position) => [...position]), ...sr } satisfies GeoServicesMultipoint;
+      const points = geometry.coordinates.map((position) => [...position]);
+      return { points, ...detectGeoJsonDimensionFlags(points), ...sr } satisfies GeoServicesMultipoint;
     }
     case "LineString": {
-      return { paths: [geometry.coordinates.map((position) => [...position])], ...sr } satisfies GeoServicesPolyline;
+      const path = geometry.coordinates.map((position) => [...position]);
+      return { paths: [path], ...detectGeoJsonDimensionFlags(path), ...sr } satisfies GeoServicesPolyline;
     }
     case "MultiLineString": {
-      return {
-        paths: geometry.coordinates.map((line) => line.map((position) => [...position])),
-        ...sr,
-      } satisfies GeoServicesPolyline;
+      const paths = geometry.coordinates.map((line) => line.map((position) => [...position]));
+      return { paths, ...detectGeoJsonDimensionFlags(paths.flat()), ...sr } satisfies GeoServicesPolyline;
     }
     case "Polygon": {
-      return { rings: esriRingsFromPolygon(geometry.coordinates as Position[][]), ...sr } satisfies GeoServicesPolygon;
+      const rings = esriRingsFromPolygon(geometry.coordinates as Position[][]);
+      return { rings, ...detectGeoJsonDimensionFlags(rings.flat()), ...sr } satisfies GeoServicesPolygon;
     }
     case "MultiPolygon": {
-      const rings: Position[][] = [];
-      for (const polygon of geometry.coordinates as Position[][][]) {
-        rings.push(...esriRingsFromPolygon(polygon));
-      }
-      return { rings, ...sr } satisfies GeoServicesPolygon;
+      const rings = multiPolygonRings(geometry.coordinates as Position[][][]);
+      return { rings, ...detectGeoJsonDimensionFlags(rings.flat()), ...sr } satisfies GeoServicesPolygon;
     }
     default:
       return null;

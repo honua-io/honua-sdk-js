@@ -21,6 +21,7 @@
 
 import type { HonuaClient } from "./client.js";
 import { HonuaAbortError, HonuaHttpError, HonuaWfsExceptionError } from "./errors.js";
+import { trimTrailingSlashes } from "./path-utils.js";
 import {
   type WfsCapabilitiesSnapshot,
   type WfsTransactionSummary,
@@ -432,14 +433,32 @@ function canonicalizeOperationUrls(
   endpointUrl: string,
   clientBaseUrl: string,
 ): WfsCapabilitiesSnapshot {
-  const capabilitiesEndpoint = new URL(endpointUrl, clientBaseUrl);
+  const isAbsoluteBase = /^https?:\/\//i.test(clientBaseUrl);
+  const fallbackOrigin =
+    typeof globalThis.location?.origin === "string" && /^https?:\/\//i.test(globalThis.location.origin)
+      ? globalThis.location.origin
+      : "http://localhost";
+  const resolvedBase = isAbsoluteBase ? new URL(clientBaseUrl) : new URL(clientBaseUrl || "/", fallbackOrigin);
+  const capabilitiesEndpoint = new URL(endpointUrl, resolvedBase);
+  const basePath = trimTrailingSlashes(resolvedBase.pathname);
+  const formatOperationUrl = (operationUrl: string): string => {
+    const resolved = new URL(operationUrl, capabilitiesEndpoint);
+    if (!isAbsoluteBase && resolved.origin === resolvedBase.origin) {
+      const relativePath =
+        basePath && resolved.pathname.startsWith(`${basePath}/`)
+          ? resolved.pathname.slice(basePath.length)
+          : resolved.pathname;
+      return `${relativePath}${resolved.search}`;
+    }
+    return resolved.toString();
+  };
   const operations = new Map(
     [...snapshot.operations].map(([name, operation]) => [
       name,
       Object.freeze({
         ...operation,
-        ...(operation.getUrl ? { getUrl: new URL(operation.getUrl, capabilitiesEndpoint).toString() } : {}),
-        ...(operation.postUrl ? { postUrl: new URL(operation.postUrl, capabilitiesEndpoint).toString() } : {}),
+        ...(operation.getUrl ? { getUrl: formatOperationUrl(operation.getUrl) } : {}),
+        ...(operation.postUrl ? { postUrl: formatOperationUrl(operation.postUrl) } : {}),
       }),
     ]),
   );
