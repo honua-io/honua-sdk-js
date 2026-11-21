@@ -304,7 +304,7 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
   }
   if (
     (xmin as number) > (xmax as number) &&
-    !isValidAntimeridianEnvelope(geometry, xmin as number, ymin as number, xmax as number, ymax as number)
+    !isValidAntimeridianEnvelope(geometry)
   ) {
     throw geometryClassificationError(
       "malformed-geometry",
@@ -318,13 +318,9 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
   assertOptionalBounds(geometry, "idmin", "idmax", "envelope", keys);
 }
 
-function isValidAntimeridianEnvelope(
-  geometry: Record<string, unknown>,
-  xmin: number,
-  ymin: number,
-  xmax: number,
-  ymax: number,
-): boolean {
+/** An envelope with xmin > xmax is valid only as a geographic antimeridian crossing. */
+function isValidAntimeridianEnvelope(geometry: Record<string, unknown>): boolean {
+  const { xmin, ymin, xmax, ymax } = geometry as Record<"xmin" | "ymin" | "xmax" | "ymax", number>;
   if (xmin < -180 || xmin > 180 || xmax < -180 || xmax > 180 || ymin < -90 || ymax > 90) {
     return false;
   }
