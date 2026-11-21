@@ -296,6 +296,21 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
 }
 
 /**
+ * Check a URL the Connect transport already built from `baseUrl`. An absolute
+ * URL must stay on the base origin; a relative one already carries the base
+ * path, so it is passed through unchanged rather than joined to it again.
+ */
+function guardTransportRequestUrl(baseUrl: string, url: string): string {
+  if (isAbsoluteHttpUrl(url)) {
+    return resolveRequestUrl(baseUrl, url);
+  }
+  if (isProtocolRelativeUrl(url)) {
+    throw new Error(`Protocol-relative request URL is not allowed: ${url}`);
+  }
+  return url;
+}
+
+/**
  * The maximum number of HTTP redirects {@link HonuaClient.fetchWithSafeRedirects}
  * will follow before giving up. Mirrors the conventional browser/undici limit of 20.
  */
@@ -609,9 +624,9 @@ export class HonuaClient {
     }
     return {
       baseUrl: this.baseUrl,
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        const resolvedUrl = resolveRequestUrl(this.baseUrl, rawUrl);
+        const resolvedUrl = guardTransportRequestUrl(this.baseUrl, rawUrl);
         const requestInit: RequestInit =
           input instanceof Request
             ? {

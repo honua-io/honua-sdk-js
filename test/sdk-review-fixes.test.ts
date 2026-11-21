@@ -170,6 +170,26 @@ describe("SDK review fixes — fetch binding, redirects & credential transport s
     expect(seenOrigins).toEqual(["https://grpc.example.test"]);
   });
 
+  it("passes a relative-base grpc-web method URL through unchanged and still refuses protocol-relative URLs", async () => {
+    const seenUrls: string[] = [];
+    const client = new HonuaClient({
+      baseUrl: "/api",
+      transport: "grpc-web",
+      fetchFn: async (input) => {
+        seenUrls.push(String(input));
+        return new Response(null, { status: 200 });
+      },
+    });
+    const transportOpts = (
+      client as unknown as { connectTransportOptions(): { fetch: typeof fetch } }
+    ).connectTransportOptions();
+    await transportOpts.fetch("/api/geospatial.v1.FeatureService/QueryFeatures", { method: "POST" });
+    expect(seenUrls).toEqual(["/api/geospatial.v1.FeatureService/QueryFeatures"]);
+    await expect(transportOpts.fetch("//attacker.example/steal", { method: "POST" })).rejects.toThrow(
+      /Protocol-relative/i,
+    );
+  });
+
   it("enforces assertSecureCredentialedBaseUrl in HonuaGeocodingClient", () => {
     expect(() => new HonuaGeocodingClient({ baseUrl: "http://geo.example.test", apiKey: "k" })).toThrow(
       /refuses to send credentials/,
