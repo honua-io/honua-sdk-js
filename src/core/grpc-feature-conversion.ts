@@ -75,16 +75,16 @@ export function convertFeature(
   feature: ProtoFeature,
   { objectIdFieldName, globalIdFieldName }: { objectIdFieldName: string; globalIdFieldName: string },
 ): HonuaFeature {
-  const attributes: Record<string, unknown> = {};
+  let attributes: Record<string, unknown> = {};
   for (const [key, attrValue] of Object.entries(feature.attributes)) {
     attributes[key] = convertAttributeValue(attrValue);
   }
 
   if (objectIdFieldName.length > 0 && feature.id !== 0n) {
-    backfillIdentity(attributes, objectIdFieldName, toSafeNumberOrString(feature.id));
+    attributes = withBackfilledIdentity(attributes, objectIdFieldName, toSafeNumberOrString(feature.id));
   }
   if (globalIdFieldName.length > 0 && feature.globalId) {
-    backfillIdentity(attributes, globalIdFieldName, feature.globalId);
+    attributes = withBackfilledIdentity(attributes, globalIdFieldName, feature.globalId);
   }
 
   const result: HonuaFeature = { attributes };
@@ -116,11 +116,17 @@ export function splitOutFields(outFields: string | readonly string[]): string[] 
     : [...outFields];
 }
 
-function backfillIdentity(attributes: Record<string, unknown>, name: string, identity: unknown): void {
+function withBackfilledIdentity(
+  attributes: Record<string, unknown>,
+  name: string,
+  identity: unknown,
+): Record<string, unknown> {
   const lowered = name.toLowerCase();
   const matches = Object.keys(attributes).filter((key) => key.toLowerCase() === lowered);
-  if (matches.some((key) => attributes[key] !== null && attributes[key] !== undefined)) return;
-  attributes[matches[0] ?? name] = identity;
+  if (matches.some((key) => attributes[key] !== null && attributes[key] !== undefined)) {
+    return attributes;
+  }
+  return { ...attributes, [matches[0] ?? name]: identity };
 }
 
 function convertAttributeValue(attr: AttributeValue): unknown {
