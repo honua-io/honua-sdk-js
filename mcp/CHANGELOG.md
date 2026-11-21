@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.2](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.6.1...mcp-server-v0.6.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **mcp:** address live honua-server layers by serviceLayerIndex in certification ([#2645](https://github.com/honua-io/honua-sdk-js/issues/2645)) ([#2649](https://github.com/honua-io/honua-sdk-js/issues/2649)) ([acf32e9](https://github.com/honua-io/honua-sdk-js/commit/acf32e96229f2294b04d3039246ae4295d3823cf))
+* **mcp:** key certification query pages by objectid in any case ([#2652](https://github.com/honua-io/honua-sdk-js/issues/2652)) ([531001d](https://github.com/honua-io/honua-sdk-js/commit/531001db2431fb1541ee371f36fff4e4599fc78f)), closes [#2651](https://github.com/honua-io/honua-sdk-js/issues/2651)
+* **mcp:** review the SDK peer bridge onto 0.4 and 0.5 ([7ab711a](https://github.com/honua-io/honua-sdk-js/commit/7ab711a603bc3b415238111faf7de57c97464d08))
+* **mcp:** review the SDK peer bridge onto 0.4 and 0.5 ([090aa3a](https://github.com/honua-io/honua-sdk-js/commit/090aa3ab613553ac12bb6ad4c6a7e26302493032)), closes [#2676](https://github.com/honua-io/honua-sdk-js/issues/2676)
+* **npm:** install the SDK without the unresolved migrator ([#2657](https://github.com/honua-io/honua-sdk-js/issues/2657)) ([cffd2da](https://github.com/honua-io/honua-sdk-js/commit/cffd2daf31a68a469950d7cb50e1eb9f2d67cede)), closes [#2633](https://github.com/honua-io/honua-sdk-js/issues/2633)
+
+
+### Documentation
+
+* give the replacement PR its own head ([#2527](https://github.com/honua-io/honua-sdk-js/issues/2527)) ([0a1d8c3](https://github.com/honua-io/honua-sdk-js/commit/0a1d8c3ce163e4ac661010e6e13c5310e48d28c2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.5.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.4.0 || ^0.5.0 to ^0.5.0
+
 ## [0.6.1](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.6.0...mcp-server-v0.6.1) (2026-11-14)
 
 
