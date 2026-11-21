@@ -15,7 +15,9 @@
 # the Licensing:DevGrantEdition override only in Development and Test, and realtime
 # streams need the Pro entitlement that CI cannot hold a signed licence for. Test
 # is not used because the server skips its orchestration and reconcile hosted
-# services there. Every other setting is the image's production configuration. The Metadata v2 environment stays
+# services there. Host validation and fail-closed guardrails, which Development
+# turns off by default, are set explicitly. Every other setting is the image's
+# production configuration. The Metadata v2 environment stays
 # Production so the seeded graph is the one served.
 set -euo pipefail
 
@@ -165,6 +167,8 @@ Security__ConnectionEncryption__MasterKey=$(openssl rand -hex 32)
 Security__ConnectionEncryption__Salt=$(openssl rand -base64 32)
 HostValidation__AllowedHosts__0=localhost
 HostValidation__AllowedHosts__1=127.0.0.1
+HostValidation__Enabled=true
+Guardrails__FailClosed=true
 Metadata__Environment=Production
 Licensing__DevGrantEdition=Pro
 Capabilities__Experimental__Enabled=true
