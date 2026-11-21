@@ -154,6 +154,11 @@ converting them to JavaScript numbers. Preserve stable global IDs independently 
 server-assigned object IDs. Store coded domain values rather than their labels,
 and apply subtype-specific defaults and templates from the descriptor.
 
+Send edit geometry in the layer's coordinate system, in the canonical `{ x, y }`,
+`points`, `paths` or `rings` shape, without `spatialReference`. gRPC edits do not
+reproject: the SDK rejects, before sending, any geometry that names a spatial
+reference, even the layer's own. This also applies to service edit sessions.
+
 Keep dates, date-only, time-only and offset timestamps distinct. Carry Z and M
 ordinates separately; an M-only tuple must not become Z. Current curve support
 uses densification; do not claim lossless curves or vertical datum transformation.
