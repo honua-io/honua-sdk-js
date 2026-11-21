@@ -302,10 +302,7 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
       "envelope",
     );
   }
-  if (
-    (xmin as number) > (xmax as number) &&
-    !isValidAntimeridianEnvelope(geometry)
-  ) {
+  if ((xmin as number) > (xmax as number) && !isValidAntimeridianEnvelope(geometry)) {
     throw geometryClassificationError(
       "malformed-geometry",
       "envelope minimum coordinates must not exceed maximum coordinates",
