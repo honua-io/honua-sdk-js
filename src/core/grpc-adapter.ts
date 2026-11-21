@@ -1,91 +1,42 @@
 import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
-import { isJsSafeInteger, toProtoObjectId, toSafeNumberOrString } from "./grpc-int64.js";
+import { toSafeNumberOrString } from "./grpc-int64.js";
 export {
   fromProtoApplyEditsResponse,
   fromProtoApplyServiceEditsResponse,
   toProtoApplyEditsRequest,
   toProtoApplyServiceEditsRequest,
 } from "./grpc-edits.js";
+export { fromProtoRelatedPages, toProtoRelatedRequest } from "./grpc-related.js";
 import { create } from "@bufbuild/protobuf";
 import {
-  type AttributeValue,
   DistanceUnit,
   type FeaturePage,
-  FieldType,
   GeometryType,
-  type Feature as ProtoFeature,
-  type FieldDefinition as ProtoFieldDefinition,
   type QueryFeaturesRequest as ProtoQueryFeaturesRequest,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
-  QueryRelatedRecordsRequestSchema,
-  type QueryRelatedRecordsResponse,
   SpatialFilterSchema,
   SpatialRelationship,
 } from "../gen/geospatial/v1/index.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
 import { toWireGlobalId } from "./grpc-edits.js";
+import {
+  GEOMETRY_TYPE_MAP,
+  convertFeature,
+  convertField,
+  convertSpatialReference,
+  splitOutFields,
+  toProtoObjectIds,
+} from "./grpc-feature-conversion.js";
 import type {
   HonuaCountResponse,
   HonuaExtentResponse,
   HonuaFeature,
-  HonuaFieldInfo,
   HonuaObjectIdsResponse,
   HonuaQueryResponse,
-  HonuaRelatedRecordGroup,
-  HonuaRelatedRecordsResponse,
-  HonuaSpatialReference,
   QueryFeaturesRequest,
-  QueryRelatedRecordsRequest,
 } from "./types.js";
-
-/**
- * Maps proto FieldType enum values to Esri-style field type strings
- * used in the JSON response shape.
- */
-const FIELD_TYPE_MAP: Record<number, string> = {
-  [FieldType.STRING]: "esriFieldTypeString",
-  [FieldType.INTEGER]: "esriFieldTypeInteger",
-  // BIG_INTEGER must map to esriFieldTypeBigInteger so a 64-bit column reports
-  // the same field type as the PBF fast path (mapPbfFieldTypeToGeoServices maps
-  // PBF type 13 -> esriFieldTypeBigInteger). Mapping it to esriFieldTypeInteger
-  // made a 64-bit column's reported type diverge between the gRPC and PBF
-  // transports for the same dataset.
-  [FieldType.BIG_INTEGER]: "esriFieldTypeBigInteger",
-  [FieldType.DOUBLE]: "esriFieldTypeDouble",
-  [FieldType.FLOAT]: "esriFieldTypeSingle",
-  // Esri/GeoServices has no boolean field type; ArcGIS surfaces booleans as a
-  // small integer, and the PBF schema likewise carries booleans as small
-  // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
-  [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
-  [FieldType.DATE_TIME]: "esriFieldTypeDate",
-  // DATE and TIME exist on 1.1 servers, which have no date_value or time_value
-  // cases, so those columns can still arrive as text or epoch milliseconds.
-  // 1.2 sends ISO strings. The declared field type is reported either way.
-  [FieldType.DATE]: "esriFieldTypeDateOnly",
-  [FieldType.TIME]: "esriFieldTypeTimeOnly",
-  [FieldType.TIMESTAMP_OFFSET]: "esriFieldTypeTimestampOffset",
-  // GeoServices has no exact decimal type; values arrive as exact strings.
-  [FieldType.DECIMAL]: "esriFieldTypeString",
-  [FieldType.GEOMETRY]: "esriFieldTypeGeometry",
-  [FieldType.JSON]: "esriFieldTypeString",
-  [FieldType.BINARY]: "esriFieldTypeBlob",
-  [FieldType.UUID]: "esriFieldTypeGUID",
-};
-
-/**
- * Maps proto GeometryType enum values to Esri-style geometry type strings.
- */
-const GEOMETRY_TYPE_MAP: Record<number, string> = {
-  [GeometryType.POINT]: "esriGeometryPoint",
-  [GeometryType.MULTI_POINT]: "esriGeometryMultipoint",
-  [GeometryType.LINE_STRING]: "esriGeometryPolyline",
-  [GeometryType.MULTI_LINE_STRING]: "esriGeometryPolyline",
-  [GeometryType.POLYGON]: "esriGeometryPolygon",
-  [GeometryType.MULTI_POLYGON]: "esriGeometryPolygon",
-  [GeometryType.NONE]: "esriGeometryNull",
-};
 
 const GEOSERVICES_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
   esriSpatialRelIntersects: SpatialRelationship.INTERSECTS,
@@ -473,266 +424,4 @@ export function wrapConnectError(error: unknown): Error {
     return error;
   }
   return new Error(String(error));
-}
-
-function convertSpatialReference(sr: { wkid: number; latestWkid: number; wkt: string }): HonuaSpatialReference {
-  const result: HonuaSpatialReference = {};
-  if (sr.wkid !== 0) {
-    result.wkid = sr.wkid;
-  }
-  if (sr.latestWkid !== 0) {
-    result.latestWkid = sr.latestWkid;
-  }
-  if (sr.wkt) {
-    result.wkt = sr.wkt;
-  }
-  return result;
-}
-
-function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
-  return {
-    name: field.name,
-    type: FIELD_TYPE_MAP[field.fieldType] ?? "esriFieldTypeString",
-    alias: field.alias || field.name,
-    length: field.length || undefined,
-    nullable: field.nullable,
-  };
-}
-
-/**
- * geospatial.v1 carries the object ID in `Feature.id` and the server no
- * longer repeats it in `Feature.attributes` (honua-server#5330), so it is
- * restored under the declared `objectIdFieldName` to match `f=json` output.
- * An `id` of 0 means no object ID (for example distinct projections), and an
- * attribute already present under that name in any casing (a legacy server
- * repeating it, or a differing custom public ID) is kept as sent.
- * `Feature.global_id` (geospatial-grpc 1.2) is restored the same way under
- * `globalIdFieldName`.
- */
-function convertFeature(
-  feature: ProtoFeature,
-  { objectIdFieldName, globalIdFieldName }: { objectIdFieldName: string; globalIdFieldName: string },
-): HonuaFeature {
-  const attributes: Record<string, unknown> = {};
-  for (const [key, attrValue] of Object.entries(feature.attributes)) {
-    attributes[key] = convertAttributeValue(attrValue);
-  }
-
-  if (objectIdFieldName.length > 0 && feature.id !== 0n) {
-    backfillIdentity(attributes, objectIdFieldName, toSafeNumberOrString(feature.id));
-  }
-  if (globalIdFieldName.length > 0 && feature.globalId) {
-    backfillIdentity(attributes, globalIdFieldName, feature.globalId);
-  }
-
-  const result: HonuaFeature = { attributes };
-
-  if (feature.geometry) {
-    result.geometry = convertGeometry(feature.geometry);
-  }
-
-  return result;
-}
-
-/** Fills a missing or null identity attribute; any non-null value under the name (any case) wins. */
-function backfillIdentity(attributes: Record<string, unknown>, name: string, identity: unknown): void {
-  const lowered = name.toLowerCase();
-  const matches = Object.keys(attributes).filter((key) => key.toLowerCase() === lowered);
-  if (matches.some((key) => attributes[key] !== null && attributes[key] !== undefined)) return;
-  attributes[matches[0] ?? name] = identity;
-}
-
-function convertAttributeValue(attr: AttributeValue): unknown {
-  switch (attr.value.case) {
-    case "stringValue":
-      return attr.value.value;
-    case "int32Value":
-      return attr.value.value;
-    case "int64Value":
-      return toSafeNumberOrString(attr.value.value);
-    case "doubleValue":
-      return attr.value.value;
-    case "floatValue":
-      return attr.value.value;
-    case "boolValue":
-      return attr.value.value;
-    case "datetimeValue":
-      return toSafeNumberOrString(attr.value.value);
-    case "bytesValue":
-      return attr.value.value;
-    case "nullValue":
-      return null;
-    // Exact ISO date/time/offset text and exact decimal text: never coerced to
-    // epoch milliseconds or binary floating point.
-    case "dateValue":
-    case "timeValue":
-    case "timestampOffsetValue":
-    case "decimalValue":
-      return attr.value.value;
-    default:
-      return null;
-  }
-}
-
-/** Keep absent ordinates in their geometry-wide positions for lossless edit roundtrips. */
-function coordToArray(
-  coordinate: { x: number; y: number; z?: number; m?: number },
-  dimensions: Record<string, boolean>,
-): (number | null)[] {
-  const coords: (number | null)[] = [coordinate.x, coordinate.y];
-  if (dimensions.hasZ) coords.push(coordinate.z ?? null);
-  if (dimensions.hasM) coords.push(coordinate.m ?? null);
-  return coords;
-}
-
-function coordinateDimensionFlags(coordinates: { z?: number; m?: number }[]): Record<string, boolean> {
-  const hasZ = coordinates.some((coordinate) => coordinate.z !== undefined);
-  const hasM = coordinates.some((coordinate) => coordinate.m !== undefined);
-  return hasZ || hasM ? { hasZ, hasM } : {};
-}
-
-function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
-  switch (geometry.shape.case) {
-    case "point": {
-      const p = geometry.shape.value;
-      const result: Record<string, unknown> = { x: p.x, y: p.y };
-      if (p.z !== undefined) result.z = p.z;
-      if (p.m !== undefined) result.m = p.m;
-      return result;
-    }
-    case "multiPoint": {
-      const mp = geometry.shape.value;
-      const dimensions = coordinateDimensionFlags(mp.points);
-      return {
-        points: mp.points.map((p) => coordToArray(p, dimensions)),
-        ...dimensions,
-      };
-    }
-    case "polyline": {
-      const pl = geometry.shape.value;
-      const dimensions = coordinateDimensionFlags(pl.paths.flatMap((path) => path.coords));
-      return {
-        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c, dimensions))),
-        ...dimensions,
-      };
-    }
-    case "polygon": {
-      const pg = geometry.shape.value;
-      const dimensions = coordinateDimensionFlags(pg.rings.flatMap((ring) => ring.coords));
-      return {
-        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c, dimensions))),
-        ...dimensions,
-      };
-    }
-    case "multiPolygon": {
-      return convertMultiPolygon(geometry.shape.value);
-    }
-    default:
-      return null;
-  }
-}
-
-function convertMultiPolygon(mpg: {
-  polygons: { rings: { coords: { x: number; y: number; z?: number; m?: number }[] }[] }[];
-}) {
-  const dimensions = coordinateDimensionFlags(
-    mpg.polygons.flatMap((polygon) => polygon.rings.flatMap((ring) => ring.coords)),
-  );
-  const rings: (number | null)[][][] = [];
-  for (const poly of mpg.polygons) {
-    for (const ring of poly.rings) {
-      rings.push(ring.coords.map((c) => coordToArray(c, dimensions)));
-    }
-  }
-  return {
-    rings,
-    ...dimensions,
-  };
-}
-
-/** Object-ID selectors for the int64 contract: safe integers or exact decimal strings. */
-function toProtoObjectIds(objectIds: number[] | string): bigint[] {
-  if (typeof objectIds === "string") return objectIds.split(",").map(toProtoObjectId);
-  return objectIds.map((id) => {
-    if (!Number.isSafeInteger(id)) {
-      throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
-    }
-    return BigInt(id);
-  });
-}
-
-function splitOutFields(outFields: string | readonly string[]): string[] {
-  return typeof outFields === "string"
-    ? outFields
-        .split(",")
-        .map((field) => field.trim())
-        .filter(Boolean)
-    : [...outFields];
-}
-
-/** Encode one QueryRelatedRecords page request; `objectIds` name origin-layer features. */
-export function toProtoRelatedRequest(request: QueryRelatedRecordsRequest, pageToken = "") {
-  const { outSR, outSr, ...unsupported } = request.extraParams ?? {};
-  const unknown = Object.keys(unsupported);
-  if (unknown.length > 0) {
-    // QueryRelatedRecords has no equivalent; never drop a constraint silently.
-    throw new HonuaCapabilityNotSupportedError(
-      `queryRelated.${unknown[0]}`,
-      "grpc",
-      `${request.serviceId}/${request.layerId}`,
-    );
-  }
-  const outSpatialReference = toProtoSpatialReference(outSR ?? outSr);
-  const ids = request.objectIds === undefined ? [] : toProtoObjectIds(request.objectIds);
-  for (const id of ids) {
-    // The response origin is a JavaScript number, so an unsafe int64 cannot come back.
-    if (!isJsSafeInteger(id)) {
-      throw new RangeError(`Related-record origin ID ${id} exceeds the JavaScript safe integer range.`);
-    }
-  }
-  const outFields = request.outFields === undefined ? [] : splitOutFields(request.outFields);
-  return create(QueryRelatedRecordsRequestSchema, {
-    serviceId: request.serviceId,
-    layerId: request.layerId,
-    relationshipId: request.relationshipId,
-    objectIds: ids,
-    outFields,
-    where: request.where ?? "",
-    returnGeometry: request.returnGeometry ?? true,
-    ...(outSpatialReference ? { outSr: outSpatialReference } : {}),
-    pageToken,
-  });
-}
-
-/** `HonuaRelatedRecordGroup.objectId` is a number on every transport; refuse IDs it cannot hold. */
-function safeOriginId(objectId: bigint): number {
-  if (!isJsSafeInteger(objectId)) {
-    throw new RangeError(`Related-record origin ID ${objectId} exceeds the JavaScript safe integer range.`);
-  }
-  return Number(objectId);
-}
-
-/**
- * Merge QueryRelatedRecords pages into the `queryRelatedRecords` shape, keeping origin order.
- * Pages repeat destination metadata, so the first page supplies it.
- */
-export function fromProtoRelatedPages(pages: readonly QueryRelatedRecordsResponse[]): HonuaRelatedRecordsResponse {
-  const first = pages[0];
-  if (!first) return { relatedRecordGroups: [] };
-  const identity = { objectIdFieldName: first.objectIdFieldName, globalIdFieldName: first.globalIdFieldName };
-  const groups = new Map<string, HonuaRelatedRecordGroup>();
-  for (const page of pages) {
-    for (const group of page.groups) {
-      const key = group.objectId.toString();
-      const target = groups.get(key) ?? { objectId: safeOriginId(group.objectId), relatedRecords: [] };
-      target.relatedRecords?.push(...group.features.map((feature) => convertFeature(feature, identity)));
-      groups.set(key, target);
-    }
-  }
-  return {
-    relatedRecordGroups: [...groups.values()],
-    fields: first.fields.map(convertField),
-    geometryType: GEOMETRY_TYPE_MAP[first.geometryType] ?? "esriGeometryPoint",
-    ...(first.spatialReference ? { spatialReference: convertSpatialReference(first.spatialReference) } : {}),
-  };
 }

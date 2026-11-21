@@ -239,10 +239,10 @@ The first deep run (2026-08-04) then found the next layer down. `owls-of-bavaria
 migrated build passed — but it picked up three type diagnostics it did not have
 before, and one of them is structural:
 
-| Issue | Gap | Exposed by |
+| Finding | Gap | Exposed by |
 | --- | --- | --- |
-| [#1012](https://github.com/honua-io/honua-sdk-js/issues/1012) | The codemod migrates a construct whose only consumer is out of scope, producing a compat-to-source SDK value handoff that cannot typecheck — and still counts the call site as auto-migrated | `lujoh/owls_of_bavaria` — `src/features/map/filterOwlLayer.jsx`: `FeatureFilter` → `FeatureFilterCompat` handed to an un-migrated `@arcgis/core/layers/support/FeatureEffect` |
-| [#1013](https://github.com/honua-io/honua-sdk-js/issues/1013) | `FeatureFilterCompat.objectIds` is `ReadonlyArray<number \| string>` where the source SDK declares a mutable `number[]` — an undocumented divergence from the surface being emulated | the same call site |
+| Compat-to-source handoff | The codemod migrates a construct whose only consumer is out of scope, producing a compat-to-source SDK value handoff that cannot typecheck — and still counts the call site as auto-migrated | `lujoh/owls_of_bavaria` — `src/features/map/filterOwlLayer.jsx`: `FeatureFilter` → `FeatureFilterCompat` handed to an un-migrated `@arcgis/core/layers/support/FeatureEffect` |
+| `FeatureFilterCompat.objectIds` mutability | `FeatureFilterCompat.objectIds` is `ReadonlyArray<number \| string>` where the source SDK declares a mutable `number[]` — an undocumented divergence from the surface being emulated | the same call site |
 
 The other two introduced diagnostics are restatements rather than new problems:
 both are pre-existing errors in the app's untyped Redux wiring whose *message*

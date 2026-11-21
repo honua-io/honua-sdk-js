@@ -64,9 +64,10 @@ The receipt recorded owner inventory, integrity and toolchain identity. Ceilings
 
 Companion packages that carry a copy of the contract declare the exact
 `@honua/sdk` version as a required peer. Their local contract forwards
-capability-profile recognition to that peer, so an immutable profile created by
-the core SDK remains valid across React, app-platform, geometry, and client-compat
-boundaries without exposing the profile-registration authority.
+capability-profile recognition and `HonuaClient` to that peer, so an immutable
+profile or `HonuaClient` instance created by the core SDK remains valid across
+React, app-platform, geometry, and client-compat boundaries without exposing
+the profile-registration authority or duplicating the client class declaration.
 
 ### Compatibility package import update
 
