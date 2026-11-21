@@ -65,18 +65,18 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-20 at commit `958ea03a4`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-21 at commit `844711018`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 778.3 KiB | 209.7 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 240.7 KiB | 61.5 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.1 KiB | 15.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.0 KiB | 109.2 KiB |
-| Client compatibility layer (drop-in migration surface) | 1091.7 KiB | 277.5 KiB |
-| Geocoding client | 33.5 KiB | 9.4 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 780.2 KiB | 210.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 242.0 KiB | 61.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.3 KiB | 15.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.7 KiB | 109.5 KiB |
+| Client compatibility layer (drop-in migration surface) | 1093.6 KiB | 278.0 KiB |
+| Geocoding client | 34.3 KiB | 9.8 KiB |
 | Routing client | 29.0 KiB | 8.7 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
@@ -87,8 +87,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 778.3 KiB ≈ **2.31 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 209.7 KiB ≈ **0.63 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 780.2 KiB ≈ **2.31 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 210.4 KiB ≈ **0.63 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
