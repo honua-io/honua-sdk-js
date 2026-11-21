@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.6](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.5...create-honua-app-v0.2.6) (2026-11-21)
+
+
+### Bug Fixes
+
+* CLI query, PBF point, map mount and bounded query fixes from executable docs ([1e146ec](https://github.com/honua-io/honua-sdk-js/commit/1e146ec0e99bf3c1eed69e7d6de6627e0976ef42))
+* plan the React starter in WGS84 and harden the mount guards ([e646771](https://github.com/honua-io/honua-sdk-js/commit/e646771bb12c9e5b2e4e9706a26d2fd8e06459eb))
+* **scaffold:** certify starter defaults against SDK 0.4.0 ([#2539](https://github.com/honua-io/honua-sdk-js/issues/2539)) ([ac4150d](https://github.com/honua-io/honua-sdk-js/commit/ac4150d2a0921c391d3853235a8e9c33799ffcdb))
+
+
+### Documentation
+
+* give the replacement PR its own head ([#2527](https://github.com/honua-io/honua-sdk-js/issues/2527)) ([0a1d8c3](https://github.com/honua-io/honua-sdk-js/commit/0a1d8c3ce163e4ac661010e6e13c5310e48d28c2))
+
 ## [0.2.5](https://github.com/honua-io/honua-sdk-js/compare/create-honua-app-v0.2.4...create-honua-app-v0.2.5) (2026-11-13)
 
 
