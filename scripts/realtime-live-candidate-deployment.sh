@@ -10,11 +10,12 @@
 #   logs  Prints the candidate container log.
 #   down  Removes the containers and network.
 #
-# The image runs as ASPNETCORE_ENVIRONMENT=Staging with the image's own
-# appsettings.Production.json mounted as its environment file: Production refuses
-# the Licensing:DevGrantEdition override, and realtime streams need the Pro
-# entitlement that CI cannot hold a signed licence for. Every other setting is
-# the image's production configuration. The Metadata v2 environment stays
+# The image runs as ASPNETCORE_ENVIRONMENT=Development with the image's own
+# appsettings.Production.json mounted as its environment file: the server accepts
+# the Licensing:DevGrantEdition override only in Development and Test, and realtime
+# streams need the Pro entitlement that CI cannot hold a signed licence for. Test
+# is not used because the server skips its orchestration and reconcile hosted
+# services there. Every other setting is the image's production configuration. The Metadata v2 environment stays
 # Production so the seeded graph is the one served.
 set -euo pipefail
 
@@ -153,7 +154,7 @@ rm -f "$work/keyring.key" "$work/keyring.crt"
 chmod 644 "$work/keyring.p12"
 
 cat > "$work/candidate.env" <<EOF
-ASPNETCORE_ENVIRONMENT=Staging
+ASPNETCORE_ENVIRONMENT=Development
 ASPNETCORE_URLS=http://+:8080
 PUBLIC_BASE_URL=http://127.0.0.1:${port}
 HONUA_ADMIN_PASSWORD=${HONUA_REALTIME_CANDIDATE_ADMIN_API_KEY}
@@ -191,7 +192,7 @@ start_candidate() {
     docker rm -f "$server_container" >/dev/null 2>&1 || true
     docker run -d --name "$server_container" --network "$network" -p "127.0.0.1:${port}:8080" \
       --env-file "$work/candidate.env" \
-      -v "$work/appsettings.Production.json:/app/appsettings.Staging.json:ro" \
+      -v "$work/appsettings.Production.json:/app/appsettings.Development.json:ro" \
       -v "$work/keyring.p12:/app/keyring.p12:ro" \
       "$image" >/dev/null
     if wait_ready; then
@@ -242,7 +243,7 @@ const descriptor = {
   revision: "$HONUA_REALTIME_CANDIDATE_REVISION",
   imageRevisionLabel: "$image_revision",
   observedRevision: "$observed_revision",
-  aspnetcoreEnvironment: "Staging",
+  aspnetcoreEnvironment: "Development",
   environmentSettingsFile: { source: "/app/appsettings.Production.json", sha256: "$(sha "$work/appsettings.Production.json")" },
   seed: { source: "honua-server@$HONUA_REALTIME_CANDIDATE_REVISION:tests/seed/client-compat-v1.sql", sha256: "$(sha "$seed")" },
   tenantOverlay: { source: "test/fixtures/realtime/live-authorization-tenants.sql", sha256: "$(sha "$overlay")" },
