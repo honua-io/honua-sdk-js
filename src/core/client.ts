@@ -270,7 +270,11 @@ function normalizePath(path: string): string {
 }
 
 function isAbsoluteHttpUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://");
+  return /^https?:\/\//i.test(value);
+}
+
+function isProtocolRelativeUrl(value: string): boolean {
+  return value.startsWith("//") || value.startsWith("/\\");
 }
 
 function resolveRequestUrl(baseUrl: string, path: string): string {
@@ -285,7 +289,25 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
     }
     return requestUrl.toString();
   }
+  if (!isAbsoluteHttpUrl(baseUrl) && isProtocolRelativeUrl(path)) {
+    throw new Error(`Protocol-relative request URL is not allowed: ${path}`);
+  }
   return `${baseUrl}${path}`;
+}
+
+/**
+ * Check a URL the Connect transport already built from `baseUrl`. An absolute
+ * URL must stay on the base origin; a relative one already carries the base
+ * path, so it is passed through unchanged rather than joined to it again.
+ */
+function guardTransportRequestUrl(baseUrl: string, url: string): string {
+  if (isAbsoluteHttpUrl(url)) {
+    return resolveRequestUrl(baseUrl, url);
+  }
+  if (isProtocolRelativeUrl(url)) {
+    throw new Error(`Protocol-relative request URL is not allowed: ${url}`);
+  }
+  return url;
 }
 
 /**
@@ -334,6 +356,9 @@ function normalizeInterceptorRequestUrl(baseUrl: string, url: string): string {
   }
 
   if (!isAbsoluteHttpUrl(baseUrl)) {
+    if (isProtocolRelativeUrl(url)) {
+      throw new Error(`Protocol-relative request URL is not allowed: ${url}`);
+    }
     return url;
   }
 
@@ -599,7 +624,21 @@ export class HonuaClient {
     }
     return {
       baseUrl: this.baseUrl,
-      fetch: this.fetchFn,
+      fetch: async (input, init) => {
+        const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        const resolvedUrl = guardTransportRequestUrl(this.baseUrl, rawUrl);
+        const requestInit: RequestInit =
+          input instanceof Request
+            ? {
+                method: input.method,
+                headers: input.headers,
+                body: input.body,
+                signal: input.signal,
+                ...init,
+              }
+            : (init ?? {});
+        return this.fetchWithSafeRedirects(resolvedUrl, requestInit, "preserve-method");
+      },
       interceptors,
       ...(this.timeoutMs !== undefined ? { defaultTimeoutMs: this.timeoutMs } : {}),
     };
@@ -1392,7 +1431,7 @@ export class HonuaClient {
           ),
         };
       },
-      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
+      finalize: async (response, _durationMs, _currentRequest, runAfter, deadlineSignal) => {
         const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
@@ -1408,11 +1447,9 @@ export class HonuaClient {
         if (envelopeError) {
           const stale = this.staleMetadataFallback(cached, metadataOptions, envelopeError);
           if (stale) return stale;
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
 
@@ -2032,7 +2069,7 @@ export class HonuaClient {
     return this.executeRequest<unknown>(request, {
       callerSignal,
       deadlineThroughFinalize: true,
-      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
+      finalize: async (response, _durationMs, currentRequest, runAfter, deadlineSignal) => {
         await runAfter();
 
         // If the server returned PBF, decode it; on decode failure (including
@@ -2063,11 +2100,9 @@ export class HonuaClient {
         const body = await parseSuccessfulJsonBody(response, undefined, deadlineSignal);
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
         return body;
