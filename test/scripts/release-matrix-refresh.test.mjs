@@ -88,7 +88,9 @@ function runDispatchStep(hoursLeft, activeSmokes = "0") {
   try {
     scratchCheckout(dir, hoursLeft);
     const trace = path.join(dir, "trace");
-    const result = spawnSync("bash", ["-c", dispatchStep.run], {
+    const script = path.join(dir, "step.sh");
+    fs.writeFileSync(script, dispatchStep.run);
+    const result = spawnSync("bash", [script], {
       cwd: dir,
       encoding: "utf8",
       timeout: 15000,
