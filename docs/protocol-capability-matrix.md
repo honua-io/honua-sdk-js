@@ -211,28 +211,29 @@ evidence; observed evidence only ever narrows them.
 ## Notes by protocol
 
 ### gRPC FeatureService
-Canonical transport shared across the SDKs and generated from the
-`geospatial-grpc` FeatureService definitions. The default capability set is
-`query`, `queryExtent`, `queryObjectIds`, `applyEdits`,
-`stream`, `queryRelated`, and `attachments`. In JS, `createHonuaClient` selects gRPC-Web where the
-server offers it (REST otherwise), or `HonuaClient` takes an explicit `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
-adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
-descriptor onto the same `HonuaFeatureLayer` used by
-`geoservices-feature-service`, which transparently routes `queryFeatures` and `applyEdits`
-over gRPC-Web when the client's transport is configured that way.
+Use the native gRPC-Web transport for live Honua data and edits. The default
+capability set is `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream`,
+`queryRelated`, and `attachments`; caller-visible metadata can narrow it.
 
-`connect({ endpoint, protocol: "grpc" })` discovers a canonical FeatureServer
-URL through the same REST service/layer metadata `geoservices-feature-service`
-discovery uses (the generated `FeatureService` proto has no separate
-descriptor RPC), deriving capabilities through the identical algorithm and
-additionally executing one bounded `QueryFeatures` RPC per layer over the
-gRPC-Web transport to verify the facade's read path agrees with the
-REST-declared schema before advertising `query` / `stream` — a disagreement
-throws `protocol-mismatch`; a transient probe failure narrows those two
-capabilities without failing discovery. `protocol: "grpc"` is never inferred
-by `protocol: "auto"` (the identical URL is ambiguous between REST and gRPC
-transport intent) and only resolves against FeatureServer semantics —
-MapServer / ImageServer have no gRPC query surface.
+`connect({ endpoint, protocol: "grpc", serviceId, layerId })` accepts the transport
+base URL and explicit service/layer identities. Omit `layerId` to discover the
+service's authorized layers. Discovery uses `DescribeService` and `DescribeLayer`
+unary RPCs, derives capabilities from the caller's layer descriptors, and runs no
+feature query or GeoServices REST metadata request. Descriptor RPCs require
+geospatial-grpc 1.1.0 or later; a server without them reports an error.
+
+`Source.protocol("grpc")` exposes a typed `GrpcLayerHandle` with `serviceId`,
+`layerId` and `describe(options?)`. Its protobuf response preserves fields,
+domains, subtypes, templates, relationships, time information and editing
+information. Missing capability metadata remains unknown; false flags grant no
+capability. See [native discovery](grpc-discovery.md) for browser client setup,
+authorization-scoped metadata caching and descriptor pagination, and the
+[conversion guide](native-app-conversion.md) for per-call migration.
+
+`connect` selects gRPC-Web for explicit `protocol: "grpc"`; a supplied client must
+also use gRPC-Web. Canonical FeatureServer URLs remain accepted as identity input.
+`protocol: "auto"` does not infer gRPC from those URLs because the transport intent
+is ambiguous. MapServer and ImageServer have no gRPC query surface.
 
 The gRPC FeatureService has no aggregate result shape; aggregate requests are
 refused with `HonuaCapabilityNotSupportedError`. Layer and canonical source
