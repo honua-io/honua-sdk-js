@@ -545,6 +545,13 @@ function createReactPackage() {
   // imports connect.js, which this package does not ship.
   copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
+  // The shared scene.resolve command uses the dependency-free discovery runtime.
+  // Its return type references workspace declarations that need no runtime copies.
+  copyEmittedModule(packageRoot, "scene-workspace/scene-discovery");
+  for (const name of ["primitives", "scene-access-session", "state-sync", "types"]) {
+    const declaration = `scene-workspace/${name}.d.ts`;
+    copyFile(path.join(DIST_SRC_ROOT, declaration), path.join(packageRoot, declaration));
+  }
 
   writePackageJson(packageRoot, {
     name: "@honua/react",

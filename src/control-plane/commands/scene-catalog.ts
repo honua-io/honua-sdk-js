@@ -14,7 +14,7 @@ export interface SceneJobStatusInput {
 export const sceneJobStatusCommand: HonuaCommand<SceneJobStatusInput, HonuaControlPlaneJob> = {
   id: "scene.job.status",
   title: "Inspect a scene job",
-  description: "Read the durable status, progress, and resulting asset reference of a scene job.",
+  description: "Read the status, progress, and resulting asset reference of a scene job.",
   mode: "read",
   resourceKind: "scene-import-job",
   inputSchema: {
