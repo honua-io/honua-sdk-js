@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-22 at commit `07cfa2a7e`._
+_Generated 2026-11-22 at commit `1fc899384`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -28,7 +28,7 @@ _Generated 2026-11-22 at commit `07cfa2a7e`._
 | `/realtime` | 82.6 KiB | 86.2 KiB | 23.7 KiB | 25.0 KiB |
 | `/offline` | 171.8 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
 | `/query-planner` (worker runtime injected) | 707.4 KiB | 778.7 KiB | 170.9 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.4 KiB | 183.6 KiB | 52.6 KiB | 55.8 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 228.1 KiB | 250.9 KiB | 69.4 KiB | 76.3 KiB |
 | `/client-compat` | 1093.6 KiB | 1139.7 KiB | 278.0 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
