@@ -10,6 +10,7 @@ import {
   CHAT_EVENT_TYPE_TO_SSE_NAME,
   HONUA_STUDIO_MCP_TOOL_NAMES,
   McpClient,
+  McpNotificationStream,
   type McpToolDescriptor,
   type McpToolsListResult,
   SseFrameParser,
@@ -1802,5 +1803,75 @@ describe("bounded workflow view switching", () => {
     const report = await session.selectWorkflowView("analyze");
     expect(report.routed).toEqual([]);
     expect(session.compositionTools).toEqual([]);
+  });
+});
+
+describe("default MCP endpoint base URL", () => {
+  it("routes default session MCP calls to /mcp and chat calls to /api/v1/studio/ai/chat", async () => {
+    const urls: string[] = [];
+    const server = createScriptedServer({
+      turns: [textTurn("ok")],
+    });
+    const fetchImpl: typeof fetch = (input, init) => {
+      urls.push(String(input));
+      return server.fetchImpl(input, init);
+    };
+    const session = createStudioAgentSession({ fetchImpl });
+    const turn = await session.chat("hello");
+    expect(turn.status).toBe("completed");
+    expect(urls).toContain("/mcp");
+    expect(urls).toContain("/api/v1/studio/ai/chat");
+    expect(urls.some((url) => url.endsWith("/api/mcp"))).toBe(false);
+  });
+
+  it("strips a trailing /api segment from baseUrl for MCP and honors explicit mcpBaseUrl", async () => {
+    const derivedUrls: string[] = [];
+    const server = createScriptedServer({});
+    const derivedFetch: typeof fetch = (input, init) => {
+      derivedUrls.push(String(input));
+      return server.fetchImpl(input, init);
+    };
+    const derived = createStudioAgentSession({ baseUrl: "https://honua.example/api/", fetchImpl: derivedFetch });
+    await derived.refreshTools();
+    expect(derivedUrls.every((url) => url === "https://honua.example/mcp")).toBe(true);
+    expect(derivedUrls.length).toBeGreaterThan(0);
+
+    const explicitUrls: string[] = [];
+    const explicitFetch: typeof fetch = (input, init) => {
+      explicitUrls.push(String(input));
+      return server.fetchImpl(input, init);
+    };
+    const explicit = createStudioAgentSession({
+      baseUrl: "https://honua.example/api",
+      mcpBaseUrl: "https://mcp.example/proxy/",
+      fetchImpl: explicitFetch,
+    });
+    await explicit.refreshTools();
+    expect(explicitUrls.every((url) => url === "https://mcp.example/proxy/mcp")).toBe(true);
+    expect(explicitUrls.length).toBeGreaterThan(0);
+  });
+
+  it("defaults standalone McpClient and McpNotificationStream to the server root /mcp", async () => {
+    const server = createScriptedServer({});
+    const postUrls: string[] = [];
+    const client = new McpClient({
+      fetchImpl: (input, init) => {
+        postUrls.push(String(input));
+        return server.fetchImpl(input, init);
+      },
+    });
+    await client.initialize();
+    expect(postUrls).toEqual(["/mcp"]);
+
+    const getUrls: string[] = [];
+    const stream = new McpNotificationStream({
+      fetchImpl: async (input) => {
+        getUrls.push(String(input));
+        return new Response(null, { status: 405 });
+      },
+    });
+    stream.start();
+    await stream.done;
+    expect(getUrls).toEqual(["/mcp"]);
   });
 });

@@ -127,7 +127,7 @@ export interface McpNotificationWatchOptions {
 }
 
 export interface McpNotificationStreamOptions extends McpNotificationWatchOptions {
-  /** The `/mcp` endpoint's base — the stream opens `GET ${baseUrl}/mcp`. @default "/api" */
+  /** The `/mcp` endpoint's base — the stream opens `GET ${baseUrl}/mcp`. @default "" */
   readonly baseUrl?: string;
   readonly auth?: StudioAiTokenSource;
   /** Override for tests. Defaults to `globalThis.fetch`. */
@@ -177,7 +177,7 @@ export class McpNotificationStream {
   #loop: Promise<void> = Promise.resolve();
 
   public constructor(options: McpNotificationStreamOptions) {
-    this.#baseUrl = options.baseUrl ?? "/api";
+    this.#baseUrl = (options.baseUrl ?? "").replace(/\/+$/, "");
     this.#auth = options.auth;
     // Bound to globalThis for the same reason `McpClient` binds it: browser
     // `fetch` is receiver-sensitive and a private-field call passes the

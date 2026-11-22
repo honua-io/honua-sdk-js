@@ -130,7 +130,7 @@ export interface McpReadResourceResult {
 }
 
 export interface McpClientOptions {
-  /** The `/mcp` endpoint's base — the client POSTs to `${baseUrl}/mcp`. @default "/api" */
+  /** The `/mcp` endpoint's base — the client POSTs to `${baseUrl}/mcp`. @default "" */
   readonly baseUrl?: string;
   readonly auth?: StudioAiTokenSource;
   /**
@@ -184,7 +184,7 @@ export class McpClient {
     if (options.apiKey && options.auth) {
       throw new Error("Configure exactly one MCP authentication scheme.");
     }
-    this.#baseUrl = options.baseUrl ?? "/api";
+    this.#baseUrl = (options.baseUrl ?? "").replace(/\/+$/, "");
     this.#auth = options.auth;
     this.#apiKey = options.apiKey;
     this.#clientName = options.clientName ?? "honua-sdk-js";
