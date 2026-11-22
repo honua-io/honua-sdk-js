@@ -152,6 +152,7 @@ function samplePointBatch(
   sequence = 0,
   geometryOptions: { readonly crs?: string; readonly idField?: string } = {},
 ) {
+  const featureIdField = geometryOptions.idField ?? "id";
   return createGeoArrowBatch({
     id: `${plan.sourceId}:batch-${sequence}`,
     sequence,
@@ -163,7 +164,7 @@ function samplePointBatch(
       schemaVersion: "schema-v1",
       planId: plan.planId,
       authorizationScope: plan.policyScopeFingerprint,
-      ordering: { stable: true, keys: [{ field: "id", direction: "ascending", nulls: "last" }] },
+      ordering: { stable: true, keys: [{ field: featureIdField, direction: "ascending", nulls: "last" }] },
       freshness: { observedAt: "2026-11-21T12:00:00.000Z" },
     },
     geometry: {
@@ -176,7 +177,7 @@ function samplePointBatch(
         [-156.48, 20.91],
       ],
     },
-    featureIds: { field: geometryOptions.idField ?? "id", values: [sequence * 2 + 1, sequence * 2 + 2] },
+    featureIds: { field: featureIdField, values: [sequence * 2 + 1, sequence * 2 + 2] },
     dictionary: { field: "zone", values: ["R-1", "AG"] },
   }).batch;
 }
