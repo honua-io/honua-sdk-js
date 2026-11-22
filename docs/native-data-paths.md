@@ -21,7 +21,9 @@ answers gRPC-Web, GeoServices REST otherwise; check `client.isGrpcWeb`.
 Use `HonuaClient` with `transport: "grpc-web"` when the app requires gRPC-Web for native
 feature queries, query streaming and `applyEdits()`. Edits use the unary `ApplyEdits` RPC;
 transport or server errors propagate without a REST fallback. Per-row errors
-remain in the result arrays. `rollbackOnFailure` defaults to `true`.
+remain in the result arrays, but a missing or hidden update or delete target
+rejects the whole call with `NOT_FOUND` before any row is written, even with
+`rollbackOnFailure: false`. `rollbackOnFailure` defaults to `true`.
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/grpc-web";

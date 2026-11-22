@@ -421,7 +421,11 @@ export function geoServicesFeatureSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const params = toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor));
+      // A Honua gRPC server answers count-only before extent-only, so gRPC-Web
+      // asks for the extent alone and reads the exact count separately.
+      const params = client.isGrpcWeb
+        ? toGrpcExtentOnlyRequest(toFeatureLayerRequest(request, descriptor))
+        : toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor));
       const response = await layer.queryFeatures(params);
       const envelope = extractExtentEnvelope(response);
       if (client.isGrpcWeb && envelope.count === undefined) {
@@ -4438,8 +4442,10 @@ function compileGeoServicesQueryFilter<T>(
  * `QueryFeaturesRequest`.
  *
  * `returnCountOnly=true` is sent beside it: the documented Esri combination
- * returns `{extent, count}`, and ArcGIS Online omits `count` without it
- * (honua-sdk-js#2249). honua-server answers both forms with `{extent, count}`.
+ * returns `{extent, count}`, and ArcGIS Online omits `count` without it.
+ * honua-server REST answers both forms with `{extent, count}`;
+ * its gRPC service answers count-only first, so gRPC-Web uses
+ * `toGrpcExtentOnlyRequest`, which drops the count flag.
  */
 function toExtentOnlyRequest(
   params: ReturnType<typeof toFeatureLayerRequest>,
@@ -4457,6 +4463,15 @@ function toExtentOnlyRequest(
       returnCountOnly: true,
     },
   };
+}
+
+function toGrpcExtentOnlyRequest(
+  params: ReturnType<typeof toFeatureLayerRequest>,
+): ReturnType<typeof toExtentOnlyRequest> {
+  const request = toExtentOnlyRequest(params);
+  const { returnCountOnly: _count, ...extraParams } = request.extraParams ?? {};
+  void _count;
+  return { ...request, extraParams };
 }
 
 /**
