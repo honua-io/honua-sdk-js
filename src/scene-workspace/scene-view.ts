@@ -214,17 +214,13 @@ export class SceneView {
 
     if (this.#target) {
       const primitives = sceneToRuntimePrimitives(resolved);
-      if (
-        this.#target.scene &&
-        resolved.auth?.requiresAuthentication &&
-        !this.#accessSession &&
-        primitives.some((primitive) => primitive.kind === "model-layer" || primitive.kind === "elevation-source")
-      ) {
+      const needsSession = this.#target.scene && resolved.auth?.requiresAuthentication && !this.#accessSession;
+      if (needsSession && primitives.some(({ kind }) => kind === "model-layer" || kind === "elevation-source")) {
         throw new Error("Protected scene rendering requires a scoped access-session affordance.");
       }
       const result = await applyCesiumScenePrimitivesInternal(this.#target, primitives, {
-        ...(signal ? { signal } : {}),
-        ...(this.#accessSession ? { accessSession: this.#accessSession } : {}),
+        signal,
+        accessSession: this.#accessSession,
       });
       this.#diagnostics = result.diagnostics;
       for (const [id, handle] of result.layers) this.#layerHandles.set(id, handle);

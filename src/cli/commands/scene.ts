@@ -316,19 +316,10 @@ async function handleSceneStatus(parsed: ParsedArgs, ctx: CommandContext): Promi
       return pollReceipt.output;
     },
   });
-  if (getBoolean(parsed, "json")) {
-    printLine(renderJson({ job: finalJob }));
-    return;
-  }
-  printLine(
-    renderDetail(
-      {
-        jobId: finalJob.id,
-        jobStatus: finalJob.status,
-      },
-      { title: "Scene job completed" },
-    ),
-  );
+  const output = getBoolean(parsed, "json")
+    ? renderJson({ job: finalJob })
+    : renderDetail({ jobId: finalJob.id, jobStatus: finalJob.status }, { title: "Scene job completed" });
+  printLine(output);
 }
 
 async function handleSceneRetire(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
