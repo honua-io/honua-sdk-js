@@ -554,7 +554,7 @@ function parseToolError(result: McpToolsCallResult, toolName: string): McpToolEr
 
 function stripTrailingSlashes(value: string): string {
   let end = value.length;
-  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+  while (end > 0 && value[end - 1] === "/") {
     end -= 1;
   }
   return end === value.length ? value : value.slice(0, end);

@@ -24,7 +24,7 @@ function createMcpAndChatFetch(recordedUrls: string[]): typeof fetch {
   };
 }
 
-describe("studio-agent default MCP base URL", () => {
+describe("studio-agent session default MCP base URL", () => {
   it("routes default session MCP calls to /mcp and chat calls to /api/v1/studio/ai/chat", async () => {
     const urls: string[] = [];
     const session = createStudioAgentSession({ fetchImpl: createMcpAndChatFetch(urls) });
@@ -60,7 +60,9 @@ describe("studio-agent default MCP base URL", () => {
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.every((url) => url === "https://mcp.example/proxy/mcp")).toBe(true);
   });
+});
 
+describe("standalone MCP transport default base URL", () => {
   it("defaults standalone McpClient and McpNotificationStream to the server root /mcp", async () => {
     const postUrls: string[] = [];
     const client = new McpClient({ fetchImpl: createMcpAndChatFetch(postUrls) });
