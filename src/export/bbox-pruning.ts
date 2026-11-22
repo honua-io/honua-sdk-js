@@ -128,9 +128,8 @@ function rowGroupColumnBytes(rowGroup: BboxParquetRowGroup, columns: ReadonlySet
  */
 export function pruneRowGroupsByBbox(
   metadata: BboxParquetMetadata,
-  bboxColumn: string | undefined,
   queryBbox: PublicationBounds,
-  readColumns: readonly string[],
+  { bboxColumn, readColumns }: { bboxColumn: string | undefined; readColumns: readonly string[] },
 ): BboxRowGroupPruning {
   assertValidBbox(queryBbox);
   const columnSet = new Set(readColumns);
@@ -147,12 +146,8 @@ export function pruneRowGroupsByBbox(
     rowOffset = rowEnd;
 
     const bounds = bboxColumn ? rowGroupBbox(rowGroup, bboxColumn) : undefined;
-    if (bounds) {
-      usedBboxStats = true;
-      if (!bboxOverlaps([bounds.xmin, bounds.ymin, bounds.xmax, bounds.ymax], queryBbox)) {
-        continue;
-      }
-    }
+    usedBboxStats ||= bounds !== undefined;
+    if (bounds && !bboxOverlaps([bounds.xmin, bounds.ymin, bounds.xmax, bounds.ymax], queryBbox)) continue;
     const compressedBytes = rowGroupColumnBytes(rowGroup, columnSet);
     estimatedBytes += compressedBytes;
     ranges.push(Object.freeze({ index, rowStart, rowEnd, compressedBytes }));

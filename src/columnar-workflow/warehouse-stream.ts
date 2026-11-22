@@ -14,6 +14,7 @@ import {
   bindGeoArrowPointBatchToDeckGl,
   bindGeoArrowPolygonBatchToDeckGl,
 } from "../deckgl/columnar.js";
+import { settleOrAbort } from "../export/abort.js";
 import {
   type AcceptedWarehouseExecutionPlan,
   DEFAULT_WAREHOUSE_MAX_OBJECT_MATERIALIZATION_ROWS,
@@ -155,6 +156,68 @@ function assertBatchIdentityMatchesPlan(batch: ColumnarBatchV1, plan: AcceptedWa
   }
 }
 
+function assertStreamChunk(chunk: WarehouseColumnarBatchChunk, signal: AbortSignal): void {
+  if (signal.aborted) throw new HonuaAbortError("Warehouse columnar stream was aborted.");
+  if (!Number.isFinite(chunk.transferBytes) || chunk.transferBytes < 0) {
+    throw new HonuaWarehouseError("corrupt-batch", "Batch chunk transferBytes must be a non-negative finite number.");
+  }
+}
+
+function lockBatchSchema(batch: ColumnarBatchV1, expected?: string): string {
+  const actual = batch.schema.id;
+  if (expected !== undefined && actual !== expected) {
+    throw new HonuaWarehouseError("schema-drift", `Schema drifted mid-stream from "${expected}" to "${actual}".`, {
+      expectedSchemaId: expected,
+      actualSchemaId: actual,
+    });
+  }
+  return actual;
+}
+
+function enforceStreamLimit(
+  controller: AbortController,
+  label: string,
+  { observed, limit }: { observed: number; limit: number },
+): void {
+  if (observed <= limit) return;
+  controller.abort();
+  throw new HonuaWarehouseError("budget-exceeded", `${label} ${observed} exceeded limit ${limit}.`, {
+    limit,
+    observed,
+  });
+}
+
+async function* abortableChunks(
+  chunks: AsyncIterable<WarehouseColumnarBatchChunk>,
+  signal: AbortSignal,
+): AsyncIterable<WarehouseColumnarBatchChunk> {
+  const iterator = chunks[Symbol.asyncIterator]();
+  const advance = () => settleOrAbort(Promise.resolve(iterator.next()), signal);
+  let done = false;
+  try {
+    let next = await advance();
+    for (; !next.done; next = await advance()) yield next.value;
+    done = true;
+  } finally {
+    if (!done)
+      void Promise.resolve()
+        .then(() => iterator.return?.())
+        .catch(() => undefined);
+  }
+}
+
+function scheduleStreamDeadline(plan: AcceptedWarehouseExecutionPlan, controller: AbortController) {
+  const deadline = Math.min(
+    plan.deadlineMs ?? Number.POSITIVE_INFINITY,
+    plan.budgets.deadlineMs ?? Number.POSITIVE_INFINITY,
+  );
+  if (deadline === Number.POSITIVE_INFINITY) return;
+  if (!Number.isFinite(deadline) || deadline <= 0 || deadline > 2 ** 31 - 1) {
+    throw new HonuaWarehouseError("plan-invalid", "Warehouse stream deadline is outside the supported duration.");
+  }
+  return setTimeout(() => controller.abort(new HonuaAbortError("Warehouse stream deadline exceeded.")), deadline);
+}
+
 /** Stream bounded Arrow/GeoArrow batches for an accepted warehouse plan with cooperative cancellation and budget guards. */
 export async function* executeWarehouseColumnarStream(
   plan: AcceptedWarehouseExecutionPlan,
@@ -170,6 +233,7 @@ export async function* executeWarehouseColumnarStream(
 
   const budgets = resolveStreamBudgets(plan, options.budgets);
   const controller = new AbortController();
+  const deadlineTimer = scheduleStreamDeadline(plan, controller);
   const forwardAbort = () => controller.abort(options.signal?.reason);
   options.signal?.addEventListener("abort", forwardAbort, { once: true });
 
@@ -180,32 +244,17 @@ export async function* executeWarehouseColumnarStream(
   let returnedBytes = 0;
   const maxReturnedBytes = plan.budgets.maxReturnedBytes ?? Number.MAX_SAFE_INTEGER;
   let lockedSchemaId: string | undefined;
+  let completed = false;
 
   try {
-    for await (const chunk of transport({ plan, signal: controller.signal })) {
-      if (options.signal?.aborted || controller.signal.aborted) {
-        throw new HonuaAbortError("Warehouse columnar stream was aborted.");
-      }
-      if (!Number.isFinite(chunk.transferBytes) || chunk.transferBytes < 0) {
-        throw new HonuaWarehouseError(
-          "corrupt-batch",
-          "Batch chunk transferBytes must be a non-negative finite number.",
-        );
-      }
+    for await (const chunk of abortableChunks(transport({ plan, signal: controller.signal }), controller.signal)) {
+      assertStreamChunk(chunk, controller.signal);
       const metrics = inspectColumnarBatch(chunk.batch, {
         maxRows: budgets.maxRows,
         maxBackingBytes: budgets.maxBackingBytes,
       });
       assertBatchIdentityMatchesPlan(chunk.batch, plan);
-      if (lockedSchemaId === undefined) {
-        lockedSchemaId = chunk.batch.schema.id;
-      } else if (chunk.batch.schema.id !== lockedSchemaId) {
-        throw new HonuaWarehouseError(
-          "schema-drift",
-          `Schema drifted mid-stream from "${lockedSchemaId}" to "${chunk.batch.schema.id}".`,
-          { expectedSchemaId: lockedSchemaId, actualSchemaId: chunk.batch.schema.id },
-        );
-      }
+      lockedSchemaId = lockBatchSchema(chunk.batch, lockedSchemaId);
 
       batches += 1;
       rows += metrics.rows;
@@ -213,49 +262,10 @@ export async function* executeWarehouseColumnarStream(
       peakBackingBytes = Math.max(peakBackingBytes, metrics.backingBytes);
       returnedBytes += metrics.backingBytes;
 
-      if (returnedBytes > maxReturnedBytes) {
-        controller.abort();
-        throw new HonuaWarehouseError(
-          "budget-exceeded",
-          `Returned bytes ${returnedBytes} exceeded limit ${maxReturnedBytes}.`,
-          { limit: maxReturnedBytes, observed: returnedBytes },
-        );
-      }
-
-      if (batches > budgets.maxBatches) {
-        controller.abort();
-        throw new HonuaWarehouseError(
-          "budget-exceeded",
-          `Batch count ${batches} exceeded limit ${budgets.maxBatches}.`,
-          {
-            limit: budgets.maxBatches,
-            observed: batches,
-          },
-        );
-      }
-      if (rows > budgets.maxRows) {
-        controller.abort();
-        throw new HonuaWarehouseError("budget-exceeded", `Row count ${rows} exceeded limit ${budgets.maxRows}.`, {
-          limit: budgets.maxRows,
-          observed: rows,
-        });
-      }
-      if (transferBytes > budgets.maxTransferBytes) {
-        controller.abort();
-        throw new HonuaWarehouseError(
-          "budget-exceeded",
-          `Transferred bytes ${transferBytes} exceeded limit ${budgets.maxTransferBytes}.`,
-          { limit: budgets.maxTransferBytes, observed: transferBytes },
-        );
-      }
-      if (metrics.backingBytes > budgets.maxBackingBytes) {
-        controller.abort();
-        throw new HonuaWarehouseError(
-          "budget-exceeded",
-          `Batch backing bytes ${metrics.backingBytes} exceeded limit ${budgets.maxBackingBytes}.`,
-          { limit: budgets.maxBackingBytes, observed: metrics.backingBytes },
-        );
-      }
+      enforceStreamLimit(controller, "Returned bytes", { observed: returnedBytes, limit: maxReturnedBytes });
+      enforceStreamLimit(controller, "Batch count", { observed: batches, limit: budgets.maxBatches });
+      enforceStreamLimit(controller, "Row count", { observed: rows, limit: budgets.maxRows });
+      enforceStreamLimit(controller, "Transferred bytes", { observed: transferBytes, limit: budgets.maxTransferBytes });
 
       const progress: WarehouseStreamProgress = Object.freeze({ batches, rows, transferBytes, peakBackingBytes });
       options.onProgress?.(progress);
@@ -264,7 +274,13 @@ export async function* executeWarehouseColumnarStream(
     if (options.signal?.aborted || controller.signal.aborted) {
       throw new HonuaAbortError("Warehouse columnar stream was aborted.");
     }
+    completed = true;
+  } catch (error) {
+    if (controller.signal.reason instanceof HonuaAbortError) throw controller.signal.reason;
+    throw error;
   } finally {
+    if (!completed) controller.abort();
+    clearTimeout(deadlineTimer);
     options.signal?.removeEventListener("abort", forwardAbort);
   }
 }
@@ -360,9 +376,16 @@ export function handoffWarehouseBatchToMapLibre(
     );
   }
   const result = columnarBatchToResult(batch, { maxFeatures });
-  const features = result.features.map((feature, index) => ({
+  if (result.crs !== "OGC:CRS84" && result.features.some((feature) => feature.geometry != null)) {
+    throw new HonuaWarehouseError(
+      "handoff-refused",
+      "MapLibre GeoJSON handoff requires longitude/latitude coordinates in OGC:CRS84.",
+    );
+  }
+  const idAttribute = result.columnar.attributes.featureId?.attribute;
+  const features = result.features.map((feature) => ({
     type: "Feature" as const,
-    id: ((feature.attributes as Record<string, unknown>).id as string | number | undefined) ?? index,
+    ...(idAttribute === undefined ? {} : { id: feature.attributes[idAttribute] as number }),
     geometry: feature.geometry ?? null,
     properties: Object.freeze({ ...(feature.attributes as Record<string, unknown>) }),
   }));

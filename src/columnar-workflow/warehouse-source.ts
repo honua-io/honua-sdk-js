@@ -9,7 +9,7 @@ import type {
   SourceFreshnessContract,
 } from "../contract/types.js";
 import { capabilities } from "../contract/types.js";
-import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
+import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type { HonuaExtent } from "../core/types.js";
 import {
   GOVERNED_WAREHOUSE_PROVIDERS,
@@ -506,6 +506,40 @@ function baseTransportRequest<T>(
   };
 }
 
+async function queryAllWarehousePages<T>(
+  query: Query<T> | undefined,
+  fetchPage: (query: Query<T> | undefined) => Promise<Result<T>>,
+): Promise<Result<T>> {
+  const { limit = Number.POSITIVE_INFINITY, offset = 0 } = query?.pagination ?? {};
+  const features: Result<T>["features"][number][] = [];
+  let page: Result<T>;
+  do {
+    if (query?.signal?.aborted) throw new HonuaAbortError();
+    const remaining = limit - features.length;
+    page = await fetchPage(
+      features.length === 0
+        ? query
+        : {
+            ...query,
+            pagination: {
+              ...query?.pagination,
+              offset: offset + features.length,
+              ...(Number.isFinite(limit) ? { limit: remaining } : {}),
+            },
+          },
+    );
+    if (page.features.length > remaining) {
+      features.push(...page.features.slice(0, remaining));
+      return { ...page, features, exceededTransferLimit: true };
+    }
+    if (page.exceededTransferLimit && page.features.length === 0 && remaining > 0) {
+      throw new HonuaWarehouseError("plan-invalid", "Warehouse query could not advance its pagination.");
+    }
+    for (const feature of page.features) features.push(feature);
+  } while (page.exceededTransferLimit && features.length < limit);
+  return { ...page, features };
+}
+
 /** Project a server-discovered governed warehouse source into the protocol-neutral SDK Source contract. */
 export function createGovernedWarehouseSource<T = Record<string, unknown>>(
   rawCapabilities: WarehouseEffectiveSourceCapabilities,
@@ -574,7 +608,7 @@ export function createGovernedWarehouseSource<T = Record<string, unknown>>(
     async queryAll(query?: Query<T>) {
       requireCap("query");
       enforceQueryPredicates(query);
-      return transport.query(baseTransportRequest(effective, query));
+      return queryAllWarehousePages(query, (pageQuery) => transport.query(baseTransportRequest(effective, pageQuery)));
     },
     async queryAggregate(query: Query<T> & { readonly aggregation: AggregationSpec }) {
       requireCap("queryAggregate");

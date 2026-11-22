@@ -277,9 +277,9 @@ function validateFidelity(raw: unknown): WarehousePlanFidelity {
 export function buildWarehouseExplainRequest(
   source: WarehouseEffectiveSourceCapabilities,
   intent: WarehouseSemanticIntent,
-  budgets: WarehousePlanBudgets = {},
-  options: WarehouseCapabilityCheckOptions = {},
+  options: WarehouseCapabilityCheckOptions & { readonly budgets?: WarehousePlanBudgets } = {},
 ): WarehouseExplainRequest {
+  const { budgets = {} } = options;
   assertNoWarehouseSecrets(intent, "intent");
   assertNoWarehouseSecrets(budgets, "budgets");
   if (intent.sourceId !== source.sourceId) {
@@ -314,6 +314,9 @@ export function validateWarehouseExecutionPlan(
     throw new HonuaWarehouseError("plan-invalid", "Warehouse execution plan must be an object.");
   }
   assertNoWarehouseSecrets(input);
+  if (input.schemaVersion !== WAREHOUSE_EXECUTION_PLAN_SCHEMA_VERSION) {
+    throw new HonuaWarehouseError("plan-invalid", "Unsupported warehouse execution plan schema version.");
+  }
   if (input.parameterRedacted !== true) {
     throw new HonuaWarehouseError("plan-invalid", "Warehouse execution plan must declare parameterRedacted: true.");
   }
@@ -333,11 +336,13 @@ export function validateWarehouseExecutionPlan(
     if (
       expectedSource.sourceId !== sourceId ||
       expectedSource.provider !== input.provider ||
+      expectedSource.sourceVersion !== sourceVersion ||
+      expectedSource.schemaVersionToken !== schemaVersionToken ||
       expectedSource.policy.policyScopeFingerprint !== policyScopeFingerprint
     ) {
       throw new HonuaWarehouseError(
         "plan-invalid",
-        "Warehouse execution plan identity does not match the governed source or policy scope.",
+        "Warehouse execution plan identity does not match the governed source revision or policy scope.",
       );
     }
   }
@@ -372,35 +377,31 @@ export function validateWarehouseExecutionPlan(
   });
 }
 
-function checkNumericBound(
-  violations: WarehousePlanViolation[],
-  code: WarehousePlanViolationCode,
-  metric: string,
-  observed: number | null,
-  limit: number | undefined,
-  allowUnknown: boolean,
-): void {
+function numericBoundViolation(bound: {
+  code: WarehousePlanViolationCode;
+  metric: string;
+  observed: number | null;
+  limit: number | undefined;
+}): WarehousePlanViolation | undefined {
+  const { code, metric, observed, limit } = bound;
   if (limit === undefined) return;
   if (observed === null) {
-    if (!allowUnknown) {
-      violations.push({
-        code: "unknown-estimate-refused",
-        metric,
-        limit,
-        observed: null,
-        message: `Plan estimate for ${metric} is unknown while a budget of ${limit} is enforced.`,
-      });
-    }
-    return;
+    return {
+      code: "unknown-estimate-refused",
+      metric,
+      limit,
+      observed,
+      message: `Plan estimate for ${metric} is unknown while a budget of ${limit} is enforced.`,
+    };
   }
   if (observed > limit) {
-    violations.push({
+    return {
       code,
       metric,
       limit,
       observed,
       message: `Plan ${metric} (${observed}) exceeds configured budget (${limit}).`,
-    });
+    };
   }
 }
 
@@ -420,54 +421,49 @@ export function evaluateWarehouseExecutionPlan(
       message: "Plan has unknown estimate confidence; allowUnknownEstimates is disabled.",
     });
   }
-  checkNumericBound(
-    violations,
-    "scanned-rows-exceeded",
-    "scannedRows",
-    plan.estimates.scannedRows,
-    budgets.maxScannedRows,
-    allowUnknown,
-  );
-  checkNumericBound(
-    violations,
-    "scanned-bytes-exceeded",
-    "scannedBytes",
-    plan.estimates.scannedBytes,
-    budgets.maxScannedBytes,
-    allowUnknown,
-  );
-  checkNumericBound(
-    violations,
-    "returned-rows-exceeded",
-    "returnedRows",
-    plan.estimates.returnedRows,
-    budgets.maxReturnedRows,
-    allowUnknown,
-  );
-  checkNumericBound(
-    violations,
-    "returned-bytes-exceeded",
-    "returnedBytes",
-    plan.estimates.returnedBytes,
-    budgets.maxReturnedBytes,
-    allowUnknown,
-  );
-  checkNumericBound(
-    violations,
-    "transfer-bytes-exceeded",
-    "transferBytes",
-    plan.estimates.transferBytes,
-    budgets.maxTransferBytes,
-    allowUnknown,
-  );
-  checkNumericBound(
-    violations,
-    "cost-budget-exceeded",
-    "estimatedCost",
-    plan.estimates.estimatedCost,
-    budgets.maxEstimatedCost,
-    allowUnknown,
-  );
+  const numericBounds: Parameters<typeof numericBoundViolation>[0][] = [
+    {
+      code: "scanned-rows-exceeded",
+      metric: "scannedRows",
+      observed: plan.estimates.scannedRows,
+      limit: budgets.maxScannedRows,
+    },
+    {
+      code: "scanned-bytes-exceeded",
+      metric: "scannedBytes",
+      observed: plan.estimates.scannedBytes,
+      limit: budgets.maxScannedBytes,
+    },
+    {
+      code: "returned-rows-exceeded",
+      metric: "returnedRows",
+      observed: plan.estimates.returnedRows,
+      limit: budgets.maxReturnedRows,
+    },
+    {
+      code: "returned-bytes-exceeded",
+      metric: "returnedBytes",
+      observed: plan.estimates.returnedBytes,
+      limit: budgets.maxReturnedBytes,
+    },
+    {
+      code: "transfer-bytes-exceeded",
+      metric: "transferBytes",
+      observed: plan.estimates.transferBytes,
+      limit: budgets.maxTransferBytes,
+    },
+    {
+      code: "cost-budget-exceeded",
+      metric: "estimatedCost",
+      observed: plan.estimates.estimatedCost,
+      limit: budgets.maxEstimatedCost,
+    },
+  ];
+  for (const bound of numericBounds) {
+    if (allowUnknown && bound.observed === null) continue;
+    const violation = numericBoundViolation(bound);
+    if (violation) violations.push(violation);
+  }
   if (budgets.deadlineMs !== undefined && plan.deadlineMs !== undefined && plan.deadlineMs > budgets.deadlineMs) {
     violations.push({
       code: "deadline-exceeded",
@@ -535,8 +531,7 @@ export function reconcileWarehouseExecutionMetrics(
   const checkLimit = (
     label: string,
     actual: number | undefined,
-    budget: number | undefined,
-    estimate: number | null,
+    { budget, estimate }: { budget: number | undefined; estimate: number | null },
   ) => {
     if (actual === undefined) return;
     if (budget !== undefined && actual > budget) {
@@ -549,12 +544,27 @@ export function reconcileWarehouseExecutionMetrics(
     }
   };
 
-  checkLimit("scannedRows", observed.scannedRows, plan.budgets.maxScannedRows, plan.estimates.scannedRows);
-  checkLimit("scannedBytes", observed.scannedBytes, plan.budgets.maxScannedBytes, plan.estimates.scannedBytes);
-  checkLimit("returnedRows", observed.returnedRows, plan.budgets.maxReturnedRows, plan.estimates.returnedRows);
-  checkLimit("returnedBytes", observed.returnedBytes, plan.budgets.maxReturnedBytes, plan.estimates.returnedBytes);
-  checkLimit("transferBytes", observed.transferBytes, plan.budgets.maxTransferBytes, plan.estimates.transferBytes);
-  checkLimit("cost", observed.cost, plan.budgets.maxEstimatedCost, plan.estimates.estimatedCost);
+  checkLimit("scannedRows", observed.scannedRows, {
+    budget: plan.budgets.maxScannedRows,
+    estimate: plan.estimates.scannedRows,
+  });
+  checkLimit("scannedBytes", observed.scannedBytes, {
+    budget: plan.budgets.maxScannedBytes,
+    estimate: plan.estimates.scannedBytes,
+  });
+  checkLimit("returnedRows", observed.returnedRows, {
+    budget: plan.budgets.maxReturnedRows,
+    estimate: plan.estimates.returnedRows,
+  });
+  checkLimit("returnedBytes", observed.returnedBytes, {
+    budget: plan.budgets.maxReturnedBytes,
+    estimate: plan.estimates.returnedBytes,
+  });
+  checkLimit("transferBytes", observed.transferBytes, {
+    budget: plan.budgets.maxTransferBytes,
+    estimate: plan.estimates.transferBytes,
+  });
+  checkLimit("cost", observed.cost, { budget: plan.budgets.maxEstimatedCost, estimate: plan.estimates.estimatedCost });
   if (plan.budgets.deadlineMs !== undefined && observed.elapsedMs > plan.budgets.deadlineMs) {
     exceeded = true;
     findings.push(`Observed elapsedMs (${observed.elapsedMs}) exceeded deadline (${plan.budgets.deadlineMs}).`);

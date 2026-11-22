@@ -127,12 +127,10 @@ describe("spatially-ordered GeoParquet bbox row-group pruning", () => {
       ],
     };
 
-    const tight = pruneRowGroupsByBbox(
-      metadata,
-      "bbox",
-      [-156.498, 20.902, -156.492, 20.908],
-      ["tmk_txt", "plat", "geometry", "bbox"],
-    );
+    const tight = pruneRowGroupsByBbox(metadata, [-156.498, 20.902, -156.492, 20.908], {
+      bboxColumn: "bbox",
+      readColumns: ["tmk_txt", "plat", "geometry", "bbox"],
+    });
     expect(tight.usedBboxStats).toBe(true);
     expect(tight.totalRowGroups).toBe(3);
     expect(tight.rowGroups).toEqual([1]);
@@ -141,7 +139,10 @@ describe("spatially-ordered GeoParquet bbox row-group pruning", () => {
       { index: 1, rowStart: 500, rowEnd: 1000, compressedBytes: 16_384 + 8_192 + 32_768 + 1_024 },
     ]);
 
-    const disjoint = pruneRowGroupsByBbox(metadata, "bbox", [10, 10, 11, 11], ["tmk_txt", "geometry", "bbox"]);
+    const disjoint = pruneRowGroupsByBbox(metadata, [10, 10, 11, 11], {
+      bboxColumn: "bbox",
+      readColumns: ["tmk_txt", "geometry", "bbox"],
+    });
     expect(disjoint.rowGroups).toEqual([]);
     expect(disjoint.prunedRowGroups).toBe(3);
     expect(disjoint.estimatedBytes).toBe(0);
@@ -158,9 +159,8 @@ describe("spatially-ordered GeoParquet bbox row-group pruning", () => {
           makeRowGroup(1, [0, 5, 1, 4]),
         ],
       },
-      "bbox",
       query,
-      ["bbox"],
+      { bboxColumn: "bbox", readColumns: ["bbox"] },
     );
     expect(result.rowGroups).toEqual([0, 1, 2, 3]);
     expect(result.usedBboxStats).toBe(false);
@@ -174,7 +174,7 @@ describe("spatially-ordered GeoParquet bbox row-group pruning", () => {
     const metadata: BboxParquetMetadata = {
       row_groups: [makeRowGroup(100, [-156.51, 20.89, -156.5, 20.9]), makeRowGroup(100, undefined)],
     };
-    const result = pruneRowGroupsByBbox(metadata, "bbox", [10, 10, 11, 11], ["tmk_txt"]);
+    const result = pruneRowGroupsByBbox(metadata, [10, 10, 11, 11], { bboxColumn: "bbox", readColumns: ["tmk_txt"] });
     expect(result.usedBboxStats).toBe(true);
     expect(result.rowGroups).toEqual([1]);
     expect(result.prunedRowGroups).toBe(1);

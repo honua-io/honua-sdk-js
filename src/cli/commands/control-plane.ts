@@ -97,7 +97,9 @@ export function importCreateInvocation(parsed: ParsedArgs): {
 
 /** Build the non-secret quick-create console URL for adding an object-storage connection. */
 export function buildObjectStorageQuickCreateUrl(baseUrl: string, parsed: ParsedArgs): string {
-  const normalized = baseUrl.replace(/\/+$/, "");
+  let end = baseUrl.length;
+  while (baseUrl[end - 1] === "/") end--;
+  const normalized = baseUrl.slice(0, end);
   const url = new URL(`${normalized}/console/connections/new`);
   url.searchParams.set("kind", "object-storage");
   for (const key of ["bucket", "prefix", "region", "endpoint", "workspace"] as const) {

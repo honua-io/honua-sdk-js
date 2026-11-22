@@ -6,8 +6,9 @@ import {
   decodeGeoParquetNativeGeometryColumn,
 } from "../geoparquet/native-geometry.js";
 import { sharedTask } from "./abort.js";
-import { pruneRowGroupsByBbox, rowMatchesBbox } from "./bbox-pruning.js";
+import { bboxOverlaps, pruneRowGroupsByBbox, rowMatchesBbox } from "./bbox-pruning.js";
 import type { PublicationBounds } from "./descriptor.js";
+import { HonuaPublicationError } from "./errors.js";
 import type { PublicationBboxPlan, PublicationLookupPlan } from "./lookup.js";
 import { PUBLICATION_STAMP_KEY, type Publication, assertArtifactStamp } from "./open.js";
 import { type ArtifactRangeReader, type ByteMeter, artifactRangeReader } from "./range-reader.js";
@@ -110,6 +111,46 @@ function resultFrom<T>(publication: Publication, shape: RecordShape, rows: reado
   };
 }
 
+function expandGeometryBounds(value: unknown, bounds: [number, number, number, number]): void {
+  if (!Array.isArray(value)) return;
+  const [x, y] = value;
+  if (typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y)) {
+    bounds[0] = Math.min(bounds[0], x);
+    bounds[1] = Math.min(bounds[1], y);
+    bounds[2] = Math.max(bounds[2], x);
+    bounds[3] = Math.max(bounds[3], y);
+    return;
+  }
+  for (const part of value) expandGeometryBounds(part, bounds);
+}
+
+function expandGeoJsonBounds(geometry: unknown, bounds: [number, number, number, number]): void {
+  if (geometry == null) return;
+  if (typeof geometry !== "object") {
+    throw new HonuaPublicationError("artifact-mismatch", "Cannot evaluate bbox against non-GeoJSON geometry.");
+  }
+  if ("coordinates" in geometry) {
+    expandGeometryBounds(geometry.coordinates, bounds);
+    return;
+  }
+  if ("geometries" in geometry && Array.isArray(geometry.geometries)) {
+    for (const child of geometry.geometries) expandGeoJsonBounds(child, bounds);
+    return;
+  }
+  throw new HonuaPublicationError("artifact-mismatch", "Cannot evaluate bbox against non-GeoJSON geometry.");
+}
+
+function geometryMatchesBbox(geometry: unknown, query: PublicationBounds): boolean {
+  const bounds: [number, number, number, number] = [
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ];
+  expandGeoJsonBounds(geometry, bounds);
+  return bounds[0] !== Number.POSITIVE_INFINITY && bboxOverlaps(bounds, query);
+}
+
 function rangeBytes(ranges: readonly { readonly startByte: number; readonly endByte: number }[]): number {
   return ranges.reduce((total, range) => total + range.endByte - range.startByte, 0);
 }
@@ -172,7 +213,7 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
     const bboxColumn = publication.geometry.bboxColumn;
     const bboxReadColumns =
       bboxColumn && !readColumns.includes(bboxColumn) ? [...readColumns, bboxColumn] : readColumns;
-    const pruned = pruneRowGroupsByBbox(metadata, bboxColumn, bbox, bboxReadColumns);
+    const pruned = pruneRowGroupsByBbox(metadata, bbox, { bboxColumn, readColumns: bboxReadColumns });
     const footerBytes = Math.max(Math.min(FOOTER_READ_BYTES, reader.byteLength), metadata.metadata_length + 8);
     const plan: PublicationBboxPlan = Object.freeze({
       rowGroups: pruned.rowGroups,
@@ -197,15 +238,17 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
             compressors: parquet.compressors,
             geoparquet: decodesWkb,
           });
-          for (const row of rows) {
-            if (rowMatchesBbox(row, bboxColumn, bbox)) matched.push(row);
-          }
+          for (const row of rows.filter((row) => rowMatchesBbox(row, bboxColumn, bbox))) matched.push(row);
         }
-        return resultFrom<T>(
+        const result = resultFrom<T>(
           publication,
           { columns, dimensions: geometryDimensions(metadata, publication.geometry.column) },
           matched,
         );
+        return {
+          ...result,
+          features: result.features.filter((feature) => geometryMatchesBbox(feature.geometry, bbox)),
+        };
       },
     };
   }

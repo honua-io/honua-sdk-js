@@ -77,8 +77,16 @@ export async function runWarehouseProviderConformance(
   }
   checks.push({ name: "read-only-applyEdits-refused", passed: readOnlyRefused });
 
+  try {
+    const result = await source.query({ pagination: { limit: 1 } });
+    checks.push({ name: "bounded-query", passed: Array.isArray(result.features) && result.features.length <= 1 });
+  } catch {
+    checks.push({ name: "bounded-query", passed: false, detail: "Governed query failed." });
+  }
+
   // 2. Governed explain request + server-authored plan validation
-  const explainRequest = buildWarehouseExplainRequest(capabilities, harness.intent, harness.budgets, {
+  const explainRequest = buildWarehouseExplainRequest(capabilities, harness.intent, {
+    budgets: harness.budgets,
     now: harness.now,
   });
   const validatedPlan = validateWarehouseExecutionPlan(harness.plan, capabilities);

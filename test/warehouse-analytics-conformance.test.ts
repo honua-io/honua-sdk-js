@@ -147,7 +147,11 @@ function samplePlan(
   };
 }
 
-function samplePointBatch(plan: WarehouseExecutionPlan, sequence = 0) {
+function samplePointBatch(
+  plan: WarehouseExecutionPlan,
+  sequence = 0,
+  geometryOptions: { readonly crs?: string; readonly idField?: string } = {},
+) {
   return createGeoArrowBatch({
     id: `${plan.sourceId}:batch-${sequence}`,
     sequence,
@@ -166,13 +170,13 @@ function samplePointBatch(plan: WarehouseExecutionPlan, sequence = 0) {
       kind: "point",
       field: "geometry",
       coordinateLayout: "interleaved",
-      crs: "OGC:CRS84",
+      crs: geometryOptions.crs ?? "OGC:CRS84",
       values: [
         [-156.49, 20.9],
         [-156.48, 20.91],
       ],
     },
-    featureIds: { field: "id", values: [sequence * 2 + 1, sequence * 2 + 2] },
+    featureIds: { field: geometryOptions.idField ?? "id", values: [sequence * 2 + 1, sequence * 2 + 2] },
     dictionary: { field: "zone", values: ["R-1", "AG"] },
   }).batch;
 }
@@ -199,6 +203,19 @@ function stubQueryTransport(): WarehouseSourceTransport {
 }
 
 describe("governed warehouse source and capability contract", () => {
+  it("collects all governed query pages while preserving the requested starting offset", async () => {
+    const query = vi
+      .fn<WarehouseSourceTransport["query"]>()
+      .mockResolvedValueOnce({ features: [{ attributes: { id: 4 } }], exceededTransferLimit: true })
+      .mockResolvedValueOnce({ features: [{ attributes: { id: 5 } }], exceededTransferLimit: false });
+    const source = createGovernedWarehouseSource(sampleCapabilities("redshift"), { query }, { now: FIXED_NOW });
+    const result = await source.queryAll({ pagination: { offset: 3, limit: 2 } });
+    expect(result.features.map(({ attributes }) => attributes)).toEqual([{ id: 4 }, { id: 5 }]);
+    expect(query.mock.calls.map(([request]) => request.query.pagination)).toEqual([
+      { offset: 3, limit: 2 },
+      { offset: 4, limit: 1 },
+    ]);
+  });
   it("supports Redshift, Snowflake, Databricks, and DuckDB while rejecting BigQuery and CARTO", () => {
     expect(GOVERNED_WAREHOUSE_PROVIDERS).toEqual(["redshift", "snowflake", "databricks", "duckdb"]);
     for (const provider of GOVERNED_WAREHOUSE_PROVIDERS) {
@@ -386,12 +403,24 @@ describe("server-authored warehouse execution plan and explain guardrails", () =
       h3: { resolution: 8 },
       preferredRepresentation: "geoarrow",
     };
-    const request = buildWarehouseExplainRequest(caps, intent, budgets, { now: FIXED_NOW });
+    const request = buildWarehouseExplainRequest(caps, intent, { budgets, now: FIXED_NOW });
     expect(request.provider).toBe("databricks");
     const plan = validateWarehouseExecutionPlan(samplePlan("databricks"), caps);
     const accepted = acceptWarehouseExecutionPlan(plan, budgets);
     expect(accepted.bboxPushdown).toBe(true);
     expect(accepted.h3Pushdown).toBe(true);
+  });
+
+  it("rejects unknown plan schemas and plans tied to different source or schema revisions", () => {
+    const capabilities = validateWarehouseSourceCapabilities(sampleCapabilities("redshift"));
+    const plan = samplePlan("redshift");
+    for (const mismatch of [
+      { schemaVersion: "honua.warehouse-execution-plan.v2" },
+      { sourceVersion: "outdated-source" },
+      { schemaVersionToken: "outdated-schema" },
+    ]) {
+      expect(() => validateWarehouseExecutionPlan({ ...plan, ...mismatch }, capabilities)).toThrow(HonuaWarehouseError);
+    }
   });
 
   it("refuses over-budget cost, unknown estimates, low fidelity, unredacted plans, and unbounded object materialization", () => {
@@ -486,6 +515,40 @@ describe("server-authored warehouse execution plan and explain guardrails", () =
 });
 
 describe("bounded Arrow/GeoArrow streaming and renderer handoff", () => {
+  it("interrupts a transport that never settles when the accepted deadline expires", async () => {
+    const plan = acceptWarehouseExecutionPlan(
+      validateWarehouseExecutionPlan(samplePlan("redshift", { deadlineMs: 5 })),
+      {},
+    );
+    const open = vi.fn(async function* () {
+      yield await new Promise<never>(() => {});
+    });
+    await expect(collectWarehouseColumnarStream(plan, open)).rejects.toThrow("Warehouse stream deadline exceeded");
+    expect(open.mock.calls).toHaveLength(1);
+  });
+  it("aborts the transport and closes its iterator when a consumer stops early", async () => {
+    const plan = acceptWarehouseExecutionPlan(validateWarehouseExecutionPlan(samplePlan("redshift")), {});
+    let transportSignal: AbortSignal | undefined;
+    const close = vi.fn();
+    const stream = executeWarehouseColumnarStream(plan, ({ signal }) => {
+      transportSignal = signal;
+      return {
+        async *[Symbol.asyncIterator]() {
+          try {
+            yield { batch: samplePointBatch(plan, 0), transferBytes: 512 };
+          } finally {
+            close();
+          }
+        },
+      };
+    });
+
+    for await (const _batch of stream) break;
+
+    expect(transportSignal?.aborted).toBe(true);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("streams bounded batches, enforces budgets, handles AbortSignal, detects schema drift, and hands off to deck.gl/MapLibre", async () => {
     const plan = acceptWarehouseExecutionPlan(validateWarehouseExecutionPlan(samplePlan("redshift")), {
       maxReturnedRows: 10,
@@ -522,7 +585,11 @@ describe("bounded Arrow/GeoArrow streaming and renderer handoff", () => {
     expect(deckGl.metrics.geoJsonFeaturesMaterialized).toBe(0);
 
     const maplibre = handoffWarehouseBatchToMapLibre(receipt.batches[0]!.batch, plan);
-    expect(maplibre.geojson.features).toHaveLength(2);
+    expect(maplibre.geojson.features.map(({ id }) => id)).toEqual([1, 2]);
+    const customId = handoffWarehouseBatchToMapLibre(samplePointBatch(plan, 0, { idField: "parcel_id" }), plan);
+    expect(customId.geojson.features[0]).toMatchObject({ id: 1, properties: { parcel_id: 1 } });
+    const projected = samplePointBatch(plan, 0, { crs: "EPSG:3857" });
+    expect(() => handoffWarehouseBatchToMapLibre(projected, plan)).toThrow("requires longitude/latitude");
     expect(() => handoffWarehouseBatchToMapLibre(receipt.batches[0]!.batch, plan, { maxFeatures: 1 })).toThrow(
       HonuaWarehouseError,
     );
@@ -582,6 +649,8 @@ describe("cross-warehouse conformance across Redshift, Snowflake, Databricks, an
     const overBudgetPlan = samplePlan(provider, {
       estimates: { ...plan.estimates, estimatedCost: 99.99 },
     });
+    const queryTransport = stubQueryTransport();
+    const query = vi.spyOn(queryTransport, "query");
     const report = await runWarehouseProviderConformance({
       provider,
       capabilities,
@@ -603,7 +672,7 @@ describe("cross-warehouse conformance across Redshift, Snowflake, Databricks, an
       },
       plan,
       overBudgetPlan,
-      queryTransport: stubQueryTransport(),
+      queryTransport,
       streamTransport: async function* ({ plan: activePlan }) {
         yield { batch: samplePointBatch(activePlan, 0), transferBytes: 512 };
       },
@@ -612,6 +681,11 @@ describe("cross-warehouse conformance across Redshift, Snowflake, Databricks, an
     });
 
     expect(report.passed).toBe(true);
+    expect(query).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: { pagination: { limit: 1 } },
+      }),
+    );
     expect(report.provider).toBe(provider);
     expect(report.supportedFormats).toEqual(["format.geoparquet", "format.geoarrow"]);
     expect(report.checks.every((check) => check.passed)).toBe(true);

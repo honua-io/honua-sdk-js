@@ -1,5 +1,5 @@
 import { queryFilter } from "../contract/query-filter.js";
-import type { DegradedReason, Result, Source } from "../contract/types.js";
+import type { DegradedReason, Query, Result, Source } from "../contract/types.js";
 import { HonuaAbortError } from "../core/errors.js";
 import { envelope } from "../core/spatial-filter.js";
 import { settleOrAbort } from "./abort.js";
@@ -134,31 +134,42 @@ function budgetClock(context: LookupContext, callerSignal: AbortSignal | undefin
   };
 }
 
-type BrowserOutcome<T> =
-  | { readonly answer: PublicationLookup<T> }
-  | { readonly fallback: MeasuredLimit; readonly plan: PublicationLookupPlan };
+type QueryAnswer<T, Plan extends PublicationLookupPlan> = Omit<PublicationLookup<T>, "plan"> & {
+  readonly plan: Plan;
+};
 
-function overBudget<T>(
+interface LookupOperation<T, Plan extends PublicationLookupPlan> {
+  readonly label: string;
+  readonly emptyPlan: Plan;
+  prepare(signal: AbortSignal): Promise<{ readonly plan: Plan; read(): Promise<Result<T>> }>;
+  readonly serverQuery: Query<T>;
+}
+
+type BrowserOutcome<T, Plan extends PublicationLookupPlan> =
+  | { readonly answer: QueryAnswer<T, Plan> }
+  | { readonly fallback: MeasuredLimit; readonly plan: Plan };
+
+function overBudget<T, Plan extends PublicationLookupPlan>(
   context: LookupContext,
   value: string,
-  outcome: { readonly fallback: MeasuredLimit; readonly plan: PublicationLookupPlan },
-): BrowserOutcome<T> {
+  outcome: { readonly fallback: MeasuredLimit; readonly plan: Plan },
+): BrowserOutcome<T, Plan> {
   if (context.serverSource) return outcome;
   throw new HonuaPublicationError("query-budget-exceeded", noServerMessage(value, outcome.fallback), {
     detail: { limit: outcome.fallback },
   });
 }
 
-async function readInBrowser<T>(
+async function readInBrowser<T, Plan extends PublicationLookupPlan>(
   context: LookupContext,
-  value: string,
+  operation: LookupOperation<T, Plan>,
   clock: ReturnType<typeof budgetClock>,
-): Promise<BrowserOutcome<T>> {
+): Promise<BrowserOutcome<T, Plan>> {
   const started = performance.now();
-  const prepared = await settleOrAbort(context.parquet.prepareLookup<T>(value, clock.signal), clock.signal);
+  const prepared = await settleOrAbort(operation.prepare(clock.signal), clock.signal);
   const { plan } = prepared;
   if (plan.plannedBytes > context.budget.maxBytes) {
-    return overBudget(context, value, {
+    return overBudget(context, operation.label, {
       fallback: { kind: "bytes", budget: context.budget.maxBytes, observed: plan.plannedBytes },
       plan,
     });
@@ -174,47 +185,50 @@ async function readInBrowser<T>(
       answeredBy: "geoparquet",
       plan,
       elapsedMs,
-      ...(late ? { limit: { ...late, message: noServerMessage(value, late) } } : {}),
+      ...(late ? { limit: { ...late, message: noServerMessage(operation.label, late) } } : {}),
     }),
   };
 }
 
 /** A host without range support would cost the whole file, so the lookup leaves the browser with limit kind `ranges`. */
-async function answerInBrowser<T>(
+async function answerInBrowser<T, Plan extends PublicationLookupPlan>(
   context: LookupContext,
-  value: string,
+  operation: LookupOperation<T, Plan>,
   clock: ReturnType<typeof budgetClock>,
-): Promise<BrowserOutcome<T>> {
+): Promise<BrowserOutcome<T, Plan>> {
   try {
-    return await readInBrowser<T>(context, value, clock);
+    return await readInBrowser(context, operation, clock);
   } catch (error) {
     if (!isRangeNotServed(error)) throw error;
     const observed = Number(error.detail?.fileBytes);
-    return overBudget(context, value, {
+    return overBudget(context, operation.label, {
       fallback: { kind: "ranges", budget: context.budget.maxBytes, observed },
-      plan: EMPTY_PLAN,
+      plan: operation.emptyPlan,
     });
   }
 }
 
-interface ServerRequest {
-  readonly value: string;
+interface ServerRequest<T, Plan extends PublicationLookupPlan> {
+  readonly operation: LookupOperation<T, Plan>;
   readonly fallback: MeasuredLimit;
-  readonly plan: PublicationLookupPlan;
+  readonly plan: Plan;
   readonly started: number;
   readonly signal: AbortSignal | undefined;
 }
 
-async function answerFromServer<T>(context: LookupContext, request: ServerRequest): Promise<PublicationLookup<T>> {
-  const { value, signal } = request;
+async function answerFromServer<T, Plan extends PublicationLookupPlan>(
+  context: LookupContext,
+  request: ServerRequest<T, Plan>,
+): Promise<QueryAnswer<T, Plan>> {
+  const { operation, signal } = request;
   const limit: PublicationQueryLimit = {
     ...request.fallback,
-    message: answeredByServerMessage(value, request.fallback),
+    message: answeredByServerMessage(operation.label, request.fallback),
   };
   const server = context.serverSource as Source<T>;
   const result = await settleOrAbort(
     server.query({
-      filter: queryFilter.eq(context.publication.identity.field, value),
+      ...operation.serverQuery,
       outFields: context.guard.names,
       returnGeometry: true,
       ...(signal ? { signal } : {}),
@@ -236,6 +250,33 @@ async function answerFromServer<T>(context: LookupContext, request: ServerReques
   });
 }
 
+async function lookupWithinBudget<T, Plan extends PublicationLookupPlan>(
+  context: LookupContext,
+  operation: LookupOperation<T, Plan>,
+  options: PublicationLookupOptions,
+): Promise<QueryAnswer<T, Plan>> {
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) throw new HonuaAbortError();
+  const started = performance.now();
+  const clock = budgetClock(context, callerSignal);
+  let outcome: BrowserOutcome<T, Plan>;
+  try {
+    outcome = await answerInBrowser(context, operation, clock);
+  } catch (error) {
+    if (callerSignal?.aborted) throw new HonuaAbortError();
+    if (!(clock.expired() && context.serverSource)) throw error;
+    const observed = performance.now() - started;
+    outcome = {
+      fallback: { kind: "time", budget: context.budget.maxTimeToFirstResultMs, observed },
+      plan: operation.emptyPlan,
+    };
+  } finally {
+    clock.stop();
+  }
+  if ("answer" in outcome) return outcome.answer;
+  return answerFromServer(context, { operation, ...outcome, started, signal: callerSignal });
+}
+
 /** Answer an identity lookup from GeoParquet within the budget, or from the live service when over it. */
 export async function lookupIdentity<T>(
   context: LookupContext,
@@ -245,23 +286,16 @@ export async function lookupIdentity<T>(
   const { field } = context.publication.identity;
   if (typeof value !== "string" || value.length === 0)
     throw new TypeError(`${field} lookups take the identity as non-empty text`);
-  const callerSignal = options.signal;
-  if (callerSignal?.aborted) throw new HonuaAbortError();
-  const started = performance.now();
-  const clock = budgetClock(context, callerSignal);
-  let outcome: BrowserOutcome<T>;
-  try {
-    outcome = await answerInBrowser(context, value, clock);
-  } catch (error) {
-    if (callerSignal?.aborted) throw new HonuaAbortError();
-    if (!(clock.expired() && context.serverSource)) throw error;
-    const observed = performance.now() - started;
-    outcome = { fallback: { kind: "time", budget: context.budget.maxTimeToFirstResultMs, observed }, plan: EMPTY_PLAN };
-  } finally {
-    clock.stop();
-  }
-  if ("answer" in outcome) return outcome.answer;
-  return answerFromServer(context, { value, ...outcome, started, signal: callerSignal });
+  return lookupWithinBudget<T, PublicationLookupPlan>(
+    context,
+    {
+      label: value,
+      emptyPlan: EMPTY_PLAN,
+      prepare: (signal) => context.parquet.prepareLookup<T>(value, signal),
+      serverQuery: { filter: queryFilter.eq(field, value) },
+    },
+    options,
+  );
 }
 
 const EMPTY_BBOX_PLAN: PublicationBboxPlan = Object.freeze({
@@ -282,109 +316,6 @@ export async function planBboxLookup(
   return (await context.parquet.prepareBboxQuery(bbox, signal)).plan;
 }
 
-type BrowserBboxOutcome<T> =
-  | { readonly answer: PublicationBboxResult<T> }
-  | { readonly fallback: MeasuredLimit; readonly plan: PublicationBboxPlan };
-
-function overBboxBudget<T>(
-  context: LookupContext,
-  label: string,
-  outcome: { readonly fallback: MeasuredLimit; readonly plan: PublicationBboxPlan },
-): BrowserBboxOutcome<T> {
-  if (context.serverSource) return outcome;
-  throw new HonuaPublicationError("query-budget-exceeded", noServerMessage(label, outcome.fallback), {
-    detail: { limit: outcome.fallback },
-  });
-}
-
-async function readBboxInBrowser<T>(
-  context: LookupContext,
-  bbox: PublicationBounds,
-  label: string,
-  clock: ReturnType<typeof budgetClock>,
-): Promise<BrowserBboxOutcome<T>> {
-  const started = performance.now();
-  const prepared = await settleOrAbort(context.parquet.prepareBboxQuery<T>(bbox, clock.signal), clock.signal);
-  if (prepared.plan.plannedBytes > context.budget.maxBytes) {
-    return overBboxBudget(context, label, {
-      fallback: { kind: "bytes", budget: context.budget.maxBytes, observed: prepared.plan.plannedBytes },
-      plan: prepared.plan,
-    });
-  }
-  const result = context.guard.result(await settleOrAbort(prepared.read(), clock.signal));
-  const elapsedMs = performance.now() - started;
-  const late: MeasuredLimit | undefined = clock.expired()
-    ? { kind: "time", budget: context.budget.maxTimeToFirstResultMs, observed: elapsedMs }
-    : undefined;
-  return {
-    answer: Object.freeze({
-      result,
-      answeredBy: "geoparquet",
-      plan: prepared.plan,
-      elapsedMs,
-      ...(late ? { limit: { ...late, message: noServerMessage(label, late) } } : {}),
-    }),
-  };
-}
-
-async function answerBboxInBrowser<T>(
-  context: LookupContext,
-  bbox: PublicationBounds,
-  label: string,
-  clock: ReturnType<typeof budgetClock>,
-): Promise<BrowserBboxOutcome<T>> {
-  try {
-    return await readBboxInBrowser<T>(context, bbox, label, clock);
-  } catch (error) {
-    if (!isRangeNotServed(error)) throw error;
-    const observed = Number(error.detail?.fileBytes);
-    return overBboxBudget(context, label, {
-      fallback: { kind: "ranges", budget: context.budget.maxBytes, observed },
-      plan: EMPTY_BBOX_PLAN,
-    });
-  }
-}
-
-async function answerBboxFromServer<T>(
-  context: LookupContext,
-  bbox: PublicationBounds,
-  label: string,
-  request: {
-    readonly fallback: MeasuredLimit;
-    readonly plan: PublicationBboxPlan;
-    readonly started: number;
-    readonly signal: AbortSignal | undefined;
-  },
-): Promise<PublicationBboxResult<T>> {
-  const limit: PublicationQueryLimit = {
-    ...request.fallback,
-    message: answeredByServerMessage(label, request.fallback),
-  };
-  const server = context.serverSource as Source<T>;
-  const result = await settleOrAbort(
-    server.query({
-      spatialFilter: envelope(...bbox),
-      outFields: context.guard.names,
-      returnGeometry: true,
-      ...(request.signal ? { signal: request.signal } : {}),
-    }),
-    request.signal,
-  );
-  const reason: DegradedReason = {
-    capability: "query",
-    reason: limit.message,
-    protocol: "geoparquet",
-    sourceId: context.sourceId,
-  };
-  return Object.freeze({
-    result: context.guard.result(result, reason),
-    answeredBy: "server",
-    plan: request.plan,
-    elapsedMs: performance.now() - request.started,
-    limit,
-  });
-}
-
 /** Answer a spatial bbox query via Parquet bbox row-group pruning within budget, or fall back to live server. */
 export async function queryBboxWithinBudget<T>(
   context: LookupContext,
@@ -392,26 +323,14 @@ export async function queryBboxWithinBudget<T>(
   options: PublicationLookupOptions = {},
 ): Promise<PublicationBboxResult<T>> {
   assertValidBbox(bbox);
-  const callerSignal = options.signal;
-  if (callerSignal?.aborted) throw new HonuaAbortError();
-  const label = `bbox [${bbox.join(",")}]`;
-  const started = performance.now();
-  const clock = budgetClock(context, callerSignal);
-
-  let outcome: BrowserBboxOutcome<T>;
-  try {
-    outcome = await answerBboxInBrowser<T>(context, bbox, label, clock);
-  } catch (error) {
-    if (callerSignal?.aborted) throw new HonuaAbortError();
-    if (!(clock.expired() && context.serverSource)) throw error;
-    const observed = performance.now() - started;
-    outcome = {
-      fallback: { kind: "time", budget: context.budget.maxTimeToFirstResultMs, observed },
-      plan: EMPTY_BBOX_PLAN,
-    };
-  } finally {
-    clock.stop();
-  }
-  if ("answer" in outcome) return outcome.answer;
-  return answerBboxFromServer(context, bbox, label, { ...outcome, started, signal: callerSignal });
+  return lookupWithinBudget<T, PublicationBboxPlan>(
+    context,
+    {
+      label: `bbox [${bbox.join(",")}]`,
+      emptyPlan: EMPTY_BBOX_PLAN,
+      prepare: (signal) => context.parquet.prepareBboxQuery<T>(bbox, signal),
+      serverQuery: { spatialFilter: envelope(...bbox) },
+    },
+    options,
+  );
 }

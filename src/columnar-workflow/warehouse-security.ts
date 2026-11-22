@@ -21,9 +21,8 @@ export class HonuaWarehouseError extends Error {
     public readonly code: HonuaWarehouseErrorCode,
     message: string,
     public readonly detail?: Readonly<Record<string, unknown>>,
-    options?: ErrorOptions,
   ) {
-    super(message, options);
+    super(message);
     this.name = "HonuaWarehouseError";
   }
 }
