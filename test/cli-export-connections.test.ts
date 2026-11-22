@@ -1,26 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli/main.js";
-
-function captureOutput() {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const outSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
-    stdout.push(String(chunk));
-    return true;
-  });
-  const errSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    stderr.push(String(chunk));
-    return true;
-  });
-  return {
-    stdout: () => stdout.join(""),
-    stderr: () => stderr.join(""),
-    restore() {
-      outSpy.mockRestore();
-      errSpy.mockRestore();
-    },
-  };
-}
+import { captureOutput } from "./helpers/cli-output.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
