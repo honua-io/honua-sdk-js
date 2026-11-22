@@ -177,6 +177,20 @@ export interface ElevationProfileSample {
   readonly noData: boolean;
 }
 
+/** Execution path, spatial reference, datum, terrain-availability, and degradation metadata. */
+export interface SceneAnalysisProvenance {
+  readonly executionPath: "client" | "server" | "terrain-provider";
+  readonly crs: string;
+  readonly verticalDatum: string;
+  readonly verticalDatumAssumed: boolean;
+  readonly terrainAvailable: boolean;
+  readonly terrainVersion?: string;
+  readonly precisionMeters?: number;
+  readonly occlusionDetected?: boolean;
+  readonly degraded: boolean;
+  readonly degradationReasons: readonly string[];
+}
+
 /** The decoded `ElevationProfileResponse` the profile endpoint returns. */
 export interface ElevationProfileResult {
   readonly datasetId: string;
@@ -186,6 +200,7 @@ export interface ElevationProfileResult {
   readonly lineSrid: number;
   readonly isAllNoData: boolean;
   readonly samples: readonly ElevationProfileSample[];
+  readonly provenance?: SceneAnalysisProvenance;
 }
 
 /** Parameters for an elevation-profile request along a polyline. */
@@ -219,14 +234,29 @@ function normalizeProfileResponse(datasetId: string, raw: RawProfileResponse): E
     elevation: sample.elevation ?? null,
     noData: sample.noData ?? sample.elevation == null,
   }));
+  const isAllNoData = raw.isAllNoData ?? samples.every((sample) => sample.noData);
+  const hasAnyNoData = isAllNoData || samples.some((sample) => sample.noData);
+  const lineSrid = raw.lineSrid ?? 4326;
+  const degradationReasons: string[] = [];
+  if (isAllNoData) degradationReasons.push("terrain-unavailable-all-nodata");
+  else if (hasAnyNoData) degradationReasons.push("terrain-partial-nodata");
   return {
     datasetId: raw.datasetId ?? datasetId,
     layerId: raw.layerId ?? -1,
     sampleCount: raw.sampleCount ?? samples.length,
     lineLengthMeters: raw.lineLengthMeters ?? 0,
-    lineSrid: raw.lineSrid ?? 4326,
-    isAllNoData: raw.isAllNoData ?? samples.every((sample) => sample.noData),
+    lineSrid,
+    isAllNoData,
     samples,
+    provenance: {
+      executionPath: "server",
+      crs: `EPSG:${lineSrid}`,
+      verticalDatum: "ellipsoidal-wgs84",
+      verticalDatumAssumed: true,
+      terrainAvailable: !isAllNoData,
+      degraded: degradationReasons.length > 0,
+      degradationReasons,
+    },
   };
 }
 
@@ -304,6 +334,7 @@ export interface LineOfSightResult {
   readonly sampleCount?: number;
   /** Whether any sampled point fell on terrain NoData. */
   readonly hasNoDataSamples?: boolean;
+  readonly provenance?: SceneAnalysisProvenance;
 }
 
 interface RawLosResponse {
@@ -351,10 +382,13 @@ function normalizeLosResponse(datasetId: string, raw: RawLosResponse): LineOfSig
           height: raw.obstruction.elevation ?? 0,
         }
       : undefined;
+  const visible = raw.visible ?? obstruction === undefined;
+  const hasNoData = raw.hasNoDataSamples === true;
+  const degradationReasons = hasNoData ? ["terrain-nodata-encountered"] : [];
   return {
     datasetId: raw.datasetId ?? datasetId,
     layerId: raw.layerId,
-    visible: raw.visible ?? obstruction === undefined,
+    visible,
     obstruction,
     obstructionDistanceMeters: raw.obstruction?.distanceMeters,
     distanceMeters: raw.distanceMeters,
@@ -362,6 +396,16 @@ function normalizeLosResponse(datasetId: string, raw: RawLosResponse): LineOfSig
     targetElevation: raw.targetElevation,
     sampleCount: raw.sampleCount,
     hasNoDataSamples: raw.hasNoDataSamples,
+    provenance: {
+      executionPath: "server",
+      crs: "EPSG:4326",
+      verticalDatum: "ellipsoidal-wgs84",
+      verticalDatumAssumed: true,
+      terrainAvailable: !hasNoData,
+      occlusionDetected: !visible || obstruction !== undefined,
+      degraded: hasNoData,
+      degradationReasons,
+    },
   };
 }
 
@@ -440,6 +484,7 @@ export interface ViewshedResult {
   readonly visibleSampleCount: number;
   /** The radial visibility samples. */
   readonly samples: readonly ViewshedSample[];
+  readonly provenance?: SceneAnalysisProvenance;
 }
 
 interface RawViewshedResponse {
@@ -496,6 +541,9 @@ function normalizeViewshedResponse(request: ViewshedRequest, raw: RawViewshedRes
     distanceMeters: sample.distanceMeters ?? 0,
     visible: sample.visible ?? false,
   }));
+  const observerNoData = raw.observerNoData === true;
+  const visibleSampleCount = raw.visibleSampleCount ?? samples.filter((sample) => sample.visible).length;
+  const degradationReasons = observerNoData ? ["observer-terrain-nodata"] : [];
   return {
     datasetId: raw.datasetId ?? request.datasetId,
     layerId: raw.layerId,
@@ -504,8 +552,18 @@ function normalizeViewshedResponse(request: ViewshedRequest, raw: RawViewshedRes
     rayCount: raw.rayCount,
     samplesPerRay: raw.samplesPerRay,
     sampleCount: raw.sampleCount ?? samples.length,
-    visibleSampleCount: raw.visibleSampleCount ?? samples.filter((sample) => sample.visible).length,
+    visibleSampleCount,
     samples,
+    provenance: {
+      executionPath: "server",
+      crs: "EPSG:4326",
+      verticalDatum: "ellipsoidal-wgs84",
+      verticalDatumAssumed: true,
+      terrainAvailable: !observerNoData && samples.length > 0,
+      occlusionDetected: samples.length > visibleSampleCount,
+      degraded: observerNoData,
+      degradationReasons,
+    },
   };
 }
 
@@ -539,18 +597,22 @@ export interface SceneMeasurement {
   readonly segmentMeters: readonly number[];
   /** Polygon area in m² when `mode` is `area` and there are >= 3 positions. */
   readonly areaSquareMeters?: number;
-  readonly mode: "distance" | "area";
+  /** Vertical elevation difference (last height minus first height) in metres. */
+  readonly heightDeltaMeters?: number;
+  readonly mode: "distance" | "area" | "height";
+  readonly provenance?: SceneAnalysisProvenance;
 }
 
 /**
- * Compute a 3D distance or area measurement from an ordered list of positions
- * (typically picked off the scene). For `distance` the result carries the total
- * 3D path length and per-segment slant distances; for `area` it additionally
- * carries the spherical polygon area. Pure.
+ * Compute a 3D distance, area, or height measurement from an ordered list of
+ * positions (typically picked off the scene). For `distance` the result carries
+ * the total 3D path length and per-segment slant distances; for `area` it
+ * additionally carries the spherical polygon area; for `height` it reports the
+ * signed height delta between endpoints. Pure.
  */
 export function measureScenePositions(
   positions: readonly SceneAnalysisPosition[],
-  mode: "distance" | "area" = "distance",
+  mode: "distance" | "area" | "height" = "distance",
 ): SceneMeasurement {
   const segmentMeters: number[] = [];
   for (let i = 1; i < positions.length; i++) {
@@ -558,11 +620,27 @@ export function measureScenePositions(
       slantDistanceMeters(positions[i - 1] as SceneAnalysisPosition, positions[i] as SceneAnalysisPosition),
     );
   }
+  const hasExplicitHeights = positions.every((pos) => typeof pos.height === "number" && Number.isFinite(pos.height));
+  const first = positions[0];
+  const last = positions[positions.length - 1];
+  const heightDeltaMeters = first && last ? (last.height ?? 0) - (first.height ?? 0) : undefined;
+  const degradationReasons = hasExplicitHeights ? [] : ["height-defaulted-to-zero"];
+  const provenance: SceneAnalysisProvenance = {
+    executionPath: "client",
+    crs: "EPSG:4326",
+    verticalDatum: "ellipsoidal-wgs84",
+    verticalDatumAssumed: true,
+    terrainAvailable: hasExplicitHeights,
+    degraded: !hasExplicitHeights,
+    degradationReasons,
+  };
   const measurement: SceneMeasurement = {
     positions,
     lengthMeters: segmentMeters.reduce((sum, segment) => sum + segment, 0),
     segmentMeters,
+    ...(heightDeltaMeters !== undefined ? { heightDeltaMeters } : {}),
     mode,
+    provenance,
   };
   if (mode === "area") {
     return { ...measurement, areaSquareMeters: sphericalPolygonAreaSquareMeters(positions) };
@@ -778,6 +856,9 @@ export async function renderMeasurement(
  * their own UI/labels.
  */
 export function formatMeasurementLabel(measurement: SceneMeasurement): string {
+  if (measurement.mode === "height" && measurement.heightDeltaMeters !== undefined) {
+    return `${measurement.heightDeltaMeters >= 0 ? "+" : ""}${measurement.heightDeltaMeters.toFixed(1)} m`;
+  }
   if (measurement.mode === "area" && measurement.areaSquareMeters !== undefined) {
     const area = measurement.areaSquareMeters;
     return area >= 1_000_000 ? `${(area / 1_000_000).toFixed(2)} km²` : `${area.toFixed(1)} m²`;

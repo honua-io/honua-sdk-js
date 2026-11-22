@@ -226,9 +226,10 @@ function applyIntent(state: SceneStoreState, intent: SceneStoreIntent): SceneSto
       return {
         ...state,
         camera: { ...intent.bookmark.camera },
+        ...(intent.bookmark.time ? { timeline: { ...intent.bookmark.time } } : {}),
         bookmarks: {
           ...state.bookmarks,
-          [intent.bookmark.id]: { ...intent.bookmark, camera: { ...intent.bookmark.camera } },
+          [intent.bookmark.id]: cloneBookmark(intent.bookmark),
         },
       };
     case "set-filter":
@@ -417,6 +418,7 @@ function cloneBookmark(
   return {
     ...bookmark,
     camera: cloneCamera(bookmark.camera),
+    ...(bookmark.time ? { time: { ...bookmark.time } } : {}),
   };
 }
 

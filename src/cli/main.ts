@@ -23,6 +23,7 @@ import { gpCommand } from "./commands/gp.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
 import { mapCommand, tilesCommand } from "./commands/map.js";
 import { queryCommand } from "./commands/query.js";
+import { sceneCommand } from "./commands/scene.js";
 import { stacCommand } from "./commands/stac.js";
 import { studioCommand } from "./commands/studio.js";
 import { printLine } from "./output.js";
@@ -104,6 +105,11 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "source-url" },
   { name: "connection" },
   { name: "title" },
+  { name: "description" },
+  { name: "scene-id" },
+  { name: "upload-id" },
+  { name: "resume" },
+  { name: "chunk-bytes" },
   { name: "options" },
   { name: "workspace" },
   { name: "actor" },
@@ -112,6 +118,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "idempotency-key" },
   { name: "count", boolean: true },
   { name: "image", boolean: true },
+  { name: "wait", boolean: true },
+  { name: "requires-auth", boolean: true },
   { name: "json", boolean: true },
   { name: "dry-run", boolean: true },
   { name: "yes", boolean: true },
@@ -126,6 +134,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   services: servicesCommand,
   layers: layersCommand,
   query: queryCommand,
+  scene: sceneCommand,
   explain: explainCommand,
   stac: stacCommand,
   studio: studioCommand,
@@ -218,6 +227,16 @@ MAPS
       --dry-run                  Print the plan; never contacts the server
       --yes                      Required to actually publish
       --json                     Emit the full command receipt
+
+SCENES (3D Tiles, models, point clouds)
+  honua scene list [--json]
+  honua scene get <sceneId> [--json]
+  honua scene resolve <sceneId> [--json]
+  honua scene upload <file> --format <3d-tiles|gltf|glb|citygml|las|laz|copc> [--scene-id <id>] [--resume <file>] [--yes]
+  honua scene import --format <format> (--upload-id <id> | --source-url <url>) [--scene-id <id>] [--wait] [--yes]
+  honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
+  honua scene cancel <jobId> [--yes] [--json]
+  honua scene retire <sceneId> [--if-match <etag>] [--yes] [--json]
 
 AUTH / CONFIG
   honua login --base-url <url> [--api-key <key>]

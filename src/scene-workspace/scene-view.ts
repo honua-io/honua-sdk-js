@@ -70,6 +70,7 @@ import {
   cesiumCameraToSceneState,
 } from "./cesium-adapter.js";
 import type { ScenePrimitiveDiagnostic } from "./primitives.js";
+import { type SceneProtectedAssetSession, createProtectedSceneAssetSession } from "./scene-access-session.js";
 import {
   type HonuaScene,
   type HonuaSceneResolution,
@@ -112,6 +113,8 @@ export interface SceneViewOptions {
    * rendering). Omit to load + diagnose scenes headlessly without rendering.
    */
   readonly target?: CesiumSceneRuntimeTarget;
+  /** Optional fetch implementation forwarded to auto-created protected-scene asset sessions. */
+  readonly fetchFn?: typeof fetch;
 }
 
 /** Events emitted by a {@link SceneView}. */
@@ -140,10 +143,12 @@ type AnalysisOverlayTarget = {
 export class SceneView {
   readonly #execute: SceneViewRequestExecutor;
   readonly #target: CesiumSceneRuntimeTarget | undefined;
+  readonly #fetchFn: typeof fetch | undefined;
   readonly #listeners = new Set<SceneViewEventListener>();
   readonly #layerHandles = new Map<string, CesiumLayerHandle>();
 
   #scene: HonuaScene | undefined;
+  #accessSession: SceneProtectedAssetSession | undefined;
   #layers: SceneLayerState[] = [];
   #bookmarks: SceneBookmark[] = [];
   #diagnostics: readonly ScenePrimitiveDiagnostic[] = [];
@@ -155,6 +160,7 @@ export class SceneView {
     }
     this.#execute = execute;
     this.#target = options.target;
+    this.#fetchFn = options.fetchFn;
   }
 
   // ── Discovery ───────────────────────────────────────────────
@@ -199,6 +205,8 @@ export class SceneView {
     const resolution = await requestSceneResolution(execute, sceneId, signal);
     const resolved = sceneWithResolvedRuntime(metadata, resolution);
     this.#teardownLayers();
+    this.#accessSession?.dispose();
+    this.#accessSession = createSessionIfProtected(resolved, execute, this.#fetchFn);
     this.#scene = resolved;
     this.#bookmarks = sceneViewpointBookmarks(resolved);
     this.#layers = sceneLayerStates(resolved);
@@ -219,6 +227,11 @@ export class SceneView {
   /** The currently loaded scene, or `undefined` before the first `loadScene`. */
   get scene(): HonuaScene | undefined {
     return this.#scene;
+  }
+
+  /** Host-bound protected asset session for the loaded protected scene, when advertised. */
+  get accessSession(): SceneProtectedAssetSession | undefined {
+    return this.#accessSession;
   }
 
   /** Snapshot of the loaded scene's layers (one per rendered primitive). */
@@ -349,7 +362,7 @@ export class SceneView {
    */
   async measure(
     positions: readonly SceneAnalysisPosition[],
-    options: { readonly mode?: "distance" | "area" } & AnalysisOverlayTarget = {},
+    options: { readonly mode?: "distance" | "area" | "height" } & AnalysisOverlayTarget = {},
   ): Promise<{ measurement: SceneMeasurement; overlay?: SceneAnalysisOverlay }> {
     const measurement = measureScenePositions(positions, options.mode ?? "distance");
     if (!options.entities) return { measurement };
@@ -375,6 +388,8 @@ export class SceneView {
    */
   dispose(): void {
     this.#teardownLayers();
+    this.#accessSession?.dispose();
+    this.#accessSession = undefined;
     this.#listeners.clear();
     this.#scene = undefined;
     this.#layers = [];
@@ -407,6 +422,21 @@ function bindClientExecutor(client: HonuaClient | undefined): SceneViewRequestEx
   return (method, path, init, signal) => client.pipelineRequestJson(method, path, init, signal);
 }
 
+function createSessionIfProtected(
+  scene: HonuaScene,
+  execute: SceneDiscoveryRequestExecutor,
+  fetchFn?: typeof fetch,
+): SceneProtectedAssetSession | undefined {
+  if (!scene.auth?.requiresAuthentication || !scene.accessAffordance) return undefined;
+  if (!scene.accessAffordance.origin || !scene.accessAffordance.pathPrefix) return undefined;
+  return createProtectedSceneAssetSession({
+    sceneId: scene.sceneId,
+    affordance: scene.accessAffordance,
+    execute,
+    ...(fetchFn ? { fetchFn } : {}),
+  });
+}
+
 /** Keep metadata for display, but take the runtime tileset URL only from resolve. */
 function sceneWithResolvedRuntime(scene: HonuaScene, resolution: HonuaSceneResolution): HonuaScene {
   const { tilesetUrl: _metadataTilesetUrl, ...rest } = scene;
@@ -416,5 +446,10 @@ function sceneWithResolvedRuntime(scene: HonuaScene, resolution: HonuaSceneResol
     capabilities: resolution.capabilities,
     auth: resolution.auth,
     ...(resolution.tilesetUrl ? { tilesetUrl: resolution.tilesetUrl } : {}),
+    ...(resolution.copcUrl ? { copcUrl: resolution.copcUrl } : {}),
+    ...(resolution.terrainUrl ? { terrainUrl: resolution.terrainUrl } : {}),
+    ...(resolution.servingFormat ? { servingFormat: resolution.servingFormat } : {}),
+    ...(resolution.contentKind ? { contentKind: resolution.contentKind } : {}),
+    ...(resolution.accessAffordance ? { accessAffordance: resolution.accessAffordance } : {}),
   };
 }
