@@ -52,7 +52,9 @@ describe("studio-agent session default MCP base URL", () => {
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.every((url) => url === expectedUrl)).toBe(true);
   });
+});
 
+describe("studio-agent session MCP base URL override", () => {
   it("honors an explicit mcpBaseUrl override and strips trailing slashes", async () => {
     const urls: string[] = [];
     const session = createStudioAgentSession({
