@@ -67,9 +67,11 @@ import {
   type CesiumLayerHandle,
   type CesiumSceneRuntimeTarget,
   applyCesiumScenePrimitives,
+  applyCesiumScenePrimitivesInternal,
   cesiumCameraToSceneState,
 } from "./cesium-adapter.js";
 import type { ScenePrimitiveDiagnostic } from "./primitives.js";
+import { type SceneProtectedAssetSession, createProtectedSceneAssetSession } from "./scene-access-session.js";
 import {
   type HonuaScene,
   type HonuaSceneResolution,
@@ -112,6 +114,8 @@ export interface SceneViewOptions {
    * rendering). Omit to load + diagnose scenes headlessly without rendering.
    */
   readonly target?: CesiumSceneRuntimeTarget;
+  /** Optional fetch implementation forwarded to auto-created protected-scene asset sessions. */
+  readonly fetchFn?: typeof fetch;
 }
 
 /** Events emitted by a {@link SceneView}. */
@@ -140,10 +144,12 @@ type AnalysisOverlayTarget = {
 export class SceneView {
   readonly #execute: SceneViewRequestExecutor;
   readonly #target: CesiumSceneRuntimeTarget | undefined;
+  readonly #fetchFn: typeof fetch | undefined;
   readonly #listeners = new Set<SceneViewEventListener>();
   readonly #layerHandles = new Map<string, CesiumLayerHandle>();
 
   #scene: HonuaScene | undefined;
+  #accessSession: SceneProtectedAssetSession | undefined;
   #layers: SceneLayerState[] = [];
   #bookmarks: SceneBookmark[] = [];
   #diagnostics: readonly ScenePrimitiveDiagnostic[] = [];
@@ -155,6 +161,7 @@ export class SceneView {
     }
     this.#execute = execute;
     this.#target = options.target;
+    this.#fetchFn = options.fetchFn;
   }
 
   // ── Discovery ───────────────────────────────────────────────
@@ -194,18 +201,28 @@ export class SceneView {
     const sceneId = requestedId.trim();
     const execute = this.#discoveryExecutor();
     const metadata = typeof scene === "string" ? await getScene(execute, sceneId, signal) : scene;
-    // Resolve is the only source of the runtime tileset URL. Do not synthesize
-    // `/scenes/{id}/tileset.json` from the client origin when the payload omits one.
     const resolution = await requestSceneResolution(execute, sceneId, signal);
     const resolved = sceneWithResolvedRuntime(metadata, resolution);
+    const primitives = sceneToRuntimePrimitives(resolved);
+    const accessSession = createSessionIfProtected(resolved, execute, this.#fetchFn);
+    // Camera-only targets apply camera state and never request scene assets.
+    const rendersAssets =
+      this.#target?.scene && primitives.some(({ kind }) => kind === "model-layer" || kind === "elevation-source");
+    if (rendersAssets && resolved.auth?.requiresAuthentication && !accessSession) {
+      throw new Error("Protected scene rendering requires a scoped access-session affordance.");
+    }
     this.#teardownLayers();
+    this.#accessSession?.dispose();
+    this.#accessSession = accessSession;
     this.#scene = resolved;
     this.#bookmarks = sceneViewpointBookmarks(resolved);
     this.#layers = sceneLayerStates(resolved);
 
     if (this.#target) {
-      const primitives = sceneToRuntimePrimitives(resolved);
-      const result = await applyCesiumScenePrimitives(this.#target, primitives);
+      const result = await applyCesiumScenePrimitivesInternal(this.#target, primitives, {
+        signal,
+        accessSession: this.#accessSession,
+      });
       this.#diagnostics = result.diagnostics;
       for (const [id, handle] of result.layers) this.#layerHandles.set(id, handle);
       this.#emit({ type: "diagnostics", diagnostics: this.#diagnostics });
@@ -219,6 +236,11 @@ export class SceneView {
   /** The currently loaded scene, or `undefined` before the first `loadScene`. */
   get scene(): HonuaScene | undefined {
     return this.#scene;
+  }
+
+  /** Host-bound protected asset session for the loaded protected scene, when advertised. */
+  get accessSession(): SceneProtectedAssetSession | undefined {
+    return this.#accessSession;
   }
 
   /** Snapshot of the loaded scene's layers (one per rendered primitive). */
@@ -349,7 +371,7 @@ export class SceneView {
    */
   async measure(
     positions: readonly SceneAnalysisPosition[],
-    options: { readonly mode?: "distance" | "area" } & AnalysisOverlayTarget = {},
+    options: { readonly mode?: "distance" | "area" | "height" } & AnalysisOverlayTarget = {},
   ): Promise<{ measurement: SceneMeasurement; overlay?: SceneAnalysisOverlay }> {
     const measurement = measureScenePositions(positions, options.mode ?? "distance");
     if (!options.entities) return { measurement };
@@ -375,6 +397,8 @@ export class SceneView {
    */
   dispose(): void {
     this.#teardownLayers();
+    this.#accessSession?.dispose();
+    this.#accessSession = undefined;
     this.#listeners.clear();
     this.#scene = undefined;
     this.#layers = [];
@@ -404,17 +428,52 @@ export class SceneView {
 
 function bindClientExecutor(client: HonuaClient | undefined): SceneViewRequestExecutor | undefined {
   if (!client) return undefined;
-  return (method, path, init, signal) => client.pipelineRequestJson(method, path, init, signal);
+  const origin = new URL(client.serverBaseUrl).origin;
+  return (...args: Parameters<SceneViewRequestExecutor>) => {
+    const [method, path, init, signal] = args;
+    if (new URL(path, client.serverBaseUrl).origin !== origin) {
+      throw new Error("Scene discovery requests must use the configured server origin.");
+    }
+    return client.pipelineRequestJson(method, path, init, signal);
+  };
 }
 
-/** Keep metadata for display, but take the runtime tileset URL only from resolve. */
+function createSessionIfProtected(
+  scene: HonuaScene,
+  execute: SceneDiscoveryRequestExecutor,
+  fetchFn?: typeof fetch,
+): SceneProtectedAssetSession | undefined {
+  if (!scene.auth?.requiresAuthentication || !scene.accessAffordance) return undefined;
+  if (!scene.accessAffordance.origin || !scene.accessAffordance.pathPrefix) return undefined;
+  return createProtectedSceneAssetSession({
+    sceneId: scene.sceneId,
+    affordance: scene.accessAffordance,
+    execute,
+    ...(fetchFn ? { fetchFn } : {}),
+  });
+}
+
+/** Take runtime fields from the current resolution. */
 function sceneWithResolvedRuntime(scene: HonuaScene, resolution: HonuaSceneResolution): HonuaScene {
-  const { tilesetUrl: _metadataTilesetUrl, ...rest } = scene;
+  const {
+    tilesetUrl: _tilesetUrl,
+    copcUrl: _copcUrl,
+    terrainUrl: _terrainUrl,
+    servingFormat: _servingFormat,
+    contentKind: _contentKind,
+    accessAffordance: _accessAffordance,
+    ...metadata
+  } = scene;
   return {
-    ...rest,
+    ...metadata,
     sceneId: resolution.sceneId,
     capabilities: resolution.capabilities,
     auth: resolution.auth,
     ...(resolution.tilesetUrl ? { tilesetUrl: resolution.tilesetUrl } : {}),
+    ...(resolution.copcUrl ? { copcUrl: resolution.copcUrl } : {}),
+    ...(resolution.terrainUrl ? { terrainUrl: resolution.terrainUrl } : {}),
+    ...(resolution.servingFormat ? { servingFormat: resolution.servingFormat } : {}),
+    ...(resolution.contentKind ? { contentKind: resolution.contentKind } : {}),
+    ...(resolution.accessAffordance ? { accessAffordance: resolution.accessAffordance } : {}),
   };
 }

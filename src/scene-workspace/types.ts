@@ -67,6 +67,9 @@ export interface SceneBookmark {
   readonly id: string;
   readonly label: string;
   readonly camera: SceneCameraState;
+  readonly projection?: string;
+  readonly verticalDatum?: string;
+  readonly time?: SceneTimelineState;
 }
 
 export interface SceneTimelineState {

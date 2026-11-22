@@ -54,6 +54,12 @@ import {
   diagnoseScenePrimitives,
   summarizeDiagnosticStatus,
 } from "./primitives.js";
+import type { SceneProtectedAssetSession } from "./scene-access-session.js";
+import {
+  type CesiumSceneResource,
+  type CesiumSceneResourceRuntime,
+  loadWithSceneResource,
+} from "./scene-cesium-resource.js";
 import type { SceneCameraState, SceneStoreState } from "./types.js";
 
 /**
@@ -389,7 +395,7 @@ export function modelLayerToCesiumPlacement(primitive: SceneModelLayerPrimitive)
  * The Cesium symbols the live wiring needs. Modelled as the minimal slice of
  * `typeof import("cesium")` so a `vi.mock("cesium")` stub can satisfy it.
  */
-type CesiumModule = {
+type CesiumModule = CesiumSceneResourceRuntime & {
   readonly Cartesian3: {
     fromDegrees(longitude: number, latitude: number, height?: number): unknown;
   };
@@ -402,7 +408,7 @@ type CesiumModule = {
     clone(matrix: unknown, result?: unknown): unknown;
   };
   readonly Cesium3DTileset: {
-    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTilesetLike>;
+    fromUrl(url: string | CesiumSceneResource, options?: Record<string, unknown>): Promise<CesiumTilesetLike>;
   };
   readonly Cesium3DTileStyle: new (style?: Record<string, unknown>) => unknown;
   readonly Color: {
@@ -412,7 +418,7 @@ type CesiumModule = {
     fromGltfAsync(options: Record<string, unknown>): Promise<CesiumModelLike>;
   };
   readonly CesiumTerrainProvider: {
-    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
+    fromUrl(url: string | CesiumSceneResource, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
   };
   /**
    * Optional on purpose: only the clock binding reads it, and a peer without it
@@ -676,6 +682,8 @@ export async function applyTilesetServerStyle(
 export interface CesiumSceneMaterializationOptions {
   /** Abort the materialization. Checked before the load starts and again before the resource is attached. */
   readonly signal?: AbortSignal;
+  /** @internal Scoped asset transport for protected scenes. */
+  readonly accessSession?: SceneProtectedAssetSession;
 }
 
 /**
@@ -725,9 +733,12 @@ export async function addCesium3DTileset(
     ...(pointCloudShading ? { pointCloudShading } : {}),
     ...(primitive.attribution ? { credit: primitive.attribution } : {}),
   };
-  const tileset = await (Object.keys(tilesetOptions).length > 0
-    ? mod.Cesium3DTileset.fromUrl(primitive.uri, tilesetOptions)
-    : mod.Cesium3DTileset.fromUrl(primitive.uri));
+  const access = options.accessSession ? { session: options.accessSession, signal: options.signal } : undefined;
+  const tileset = await loadWithSceneResource(mod, { url: primitive.uri, access }, (resource) =>
+    Object.keys(tilesetOptions).length > 0
+      ? mod.Cesium3DTileset.fromUrl(resource, tilesetOptions)
+      : mod.Cesium3DTileset.fromUrl(resource),
+  );
   // From here on the tileset is adapter-owned. A placement, style-sidecar, or
   // collection failure must not strand it: nothing else holds a reference, so
   // it would otherwise retain its GPU/worker resources for the process lifetime.
@@ -740,7 +751,10 @@ export async function addCesium3DTileset(
       tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
     }
     if (options.applyServerStyle !== false) {
-      await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch.bind(globalThis));
+      const fetchStyle: typeof fetch = access
+        ? (url) => access.session.fetchAsset({ url: String(url), signal: options.signal })
+        : (options.fetchImpl ?? fetch.bind(globalThis));
+      await applyTilesetServerStyle(tileset, primitive.uri, mod, fetchStyle);
       options.signal?.throwIfAborted();
     }
     scene.primitives.add(tileset);
@@ -771,11 +785,14 @@ export async function addCesiumModel(
   // matrix (alongside translation + rotation). Cesium applies `Model.scale` on
   // top of `modelMatrix`, so passing it here too would square the scale
   // (requested 3 → rendered 9). Apply it exactly once, via the matrix.
-  const model = await mod.Model.fromGltfAsync({
-    url: primitive.uri,
-    modelMatrix: placementToModelMatrix(mod, placement),
-    ...(primitive.attribution ? { credit: primitive.attribution } : {}),
-  });
+  const access = options.accessSession ? { session: options.accessSession, signal: options.signal } : undefined;
+  const model = await loadWithSceneResource(mod, { url: primitive.uri, access }, (url) =>
+    mod.Model.fromGltfAsync({
+      url,
+      modelMatrix: placementToModelMatrix(mod, placement),
+      ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+    }),
+  );
   try {
     options.signal?.throwIfAborted();
     scene.primitives.add(model);
@@ -1193,8 +1210,9 @@ async function applyCesiumTerrainInternal(
   primitive: SceneElevationSourcePrimitive,
   cesium: CesiumModule | undefined,
   disposePreviousProvider: boolean,
-  signal?: AbortSignal,
+  options: { signal?: AbortSignal; accessSession?: SceneProtectedAssetSession } = {},
 ): Promise<CesiumLayerHandle | undefined> {
+  const { signal, accessSession } = options;
   signal?.throwIfAborted();
   assertRenderableTerrain(primitive);
   const url = typeof primitive.url === "string" && primitive.url.trim() !== "" ? primitive.url : undefined;
@@ -1203,9 +1221,9 @@ async function applyCesiumTerrainInternal(
   }
   if (!url) return undefined;
   const mod = cesium ?? (await loadCesium());
-  const provider = await mod.CesiumTerrainProvider.fromUrl(
-    url,
-    primitive.attribution ? { credit: primitive.attribution } : {},
+  const access = accessSession ? { session: accessSession, signal } : undefined;
+  const provider = await loadWithSceneResource(mod, { url, access }, (resource) =>
+    mod.CesiumTerrainProvider.fromUrl(resource, primitive.attribution ? { credit: primitive.attribution } : {}),
   );
   if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
   if (signal?.aborted) {
@@ -1436,6 +1454,7 @@ function stableStringify(value: unknown, seen: Set<object>): string {
  * @internal
  */
 export interface ApplyCesiumScenePrimitivesInternalOptions {
+  readonly accessSession?: SceneProtectedAssetSession;
   /**
    * Cancels the application. Checked before the Cesium peer loads, between
    * primitives, and inside each materialization before its resource is attached.
@@ -1579,7 +1598,7 @@ export async function applyCesiumScenePrimitivesInternal(
       if (primitive.kind === "elevation-source") {
         const previousProvider = scene.terrainProvider;
         terrainWasApplied = true;
-        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium!, false, signal);
+        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium!, false, options);
         if (handle) {
           if (previousProvider && previousProvider !== scene.terrainProvider) {
             deferredTerrainProviders.push(previousProvider);
@@ -1611,7 +1630,8 @@ export async function applyCesiumScenePrimitivesInternal(
       if (primitive.kind === "model-layer") {
         // Only materialized formats reach here: anything else already diagnosed
         // as unsupported above and was filtered into `unsupportedPrimitives`.
-        const materializationOptions = { ...(signal ? { signal } : {}) };
+        const { accessSession } = options;
+        const materializationOptions = { signal, accessSession };
         if (primitive.format === "3d-tiles") {
           registerHandle(key, await addCesium3DTileset(scene, primitive, cesium!, materializationOptions));
         } else {

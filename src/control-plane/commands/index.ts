@@ -45,6 +45,22 @@ export type {
   StudioDraftSaveVersionInput,
 } from "./catalog.js";
 export {
+  HONUA_SCENE_COMMANDS,
+  HONUA_SCENE_COMMAND_IDS,
+  pollSceneJobUntilTerminal,
+  sceneJobStatusCommand,
+  sceneResolveCommand,
+  sceneRetireCommand,
+} from "./scene-catalog.js";
+export type {
+  HonuaSceneCommandId,
+  PollSceneJobOptions,
+  SceneIdCommandInput,
+  SceneJobStatusInput,
+  SceneResolveCommandOutput,
+  SceneRetireOutput,
+} from "./scene-catalog.js";
+export {
   HonuaCommandError,
   classifyCommandStatus,
   isHonuaCommandConflict,
