@@ -18,7 +18,7 @@ about what it can and cannot do.
 ## Why composition, not a new vocabulary
 
 Operators routinely need a parcels FeatureServer + a WMS basemap + a
-STAC overlay + an OData operational layer in one runtime map. The 13
+STAC overlay + an OData operational layer in one runtime map. The 16
 first-party adapters already work in isolation. What was missing was
 the rule set that lets `createDataset({ sources: [...] })` accept a
 heterogeneous list and `loadMapDocument` project it onto one MapLibre
@@ -330,16 +330,18 @@ materialization). Under the default tolerant policy the runtime:
 
 ### First-party protocol combinations
 
-Every pair-and-triple from the 13 first-party adapters is composable
+Every pair-and-triple from the 16 first-party adapters is composable
 through `createDataset` without any additional consumer wiring:
 
 | Adapter family | Adapters |
 | --- | --- |
+| gRPC | `grpc` |
 | GeoServices | `geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service` |
-| OGC API | `ogc-features`, `ogc-tiles`, `ogc-maps` |
+| OGC API | `ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records` |
 | STAC | `stac` |
 | WFS / WMS / WMTS | `wfs`, `wms`, `wmts` |
 | OData | `odata` |
+| PMTiles | `pmtiles` |
 | MapLibre-native | `maplibre-vector`, `maplibre-raster`, `maplibre-geojson` (rendered via the source bridge, not `Dataset`) |
 
 ### `resolveSource` — first-party with a custom adapter
@@ -391,8 +393,9 @@ implementation, the composition surface only requires that you:
   MapLibre does not throw on a missing source. The legend (`buildLegend`)
   iterates the live style and naturally drops orphan entries.
 - **Capability honesty vs. ergonomics**: a 4-source mix containing one
-  render-only adapter (WMS) reports no `query` capability across the
-  whole composition (because WMS lacks the others). That is
+  render-only adapter without `query` (such as WMTS, OGC Tiles, OGC Maps, or
+  PMTiles) reports no `query` capability across the whole composition (because
+  that adapter lacks `query`). That is
   *intentional*; partition the participants for per-operation answers.
 - **OData `$metadata` timing**: pass live `Source` instances to
   `intersectCapabilities` after first call so the negotiated flags

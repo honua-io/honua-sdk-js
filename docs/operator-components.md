@@ -44,7 +44,7 @@ workspace.on((event) => {
 });
 ```
 
-The workspace composes six controller surfaces:
+The workspace composes seven controller surfaces:
 
 - `ChatController` streams a freeform user request into a drafted operator intent.
 - `ClarificationController` submits typed clarification answers back through the shared client.
