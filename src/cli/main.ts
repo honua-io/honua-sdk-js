@@ -209,8 +209,9 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
       --bucket / --prefix / --region / --endpoint   Non-secret quick-create hints
       --id <connectionId>        Test the configured connection after printing the link
 
-  honua export <serviceId/layerId> [--id <exportId>]
+  honua export <serviceId/layerId> [--id <exportId>] [--public] [--timeout-ms <ms>]
       Create a cloud-native Export (PMTiles + GeoParquet + Portolan STAC collection).
+      --public waits for a server-confirmed public URL; --timeout-ms bounds the wait (default 600000).
   honua export list              List Exports
   honua export remove <exportId> Unpublish an Export (requires --yes)
 
