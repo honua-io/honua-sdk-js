@@ -95,7 +95,7 @@ in this repository is the in-repo suite, not the npm program. See the
 
 ## Renamed exports in 0.3.0
 
-These exports were renamed in 0.3.0. Third-party module names and GeoServices REST wire values are unchanged. `@honua/honua-migrate` 0.3.0-beta.0 still imports `esriConfig`, `esriRequest`, `resetEsriConfig` and `getEsriConfigHonuaInterceptors`, so those four stay on `@honua/sdk-js/client-compat` as deprecated aliases through 0.3.x and are removed in 0.4.0. Every other former name has no alias.
+These exports were renamed in 0.3.0. Third-party module names and GeoServices REST wire values are unchanged. `@honua/honua-migrate` 0.3.0-beta.0 still imports `esriConfig`, `esriRequest`, `resetEsriConfig` and `getEsriConfigHonuaInterceptors`, so those four stay on `@honua/sdk-js/client-compat` as deprecated aliases in 0.4.0. Migrate to the new names below; no removal version is committed here. Every other former name has no alias.
 
 | Entry point | Former name | New name |
 | --- | --- | --- |

@@ -137,9 +137,10 @@ checks; never use it to gate a single fan-out call.
 ### Per-operation reasoning: partition first, intersect second
 
 `intersectCapabilities` is intentionally *global* across the
-participants you hand it. For a render+overlay stack where the
-basemap is render-only and only the overlay carries query semantics,
-partition first:
+participants you hand it. To query tabular feature overlays separately from
+raster basemaps, partition first. This example excludes WMS from the feature
+subset because its GetFeatureInfo point queries serve a different operation;
+WMS can still advertise `query` on its own source:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 const featureSources = sources.filter(
@@ -151,7 +152,7 @@ const renderSources = sources.filter(
 
 intersectCapabilities(featureSources).has("query"); // true
 intersectCapabilities(renderSources).has("tiles"); // true
-intersectCapabilities([...featureSources, ...renderSources]).size; // 0
+intersectCapabilities([...featureSources, ...renderSources]).size; // 1: query
 ```
 
 The "smarter, per-operation per-source matrix" alternative is exactly
@@ -263,7 +264,7 @@ A four-protocol composition mirroring the operator-board archetype.
 const sources: SourceDescriptor[] = [
   /* parcels-fs (geoservices-feature-service)
    * permits-ogc (ogc-features)
-   * basemap-wms (wms — render-only)
+   * basemap-wms (wms — render, tiles, and GetFeatureInfo query)
    * scenes-stac (stac)
    */
 ];
@@ -357,12 +358,17 @@ content negotiator.
 
 ### Render-only
 
-WMS / WMTS / OGC Tiles / OGC Maps and the MapLibre-native sources are
-*render-only*. They participate in the composition through the
-composed MapLibre style but do not contribute to the canonical
-`Source.query` family. `intersectCapabilities` reports that honestly
-(WMS contributes only `render`/`tiles`/`query`; the others have no
-`query`). For per-operation reasoning, partition before intersecting.
+WMTS, OGC Tiles, OGC Maps, PMTiles, and the MapLibre-native sources are
+*render-only*. They participate through the composed MapLibre style without
+canonical `Source.query` support. MapLibre-native sources use the source
+bridge rather than `Dataset`.
+
+WMS additionally supports point queries through GetFeatureInfo. A WMS source
+bound to a native service advertises `render`, `tiles`, and `query` by default.
+For third-party WMS, `query` requires a reviewed GetFeatureInfo binding and
+must be advertised by the source; materialization removes `query` when that
+binding is absent. Inspect the live source's capabilities before querying.
+For per-operation reasoning, partition before intersecting.
 
 ## Adapter author's checklist
 
