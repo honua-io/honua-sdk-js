@@ -1402,7 +1402,7 @@ export async function applyCesiumScenePrimitives(
  * @internal
  */
 export function scenePrimitiveMountKey(primitive: SceneRuntimePrimitive): string {
-  return `${primitive.kind}\0${primitive.id}`;
+  return `${primitive.kind} ${primitive.id}`;
 }
 
 /**
