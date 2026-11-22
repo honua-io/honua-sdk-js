@@ -36,16 +36,21 @@ describe("studio-agent session default MCP base URL", () => {
     expect(urls.some((url) => url.endsWith("/api/mcp"))).toBe(false);
   });
 
-  it("strips a trailing /api segment from baseUrl when deriving MCP base URL", async () => {
+  it.each([
+    ["https://honua.example/api/", "https://honua.example/mcp"],
+    ["https://api", "https://api/mcp"],
+    ["//api", "//api/mcp"],
+    ["/proxy/api/", "/proxy/mcp"],
+  ])("derives MCP base URL from %s", async (baseUrl, expectedUrl) => {
     const urls: string[] = [];
     const session = createStudioAgentSession({
-      baseUrl: "https://honua.example/api/",
+      baseUrl,
       fetchImpl: createMcpAndChatFetch(urls),
     });
     await session.refreshTools();
 
     expect(urls.length).toBeGreaterThan(0);
-    expect(urls.every((url) => url === "https://honua.example/mcp")).toBe(true);
+    expect(urls.every((url) => url === expectedUrl)).toBe(true);
   });
 
   it("honors an explicit mcpBaseUrl override and strips trailing slashes", async () => {

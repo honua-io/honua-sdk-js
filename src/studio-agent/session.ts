@@ -1241,7 +1241,7 @@ function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
   if (trimmed === "/api") {
     return "";
   }
-  if (trimmed.endsWith("/api")) {
+  if (trimmed.endsWith("/api") && new URL(trimmed, "https://localhost").pathname.endsWith("/api")) {
     return trimmed.slice(0, -"/api".length);
   }
   return trimmed;
