@@ -319,7 +319,7 @@ describe("browser GeoParquet bbox budget enforcement, field guard, and live serv
               geometry: { type: "MultiPolygon", coordinates: [] },
             },
           ],
-          exceededTransferLimit: false,
+          exceededTransferLimit: true,
         };
       },
     } as unknown as Source;
@@ -327,6 +327,7 @@ describe("browser GeoParquet bbox budget enforcement, field guard, and live serv
     const withServer: LookupContext = { ...baseContext, serverSource: liveServer };
     const fallback = await queryBboxWithinBudget(withServer, fullBbox);
     expect(fallback.answeredBy).toBe("server");
+    expect(fallback.result.exceededTransferLimit).toBe(true);
     expect(fallback.limit?.kind).toBe("bytes");
     expect(fallback.result.degraded?.[0]?.reason).toContain("so the live service answered instead.");
     expect(fallback.result.features[0]?.attributes).toEqual({ tmk_txt: "2-3-7-001", plat: "030" });

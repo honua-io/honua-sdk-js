@@ -20,6 +20,7 @@ import {
   DEFAULT_WAREHOUSE_MAX_OBJECT_MATERIALIZATION_ROWS,
   type WarehouseExecutionReconciliation,
   reconcileWarehouseExecutionMetrics,
+  warehouseExecutionDeadlineMs,
 } from "./warehouse-plan.js";
 import { HonuaWarehouseError } from "./warehouse-security.js";
 
@@ -207,10 +208,7 @@ async function* abortableChunks(
 }
 
 function scheduleStreamDeadline(plan: AcceptedWarehouseExecutionPlan, controller: AbortController) {
-  const deadline = Math.min(
-    plan.deadlineMs ?? Number.POSITIVE_INFINITY,
-    plan.budgets.deadlineMs ?? Number.POSITIVE_INFINITY,
-  );
+  const deadline = warehouseExecutionDeadlineMs(plan);
   if (deadline === Number.POSITIVE_INFINITY) return;
   if (!Number.isFinite(deadline) || deadline <= 0 || deadline > 2 ** 31 - 1) {
     throw new HonuaWarehouseError("plan-invalid", "Warehouse stream deadline is outside the supported duration.");

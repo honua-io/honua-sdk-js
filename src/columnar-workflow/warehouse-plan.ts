@@ -314,6 +314,7 @@ export function validateWarehouseExecutionPlan(
     throw new HonuaWarehouseError("plan-invalid", "Warehouse execution plan must be an object.");
   }
   assertNoWarehouseSecrets(input);
+  validateWarehouseDeadline(input.deadlineMs);
   if (input.schemaVersion !== WAREHOUSE_EXECUTION_PLAN_SCHEMA_VERSION) {
     throw new HonuaWarehouseError("plan-invalid", "Unsupported warehouse execution plan schema version.");
   }
@@ -410,6 +411,8 @@ export function evaluateWarehouseExecutionPlan(
   plan: WarehouseExecutionPlan,
   budgets: WarehousePlanBudgets,
 ): WarehousePlanPolicyDecision {
+  validateWarehouseDeadline(plan.deadlineMs);
+  validateWarehouseDeadline(budgets.deadlineMs);
   const violations: WarehousePlanViolation[] = [];
   const allowUnknown = budgets.allowUnknownEstimates === true;
   if (plan.estimates.confidence === "unknown" && !allowUnknown) {
@@ -519,6 +522,20 @@ export function acceptWarehouseExecutionPlan(
   return Object.freeze({ ...plan, budgets: Object.freeze({ ...budgets }) });
 }
 
+function validateWarehouseDeadline(value: unknown): void {
+  if (value === undefined) return;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 2 ** 31 - 1) {
+    throw new HonuaWarehouseError(
+      "plan-invalid",
+      "Warehouse deadline must be a positive finite duration at most 2147483647 ms.",
+    );
+  }
+}
+
+export function warehouseExecutionDeadlineMs(plan: AcceptedWarehouseExecutionPlan): number {
+  return Math.min(plan.deadlineMs ?? Number.POSITIVE_INFINITY, plan.budgets.deadlineMs ?? Number.POSITIVE_INFINITY);
+}
+
 /** Reconcile observed execution metrics against the accepted plan and classify material divergence. */
 export function reconcileWarehouseExecutionMetrics(
   plan: AcceptedWarehouseExecutionPlan,
@@ -565,9 +582,10 @@ export function reconcileWarehouseExecutionMetrics(
     estimate: plan.estimates.transferBytes,
   });
   checkLimit("cost", observed.cost, { budget: plan.budgets.maxEstimatedCost, estimate: plan.estimates.estimatedCost });
-  if (plan.budgets.deadlineMs !== undefined && observed.elapsedMs > plan.budgets.deadlineMs) {
+  const deadline = warehouseExecutionDeadlineMs(plan);
+  if (observed.elapsedMs > deadline) {
     exceeded = true;
-    findings.push(`Observed elapsedMs (${observed.elapsedMs}) exceeded deadline (${plan.budgets.deadlineMs}).`);
+    findings.push(`Observed elapsedMs (${observed.elapsedMs}) exceeded deadline (${deadline}).`);
   }
 
   return Object.freeze({

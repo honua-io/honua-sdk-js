@@ -204,6 +204,29 @@ function stubQueryTransport(): WarehouseSourceTransport {
 }
 
 describe("governed warehouse source and capability contract", () => {
+  it.each([undefined, Number.POSITIVE_INFINITY, Number.NaN, -1, 0, 1.5])(
+    "rejects an unbounded or invalid queryAll limit %s before fetching",
+    async (limit) => {
+      const query = vi.fn(stubQueryTransport().query);
+      const source = createGovernedWarehouseSource(sampleCapabilities("redshift"), { query }, { now: FIXED_NOW });
+      await expect(source.queryAll(limit === undefined ? {} : { pagination: { limit } })).rejects.toMatchObject({
+        code: "budget-exceeded",
+      });
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
+
+  it("stops a perpetually paginated provider at the caller's finite limit", async () => {
+    const query = vi.fn<WarehouseSourceTransport["query"]>().mockResolvedValue({
+      features: [{ attributes: { id: 1 } }],
+      exceededTransferLimit: true,
+    });
+    const source = createGovernedWarehouseSource(sampleCapabilities("redshift"), { query }, { now: FIXED_NOW });
+    const result = await source.queryAll({ pagination: { limit: 2 } });
+    expect(result.features).toHaveLength(2);
+    expect(result.exceededTransferLimit).toBe(true);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
   it("collects all governed query pages while preserving the requested starting offset", async () => {
     const query = vi
       .fn<WarehouseSourceTransport["query"]>()
@@ -479,6 +502,25 @@ describe("server-authored warehouse execution plan and explain guardrails", () =
     ).toContain("object-materialization-unbounded");
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -1, 2 ** 31])(
+    "rejects invalid plan and budget deadlines %s",
+    (deadlineMs) => {
+      expect(() => validateWarehouseExecutionPlan(samplePlan("duckdb", { deadlineMs }))).toThrow(HonuaWarehouseError);
+      const plan = validateWarehouseExecutionPlan(samplePlan("duckdb"));
+      expect(() => acceptWarehouseExecutionPlan(plan, { deadlineMs })).toThrow(HonuaWarehouseError);
+    },
+  );
+
+  it.each([{ deadlineMs: 100 }, {}])("reconciles the plan deadline with budgets %j", (budgets) => {
+    const plan = acceptWarehouseExecutionPlan(
+      validateWarehouseExecutionPlan(samplePlan("duckdb", { deadlineMs: 5 })),
+      budgets,
+    );
+    const observed = { returnedRows: 1, returnedBytes: 1, transferBytes: 1, elapsedMs: 6 };
+    expect(reconcileWarehouseExecutionMetrics(plan, observed).status).toBe("budget-exceeded");
+    expect(reconcileWarehouseExecutionMetrics(plan, { ...observed, elapsedMs: 5 }).status).toBe("within-budget");
+  });
+
   it("reconciles observed execution metrics against accepted plans", () => {
     const plan = acceptWarehouseExecutionPlan(validateWarehouseExecutionPlan(samplePlan("duckdb")), budgets);
     expect(
@@ -690,5 +732,22 @@ describe("cross-warehouse conformance across Redshift, Snowflake, Databricks, an
     expect(report.provider).toBe(provider);
     expect(report.supportedFormats).toEqual(["format.geoparquet", "format.geoarrow"]);
     expect(report.checks.every((check) => check.passed)).toBe(true);
+    query.mockResolvedValueOnce({ features: [], exceededTransferLimit: false });
+    const emptyReport = await runWarehouseProviderConformance({
+      provider,
+      capabilities,
+      intent: { sourceId: capabilities.sourceId },
+      budgets: {},
+      plan,
+      overBudgetPlan,
+      queryTransport,
+      streamTransport: async function* ({ plan: activePlan }) {
+        yield { batch: samplePointBatch(activePlan, 0), transferBytes: 512 };
+      },
+      deckGlGeometry: "point",
+      now: FIXED_NOW,
+    });
+    expect(emptyReport.checks.find(({ name }) => name === "bounded-query")?.passed).toBe(false);
+    expect(emptyReport.passed).toBe(false);
   });
 });

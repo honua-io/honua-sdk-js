@@ -510,7 +510,10 @@ async function queryAllWarehousePages<T>(
   query: Query<T> | undefined,
   fetchPage: (query: Query<T> | undefined) => Promise<Result<T>>,
 ): Promise<Result<T>> {
-  const { limit = Number.POSITIVE_INFINITY, offset = 0 } = query?.pagination ?? {};
+  const { limit, offset = 0 } = query?.pagination ?? {};
+  if (limit === undefined || !Number.isSafeInteger(limit) || limit <= 0) {
+    throw new HonuaWarehouseError("budget-exceeded", "Warehouse queryAll requires a positive finite pagination.limit.");
+  }
   const features: Result<T>["features"][number][] = [];
   let page: Result<T>;
   do {
@@ -524,7 +527,7 @@ async function queryAllWarehousePages<T>(
             pagination: {
               ...query?.pagination,
               offset: offset + features.length,
-              ...(Number.isFinite(limit) ? { limit: remaining } : {}),
+              limit: remaining,
             },
           },
     );
@@ -540,7 +543,11 @@ async function queryAllWarehousePages<T>(
   return { ...page, features };
 }
 
-/** Project a server-discovered governed warehouse source into the protocol-neutral SDK Source contract. */
+/**
+ * Project a server-discovered governed warehouse source into the protocol-neutral SDK Source contract.
+ * `queryAll` requires a positive safe-integer `pagination.limit`; reaching this ceiling may
+ * return `exceededTransferLimit: true` when more rows remain.
+ */
 export function createGovernedWarehouseSource<T = Record<string, unknown>>(
   rawCapabilities: WarehouseEffectiveSourceCapabilities,
   transport: WarehouseSourceTransport<T>,

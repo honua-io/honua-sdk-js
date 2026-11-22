@@ -68,7 +68,6 @@ export async function runWarehouseProviderConformance(
   const capabilities = validateWarehouseSourceCapabilities(harness.capabilities);
   const source = createGovernedWarehouseSource(capabilities, harness.queryTransport, { now: harness.now });
 
-  // 1. Credential-free source projection + read-only fail-closed check
   let readOnlyRefused = false;
   try {
     await source.applyEdits({});
@@ -79,12 +78,11 @@ export async function runWarehouseProviderConformance(
 
   try {
     const result = await source.query({ pagination: { limit: 1 } });
-    checks.push({ name: "bounded-query", passed: Array.isArray(result.features) && result.features.length <= 1 });
+    checks.push({ name: "bounded-query", passed: Array.isArray(result.features) && result.features.length === 1 });
   } catch {
     checks.push({ name: "bounded-query", passed: false, detail: "Governed query failed." });
   }
 
-  // 2. Governed explain request + server-authored plan validation
   const explainRequest = buildWarehouseExplainRequest(capabilities, harness.intent, {
     budgets: harness.budgets,
     now: harness.now,
@@ -96,7 +94,6 @@ export async function runWarehouseProviderConformance(
     passed: explainRequest.provider === harness.provider && acceptedPlan.parameterRedacted === true,
   });
 
-  // 3. Cost/budget refusal before execution
   const refusedDecision = evaluateWarehouseExecutionPlan(
     validateWarehouseExecutionPlan(harness.overBudgetPlan, capabilities),
     harness.budgets,
@@ -106,7 +103,6 @@ export async function runWarehouseProviderConformance(
     passed: !refusedDecision.accepted && refusedDecision.violations.length > 0,
   });
 
-  // 4. Bounded columnar streaming + observed reconciliation
   const receipt = await collectWarehouseColumnarStream(acceptedPlan, harness.streamTransport);
   checks.push({
     name: "bounded-columnar-stream",
@@ -114,7 +110,6 @@ export async function runWarehouseProviderConformance(
     detail: `rows=${receipt.totals.rows},batches=${receipt.totals.batches}`,
   });
 
-  // 5. Cancellation check (pre-aborted signal stops before reading)
   let cancelObserved = false;
   try {
     await collectWarehouseColumnarStream(acceptedPlan, harness.streamTransport, { signal: AbortSignal.abort() });
@@ -123,7 +118,6 @@ export async function runWarehouseProviderConformance(
   }
   checks.push({ name: "stream-cancellation", passed: cancelObserved });
 
-  // 6. Zero-copy deck.gl + bounded MapLibre handoff
   const firstBatch = receipt.batches[0]?.batch;
   if (!firstBatch) {
     throw new HonuaWarehouseError("corrupt-batch", "Conformance stream produced no batches.");
