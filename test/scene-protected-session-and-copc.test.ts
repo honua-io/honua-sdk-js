@@ -376,6 +376,78 @@ describe("protected scene asset session, separation of serving format vs content
     expect(attempts).toBe(2);
   });
 
+  it("reuses a live envelope after a transient proactive refresh failure", async () => {
+    const srv = await startSceneServer();
+    const base = Date.UTC(2026, 10, 21);
+    let clock = base;
+    let attempts = 0;
+    const url = `${srv.origin}/scenes/protected-city/tileset.json`;
+    const session = createProtectedSceneAssetSession({
+      sceneId: "protected-city",
+      affordance: {
+        method: "POST",
+        path: "/scenes/protected-city/access-envelope",
+        origin: srv.origin,
+        pathPrefix: "/scenes/protected-city/",
+        transport: "header",
+      },
+      execute: async <T>(method: string, path: string) => {
+        attempts += 1;
+        if (clock > base) throw new TypeError("temporary upstream outage");
+        return fetch(`${srv.origin}${path}`, { method }).then((response) => response.json() as Promise<T>);
+      },
+      now: () => clock,
+    });
+
+    await session.ensureAccess();
+    clock = base + 180_000;
+    const controller = new AbortController();
+    const cancelled = session.authorizeRequest({ url, signal: controller.signal });
+    const normal = session.authorizeRequest({ url });
+    const forced = session.ensureAccess({ forceRefresh: true });
+    controller.abort();
+    await Promise.all([
+      expect(cancelled).rejects.toMatchObject({ name: "AbortError" }),
+      expect(normal).resolves.toMatchObject({ url, headers: { "X-Honua-Token": "secret-scene-token-1" } }),
+      expect(forced).rejects.toMatchObject({ code: "refresh-failed" }),
+    ]);
+    expect(attempts).toBe(2);
+    expect(session.snapshot()).toMatchObject({ status: "active", generation: 1 });
+    await expect(session.authorizeRequest({ url: "invalid-url?token=secret-scene-token-1" })).rejects.toMatchObject({
+      message: "Invalid scene asset URL.",
+    });
+
+    clock = base + 300_000;
+    await expect(session.authorizeRequest({ url })).rejects.toMatchObject({ code: "refresh-failed" });
+  });
+
+  it("propagates an authorization denial from a proactive refresh", async () => {
+    const srv = await startSceneServer();
+    const base = Date.UTC(2026, 10, 21);
+    let clock = base;
+    const url = `${srv.origin}/scenes/protected-city/tileset.json`;
+    const session = createProtectedSceneAssetSession({
+      sceneId: "protected-city",
+      affordance: {
+        method: "POST",
+        path: "/scenes/protected-city/access-envelope",
+        origin: srv.origin,
+        pathPrefix: "/scenes/protected-city/",
+        transport: "header",
+      },
+      execute: async <T>(method: string, path: string) => {
+        if (clock > base) throw Object.assign(new Error("access revoked"), { statusCode: 403 });
+        return fetch(`${srv.origin}${path}`, { method }).then((response) => response.json() as Promise<T>);
+      },
+      now: () => clock,
+    });
+
+    await session.ensureAccess();
+    clock = base + 180_000;
+    await expect(session.authorizeRequest({ url })).rejects.toMatchObject({ code: "forbidden" });
+    expect(session.snapshot().expiresAt).toBeUndefined();
+  });
+
   it("intersects advertised path and method restrictions with the caller scope", async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response(null));
     let expiresAt = "2026-08-22T00:15:00+00:00";

@@ -169,6 +169,8 @@ export class HonuaSceneAccessSessionError extends Error {
   }
 }
 
+class TransientSceneRefreshError extends HonuaSceneAccessSessionError {}
+
 interface ActiveEnvelope {
   readonly token: string;
   readonly expiresAtIso: string;
@@ -233,7 +235,6 @@ export function createProtectedSceneAssetSession(
     if (inFlightRefresh) {
       return awaitWithSignal(inFlightRefresh, signal);
     }
-    const previousStatus = status;
     status = "refreshing";
 
     const task = Promise.resolve().then(async (): Promise<ActiveEnvelope> => {
@@ -255,11 +256,13 @@ export function createProtectedSceneAssetSession(
         notifySnapshot();
         return parsed;
       } catch (cause) {
+        const error = classifyAcquisitionError(cause, active?.token);
         if (!isDisposed()) {
-          status = previousStatus === "active" && active && now() < active.expiresAtMs ? "active" : "expired";
+          if (error.code === "unauthorized" || error.code === "forbidden") active = undefined;
+          status = active && now() < active.expiresAtMs ? "active" : "expired";
           notifySnapshot();
         }
-        throw classifyAcquisitionError(cause, active?.token);
+        throw error;
       } finally {
         inFlightRefresh = undefined;
       }
@@ -284,7 +287,21 @@ export function createProtectedSceneAssetSession(
     if (!needsAcquisition && active) {
       return active;
     }
-    return acquireEnvelope(requestOptions.signal);
+    try {
+      return await acquireEnvelope(requestOptions.signal);
+    } catch (cause) {
+      requestOptions.signal?.throwIfAborted();
+      ensureNotDisposed();
+      if (
+        !requestOptions.forceRefresh &&
+        cause instanceof TransientSceneRefreshError &&
+        active &&
+        now() < active.expiresAtMs
+      ) {
+        return active;
+      }
+      throw cause;
+    }
   };
 
   const assertRequestInScope = (rawUrl: string, method: string, scope: SceneAccessScope): URL => {
@@ -617,7 +634,7 @@ function parseHttpUrl(rawUrl: string, code: SceneAccessSessionErrorCode): URL {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new HonuaSceneAccessSessionError(code, `Invalid scene asset URL "${rawUrl}".`);
+    throw new HonuaSceneAccessSessionError(code, "Invalid scene asset URL.");
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new HonuaSceneAccessSessionError(code, `Unsupported URL protocol "${parsed.protocol}".`);
@@ -685,6 +702,9 @@ function classifyAcquisitionError(cause: unknown, secretToken?: string): HonuaSc
   }
   if (statusCode === 403) {
     return new HonuaSceneAccessSessionError("forbidden", safeMessage, { statusCode: 403 });
+  }
+  if (statusCode === undefined || statusCode === 429 || statusCode >= 500) {
+    return new TransientSceneRefreshError("refresh-failed", safeMessage, { statusCode });
   }
   return new HonuaSceneAccessSessionError("refresh-failed", safeMessage, { statusCode });
 }
