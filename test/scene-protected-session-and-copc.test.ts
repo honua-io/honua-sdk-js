@@ -588,4 +588,48 @@ describe("protected scene asset session, separation of serving format vs content
     await expect(client.readRange({ start: 0, end: 511 })).rejects.toThrow(/exceeds maxRangeBytes/);
     await expect(client.readRange({ start: 10, end: 200 })).rejects.toThrow(/exceeded maxRangeBytes|unbounded/);
   });
+
+  it("validates partial response offsets and sizes before returning COPC bytes", async () => {
+    const request = { start: 10, end: 13 };
+    const clientFor = (response: Response) =>
+      createCopcRangeClient({
+        baseUrl: "https://copc.example",
+        sceneId: "dem-lidar",
+        fetchFn: async () => response,
+      });
+    const partial = (length: number, contentRange: string) =>
+      new Response(new Uint8Array(length), { status: 206, headers: { "Content-Range": contentRange } });
+    await expect(clientFor(new Response(new Uint8Array(4))).readRange(request)).rejects.toThrow(/ignored HTTP Range/);
+    await expect(clientFor(partial(4, "bytes 11-14/100")).readRange(request)).rejects.toThrow(/requested range/);
+    await expect(clientFor(partial(3, "bytes 10-13/100")).readRange(request)).rejects.toThrow(/response size/);
+    await expect(clientFor(partial(2, "bytes 10-11/12")).readRange(request)).resolves.toMatchObject({
+      bytes: new Uint8Array(2),
+    });
+  });
+
+  it("cancels a COPC response when streaming exceeds its byte budget", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(3));
+        controller.enqueue(new Uint8Array(2));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const client = createCopcRangeClient({
+      baseUrl: "https://copc.example",
+      sceneId: "dem-lidar",
+      fetchFn: async () => new Response(body, { status: 206, headers: { "Content-Range": "bytes 10-13/100" } }),
+    });
+    await expect(client.readRange({ start: 10, end: 13 })).rejects.toThrow(/byte budget/);
+    expect(cancelled).toBe(true);
+  });
+
+  it("rejects hierarchy offsets outside JavaScript's safe integer range", () => {
+    const bytes = buildSyntheticCopcPayload();
+    new DataView(bytes.buffer).setBigUint64(375 + 54 + 40, 2n ** 53n + 1n, true);
+    expect(() => parseCopcInfoVlr(bytes, 375)).toThrow(/safe integer range/);
+  });
 });

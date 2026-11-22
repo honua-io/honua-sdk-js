@@ -59,6 +59,7 @@ export interface SceneEditDiagnostic {
     | "scene-edit-capability-denied"
     | "scene-edit-geometry-unsupported"
     | "scene-edit-z-flattening-forbidden"
+    | "scene-edit-invalid-coordinates"
     | "scene-edit-vertical-reference-unsupported"
     | "scene-edit-lossy-mapping-review"
     | "scene-edit-remote-deleted"
@@ -139,6 +140,20 @@ export function createSceneEditProposal(options: CreateSceneEditProposalOptions)
   const diagnostics: SceneEditDiagnostic[] = [];
   const { capabilities, verticalContext } = options;
 
+  if ([options.before, options.after].some((placement) => placement && !hasFiniteCoordinates(placement))) {
+    diagnostics.push({
+      code: "scene-edit-invalid-coordinates",
+      severity: "error",
+      message: "Placement coordinates must be finite numbers.",
+    });
+  }
+  if (options.operation === "update" && options.after && hasExplicitZ(options.before) && !hasExplicitZ(options.after)) {
+    diagnostics.push({
+      code: "scene-edit-z-flattening-forbidden",
+      severity: "error",
+      message: "Updating a 3D placement requires preserving its Z coordinate.",
+    });
+  }
   if (!capabilities.canEdit) {
     diagnostics.push({
       code: "scene-edit-capability-denied",
@@ -297,6 +312,7 @@ export function reconcileSceneEditWithRealtime(
   if (event.sourceId !== proposal.sourceId || event.featureId !== proposal.featureId) {
     return { proposal, clearSelection: false, reconciliationIntents: [] };
   }
+  const terminal = proposal.status === "rejected" || proposal.status === "invalidated" || proposal.status === "applied";
   if (event.kind === "deleted") {
     const deleteDiag: SceneEditDiagnostic = {
       code: "scene-edit-remote-deleted",
@@ -309,7 +325,7 @@ export function reconcileSceneEditWithRealtime(
       diagnostics: Object.freeze([...proposal.diagnostics, deleteDiag]),
     });
     return {
-      proposal: invalidated,
+      proposal: terminal ? proposal : invalidated,
       clearSelection: true,
       reconciliationIntents: [
         { kind: "clear-selection", source: "realtime", historyLabel: "Remote deletion cleared selection" },
@@ -318,6 +334,7 @@ export function reconcileSceneEditWithRealtime(
     };
   }
   if (
+    !terminal &&
     event.sourceVersion !== undefined &&
     proposal.sourceVersion !== undefined &&
     event.sourceVersion !== proposal.sourceVersion
@@ -342,5 +359,10 @@ export function reconcileSceneEditWithRealtime(
 }
 
 function hasExplicitZ(placement: SceneEditPlacement | undefined): boolean {
-  return placement !== undefined && placement.coordinates[2] !== undefined && Number.isFinite(placement.coordinates[2]);
+  return placement?.coordinates[2] !== undefined;
+}
+
+function hasFiniteCoordinates(placement: SceneEditPlacement): boolean {
+  const [x, y, z] = placement.coordinates;
+  return Number.isFinite(x) && Number.isFinite(y) && (z === undefined || Number.isFinite(z));
 }

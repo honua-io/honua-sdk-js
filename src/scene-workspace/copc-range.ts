@@ -146,17 +146,24 @@ export function createCopcRangeClient(options: CopcRangeClientOptions): CopcRang
     async readRange(range: CopcByteRange, signal?: AbortSignal): Promise<CopcRangeReadResult> {
       const expectedLength = validateRange(range, maxRangeBytes);
       const response = await issueRequest("GET", { Range: `bytes=${range.start}-${range.end}` }, signal);
-      if (response.status !== 206 && response.status !== 200) {
-        throw new Error(`COPC range request failed with HTTP ${response.status}.`);
-      }
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > maxRangeBytes) {
-        throw new Error(`COPC response (${bytes.byteLength} bytes) exceeded maxRangeBytes (${maxRangeBytes}).`);
-      }
-      if (response.status === 200 && range.start > 0 && bytes.byteLength > expectedLength) {
-        throw new Error("COPC endpoint ignored HTTP Range header and returned an unbounded full payload.");
-      }
       const contentRange = response.headers.get("content-range") ?? undefined;
+      let bodyLimit = expectedLength;
+      try {
+        if (response.status === 206) {
+          bodyLimit = validateContentRange(contentRange, range);
+        } else if (response.status !== 200) {
+          throw new Error(`COPC range request failed with HTTP ${response.status}.`);
+        } else if (range.start !== 0) {
+          throw new Error("COPC endpoint ignored HTTP Range and returned an unbounded or misaligned payload.");
+        }
+      } catch (error) {
+        void response.body?.cancel().catch(() => undefined);
+        throw error;
+      }
+      const bytes = await readBoundedBody(response.body, bodyLimit);
+      if (response.status === 206 && bytes.byteLength !== bodyLimit) {
+        throw new Error("COPC response size does not match Content-Range.");
+      }
       const etag = response.headers.get("etag") ?? undefined;
       return {
         url,
@@ -175,6 +182,48 @@ export function createCopcRangeClient(options: CopcRangeClientOptions): CopcRang
   };
 
   return client;
+}
+
+function validateContentRange(header: string | undefined, request: CopcByteRange): number {
+  const match = header?.match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
+  if (!match) throw new Error("COPC partial response requires a valid Content-Range.");
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = match[3] === "*" ? undefined : Number(match[3]);
+  if (
+    start !== request.start ||
+    !Number.isSafeInteger(end) ||
+    end < start ||
+    end > request.end ||
+    (total !== undefined && (!Number.isSafeInteger(total) || total <= end)) ||
+    (end < request.end && total !== end + 1)
+  ) {
+    throw new Error("COPC Content-Range does not match the requested range.");
+  }
+  return end - start + 1;
+}
+
+async function readBoundedBody(body: ReadableStream<Uint8Array> | null, limit: number): Promise<Uint8Array> {
+  if (!body) return new Uint8Array();
+  const reader = body.getReader();
+  try {
+    const bytes = new Uint8Array(limit);
+    let offset = 0;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return bytes.subarray(0, offset);
+      if (value.byteLength > limit - offset) {
+        throw new Error(`COPC response exceeded the requested byte budget (${limit}).`);
+      }
+      bytes.set(value, offset);
+      offset += value.byteLength;
+    }
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 /** Parse a LAS 1.4 public header block from raw bytes. Pure. */
@@ -311,5 +360,7 @@ function decodeAscii(bytes: Uint8Array, offset: number, length: number): string 
 function readSafeUint64(view: DataView, offset: number): number {
   const low = view.getUint32(offset, true);
   const high = view.getUint32(offset + 4, true);
-  return high * 2 ** 32 + low;
+  const value = high * 2 ** 32 + low;
+  if (!Number.isSafeInteger(value)) throw new Error("COPC uint64 exceeds JavaScript's safe integer range.");
+  return value;
 }

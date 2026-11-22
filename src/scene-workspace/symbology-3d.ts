@@ -105,6 +105,7 @@ export interface Honua3DSymbologyV1 {
 export interface Scene3DSymbologyDiagnostic {
   readonly code:
     | "symbology-expression-rejected"
+    | "symbology-filter-unsupported"
     | "symbology-invalid-rule"
     | "symbology-invalid-value"
     | "symbology-unsupported-channel";
@@ -208,7 +209,13 @@ export function validate3DSymbology(symbology: Honua3DSymbologyV1): readonly Sce
   const diagnostics: Scene3DSymbologyDiagnostic[] = [];
   if (symbology.filterExpression !== undefined) {
     const exprError = validate3DSymbologyExpression(symbology.filterExpression);
-    if (exprError) diagnostics.push(exprError);
+    diagnostics.push(
+      exprError ?? {
+        code: "symbology-filter-unsupported",
+        severity: "error",
+        message: "Filter expressions are unsupported in scene symbology.",
+      },
+    );
   }
   if (symbology.field !== undefined && !FIELD_IDENTIFIER_RE.test(symbology.field)) {
     diagnostics.push({
@@ -217,12 +224,19 @@ export function validate3DSymbology(symbology: Honua3DSymbologyV1): readonly Sce
       message: `Invalid symbology field identifier "${symbology.field}".`,
     });
   }
-  if (symbology.defaultSymbol.color !== undefined && !SAFE_COLOR_RE.test(symbology.defaultSymbol.color)) {
-    diagnostics.push({
-      code: "symbology-invalid-value",
-      severity: "error",
-      message: `Invalid default symbol color "${symbology.defaultSymbol.color}".`,
-    });
+  const symbols = [
+    symbology.defaultSymbol,
+    ...(symbology.classBreaks ?? []).map((rule) => rule.symbol),
+    ...(symbology.uniqueValues ?? []).map((rule) => rule.symbol),
+  ];
+  for (const { color } of symbols) {
+    if (color !== undefined && !SAFE_COLOR_RE.test(color)) {
+      diagnostics.push({
+        code: "symbology-invalid-value",
+        severity: "error",
+        message: `Invalid symbol color "${color}".`,
+      });
+    }
   }
   for (const rule of symbology.classBreaks ?? []) {
     if (!Number.isFinite(rule.minValue) || !Number.isFinite(rule.maxValue) || rule.minValue > rule.maxValue) {
@@ -246,6 +260,16 @@ export function evaluateEntitySymbology(
   options: EvaluateEntitySymbologyOptions = {},
 ): EvaluatedEntitySymbology {
   const diagnostics = [...validate3DSymbology(symbology)];
+  if (diagnostics.some((entry) => entry.severity === "error")) {
+    return {
+      color: DEFAULT_COLOR,
+      opacity: DEFAULT_OPACITY,
+      scale: DEFAULT_SCALE,
+      visible: false,
+      highlighted: false,
+      diagnostics,
+    };
+  }
   const matched = resolveRuleSymbol(symbology, attributes);
   let color = matched.color ?? symbology.defaultSymbol.color ?? DEFAULT_COLOR;
   let opacity = clampUnit(matched.opacity ?? symbology.defaultSymbol.opacity ?? DEFAULT_OPACITY);

@@ -22,7 +22,9 @@ import {
   validateQuantizedMeshTile,
 } from "../src/scene-workspace/index.js";
 
-function buildSlopedTileBinary(options: { readonly includeNormals?: boolean } = {}): Uint8Array {
+function buildSlopedTileBinary(
+  options: { readonly includeNormals?: boolean; readonly indices?: readonly number[] } = {},
+): Uint8Array {
   // 2x2 unit tile covering [0, 32767]^2 with linear slope z(u, v) = 100 + 200*u + 100*v (range 100..400m)
   // Corners: (0,0)=100m, (1,0)=300m, (0,1)=200m, (1,1)=400m
   const max = QUANTIZED_MESH_MAX_COORD;
@@ -47,7 +49,7 @@ function buildSlopedTileBinary(options: { readonly includeNormals?: boolean } = 
     u: [0, max, 0, max],
     v: [0, 0, max, max],
     height: [h(100), h(300), h(200), h(400)],
-    indices: [0, 1, 2, 1, 3, 2],
+    indices: options.indices ?? [0, 1, 2, 1, 3, 2],
     edgeIndices: {
       west: [0, 2],
       south: [0, 1],
@@ -103,6 +105,18 @@ describe("quantized-mesh 1.0 terrain client, decoder, validator, and Terrain-RGB
     expect(() => createQuantizedMeshTerrainClient({ url: "https://terrain.example/terrain/dem/tile.json" })).toThrow(
       /Terrain-RGB/,
     );
+  });
+
+  it("rejects triangle ordering that cannot be represented without reindexing vertices", () => {
+    expect(() => buildSlopedTileBinary({ indices: [0, 2, 1] })).toThrow(/high-water-mark order/);
+  });
+
+  it("rejects metadata JSON lengths larger than the extension payload", () => {
+    const bytes = buildSlopedTileBinary();
+    const jsonLength = new TextEncoder().encode(JSON.stringify({ source: "honua-dem-fixture" })).length;
+    const offset = bytes.byteLength - jsonLength - 4;
+    new DataView(bytes.buffer).setUint32(offset, jsonLength + 1, true);
+    expect(() => decodeQuantizedMeshTile(bytes)).toThrow(/extension bounds/);
   });
 
   it("round-trips binary .terrain tiles with zig-zag vertices, high-water-mark indices, edge skirts, octvertexnormals, watermask, and metadata", () => {

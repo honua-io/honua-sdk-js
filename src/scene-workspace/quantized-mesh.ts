@@ -433,7 +433,7 @@ export function encodeQuantizedMeshTile(input: QuantizedMeshEncodeInput): Uint8A
   offset = alignedIndexStart;
   view.setUint32(offset, triangleCount, true);
   offset += 4;
-  offset = writeHighWaterMarkIndices(view, offset, input.indices, use32Bit);
+  offset = writeHighWaterMarkIndices(view, offset, input.indices, vertexCount, use32Bit);
 
   for (const edge of [west, south, east, north]) {
     view.setUint32(offset, edge.length, true);
@@ -665,12 +665,19 @@ function writeHighWaterMarkIndices(
   view: DataView,
   offset: number,
   indices: readonly number[],
+  vertexCount: number,
   use32Bit: boolean,
 ): number {
   const step = use32Bit ? 4 : 2;
   let highest = 0;
   for (let i = 0; i < indices.length; i += 1) {
     const idx = indices[i]!;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= vertexCount || idx > highest) {
+      throw new HonuaQuantizedMeshError(
+        "invalid-tile",
+        "Triangle indices must introduce vertices in high-water-mark order.",
+      );
+    }
     const code = highest - idx;
     if (use32Bit) view.setUint32(offset + i * step, code, true);
     else view.setUint16(offset + i * step, code, true);
@@ -739,8 +746,14 @@ function decodeExtensions(
       vertexNormals = decodeOctVertexNormals(payload, vertexCount);
     } else if (extId === QUANTIZED_MESH_EXTENSION_WATER_MASK) {
       waterMask = new Uint8Array(payload);
-    } else if (extId === QUANTIZED_MESH_EXTENSION_METADATA && extLength >= 4) {
+    } else if (extId === QUANTIZED_MESH_EXTENSION_METADATA) {
+      if (extLength < 4) {
+        throw new HonuaQuantizedMeshError("invalid-tile", "Metadata extension is missing its JSON length.");
+      }
       const jsonLength = view.getUint32(offset, true);
+      if (jsonLength > extLength - 4) {
+        throw new HonuaQuantizedMeshError("invalid-tile", "Metadata JSON length exceeds its extension bounds.");
+      }
       const text = new TextDecoder().decode(bytes.subarray(offset + 4, offset + 4 + jsonLength));
       metadata = JSON.parse(text) as Record<string, unknown>;
     }

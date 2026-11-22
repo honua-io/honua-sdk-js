@@ -94,6 +94,21 @@ describe("3D symbology contract, evaluation, compilation, and identity-preservin
     expect(unsafeCompiled.spec).toBeUndefined();
     expect(unsafeCompiled.diagnostics.some((d) => d.code === "symbology-expression-rejected")).toBe(true);
 
+    const unsupportedFilter = { ...symbology, filterExpression: "${height_m} > 50" };
+    expect(compile3DSymbologyToTilesetStyle(unsupportedFilter).spec).toBeUndefined();
+    expect(evaluateEntitySymbology(unsupportedFilter, { height_m: 80 })).toMatchObject({
+      visible: false,
+      diagnostics: [{ code: "symbology-filter-unsupported", severity: "error" }],
+    });
+    for (const symbol of [
+      { ...symbology, classBreaks: [{ minValue: 0, maxValue: 100, symbol: { color: "red' + 'blue" } }] },
+      { ...symbology, uniqueValues: [{ value: 80, symbol: { color: "red' + 'blue" } }] },
+    ]) {
+      expect(compile3DSymbologyToTilesetStyle(symbol)).toMatchObject({
+        diagnostics: [{ code: "symbology-invalid-value", severity: "error" }],
+      });
+    }
+
     const compiled = compile3DSymbologyToTilesetStyle(symbology);
     expect(compiled.spec?.encoding).toBe("3d-tiles-styling");
     expect(compiled.spec?.style.color).toEqual({
@@ -297,6 +312,25 @@ describe("scene-aware 3D edit proposals, fail-closed vertical validation, receip
     expect(flattened.status).toBe("rejected");
     expect(flattened.diagnostics.some((d) => d.code === "scene-edit-z-flattening-forbidden")).toBe(true);
 
+    const priorPlacement = { coordinates: [-122.4, 37.78, 88.5] as const };
+    const base = {
+      proposalId: "prop-update",
+      sourceId: "towers",
+      featureId: 7,
+      operation: "update",
+      geometryKind: "point",
+      before: priorPlacement,
+      verticalContext: { crs: "EPSG:4326", verticalDatum: "WGS84", altitudeReference: "ellipsoidal" },
+      capabilities: baseCaps,
+    } as const;
+    for (const coordinates of [
+      [-122.4, 37.78],
+      [Number.NaN, 37.78, 88.5],
+      [-122.4, 37.78, Number.POSITIVE_INFINITY],
+    ] as const) {
+      expect(createSceneEditProposal({ ...base, after: { coordinates } }).status).toBe("rejected");
+    }
+
     const unsupportedDatum = createSceneEditProposal({
       proposalId: "prop-datum",
       sourceId: "towers",
@@ -384,6 +418,16 @@ describe("scene-aware 3D edit proposals, fail-closed vertical validation, receip
       featureId: 99,
     });
     expect(deleted.proposal.status).toBe("invalidated");
+    for (const terminal of [deleted.proposal, { ...ready, status: "rejected" } as const]) {
+      const updated = reconcileSceneEditWithRealtime(terminal, {
+        kind: "updated",
+        sourceId: "towers",
+        featureId: 99,
+        sourceVersion: "v13",
+      });
+      expect(updated.proposal).toBe(terminal);
+      expect(() => approveSceneEditProposal(updated.proposal)).toThrow(/Cannot approve/);
+    }
     expect(deleted.clearSelection).toBe(true);
     expect(deleted.reconciliationIntents.some((i) => i.kind === "clear-selection")).toBe(true);
   });
