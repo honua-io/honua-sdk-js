@@ -6,7 +6,9 @@ import {
   decodeGeoParquetNativeGeometryColumn,
 } from "../geoparquet/native-geometry.js";
 import { sharedTask } from "./abort.js";
-import type { PublicationLookupPlan } from "./lookup.js";
+import { pruneRowGroupsByBbox, rowMatchesBbox } from "./bbox-pruning.js";
+import type { PublicationBounds } from "./descriptor.js";
+import type { PublicationBboxPlan, PublicationLookupPlan } from "./lookup.js";
 import { PUBLICATION_STAMP_KEY, type Publication, assertArtifactStamp } from "./open.js";
 import { type ArtifactRangeReader, type ByteMeter, artifactRangeReader } from "./range-reader.js";
 
@@ -45,11 +47,18 @@ export interface PreparedLookup<T> {
   read(): Promise<Result<T>>;
 }
 
+/** A spatial bounding-box query planned from per-row-group bbox statistics. */
+export interface PreparedBboxQuery<T> {
+  readonly plan: PublicationBboxPlan;
+  read(): Promise<Result<T>>;
+}
+
 /** Statistics-pruning reads of a publication's GeoParquet artifact, without the SQL engine. */
 export interface PublicationParquet {
   /** Reads the footer once per source and checks the artifact's publication stamp. */
   verify(signal?: AbortSignal): Promise<void>;
   prepareLookup<T>(value: string, signal?: AbortSignal): Promise<PreparedLookup<T>>;
+  prepareBboxQuery<T>(bbox: PublicationBounds, signal?: AbortSignal): Promise<PreparedBboxQuery<T>>;
 }
 
 function publicationStamp(metadata: FileMetaData): unknown {
@@ -157,10 +166,55 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
     };
   }
 
+  async function prepareBboxQuery<T>(bbox: PublicationBounds, signal?: AbortSignal): Promise<PreparedBboxQuery<T>> {
+    const metadata = await verifiedMetadata(signal);
+    const parquet = await parquetModules();
+    const bboxColumn = publication.geometry.bboxColumn;
+    const bboxReadColumns =
+      bboxColumn && !readColumns.includes(bboxColumn) ? [...readColumns, bboxColumn] : readColumns;
+    const pruned = pruneRowGroupsByBbox(metadata, bboxColumn, bbox, bboxReadColumns);
+    const footerBytes = Math.max(Math.min(FOOTER_READ_BYTES, reader.byteLength), metadata.metadata_length + 8);
+    const plan: PublicationBboxPlan = Object.freeze({
+      rowGroups: pruned.rowGroups,
+      totalRowGroups: pruned.totalRowGroups,
+      prunedRowGroups: pruned.prunedRowGroups,
+      footerBytes,
+      plannedBytes: footerBytes + pruned.estimatedBytes,
+      usedBboxStats: pruned.usedBboxStats,
+    });
+    return {
+      plan,
+      read: async () => {
+        const matched: ParquetRow[] = [];
+        for (const range of pruned.ranges) {
+          const rows = await parquet.parquetReadObjects({
+            file: reader.view(signal),
+            metadata,
+            columns: bboxReadColumns,
+            rowStart: range.rowStart,
+            rowEnd: range.rowEnd,
+            rowFormat: "object",
+            compressors: parquet.compressors,
+            geoparquet: decodesWkb,
+          });
+          for (const row of rows) {
+            if (rowMatchesBbox(row, bboxColumn, bbox)) matched.push(row);
+          }
+        }
+        return resultFrom<T>(
+          publication,
+          { columns, dimensions: geometryDimensions(metadata, publication.geometry.column) },
+          matched,
+        );
+      },
+    };
+  }
+
   return Object.freeze({
     verify: async (signal?: AbortSignal) => {
       await verifiedMetadata(signal);
     },
     prepareLookup,
+    prepareBboxQuery,
   });
 }

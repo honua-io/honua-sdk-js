@@ -1,6 +1,7 @@
 import type { CapabilityAwareSource, Query, Source } from "../contract/types.js";
 import { type DuckDbDriverFactory, type GeoparquetRuntime, geoparquetSource } from "../geoparquet/index.js";
 import { settleOrAbort, sharedTask } from "./abort.js";
+import type { PublicationBounds } from "./descriptor.js";
 import { publicationRuntime } from "./engine.js";
 import { HonuaPublicationError } from "./errors.js";
 import { csvDocument, featureCollection } from "./export.js";
@@ -8,12 +9,16 @@ import { type PublicFieldGuard, publicFieldGuard } from "./guard.js";
 import {
   type LookupContext,
   PUBLICATION_LOOKUP_BUDGET,
+  type PublicationBboxPlan,
+  type PublicationBboxResult,
   type PublicationLookup,
   type PublicationLookupOptions,
   type PublicationLookupPlan,
   type PublicationQueryBudget,
   lookupIdentity,
+  planBboxLookup,
   planLookup,
+  queryBboxWithinBudget,
 } from "./lookup.js";
 import type { Publication } from "./open.js";
 import { publicationParquet } from "./parquet.js";
@@ -41,6 +46,8 @@ export interface PublicationSource<T = Record<string, unknown>> extends Capabili
   readonly publication: Publication;
   planLookup(identity: string, options?: PublicationLookupOptions): Promise<PublicationLookupPlan>;
   lookup(identity: string, options?: PublicationLookupOptions): Promise<PublicationLookup<T>>;
+  planBboxQuery(bbox: PublicationBounds, options?: PublicationLookupOptions): Promise<PublicationBboxPlan>;
+  queryBbox(bbox: PublicationBounds, options?: PublicationLookupOptions): Promise<PublicationBboxResult<T>>;
   /** Resolve a rendered tile feature to its full GeoParquet record through the stable identity. */
   select(feature: RenderedPublicationFeature, options?: PublicationLookupOptions): Promise<PublicationLookup<T>>;
   exportFeatures(format: PublicationExportFormat, query?: Query<T>): Promise<string>;
@@ -157,6 +164,10 @@ export function publicationSource<T = Record<string, unknown>>(
     planLookup: (value: string, lookupOptions?: PublicationLookupOptions) =>
       settleOrAbort(planLookup(context, value, lookupOptions?.signal), lookupOptions?.signal),
     lookup,
+    planBboxQuery: (bbox: PublicationBounds, lookupOptions?: PublicationLookupOptions) =>
+      settleOrAbort(planBboxLookup(context, bbox, lookupOptions?.signal), lookupOptions?.signal),
+    queryBbox: (bbox: PublicationBounds, lookupOptions?: PublicationLookupOptions) =>
+      queryBboxWithinBudget<T>(context, bbox, lookupOptions),
     select: async (feature: RenderedPublicationFeature, lookupOptions?: PublicationLookupOptions) =>
       lookup(renderedIdentity(publication, feature), lookupOptions),
     verifyGeoParquetArtifact: (lookupOptions?: PublicationLookupOptions) => parquet.verify(lookupOptions?.signal),
