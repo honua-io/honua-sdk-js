@@ -65,7 +65,6 @@
  *
  * @module
  */
-import { trimTrailingSlashes } from "../core/path-utils.js";
 import {
   type HonuaAgentToolCall,
   type HonuaAgentToolDefinitionLike,
@@ -73,6 +72,7 @@ import {
   type HonuaAiMapKit,
   convertHonuaAgentToolDefinitions,
 } from "../agent-tools/index.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type {
   StudioAiCapabilitiesResponse,
   StudioAiCapability,
@@ -1246,8 +1246,6 @@ function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
   }
   return trimmed;
 }
-
-
 
 interface PendingToolCall {
   toolCallId: string;
