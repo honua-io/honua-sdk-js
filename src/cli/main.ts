@@ -107,6 +107,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "title" },
   { name: "description" },
   { name: "scene-id" },
+  { name: "longitude" },
+  { name: "latitude" },
   { name: "upload-id" },
   { name: "resume" },
   { name: "chunk-bytes" },

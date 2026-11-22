@@ -94,7 +94,7 @@ describe("3D symbology contract, evaluation, compilation, and identity-preservin
     expect(unsafeCompiled.spec).toBeUndefined();
     expect(unsafeCompiled.diagnostics.some((d) => d.code === "symbology-expression-rejected")).toBe(true);
 
-    const unsupportedFilter = { ...symbology, filterExpression: "${height_m} > 50" };
+    const unsupportedFilter = { ...symbology, filterExpression: "height_m > 50" };
     expect(compile3DSymbologyToTilesetStyle(unsupportedFilter).spec).toBeUndefined();
     expect(evaluateEntitySymbology(unsupportedFilter, { height_m: 80 })).toMatchObject({
       visible: false,

@@ -163,7 +163,17 @@ describe("quantized-mesh 1.0 terrain client, decoder, validator, and Terrain-RGB
             token: "qm-secret-token",
             expiresAt: "2099-01-01T00:10:00Z",
             refreshAfter: "2099-01-01T00:08:00Z",
+            contractVersion: "2026-08-v1",
             allowedMethods: ["GET", "HEAD"],
+            transports: [{ kind: "header", name: "X-Honua-Token", valueTemplate: "{token}", preferred: true }],
+            assetScopes: [
+              {
+                scheme: "http",
+                host: "127.0.0.1",
+                port: (server.address() as AddressInfo).port,
+                pathPrefix: "/terrain/protected/",
+              },
+            ],
           }),
         );
         return;
