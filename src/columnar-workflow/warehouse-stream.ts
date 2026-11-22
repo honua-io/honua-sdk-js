@@ -177,6 +177,8 @@ export async function* executeWarehouseColumnarStream(
   let rows = 0;
   let transferBytes = 0;
   let peakBackingBytes = 0;
+  let returnedBytes = 0;
+  const maxReturnedBytes = plan.budgets.maxReturnedBytes ?? Number.MAX_SAFE_INTEGER;
   let lockedSchemaId: string | undefined;
 
   try {
@@ -209,6 +211,16 @@ export async function* executeWarehouseColumnarStream(
       rows += metrics.rows;
       transferBytes += chunk.transferBytes;
       peakBackingBytes = Math.max(peakBackingBytes, metrics.backingBytes);
+      returnedBytes += metrics.backingBytes;
+
+      if (returnedBytes > maxReturnedBytes) {
+        controller.abort();
+        throw new HonuaWarehouseError(
+          "budget-exceeded",
+          `Returned bytes ${returnedBytes} exceeded limit ${maxReturnedBytes}.`,
+          { limit: maxReturnedBytes, observed: returnedBytes },
+        );
+      }
 
       if (batches > budgets.maxBatches) {
         controller.abort();
@@ -266,16 +278,26 @@ export async function collectWarehouseColumnarStream(
   const now = options.now ?? (() => Date.now());
   const started = now();
   const collected: WarehouseStreamBatch[] = [];
+  const { maxBackingBytes } = resolveStreamBudgets(plan, options.budgets);
+  let retainedBackingBytes = 0;
   let totals: WarehouseStreamProgress = { batches: 0, rows: 0, transferBytes: 0, peakBackingBytes: 0 };
 
   for await (const item of executeWarehouseColumnarStream(plan, transport, options)) {
+    retainedBackingBytes += item.metrics.backingBytes;
+    if (retainedBackingBytes > maxBackingBytes) {
+      throw new HonuaWarehouseError(
+        "budget-exceeded",
+        `Collected backing bytes ${retainedBackingBytes} exceeded limit ${maxBackingBytes}.`,
+        { limit: maxBackingBytes, observed: retainedBackingBytes },
+      );
+    }
     collected.push(item);
     totals = item.progress;
   }
 
   const reconciliation = reconcileWarehouseExecutionMetrics(plan, {
     returnedRows: totals.rows,
-    returnedBytes: totals.peakBackingBytes,
+    returnedBytes: retainedBackingBytes,
     transferBytes: totals.transferBytes,
     elapsedMs: Math.max(0, now() - started),
   });

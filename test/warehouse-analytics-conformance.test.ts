@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   GOVERNED_WAREHOUSE_PROVIDERS,
@@ -225,6 +225,45 @@ describe("governed warehouse source and capability contract", () => {
     ]) {
       expect(() => validateWarehouseSourceCapabilities({ ...valid, ...invalid })).toThrow(HonuaWarehouseError);
     }
+  });
+
+  it("checks the geometry and relation against declared predicates before querying", async () => {
+    const query = vi.fn(stubQueryTransport().query);
+    const source = createGovernedWarehouseSource(
+      sampleCapabilities("snowflake", { spatialPredicates: ["bbox-intersects"] }),
+      { query },
+      { now: FIXED_NOW },
+    );
+
+    await source.query({
+      spatialFilter: { geometryType: "esriGeometryEnvelope", geometry: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 } },
+    });
+    for (const spatialRel of [
+      undefined,
+      "esriSpatialRelWithin",
+      "esriSpatialRelContains",
+      "esriSpatialRelIndexIntersects",
+    ]) {
+      await expect(
+        source.query({
+          spatialFilter: {
+            geometryType: "esriGeometryPolygon",
+            geometry: {
+              rings: [
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                  [0, 0],
+                ],
+              ],
+            },
+            ...(spatialRel ? { spatialRel } : {}),
+          },
+        }),
+      ).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    }
+    expect(query).toHaveBeenCalledTimes(1);
   });
 
   it("never infers capabilities from provider name and fails closed with HonuaCapabilityNotSupportedError", async () => {
@@ -460,6 +499,20 @@ describe("bounded Arrow/GeoArrow streaming and renderer handoff", () => {
     });
     expect(receipt.totals).toMatchObject({ batches: 2, rows: 4, transferBytes: 1_024 });
     expect(receipt.reconciliation.status).toBe("within-budget");
+    const batchBytes = receipt.batches[0]!.metrics.backingBytes;
+    expect(receipt.reconciliation.observed.returnedBytes).toBe(2 * batchBytes);
+
+    const twoBatches = async function* () {
+      yield { batch: samplePointBatch(plan, 0), transferBytes: 512 };
+      yield { batch: samplePointBatch(plan, 1), transferBytes: 512 };
+    };
+    await expect(
+      collectWarehouseColumnarStream(plan, twoBatches, {
+        budgets: { maxBackingBytes: batchBytes },
+      }),
+    ).rejects.toThrow("Collected backing bytes");
+    const acceptedByteLimit = { ...plan, budgets: { ...plan.budgets, maxReturnedBytes: batchBytes } };
+    await expect(collectWarehouseColumnarStream(acceptedByteLimit, twoBatches)).rejects.toThrow("Returned bytes");
 
     const deckGl = handoffWarehouseBatchToDeckGl(receipt.batches[0]!.batch, {
       layerId: "redshift-points",

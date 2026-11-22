@@ -526,7 +526,35 @@ export function createGovernedWarehouseSource<T = Record<string, unknown>>(
   const requireCap = (cap: WarehouseRequiredCapability) => assertWarehouseCapability(effective, cap, options);
   const enforceQueryPredicates = (query: Query<T> | undefined) => {
     if (query?.temporalFilter) requireCap("temporalFilter");
-    if (query?.spatialFilter) requireCap("spatial:bbox-intersects");
+    const filter = query?.spatialFilter;
+    if (!filter) return;
+    const relation = filter.spatialRel ?? "esriSpatialRelIntersects";
+    switch (relation) {
+      case "esriSpatialRelIntersects":
+        return requireCap(
+          filter.geometryType === "esriGeometryEnvelope" ? "spatial:bbox-intersects" : "spatial:intersects",
+        );
+      case "esriSpatialRelEnvelopeIntersects":
+        return requireCap("spatial:bbox-intersects");
+      case "esriSpatialRelContains":
+        return requireCap("spatial:contains");
+      case "esriSpatialRelWithin":
+        return requireCap("spatial:within");
+      case "esriSpatialRelCrosses":
+        return requireCap("spatial:crosses");
+      case "esriSpatialRelDisjoint":
+        return requireCap("spatial:disjoint");
+      case "esriSpatialRelOverlaps":
+        return requireCap("spatial:overlaps");
+      case "esriSpatialRelTouches":
+        return requireCap("spatial:touches");
+      default:
+        throw new HonuaCapabilityNotSupportedError(
+          `spatial:${relation}`,
+          `warehouse:${effective.provider}`,
+          effective.sourceId,
+        );
+    }
   };
 
   return Object.freeze({
