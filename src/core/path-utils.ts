@@ -99,6 +99,18 @@ export function stripQuery(value: string): string {
 }
 
 /**
+ * Percent-encode a single URL path segment, rejecting dot segments (`.` and
+ * `..`) that `encodeURIComponent` leaves unescaped and that URL resolvers treat
+ * as path traversal.
+ */
+export function encodePathSegment(segment: string): string {
+  if (segment === "." || segment === "..") {
+    throw new Error(`Invalid path segment "${segment}": path traversal segments are not allowed.`);
+  }
+  return encodeURIComponent(segment);
+}
+
+/**
  * Encode an Esri-style `serviceId` for use as a URL path segment, preserving
  * folder structure.
  *
@@ -111,11 +123,11 @@ export function stripQuery(value: string): string {
  * special characters within a segment (spaces, `&`, etc.) are still encoded.
  *
  * A plain `serviceId` without slashes behaves exactly like
- * `encodeURIComponent(serviceId)`. Empty segments produced by leading,
- * trailing, or doubled slashes are dropped so the result never contains
- * stray `/` runs. `.` and `..` segments are refused so an untrusted id cannot
- * address another path on the same host. Use {@link encodePathSegments} instead when empty segments
- * must be preserved verbatim.
+ * `encodeURIComponent(serviceId)` (while rejecting `.` and `..` traversal
+ * segments). Empty segments produced by leading, trailing, or doubled slashes
+ * are dropped so the result never contains stray `/` runs. Use
+ * {@link encodePathSegments} instead when empty segments must be preserved
+ * verbatim.
  */
 export function encodeServiceIdPath(serviceId: string): string {
   const segments = serviceId.split("/").filter((segment) => segment.length > 0);
@@ -123,9 +135,9 @@ export function encodeServiceIdPath(serviceId: string): string {
     throw new TypeError(`Service id "${serviceId}" must not contain "." or ".." path segments.`);
   }
   if (!serviceId.includes("/")) {
-    return encodeURIComponent(serviceId);
+    return encodePathSegment(serviceId);
   }
-  return segments.map((segment) => encodeURIComponent(segment)).join("/");
+  return segments.map((segment) => encodePathSegment(segment)).join("/");
 }
 
 function isDotSegment(segment: string): boolean {
@@ -159,18 +171,19 @@ export function numericPathSegment(value: unknown, label: string): string {
  * folder-prefixed identifiers such as `myFolder/parcels` that must serialize
  * as `myFolder/parcels` on the wire. Splitting on `/` and encoding each
  * segment keeps the separators literal while still escaping reserved
- * characters inside each segment. Empty segments (leading/trailing/double
- * slashes) are preserved verbatim so callers retain full control over the
- * resulting path shape. Use {@link encodeServiceIdPath} when empty segments
- * should instead be dropped (e.g. routable Esri service ids).
+ * characters inside each segment (and rejecting `.` and `..` traversal
+ * segments). Empty segments (leading/trailing/double slashes) are preserved
+ * verbatim so callers retain full control over the resulting path shape. Use
+ * {@link encodeServiceIdPath} when empty segments should instead be dropped
+ * (e.g. routable Esri service ids).
  */
 export function encodePathSegments(value: string): string {
   if (!value.includes("/")) {
-    return encodeURIComponent(value);
+    return encodePathSegment(value);
   }
   return value
     .split("/")
-    .map((segment) => encodeURIComponent(segment))
+    .map((segment) => (segment.length === 0 ? "" : encodePathSegment(segment)))
     .join("/");
 }
 

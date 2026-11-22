@@ -19,6 +19,8 @@ export interface DatasetImportTaskClientOptions {
   readonly fetch?: typeof globalThis.fetch;
   /** Reads fresh authentication for each request; credentials are never persisted here. */
   readonly headers?: () => HeadersInit | Promise<HeadersInit>;
+  /** Explicit opt-in to send authenticated import requests over non-loopback plain HTTP. */
+  readonly allowInsecureHttp?: boolean;
 }
 
 /**

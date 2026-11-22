@@ -2,7 +2,7 @@
 type: reference
 title: "Share, Embed, and Open-Data Browser Contracts"
 description: "Browser-safe projections of the Console share, embed-token, public-link and open-data contracts, with fragment-only embed tokens and anonymous-safe denial states."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Share, Embed, and Open-Data Browser Contracts
 

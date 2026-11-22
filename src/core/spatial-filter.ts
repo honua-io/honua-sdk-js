@@ -294,7 +294,15 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
       "envelope",
     );
   }
-  if ((xmin as number) > (xmax as number) || (ymin as number) > (ymax as number)) {
+  if ((ymin as number) > (ymax as number)) {
+    throw geometryClassificationError(
+      "malformed-geometry",
+      "envelope minimum coordinates must not exceed maximum coordinates",
+      keys,
+      "envelope",
+    );
+  }
+  if ((xmin as number) > (xmax as number) && !isValidAntimeridianEnvelope(geometry)) {
     throw geometryClassificationError(
       "malformed-geometry",
       "envelope minimum coordinates must not exceed maximum coordinates",
@@ -305,6 +313,31 @@ function assertEnvelope(geometry: Record<string, unknown>, keys: readonly string
   assertOptionalBounds(geometry, "zmin", "zmax", "envelope", keys);
   assertOptionalBounds(geometry, "mmin", "mmax", "envelope", keys);
   assertOptionalBounds(geometry, "idmin", "idmax", "envelope", keys);
+}
+
+/** An envelope with xmin > xmax is valid only as a geographic antimeridian crossing. */
+function isValidAntimeridianEnvelope(geometry: Record<string, unknown>): boolean {
+  const { xmin, ymin, xmax, ymax } = geometry as Record<"xmin" | "ymin" | "xmax" | "ymax", number>;
+  if (xmin < -180 || xmin > 180 || xmax < -180 || xmax > 180 || ymin < -90 || ymax > 90) {
+    return false;
+  }
+  const sr = geometry.spatialReference;
+  if (sr === undefined || sr === null) {
+    return true;
+  }
+  if (typeof sr !== "object") {
+    return false;
+  }
+  const record = sr as Record<string, unknown>;
+  const wkid = record.latestWkid ?? record.wkid;
+  if (typeof wkid === "number") {
+    return wkid === 84 || (wkid >= 4000 && wkid < 5000);
+  }
+  if (typeof record.wkt === "string") {
+    const trimmed = record.wkt.trimStart().toUpperCase();
+    return trimmed.startsWith("GEOGCS[") || trimmed.startsWith("GEOGCRS[");
+  }
+  return true;
 }
 
 function assertPositions(geometry: Record<string, unknown>, keys: readonly string[]): void {

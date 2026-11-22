@@ -79,7 +79,7 @@ snapshot writers cannot silently miss a state movement.
 | --- | --- |
 | `globalLinked` (default) | Every slice from every role. The safe default. |
 | `mapDriven` | The map's `extent`, `spatialFilter`, `selection`, and `filters`; filter controls can also publish `filters` and `spatialFilter`. |
-| `gridDriven` | Only the grid's `selection`, `sort`, `page`, `filters`, `visibleFields`. |
+| `gridDriven` | Only the grid's `selection`, `sort`, `page`, `filters`, and `visibleFields`; filter controls can also publish `filters` and `spatialFilter`. |
 | `chartDriven` | Only the chart's `grouping`, `aggregation`, `filters`, and `selection`; filter controls can also publish `filters`. |
 | `decoupled` | Nothing propagates — each view is independent. |
 
