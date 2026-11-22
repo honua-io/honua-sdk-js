@@ -2,7 +2,7 @@
 type: reference
 title: "Application Components Reference Workbench"
 description: "The release reference is an installed-package, deterministic journey over the"
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Application Components Reference Workbench
 

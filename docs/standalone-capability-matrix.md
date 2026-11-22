@@ -132,8 +132,8 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is `beta` and fixture-proven.
-Raw OGC API Processes discovery and raw Processes execution are both
-`experimental` and both `standalone`. They stay deliberately separate claims
+Raw OGC API Processes discovery is `supported` and raw Processes execution is
+`experimental`; both are `standalone`. They stay deliberately separate claims
 so discovery evidence can never be mistaken for execution support: discovery
 carries a scheduled anonymous live lane, while execution is fixture-proven only
 because no public Processes endpoint permits anonymous execution.

@@ -365,9 +365,9 @@ list:
   through the Honua widget host with non-byte-identical visuals.
   `honua-maplibre` does not paper over this — widget constructors
   fall to manual TODO instead of being silently rewritten. Under
-  `honua-compat` they are rewritten, but rendering still depends on
-  the app performing the [widget kit registration](#widget-kit-registration)
-  the codemod does not yet insert.
+  `honua-compat` they are rewritten and `@honua/honua-migrate` inserts the
+  [widget kit registration](#widget-kit-registration) call (which apps can
+  replace with `registerComponent` when one tag is enough).
 - **3D / SceneView and scene layers.** `scene-view`,
   `SceneLayer`/`BuildingSceneLayer`/`IntegratedMeshLayer`/
   `PointCloudLayer`/`MeshLayer`/`ElevationLayer`/`VoxelLayer` are
