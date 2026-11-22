@@ -50,6 +50,7 @@ export interface SceneEditPlacement {
   readonly coordinates: readonly [number, number, number?];
   readonly orientation?: readonly [number, number, number];
   readonly scale?: number;
+  /** Structured-cloneable attributes, captured as a detached snapshot in a proposal. */
   readonly attributes?: Readonly<Record<string, unknown>>;
 }
 
@@ -60,6 +61,7 @@ export interface SceneEditDiagnostic {
     | "scene-edit-geometry-unsupported"
     | "scene-edit-z-flattening-forbidden"
     | "scene-edit-invalid-coordinates"
+    | "scene-edit-placement-not-cloneable"
     | "scene-edit-vertical-reference-unsupported"
     | "scene-edit-lossy-mapping-review"
     | "scene-edit-remote-deleted"
@@ -71,7 +73,7 @@ export interface SceneEditDiagnostic {
 /** Lifecycle status of a {@link ScenePlacementEditProposal}. */
 export type SceneEditProposalStatus = "ready" | "review-required" | "rejected" | "applied" | "invalidated";
 
-/** Immutable, serializable 3D placement edit proposal. */
+/** Readonly 3D placement edit proposal with detached attribute snapshots. */
 export interface ScenePlacementEditProposal {
   readonly proposalId: string;
   readonly sourceId: SourceId;
@@ -201,6 +203,8 @@ export function createSceneEditProposal(options: CreateSceneEditProposalOptions)
     });
   }
 
+  const before = capturePlacement(options.before, diagnostics);
+  const after = capturePlacement(options.after, diagnostics);
   const hasError = diagnostics.some((entry) => entry.severity === "error");
   const hasWarning = diagnostics.some((entry) => entry.severity === "warning");
   const status: SceneEditProposalStatus = hasError ? "rejected" : hasWarning ? "review-required" : "ready";
@@ -211,8 +215,8 @@ export function createSceneEditProposal(options: CreateSceneEditProposalOptions)
     featureId: options.featureId,
     operation: options.operation,
     geometryKind: options.geometryKind,
-    ...(options.before ? { before: capturePlacement(options.before) } : {}),
-    ...(options.after ? { after: capturePlacement(options.after) } : {}),
+    ...(before ? { before } : {}),
+    ...(after ? { after } : {}),
     verticalContext: Object.freeze({ ...verticalContext }),
     ...(capabilities.sourceVersion !== undefined ? { sourceVersion: capabilities.sourceVersion } : {}),
     authorizationScope: Object.freeze([...capabilities.authorizationScope]),
@@ -221,11 +225,24 @@ export function createSceneEditProposal(options: CreateSceneEditProposalOptions)
   });
 }
 
-function capturePlacement(placement: SceneEditPlacement): SceneEditPlacement {
-  const copy = structuredClone(placement);
-  Object.freeze(copy.coordinates);
-  if (copy.orientation) Object.freeze(copy.orientation);
-  return Object.freeze(copy);
+function capturePlacement(
+  placement: SceneEditPlacement | undefined,
+  diagnostics: SceneEditDiagnostic[],
+): SceneEditPlacement | undefined {
+  if (!placement) return undefined;
+  try {
+    const copy = structuredClone(placement);
+    Object.freeze(copy.coordinates);
+    if (copy.orientation) Object.freeze(copy.orientation);
+    return Object.freeze(copy);
+  } catch {
+    diagnostics.push({
+      code: "scene-edit-placement-not-cloneable",
+      severity: "error",
+      message: "Placement data must be structured-cloneable.",
+    });
+    return undefined;
+  }
 }
 
 /** Explicitly approve a `review-required` proposal after human review. */
@@ -252,6 +269,7 @@ export async function applySceneEditProposal(options: {
   if (proposal.status !== "ready") {
     throw new Error(`Refusing to apply scene edit proposal "${proposal.proposalId}" in status "${proposal.status}".`);
   }
+  const attributes = proposal.after?.attributes ? structuredClone(proposal.after.attributes) : undefined;
   const outcome = await options.execute(proposal);
   const appliedAt = (options.now ?? (() => new Date().toISOString()))();
   const target: FeatureSelectionTarget = { sourceId: proposal.sourceId, id: proposal.featureId };
@@ -281,7 +299,7 @@ export async function applySceneEditProposal(options: {
               sourceId: proposal.sourceId,
               featureId: proposal.featureId,
               status: "ready",
-              ...(proposal.after?.attributes ? { attributes: proposal.after.attributes } : {}),
+              ...(attributes ? { attributes } : {}),
             },
             source: "scene",
             at: appliedAt,
