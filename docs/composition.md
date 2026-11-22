@@ -152,7 +152,7 @@ const renderSources = sources.filter(
 
 intersectCapabilities(featureSources).has("query"); // true
 intersectCapabilities(renderSources).has("tiles"); // true
-intersectCapabilities([...featureSources, ...renderSources]).size; // 0
+intersectCapabilities([...featureSources, ...renderSources]).size; // 1: query
 ```
 
 The "smarter, per-operation per-source matrix" alternative is exactly
