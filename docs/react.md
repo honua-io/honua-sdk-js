@@ -23,11 +23,17 @@ entry point (`@honua/sdk-js/react`, published standalone as `@honua/react`).
 ## Install
 
 ```bash
-npm install @honua/sdk-js @honua/react react react-dom maplibre-gl
+npm install @honua/sdk @honua/sdk-js @honua/react react react-dom maplibre-gl
 ```
 
-Inside this monorepo the same surface is available at the subpath
-`@honua/sdk-js/react`.
+From the first release after 0.4.0, `@honua/react` takes its `HonuaClient`
+from its `@honua/sdk` peer, so create the client from `@honua/sdk`. A
+`HonuaClient` from `@honua/sdk-js/honua` is a separate declaration and fails to
+type-check as `HonuaProvider`'s `client`. On 0.4.0, `@honua/react` still bundles
+its own client copy that no public import provides. Use the
+`@honua/sdk-js/react` subpath with `HonuaClient` from `@honua/sdk-js/honua`
+there. That pairing type-checks on every release and is the same surface this
+monorepo uses.
 
 ## Provider setup
 
@@ -35,7 +41,7 @@ Wrap your app once with a `HonuaClient`. The provider owns a session-scoped
 query cache shared by every hook below it.
 
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk";
 import { HonuaProvider } from "@honua/react";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example.com" });

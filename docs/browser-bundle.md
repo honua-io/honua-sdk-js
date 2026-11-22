@@ -73,11 +73,11 @@ unpkg works the same way:
 
 The bundle is focused on the **core SDK public API** (everything re-exported
 from `src/index.ts`). Its stable-core runtime dependency,
-`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has two
-other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
-migration forwarders outside the browser graph, and
-`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser. That pin originated with the earlier Node 20 compatibility
+`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has
+three other bounded direct dependencies: `hyparquet` and `fzstd` back the
+lazily loaded Parquet reader in `@honua/sdk-js/export`, outside the browser
+graph, and `@mapbox/jsonlint-lines-primitives@2.0.3` temporarily pins
+style-spec's existing parser. That pin originated with the earlier Node 20 compatibility
 work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and
