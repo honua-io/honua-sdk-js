@@ -211,14 +211,21 @@ export function createSceneEditProposal(options: CreateSceneEditProposalOptions)
     featureId: options.featureId,
     operation: options.operation,
     geometryKind: options.geometryKind,
-    ...(options.before ? { before: options.before } : {}),
-    ...(options.after ? { after: options.after } : {}),
+    ...(options.before ? { before: capturePlacement(options.before) } : {}),
+    ...(options.after ? { after: capturePlacement(options.after) } : {}),
     verticalContext: Object.freeze({ ...verticalContext }),
     ...(capabilities.sourceVersion !== undefined ? { sourceVersion: capabilities.sourceVersion } : {}),
     authorizationScope: Object.freeze([...capabilities.authorizationScope]),
     status,
     diagnostics: Object.freeze(diagnostics),
   });
+}
+
+function capturePlacement(placement: SceneEditPlacement): SceneEditPlacement {
+  const copy = structuredClone(placement);
+  Object.freeze(copy.coordinates);
+  if (copy.orientation) Object.freeze(copy.orientation);
+  return Object.freeze(copy);
 }
 
 /** Explicitly approve a `review-required` proposal after human review. */

@@ -236,7 +236,8 @@ export function resolveQuantizedMeshTileUrl(
     .replaceAll("{x}", String(coord.x))
     .replaceAll("{y}", String(coord.y))
     .replaceAll("{version}", encodeURIComponent(manifest.version));
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const normalizedBase = new URL(baseUrl);
+  normalizedBase.pathname = `${normalizedBase.pathname.replace(/\/+$/, "")}/`;
   return new URL(substituted, normalizedBase).toString();
 }
 
@@ -524,17 +525,22 @@ function normalizeTerrainBaseUrls(rawUrl: string): { readonly baseUrl: string; r
   if (!trimmed) {
     throw new HonuaQuantizedMeshError("invalid-manifest", "Terrain base URL must be non-empty.");
   }
-  if (/\/tile\.json(\?.*)?$/i.test(trimmed)) {
+  const url = new URL(trimmed);
+  if (/\/tile\.json$/i.test(url.pathname)) {
     throw new HonuaQuantizedMeshError(
       "unsupported-format",
       "Terrain-RGB tile.json endpoints are not quantized-mesh sources; use Terrain-RGB decoding instead.",
     );
   }
-  if (/\/layer\.json$/i.test(trimmed)) {
-    return { baseUrl: trimmed.slice(0, -"/layer.json".length), layerJsonUrl: trimmed };
+  if (/\/layer\.json$/i.test(url.pathname)) {
+    const layerJsonUrl = url.toString();
+    url.pathname = url.pathname.slice(0, -"/layer.json".length);
+    return { baseUrl: url.toString(), layerJsonUrl };
   }
-  const baseUrl = trimmed.replace(/\/+$/, "");
-  return { baseUrl, layerJsonUrl: `${baseUrl}/layer.json` };
+  url.pathname = url.pathname.replace(/\/+$/, "");
+  const baseUrl = url.toString();
+  url.pathname = `${url.pathname}/layer.json`;
+  return { baseUrl, layerJsonUrl: url.toString() };
 }
 
 function parseBounds(value: unknown): readonly [number, number, number, number] {
@@ -661,6 +667,9 @@ function decodeHighWaterMarkIndices(view: DataView, cursor: IndexCursor, count: 
   let highest = 0;
   for (let i = 0; i < count; i += 1) {
     const code = use32Bit ? view.getUint32(offset + i * step, true) : view.getUint16(offset + i * step, true);
+    if (code > highest) {
+      throw new HonuaQuantizedMeshError("invalid-tile", "Triangle high-water-mark index underflow.");
+    }
     out[i] = highest - code;
     if (code === 0) highest += 1;
   }

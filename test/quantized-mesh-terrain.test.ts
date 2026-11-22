@@ -111,6 +111,32 @@ describe("quantized-mesh 1.0 terrain client, decoder, validator, and Terrain-RGB
     expect(() => buildSlopedTileBinary({ indices: [0, 2, 1] })).toThrow(/high-water-mark order/);
   });
 
+  it.each(["/terrain/dem?token=abc", "/terrain/dem/layer.json?token=abc"])(
+    "preserves manifest query parameters for %s",
+    async (path) => {
+      const requested: string[] = [];
+      const client = createQuantizedMeshTerrainClient({
+        url: `https://terrain.example${path}`,
+        fetchFn: async (input) => {
+          requested.push(String(input));
+          return Response.json({ format: "quantized-mesh-1.0", tiles: ["{z}/{x}/{y}.terrain?tile=xyz"] });
+        },
+      });
+      const manifest = await client.getLayerManifest();
+      expect(requested).toEqual(["https://terrain.example/terrain/dem/layer.json?token=abc"]);
+      expect(resolveQuantizedMeshTileUrl(manifest, client.baseUrl, { z: 0, x: 0, y: 0 })).toBe(
+        "https://terrain.example/terrain/dem/0/0/0.terrain?tile=xyz",
+      );
+    },
+  );
+
+  it("rejects high-water-mark underflow before typed-array coercion", () => {
+    const bytes = buildSlopedTileBinary();
+    const firstIndexOffset = 88 + 4 + 4 * 6 + 4;
+    new DataView(bytes.buffer).setUint16(firstIndexOffset, 65535, true);
+    expect(() => decodeQuantizedMeshTile(bytes)).toThrow(/high-water-mark index underflow/);
+  });
+
   it("rejects metadata JSON lengths larger than the extension payload", () => {
     const bytes = buildSlopedTileBinary();
     const jsonLength = new TextEncoder().encode(JSON.stringify({ source: "honua-dem-fixture" })).length;
