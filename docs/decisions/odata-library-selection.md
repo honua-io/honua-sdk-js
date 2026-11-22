@@ -45,7 +45,6 @@ note is updated."
 | [`odata2ts`](https://github.com/odata2ts/odata2ts) | Strong TypeScript ergonomics, build-time codegen | **Build-time codegen** binds output to a known service schema. The SDK targets arbitrary OData services discovered at runtime; codegen cannot be adopted as a runtime dep. Recommended *to consumers* (see below) on top of the escape-hatch `raw(...)`. |
 | [`@odata/client`](https://www.npmjs.com/package/@odata/client) | TypeScript-native runtime client | Bundles its own HTTP layer (no fetch-hook injection that composes with `HonuaClient.fetch`); maintenance posture has been thin in recent quarters; bundle audit shows it would land at the upper edge of the 30 KB bar before tree-shaking the unused `$batch` multipart path. Disqualified on the runtime-fetch-hook + maintenance criteria. |
 | [`o.js`](https://www.npmjs.com/package/o.js) | Small fluent builder | Maintenance posture weak; no `$batch`; no `$metadata` parser. Fails coverage criteria. |
-| [`simple-odata-client`](https://www.npmjs.com/package/simple-odata-client) | Node-first runtime | Bundles a heavyweight HTTP transport (`got`); pulls Node-only modules into the consumer bundle. Conflicts with the runtime-fetch-hook criterion and the SDK's browser-and-Node target. |
 | [`odata-fluent-query`](https://www.npmjs.com/package/odata-fluent-query) | Query builder | Query-builder only — no `$batch`, no `$metadata`. Combining it with hand-rolled `$batch` + EDMX would defeat the wrap-not-rewrite intent without removing the dep. |
 
 No candidate clears every bar.
