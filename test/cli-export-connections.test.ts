@@ -1,26 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli/main.js";
-
-function captureOutput() {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const outSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
-    stdout.push(String(chunk));
-    return true;
-  });
-  const errSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    stderr.push(String(chunk));
-    return true;
-  });
-  return {
-    stdout: () => stdout.join(""),
-    stderr: () => stderr.join(""),
-    restore() {
-      outSpy.mockRestore();
-      errSpy.mockRestore();
-    },
-  };
-}
+import { captureOutput } from "./helpers/cli-output.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -54,12 +34,10 @@ describe("honua export CLI", () => {
     expect(cap.stdout()).toContain("running");
   });
 
-  it("rejects unsupported public promotion and malformed layer references without transport", async () => {
+  it("rejects malformed layer references without transport", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const cap = captureOutput();
-    expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(2);
-    expect(cap.stderr()).toContain("Omit --public");
     expect(await run(["export", "maui-parcels/2147483648"], options)).toBe(2);
     expect(cap.stderr()).toContain("<serviceId/layerId>");
     expect(fetchMock).not.toHaveBeenCalled();

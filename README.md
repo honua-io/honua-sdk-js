@@ -559,6 +559,9 @@ honua geocode "1 Honolulu Pl, HI"
 honua tiles maui-parcels 12/267/1805 -o tile.png
 ```
 
+Create, inspect or remove cloud-native exports with `honua export`. See the
+[export CLI guide](docs/cli-exports.md) for `--public`, publication waits and failure handling.
+
 Render a map image of a bounding box:
 
 ```bash

@@ -18,6 +18,7 @@
 ## Guides
 
 * [Honua App Bootstrap (`@honua/app-platform/app`)](app-bootstrap.md)
+* [Cloud-native exports from the CLI](cli-exports.md)
 * [Catalog dataset picker](controls-catalog-picker.md)
 * [Filtered-row data export](controls-data-export.md)
 * [Scaffold a new app](create-honua-app.md)

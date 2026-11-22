@@ -3,7 +3,7 @@
  * Portolan STAC collection) through the SDK control-plane client.
  *
  * Supported forms:
- * - `honua export <serviceId/layerId> [--id <exportId>] [--dry-run] [--yes] [--json]`
+ * - `honua export <serviceId/layerId> [--id <exportId>] [--public] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]`
  * - `honua export list [--json]`
  * - `honua export remove <exportId> [--dry-run] [--yes] [--json]`
  *
@@ -16,53 +16,20 @@ import { ArgError, getBoolean, getString } from "../args.js";
 import { createClient } from "../client.js";
 import type { CommandContext } from "../command.js";
 import { printLine, renderDetail, renderJson, renderTable } from "../output.js";
+import { publicationTimeout, waitForPublicPublication } from "./export-publication.js";
+import {
+  type ApiResponse,
+  type ExportListResponse,
+  type ExportRecord,
+  type ExportSource,
+  unwrapResponse,
+} from "./export-response.js";
 
 export const EXPORT_USAGE =
   "Usage:\n" +
-  "  honua export <serviceId/layerId> [--id <exportId>] [--dry-run] [--yes] [--json]\n" +
+  "  honua export <serviceId/layerId> [--id <exportId>] [--public] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]\n" +
   "  honua export list [--json]\n" +
   "  honua export remove <exportId> [--dry-run] [--yes] [--json]";
-
-interface ExportSource {
-  readonly kind: string;
-  readonly serviceId?: string;
-  readonly layerId?: number;
-  readonly name?: string;
-}
-
-export interface ExportRecord {
-  readonly id: string;
-  readonly title: string;
-  readonly source: ExportSource;
-  readonly currentVersion?: string;
-  readonly status: string;
-  readonly collectionUrl?: string;
-  readonly publicUrl?: string;
-  readonly notPublicReason?: string;
-  readonly jobId?: string;
-}
-
-interface ExportListResponse {
-  readonly items: readonly ExportRecord[];
-}
-
-interface ApiResponse<T> {
-  readonly success: boolean;
-  readonly data?: T;
-  readonly message?: string;
-}
-
-function unwrapResponse<T>(
-  result:
-    | { readonly supported: true; readonly value: ApiResponse<T> }
-    | { readonly supported: false; readonly reason: string },
-): T {
-  if (!result.supported) throw new Error(result.reason);
-  if (!result.value?.success || result.value.data == null) {
-    throw new Error(result.value?.message ?? "The server returned an invalid export response.");
-  }
-  return result.value.data;
-}
 
 function sourceLabel(source: ExportSource): string {
   return source.serviceId && source.layerId != null
@@ -141,9 +108,8 @@ async function removeExport(exportId: string | undefined, parsed: ParsedArgs, ct
 }
 
 async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  if (getBoolean(parsed, "public")) {
-    throw new ArgError("The server supports signed-in exports. Omit --public to create a signed-in export.");
-  }
+  const requirePublic = getBoolean(parsed, "public");
+  const timeoutMs = requirePublic ? publicationTimeout(parsed) : undefined;
 
   const source = /^([^/]+)\/(\d+)$/.exec(layer);
   const layerId = Number(source?.[2]);
@@ -159,7 +125,14 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
   };
 
   if (dryRun) {
-    const preview = { action: "export.create", method: "POST", path: "/exports", payload, status: "dry-run" };
+    const preview = {
+      action: "export.create",
+      method: "POST",
+      path: "/exports",
+      payload,
+      ...(requirePublic ? { requirePublic } : {}),
+      status: "dry-run",
+    };
     if (getBoolean(parsed, "json")) {
       printLine(renderJson(preview));
       return;
@@ -170,6 +143,7 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
           layer,
           ...(exportId ? { exportId } : {}),
           request: "POST /exports",
+          ...(requirePublic ? { publication: "Require server-confirmed public URL" } : {}),
           status: "dry-run",
         },
         { title: "Export plan (dry run)" },
@@ -183,6 +157,12 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
   const created = unwrapResponse(
     await controlPlane.raw<ApiResponse<ExportRecord>>({ method: "POST", path: "/exports", body: payload }),
   );
+  const result =
+    timeoutMs === undefined ? created : await waitForPublicPublication({ controlPlane, created, timeoutMs });
+  printExport(result, parsed);
+}
+
+function printExport(created: ExportRecord, parsed: ParsedArgs): void {
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(created));
     return;
@@ -195,10 +175,11 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
         ...(created.currentVersion ? { version: created.currentVersion } : {}),
         status: created.status,
         ...(created.collectionUrl ? { collectionUrl: created.collectionUrl } : {}),
+        ...(created.publicUrl ? { publicUrl: created.publicUrl } : {}),
         ...(created.jobId ? { jobId: created.jobId } : {}),
         ...(created.notPublicReason ? { notPublicReason: created.notPublicReason } : {}),
       },
-      { title: "Export submitted" },
+      { title: getBoolean(parsed, "public") ? "Export published" : "Export submitted" },
     ),
   );
 }
