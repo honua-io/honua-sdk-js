@@ -2,7 +2,7 @@
 type: reference
 title: "Studio Package Contracts (`@honua/app-platform/studio`)"
 description: "One browser-safe import path for the Studio package families, the unified validation and preview envelopes, the capability manifest, and the publish, share and embed contracts."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Studio Package Contracts (`@honua/app-platform/studio`)
 

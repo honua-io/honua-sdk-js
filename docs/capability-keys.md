@@ -57,8 +57,8 @@ field from this crosswalk and fails closed on:
 
 An entry may legitimately end up with an empty `capabilityKeys` array --
 that is the explicit "no platform capability" state, valid only when every
-one of its `capabilities` slugs is `internalOnly` in the crosswalk (9 of the
-31 current entries, e.g. `react-quickstart`, `migration-workbench`:
+one of its `capabilities` slugs is `internalOnly` in the crosswalk (8 of the
+23 current entries, e.g. `react-quickstart`, `migration-workbench`:
 dev-tooling, framework-binding, or SDK-internal demos with no discrete
 platform capability to claim).
 
