@@ -48,12 +48,13 @@ export type NormalizedScenePickResult =
 /** Options for {@link normalizeCesiumPick} and {@link pickNormalizedSceneFeature}. */
 export interface NormalizeCesiumPickOptions {
   readonly position?: SceneAnalysisPosition;
+  /** Canonical source identity for picks that lack it, including projected Cesium entities. */
   readonly defaultSourceId?: SourceId;
   readonly featureIdFields?: readonly string[];
 }
 
 const DEFAULT_FEATURE_ID_FIELDS: readonly string[] = ["objectId", "OBJECTID", "id", "featureId", "fid", "gml_id"];
-const HONUA_ENTITY_ID_RE = /^honua-([^:]+):(n|s):(.+)$/;
+const HONUA_ENTITY_ID_RE = /^honua-[^:]+:(n|s):(.*)$/;
 
 /**
  * Normalize any raw Cesium `scene.pick(...)` result into a stable,
@@ -65,15 +66,13 @@ export function normalizeCesiumPick(
   options: NormalizeCesiumPickOptions = {},
 ): NormalizedScenePickResult {
   if (picked === null || picked === undefined) {
-    return unresolvable("pick-empty", "Scene pick did not intersect any renderable feature.", options.position);
+    return unresolvable("pick-empty", "Scene pick did not intersect any renderable feature.", options);
   }
   if (typeof picked !== "object") {
-    return unresolvable(
-      "pick-unresolvable-primitive",
-      "Scene pick returned a non-object value.",
-      options.position,
-      typeof picked,
-    );
+    return unresolvable("pick-unresolvable-primitive", "Scene pick returned a non-object value.", {
+      position: options.position,
+      primitiveType: typeof picked,
+    });
   }
 
   const featureAttributes = resolvePickedFeatureAttributes(picked);
@@ -98,8 +97,7 @@ export function normalizeCesiumPick(
   return unresolvable(
     "pick-unresolvable-primitive",
     "Picked Cesium object does not expose a Honua entity, model, or 3D-Tiles feature contract.",
-    options.position,
-    record.constructor?.name,
+    { position: options.position, primitiveType: record.constructor?.name },
   );
 }
 
@@ -113,11 +111,7 @@ export function pickNormalizedSceneFeature(
   options: NormalizeCesiumPickOptions = {},
 ): NormalizedScenePickResult {
   if (typeof scene.pick !== "function") {
-    return unresolvable(
-      "pick-unresolvable-primitive",
-      "Attached Cesium scene does not expose pick().",
-      options.position,
-    );
+    return unresolvable("pick-unresolvable-primitive", "Attached Cesium scene does not expose pick().", options);
   }
   return normalizeCesiumPick(scene.pick(windowPosition), options);
 }
@@ -220,13 +214,11 @@ function normalizeEntityPick(
   options: NormalizeCesiumPickOptions,
 ): NormalizedScenePickResult {
   const entityId = entity.id as string;
-  const parsedIdentity = parseHonuaEntityId(entityId);
+  const projectedFeatureId = parseProjectedFeatureId(entityId);
   const attributes = readEntityProperties(entity.properties);
-  const sourceId = parsedIdentity?.sourceId ?? options.defaultSourceId;
+  const sourceId = options.defaultSourceId;
   const featureId =
-    parsedIdentity?.featureId ??
-    findFeatureId(attributes, options.featureIdFields ?? DEFAULT_FEATURE_ID_FIELDS) ??
-    entityId;
+    projectedFeatureId ?? findFeatureId(attributes, options.featureIdFields ?? DEFAULT_FEATURE_ID_FIELDS) ?? entityId;
   const selectionTarget = sourceId !== undefined ? { sourceId, id: featureId } : undefined;
   return {
     resolved: true,
@@ -246,12 +238,10 @@ function normalizeModelPick(
 ): NormalizedScenePickResult {
   const primitiveId = typeof record.id === "string" ? record.id : readPrimitiveId(record.primitive);
   if (!primitiveId) {
-    return unresolvable(
-      "pick-missing-identity",
-      "Picked model primitive carries no stable identifier.",
-      options.position,
-      record.primitive?.constructor?.name,
-    );
+    return unresolvable("pick-missing-identity", "Picked model primitive carries no stable identifier.", {
+      position: options.position,
+      primitiveType: record.primitive?.constructor?.name,
+    });
   }
   const sourceId = options.defaultSourceId;
   const node = record.node && typeof record.node === "object" ? (record.node as Record<string, unknown>) : undefined;
@@ -273,14 +263,16 @@ function normalizeModelPick(
   };
 }
 
-function parseHonuaEntityId(id: string): { readonly sourceId: string; readonly featureId: FeatureId } | undefined {
+function parseProjectedFeatureId(id: string): FeatureId | undefined {
   const match = HONUA_ENTITY_ID_RE.exec(id);
   if (!match) return undefined;
-  const sourceId = match[1]!;
-  const kind = match[2]!;
-  const decoded = decodeURIComponent(match[3]!);
-  const featureId: FeatureId = kind === "n" && Number.isFinite(Number(decoded)) ? Number(decoded) : decoded;
-  return { sourceId, featureId };
+  const [, kind, encoded] = match;
+  try {
+    const decoded = decodeURIComponent(encoded!);
+    return kind === "n" && Number.isFinite(Number(decoded)) ? Number(decoded) : decoded;
+  } catch {
+    return undefined;
+  }
 }
 
 function readEntityProperties(bag: unknown): Record<string, unknown> {
@@ -316,8 +308,7 @@ function findFeatureId(
 function unresolvable(
   code: ScenePickDiagnostic["code"],
   message: string,
-  position?: SceneAnalysisPosition,
-  primitiveType?: string,
+  { position, primitiveType }: { position?: SceneAnalysisPosition | undefined; primitiveType?: string | undefined },
 ): NormalizedScenePickResult {
   return {
     resolved: false,

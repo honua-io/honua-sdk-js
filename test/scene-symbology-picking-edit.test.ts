@@ -167,9 +167,9 @@ describe("normalized 3D picking, measurement/profile provenance, and bookmark ro
     expect(entityPick.resolved).toBe(true);
     if (entityPick.resolved) {
       expect(entityPick.kind).toBe("entity");
-      expect(entityPick.sourceId).toBe("buildings");
+      expect(entityPick.sourceId).toBeUndefined();
       expect(entityPick.featureId).toBe(108);
-      expect(entityPick.selectionTarget).toEqual({ sourceId: "buildings", id: 108 });
+      expect(entityPick.selectionTarget).toBeUndefined();
       expect(entityPick.attributes.name).toBe("Civic Hall");
     }
 
