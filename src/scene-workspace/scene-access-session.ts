@@ -241,7 +241,12 @@ export function createProtectedSceneAssetSession(
         ensureNotDisposed();
         const raw = await options.execute<unknown>("POST", affordancePath, undefined, lifecycleController.signal);
         ensureNotDisposed();
-        const parsed = parseEnvelopePayload(raw, sceneId, initialScope, now(), options.affordance.transport);
+        const parsed = parseEnvelopePayload(raw, {
+          expectedSceneId: sceneId,
+          baseScope: initialScope,
+          timestamp: now(),
+          expectedTransport: options.affordance.transport,
+        });
         active = parsed;
         currentScope = parsed.scope;
         refreshCount += 1;
@@ -499,11 +504,14 @@ function parseInitialScope(affordance: SceneAccessAffordance): SceneAccessScope 
 
 function parseEnvelopePayload(
   raw: unknown,
-  expectedSceneId: string,
-  baseScope: SceneAccessScope,
-  timestamp: number,
-  expectedTransport?: SceneAccessCredentialTransport,
+  context: {
+    expectedSceneId: string;
+    baseScope: SceneAccessScope;
+    timestamp: number;
+    expectedTransport?: SceneAccessCredentialTransport;
+  },
 ): ActiveEnvelope {
+  const { expectedSceneId, baseScope, timestamp, expectedTransport } = context;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new HonuaSceneAccessSessionError("refresh-failed", "Access envelope response must be a JSON object.");
   }

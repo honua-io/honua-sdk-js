@@ -277,13 +277,13 @@ export function decodeQuantizedMeshTile(input: ArrayBuffer | Uint8Array): Decode
   if (offset + indexCount * indexBytes > bytes.byteLength) {
     throw new HonuaQuantizedMeshError("invalid-tile", "Quantized-mesh tile is truncated in triangle index buffer.");
   }
-  const indices = decodeHighWaterMarkIndices(view, offset, indexCount, use32BitIndices);
+  const indices = decodeHighWaterMarkIndices(view, { offset, use32Bit: use32BitIndices }, indexCount);
   offset += indexCount * indexBytes;
 
-  const edgeRead = readAllEdgeIndices(view, offset, bytes.byteLength, use32BitIndices);
+  const edgeRead = readAllEdgeIndices(view, { offset, use32Bit: use32BitIndices });
   offset = edgeRead.nextOffset;
 
-  const extensions = decodeExtensions(bytes, view, offset, vertexCount);
+  const extensions = decodeExtensions(bytes, offset, vertexCount);
   return {
     header,
     vertexCount,
@@ -330,31 +330,30 @@ export function validateQuantizedMeshTile(tile: DecodedQuantizedMeshTile): Quant
     }
   }
   const edgeLists = [tile.edgeIndices.west, tile.edgeIndices.south, tile.edgeIndices.east, tile.edgeIndices.north];
-  for (const edge of edgeLists) {
-    for (let i = 0; i < edge.length; i += 1) {
-      if (edge[i]! >= tile.vertexCount) {
-        issues.push(`Edge index ${edge[i]} is out of range for vertexCount ${tile.vertexCount}.`);
-        break;
-      }
-    }
-  }
-  if (tile.vertexNormals) {
-    if (tile.vertexNormals.length !== tile.vertexCount * 3) {
-      issues.push("vertexNormals length does not match vertexCount * 3.");
-    } else {
-      for (let i = 0; i < tile.vertexCount; i += 1) {
-        const nx = tile.vertexNormals[i * 3]!;
-        const ny = tile.vertexNormals[i * 3 + 1]!;
-        const nz = tile.vertexNormals[i * 3 + 2]!;
-        const len = Math.hypot(nx, ny, nz);
-        if (!Number.isFinite(len) || Math.abs(len - 1) > NORMAL_UNIT_LENGTH_TOLERANCE) {
-          issues.push(`Vertex normal ${i} is not unit length (${len}).`);
-          break;
-        }
-      }
-    }
-  }
+  issues.push(...validateEdgeIndices(edgeLists, tile.vertexCount));
+  issues.push(...validateVertexNormals(tile.vertexNormals, tile.vertexCount));
   return { valid: issues.length === 0, issues };
+}
+
+function validateEdgeIndices(edges: readonly (Uint16Array | Uint32Array)[], vertexCount: number): string[] {
+  const issues: string[] = [];
+  for (const edge of edges) {
+    const invalid = edge.find((index) => index >= vertexCount);
+    if (invalid !== undefined) issues.push(`Edge index ${invalid} is out of range for vertexCount ${vertexCount}.`);
+  }
+  return issues;
+}
+
+function validateVertexNormals(normals: Float32Array | undefined, vertexCount: number): string[] {
+  if (!normals) return [];
+  if (normals.length !== vertexCount * 3) return ["vertexNormals length does not match vertexCount * 3."];
+  for (let i = 0; i < vertexCount; i += 1) {
+    const length = Math.hypot(normals[i * 3]!, normals[i * 3 + 1]!, normals[i * 3 + 2]!);
+    if (!Number.isFinite(length) || Math.abs(length - 1) > NORMAL_UNIT_LENGTH_TOLERANCE) {
+      return [`Vertex normal ${i} is not unit length (${length}).`];
+    }
+  }
+  return [];
 }
 
 /**
@@ -428,21 +427,15 @@ export function encodeQuantizedMeshTile(input: QuantizedMeshEncodeInput): Uint8A
   offset += 4;
   offset = writeZigZagArray(view, offset, input.u);
   offset = writeZigZagArray(view, offset, input.v);
-  offset = writeZigZagArray(view, offset, input.height);
+  writeZigZagArray(view, offset, input.height);
 
   offset = alignedIndexStart;
   view.setUint32(offset, triangleCount, true);
   offset += 4;
-  offset = writeHighWaterMarkIndices(view, offset, input.indices, vertexCount, use32Bit);
+  offset = writeHighWaterMarkIndices(view, { offset, use32Bit, vertexCount }, input.indices);
 
   for (const edge of [west, south, east, north]) {
-    view.setUint32(offset, edge.length, true);
-    offset += 4;
-    for (const idx of edge) {
-      if (use32Bit) view.setUint32(offset, idx, true);
-      else view.setUint16(offset, idx, true);
-      offset += indexBytes;
-    }
+    offset = writeEdgeIndices(view, { offset, use32Bit }, edge);
   }
 
   for (const block of extBlocks) {
@@ -644,12 +637,25 @@ function alignOffset(offset: number, alignment: number): number {
   return remainder === 0 ? offset : offset + (alignment - remainder);
 }
 
-function decodeHighWaterMarkIndices(
-  view: DataView,
-  offset: number,
-  count: number,
-  use32Bit: boolean,
-): Uint16Array | Uint32Array {
+interface IndexCursor {
+  readonly offset: number;
+  readonly use32Bit: boolean;
+}
+
+function writeEdgeIndices(view: DataView, cursor: IndexCursor, edge: readonly number[]): number {
+  let offset = cursor.offset;
+  view.setUint32(offset, edge.length, true);
+  offset += 4;
+  for (const index of edge) {
+    if (cursor.use32Bit) view.setUint32(offset, index, true);
+    else view.setUint16(offset, index, true);
+    offset += cursor.use32Bit ? 4 : 2;
+  }
+  return offset;
+}
+
+function decodeHighWaterMarkIndices(view: DataView, cursor: IndexCursor, count: number): Uint16Array | Uint32Array {
+  const { offset, use32Bit } = cursor;
   const out = use32Bit ? new Uint32Array(count) : new Uint16Array(count);
   const step = use32Bit ? 4 : 2;
   let highest = 0;
@@ -663,11 +669,10 @@ function decodeHighWaterMarkIndices(
 
 function writeHighWaterMarkIndices(
   view: DataView,
-  offset: number,
+  cursor: IndexCursor & { readonly vertexCount: number },
   indices: readonly number[],
-  vertexCount: number,
-  use32Bit: boolean,
 ): number {
+  const { offset, use32Bit, vertexCount } = cursor;
   const step = use32Bit ? 4 : 2;
   let highest = 0;
   for (let i = 0; i < indices.length; i += 1) {
@@ -688,10 +693,10 @@ function writeHighWaterMarkIndices(
 
 function readAllEdgeIndices(
   view: DataView,
-  startOffset: number,
-  byteLength: number,
-  use32Bit: boolean,
+  cursor: IndexCursor,
 ): { readonly edges: QuantizedMeshEdgeIndices; readonly nextOffset: number } {
+  const { offset: startOffset, use32Bit } = cursor;
+  const byteLength = view.byteLength;
   const step = use32Bit ? 4 : 2;
   let offset = startOffset;
   const readOne = (): Uint16Array | Uint32Array => {
@@ -718,7 +723,6 @@ function readAllEdgeIndices(
 
 function decodeExtensions(
   bytes: Uint8Array,
-  view: DataView,
   startOffset: number,
   vertexCount: number,
 ): {
@@ -727,6 +731,7 @@ function decodeExtensions(
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly present: readonly number[];
 } {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let offset = startOffset;
   const present: number[] = [];
   let vertexNormals: Float32Array | undefined;
@@ -747,19 +752,23 @@ function decodeExtensions(
     } else if (extId === QUANTIZED_MESH_EXTENSION_WATER_MASK) {
       waterMask = new Uint8Array(payload);
     } else if (extId === QUANTIZED_MESH_EXTENSION_METADATA) {
-      if (extLength < 4) {
-        throw new HonuaQuantizedMeshError("invalid-tile", "Metadata extension is missing its JSON length.");
-      }
-      const jsonLength = view.getUint32(offset, true);
-      if (jsonLength > extLength - 4) {
-        throw new HonuaQuantizedMeshError("invalid-tile", "Metadata JSON length exceeds its extension bounds.");
-      }
-      const text = new TextDecoder().decode(bytes.subarray(offset + 4, offset + 4 + jsonLength));
-      metadata = JSON.parse(text) as Record<string, unknown>;
+      metadata = decodeMetadata(payload);
     }
     offset += extLength;
   }
   return { vertexNormals, waterMask, metadata, present };
+}
+
+function decodeMetadata(payload: Uint8Array): Readonly<Record<string, unknown>> {
+  if (payload.byteLength < 4) {
+    throw new HonuaQuantizedMeshError("invalid-tile", "Metadata extension is missing its JSON length.");
+  }
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const jsonLength = view.getUint32(0, true);
+  if (jsonLength > payload.byteLength - 4) {
+    throw new HonuaQuantizedMeshError("invalid-tile", "Metadata JSON length exceeds its extension bounds.");
+  }
+  return JSON.parse(new TextDecoder().decode(payload.subarray(4, 4 + jsonLength))) as Record<string, unknown>;
 }
 
 function decodeOctVertexNormals(payload: Uint8Array, vertexCount: number): Float32Array {

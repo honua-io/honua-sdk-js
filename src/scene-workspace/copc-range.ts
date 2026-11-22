@@ -207,22 +207,26 @@ async function readBoundedBody(body: ReadableStream<Uint8Array> | null, limit: n
   if (!body) return new Uint8Array();
   const reader = body.getReader();
   try {
-    const bytes = new Uint8Array(limit);
-    let offset = 0;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) return bytes.subarray(0, offset);
-      if (value.byteLength > limit - offset) {
-        throw new Error(`COPC response exceeded the requested byte budget (${limit}).`);
-      }
-      bytes.set(value, offset);
-      offset += value.byteLength;
-    }
+    return await readBoundedChunks(reader, limit);
   } catch (error) {
     void reader.cancel().catch(() => undefined);
     throw error;
   } finally {
     reader.releaseLock();
+  }
+}
+
+async function readBoundedChunks(reader: ReadableStreamDefaultReader<Uint8Array>, limit: number): Promise<Uint8Array> {
+  const bytes = new Uint8Array(limit);
+  let offset = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return bytes.subarray(0, offset);
+    if (value.byteLength > limit - offset) {
+      throw new Error(`COPC response exceeded the requested byte budget (${limit}).`);
+    }
+    bytes.set(value, offset);
+    offset += value.byteLength;
   }
 }
 

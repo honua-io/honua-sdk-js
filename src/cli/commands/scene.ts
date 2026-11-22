@@ -89,7 +89,7 @@ export async function sceneCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
 
 async function handleSceneList(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const client = createClient(ctx);
-  const scenes = await listScenes((method, p, init, signal) => client.pipelineRequestJson(method, p, init, signal));
+  const scenes = await listScenes(client.pipelineRequestJson.bind(client));
   if (getBoolean(parsed, "json")) {
     printLine(renderJson({ scenes }));
     return;
@@ -114,10 +114,7 @@ async function handleSceneGet(parsed: ParsedArgs, ctx: CommandContext): Promise<
   const sceneId = parsed.positionals[0];
   if (!sceneId) throw new ArgError(SCENE_USAGE);
   const client = createClient(ctx);
-  const scene = await getScene(
-    (method, p, init, signal) => client.pipelineRequestJson(method, p, init, signal),
-    sceneId,
-  );
+  const scene = await getScene(client.pipelineRequestJson.bind(client), sceneId);
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(scene));
     return;

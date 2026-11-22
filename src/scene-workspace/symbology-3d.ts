@@ -441,10 +441,9 @@ function resolveRuleSymbol(
   }
   if (symbology.mode === "class-breaks" && symbology.field && symbology.classBreaks) {
     const value = attributes[symbology.field];
-    if (typeof value === "number" && Number.isFinite(value)) {
-      const match = symbology.classBreaks.find((rule) => value >= rule.minValue && value <= rule.maxValue);
-      if (match) return match.symbol;
-    }
+    if (typeof value !== "number" || !Number.isFinite(value)) return symbology.defaultSymbol;
+    const match = symbology.classBreaks.find((rule) => value >= rule.minValue && value <= rule.maxValue);
+    if (match) return match.symbol;
   }
   return symbology.defaultSymbol;
 }

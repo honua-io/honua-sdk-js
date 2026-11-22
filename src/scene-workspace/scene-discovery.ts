@@ -313,22 +313,27 @@ function readEndpointAccessAffordance(value: unknown): SceneAccessAffordance | u
     if (record?.requiresAuthentication !== true || typeof record.url !== "string") continue;
     const affordance = readAccessAffordance(record);
     if (!affordance) continue;
-    try {
-      const asset = new URL(record.url);
-      const acquisition = new URL(affordance.path, asset);
-      if (!["http:", "https:"].includes(asset.protocol) || acquisition.origin !== asset.origin) continue;
-      if (acquisition.username || acquisition.password || asset.username || asset.password) continue;
-      return {
-        method: "POST",
-        path: acquisition.href,
-        origin: asset.origin,
-        pathPrefix: asset.pathname.slice(0, asset.pathname.lastIndexOf("/") + 1),
-      };
-    } catch {
-      // Ignore unusable endpoint metadata.
-    }
+    const endpoint = scopeEndpointAffordance(record.url, affordance);
+    if (endpoint) return endpoint;
   }
   return undefined;
+}
+
+function scopeEndpointAffordance(url: string, affordance: SceneAccessAffordance): SceneAccessAffordance | undefined {
+  try {
+    const asset = new URL(url);
+    const acquisition = new URL(affordance.path, asset);
+    if (!["http:", "https:"].includes(asset.protocol) || acquisition.origin !== asset.origin) return undefined;
+    if (acquisition.username || acquisition.password || asset.username || asset.password) return undefined;
+    return {
+      method: "POST",
+      path: acquisition.href,
+      origin: asset.origin,
+      pathPrefix: asset.pathname.slice(0, asset.pathname.lastIndexOf("/") + 1),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function readEndpoints(value: unknown): HonuaSceneEndpoint[] {

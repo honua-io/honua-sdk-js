@@ -420,7 +420,8 @@ export class SceneView {
 function bindClientExecutor(client: HonuaClient | undefined): SceneViewRequestExecutor | undefined {
   if (!client) return undefined;
   const origin = new URL(client.serverBaseUrl).origin;
-  return (method, path, init, signal) => {
+  return (...args: Parameters<SceneViewRequestExecutor>) => {
+    const [method, path, init, signal] = args;
     if (new URL(path, client.serverBaseUrl).origin !== origin) {
       throw new Error("Scene discovery requests must use the configured server origin.");
     }

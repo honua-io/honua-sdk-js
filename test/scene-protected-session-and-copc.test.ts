@@ -369,10 +369,12 @@ describe("protected scene asset session, separation of serving format vs content
     let clockMs = Date.UTC(2026, 10, 21, 0, 0, 10);
 
     const execute = async <T = unknown>(
-      method: string,
-      path: string,
-      _init?: { readonly body?: unknown; readonly headers?: Record<string, string> },
-      signal?: AbortSignal,
+      ...[method, path, , signal]: [
+        string,
+        string,
+        { readonly body?: unknown; readonly headers?: Record<string, string> }?,
+        AbortSignal?,
+      ]
     ): Promise<T> => {
       const response = await fetch(`${srv.origin}${path}`, { method, signal });
       return (await response.json()) as T;
@@ -484,10 +486,12 @@ describe("protected scene asset session, separation of serving format vs content
   it("separates servingFormat from semantic contentKind and wires protected SceneView sessions + COPC range access", async () => {
     const srv = await startSceneServer({ baseTime: Date.now() });
     const execute = async <T = unknown>(
-      method: string,
-      path: string,
-      _init?: { readonly body?: unknown; readonly headers?: Record<string, string> },
-      signal?: AbortSignal,
+      ...[method, path, , signal]: [
+        string,
+        string,
+        { readonly body?: unknown; readonly headers?: Record<string, string> }?,
+        AbortSignal?,
+      ]
     ): Promise<T> => {
       const response = await fetch(`${srv.origin}${path}`, { method, signal });
       return (await response.json()) as T;
