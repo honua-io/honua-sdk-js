@@ -65,6 +65,7 @@
  *
  * @module
  */
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import {
   type HonuaAgentToolCall,
   type HonuaAgentToolDefinitionLike,
@@ -1236,7 +1237,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 }
 
 function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
-  const trimmed = stripTrailingSlashes(baseUrl ?? "/api");
+  const trimmed = trimTrailingSlashes(baseUrl ?? "/api");
   if (trimmed === "/api") {
     return "";
   }
@@ -1246,13 +1247,7 @@ function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
   return trimmed;
 }
 
-function stripTrailingSlashes(value: string): string {
-  let end = value.length;
-  while (end > 0 && value[end - 1] === "/") {
-    end -= 1;
-  }
-  return end === value.length ? value : value.slice(0, end);
-}
+
 
 interface PendingToolCall {
   toolCallId: string;

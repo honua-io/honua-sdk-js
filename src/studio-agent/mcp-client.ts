@@ -67,6 +67,7 @@
  *
  * @module
  */
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { StudioAiTokenSource } from "./ai-contract.js";
 import { McpProtocolError, McpToolError, McpTransportError } from "./mcp-errors.js";
 import { McpNotificationStream, type McpNotificationWatchOptions } from "./mcp-notifications.js";
@@ -184,7 +185,7 @@ export class McpClient {
     if (options.apiKey && options.auth) {
       throw new Error("Configure exactly one MCP authentication scheme.");
     }
-    this.#baseUrl = stripTrailingSlashes(options.baseUrl ?? "");
+    this.#baseUrl = trimTrailingSlashes(options.baseUrl ?? "");
     this.#auth = options.auth;
     this.#apiKey = options.apiKey;
     this.#clientName = options.clientName ?? "honua-sdk-js";
@@ -550,12 +551,4 @@ function parseToolError(result: McpToolsCallResult, toolName: string): McpToolEr
     return new McpToolError(firstText, "unknown", toolName, result);
   }
   return new McpToolError(`Tool "${toolName}" failed with no structured error detail.`, "unknown", toolName, result);
-}
-
-function stripTrailingSlashes(value: string): string {
-  let end = value.length;
-  while (end > 0 && value[end - 1] === "/") {
-    end -= 1;
-  }
-  return end === value.length ? value : value.slice(0, end);
 }

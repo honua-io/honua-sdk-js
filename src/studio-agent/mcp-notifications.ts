@@ -50,6 +50,7 @@
  * @module
  */
 
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { StudioAiTokenSource } from "./ai-contract.js";
 import { McpTransportError } from "./mcp-errors.js";
 import { SseFrameParser } from "./sse-parser.js";
@@ -177,7 +178,7 @@ export class McpNotificationStream {
   #loop: Promise<void> = Promise.resolve();
 
   public constructor(options: McpNotificationStreamOptions) {
-    this.#baseUrl = stripTrailingSlashes(options.baseUrl ?? "");
+    this.#baseUrl = trimTrailingSlashes(options.baseUrl ?? "");
     this.#auth = options.auth;
     // Bound to globalThis for the same reason `McpClient` binds it: browser
     // `fetch` is receiver-sensitive and a private-field call passes the
@@ -442,12 +443,4 @@ export class McpNotificationStream {
       this.#retryTimer = setTimeout(finish, ms);
     });
   }
-}
-
-function stripTrailingSlashes(value: string): string {
-  let end = value.length;
-  while (end > 0 && value[end - 1] === "/") {
-    end -= 1;
-  }
-  return end === value.length ? value : value.slice(0, end);
 }
