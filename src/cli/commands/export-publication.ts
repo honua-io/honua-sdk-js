@@ -4,12 +4,13 @@ import type { ParsedArgs } from "../args.js";
 import { ArgError, getNumber } from "../args.js";
 import { type ApiResponse, type ExportRecord, unwrapResponse } from "./export-response.js";
 
-const DEFAULT_PUBLICATION_TIMEOUT_MS = 10 * 60 * 1_000;
+const DEFAULT_PUBLICATION_TIMEOUT_MS = 600_000;
 const PUBLICATION_POLL_INTERVAL_MS = 1_000;
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 export function publicationTimeout(parsed: ParsedArgs): number {
   const timeout = getNumber(parsed, "timeout-ms") ?? DEFAULT_PUBLICATION_TIMEOUT_MS;
-  if (!Number.isInteger(timeout) || timeout <= 0 || timeout > 2_147_483_647) {
+  if (!Number.isInteger(timeout) || timeout <= 0 || timeout > MAX_TIMER_DELAY_MS) {
     throw new ArgError("--timeout-ms must be a positive integer no greater than 2147483647.");
   }
   return timeout;
@@ -31,8 +32,28 @@ function publicPublication(record: ExportRecord): ExportRecord {
   return record;
 }
 
+async function pollPublicPublication(options: PublicationOptions, signal: AbortSignal): Promise<ExportRecord> {
+  const { controlPlane, created } = options;
+  for (;;) {
+    const record = unwrapResponse(
+      await controlPlane.raw<ApiResponse<ExportRecord>>({
+        method: "GET",
+        path: `/exports/${encodeURIComponent(created.id)}`,
+        signal,
+      }),
+    );
+    if (record.id !== created.id || record.jobId !== created.jobId) {
+      throw new Error(
+        `The server no longer reports submitted export job ${created.jobId}; public publication is unconfirmed.`,
+      );
+    }
+    if (record.status !== "running" || record.message) return publicPublication(record);
+    await delay(PUBLICATION_POLL_INTERVAL_MS, undefined, { signal });
+  }
+}
+
 export async function waitForPublicPublication(options: PublicationOptions): Promise<ExportRecord> {
-  const { controlPlane, created, timeoutMs } = options;
+  const { created, timeoutMs } = options;
   if (created.status !== "running") return publicPublication(created);
   if (!created.id || !created.jobId) throw new Error("The server did not identify the submitted export job.");
   const controller = new AbortController();
@@ -41,22 +62,7 @@ export async function waitForPublicPublication(options: PublicationOptions): Pro
   );
   const timer = setTimeout(() => controller.abort(timeoutError), timeoutMs);
   try {
-    for (;;) {
-      const record = unwrapResponse(
-        await controlPlane.raw<ApiResponse<ExportRecord>>({
-          method: "GET",
-          path: `/exports/${encodeURIComponent(created.id)}`,
-          signal: controller.signal,
-        }),
-      );
-      if (record.id !== created.id || record.jobId !== created.jobId) {
-        throw new Error(
-          `The server no longer reports submitted export job ${created.jobId}; public publication is unconfirmed.`,
-        );
-      }
-      if (record.status !== "running" || record.message) return publicPublication(record);
-      await delay(PUBLICATION_POLL_INTERVAL_MS, undefined, { signal: controller.signal });
-    }
+    return await pollPublicPublication(options, controller.signal);
   } catch (error) {
     if (controller.signal.aborted) throw timeoutError;
     throw error;
