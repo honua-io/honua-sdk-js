@@ -89,7 +89,7 @@ PR (#364) — the URL must be proven live first, and the base-URL change touches
 `llms.txt`, `llms-full.txt`, and every doc link, which is its own reviewable
 change.
 
-[`honua-io/honua-site#101`](https://github.com/honua-io/honua-site#101) (serve
+[`honua-io/honua-site#101`](https://github.com/honua-io/honua-site/issues/101) (serve
 `llms.txt` at the docs-domain root) is updated with a comment describing this
 sequencing: the SDK repo owns generation and the GitHub Pages origin; honua-site
 either serves the generated files at the docs domain or links to the Pages
