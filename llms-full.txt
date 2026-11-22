@@ -1942,7 +1942,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-22 at commit `d6d27b16f`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-22 at commit `07cfa2a7e`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -2466,10 +2466,11 @@ compatibility. The experimental typed semantic AST follows separate
 compiler/execution workflows in `@honua/sdk-js/query-planner`; it is not
 accepted by `Source.query()`.
 
-The built-in resolver handles `geoservices-feature-service`,
+The built-in resolver handles `grpc`, `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, `wmts`, and `odata`.
+`ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`, `wfs`, `wms`, `wmts`,
+`odata`, and `pmtiles`.
 MapLibre-native sources register through
 `CreateDatasetOptions.resolveSource`. OGC API
 Processes is a job runner rather than a queryable source — reach it
@@ -2477,7 +2478,7 @@ through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
 
 The five GeoServices factories cover the surface published in
-`honua-server/docs/gis/geoservices-rest-parity.md`:
+`honua-server/docs/reference/compatibility/geoservices-parity.md`:
 
 - `geoServicesFeatureSource` — FeatureServer (query, edits, related,
   attachments, object ids, replica/calculate/validateSQL/append/bins/estimate
@@ -2660,8 +2661,9 @@ The `AdapterTypeMap` interface uses TypeScript declaration merging so
 adapter tickets can plug in their own kind → instance type mapping
 without touching this file.
 `grpc` is a canonical protocol id for the shared FeatureService transport
-and fixture pack; it is consumed through the client gRPC-Web transport
-rather than a `Source.protocol("grpc")` adapter handle in this package.
+and fixture pack. `Source.protocol("grpc")` returns a `GrpcLayerHandle`
+with `serviceId`, `layerId`, and `describe()` for native layer metadata.
+Browser feature queries and edits use the client gRPC-Web transport.
 Its default capabilities exclude `queryAggregate`, which has no representation
 in the FeatureService wire contract. Aggregate requests fail with
 `HonuaCapabilityNotSupportedError` before transport dispatch.
@@ -2674,7 +2676,8 @@ declare module "@honua/sdk-js/contract" {
 }
 ```
 
-The shipped map covers `geoservices-feature-service` →
+The shipped map covers `grpc` → `GrpcLayerHandle`,
+`geoservices-feature-service` →
 `HonuaFeatureLayer`, `geoservices-map-service` → `HonuaMapService`,
 `geoservices-map-layer` → `HonuaMapLayer`, `geoservices-image-service`
 → `HonuaImageService`, `geoservices-geometry-service` →
@@ -3377,7 +3380,7 @@ with `spatialStrategy: "bbox-envelope"`. That artifact has
 entry whose strategy is `bbox-envelope`; it is never presented as exact.
 
 Honua gRPC artifacts are protobuf-runtime-free canonical descriptions of
-`honua.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
+`geospatial.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
 statistic operands use public `SourceSchemaV2` field names; physical storage
 paths never enter the request. Generated `where` text is limited to the server's
 executable grammar: ASCII public identifiers, simple comparisons or
@@ -3646,7 +3649,7 @@ geometry column and encoding come from `locator.geoparquet.geometryColumn` /
 never needs a profiling round-trip.
 
 `grpc` sources compile to `honua-grpc-query-features-v1`, a faithful,
-protobuf-free description of the `honua.v1.FeatureService/QueryFeatures` unary
+protobuf-free description of the `geospatial.v1.FeatureService/QueryFeatures` unary
 request. Field names and proto enum *value names* (`SPATIAL_RELATIONSHIP_*`,
 `STATISTIC_TYPE_*`) mirror the generated message, so the plan is a hashable
 pre-image of the wire request without importing the protobuf runtime.
@@ -9449,28 +9452,29 @@ evidence; observed evidence only ever narrows them.
 ## Notes by protocol
 
 ### gRPC FeatureService
-Canonical transport shared across the SDKs and generated from the
-`geospatial-grpc` FeatureService definitions. The default capability set is
-`query`, `queryExtent`, `queryObjectIds`, `applyEdits`,
-`stream`, `queryRelated`, and `attachments`. In JS, `createHonuaClient` selects gRPC-Web where the
-server offers it (REST otherwise), or `HonuaClient` takes an explicit `transport: "grpc-web"`; it is not exposed as a `Source.protocol("grpc")`
-adapter handle — `buildBuiltInSource` resolves a `protocol: "grpc"`
-descriptor onto the same `HonuaFeatureLayer` used by
-`geoservices-feature-service`, which transparently routes `queryFeatures` and `applyEdits`
-over gRPC-Web when the client's transport is configured that way.
+Use the native gRPC-Web transport for live Honua data and edits. The default
+capability set is `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream`,
+`queryRelated`, and `attachments`; caller-visible metadata can narrow it.
 
-`connect({ endpoint, protocol: "grpc" })` discovers a canonical FeatureServer
-URL through the same REST service/layer metadata `geoservices-feature-service`
-discovery uses (the generated `FeatureService` proto has no separate
-descriptor RPC), deriving capabilities through the identical algorithm and
-additionally executing one bounded `QueryFeatures` RPC per layer over the
-gRPC-Web transport to verify the facade's read path agrees with the
-REST-declared schema before advertising `query` / `stream` — a disagreement
-throws `protocol-mismatch`; a transient probe failure narrows those two
-capabilities without failing discovery. `protocol: "grpc"` is never inferred
-by `protocol: "auto"` (the identical URL is ambiguous between REST and gRPC
-transport intent) and only resolves against FeatureServer semantics —
-MapServer / ImageServer have no gRPC query surface.
+`connect({ endpoint, protocol: "grpc", serviceId, layerId })` accepts the transport
+base URL and explicit service/layer identities. Omit `layerId` to discover the
+service's authorized layers. Discovery uses `DescribeService` and `DescribeLayer`
+unary RPCs, derives capabilities from the caller's layer descriptors, and runs no
+feature query or GeoServices REST metadata request. Descriptor RPCs require
+geospatial-grpc 1.1.0 or later; a server without them reports an error.
+
+`Source.protocol("grpc")` exposes a typed `GrpcLayerHandle` with `serviceId`,
+`layerId` and `describe(options?)`. Its protobuf response preserves fields,
+domains, subtypes, templates, relationships, time information and editing
+information. Missing capability metadata remains unknown; false flags grant no
+capability. See [native discovery](grpc-discovery.md) for browser client setup,
+authorization-scoped metadata caching and descriptor pagination, and the
+[conversion guide](native-app-conversion.md) for per-call migration.
+
+`connect` selects gRPC-Web for explicit `protocol: "grpc"`; a supplied client must
+also use gRPC-Web. Canonical FeatureServer URLs remain accepted as identity input.
+`protocol: "auto"` does not infer gRPC from those URLs because the transport intent
+is ambiguous. MapServer and ImageServer have no gRPC query surface.
 
 The gRPC FeatureService has no aggregate result shape; aggregate requests are
 refused with `HonuaCapabilityNotSupportedError`. Layer and canonical source
@@ -10323,11 +10327,12 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is `beta` and fixture-proven.
-Raw OGC API Processes discovery and raw Processes execution are both
-`experimental` and both `standalone`. They stay deliberately separate claims
-so discovery evidence can never be mistaken for execution support: discovery
-carries a scheduled anonymous live lane, while execution is fixture-proven only
-because no public Processes endpoint permits anonymous execution.
+Raw OGC API Processes discovery is `supported` and `standalone`, while raw
+Processes execution is `experimental` and `standalone`. They stay deliberately
+separate claims so discovery evidence can never be mistaken for execution
+support: discovery carries a scheduled anonymous live lane, while execution is
+fixture-proven only because no public Processes endpoint permits anonymous
+execution.
 <!-- support-manifest:standalone-matrix:end -->
 
 ---
@@ -11980,7 +11985,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-22 at commit `d6d27b16f`._
+_Generated 2026-11-22 at commit `07cfa2a7e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11995,7 +12000,7 @@ _Generated 2026-11-22 at commit `d6d27b16f`._
 | `/agent-safety` | 69.4 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.9 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.2 KiB | 20.8 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 59.3 KiB | 64.1 KiB | 19.4 KiB | 20.8 KiB |
 | `/runtime` | 730.0 KiB | 752.5 KiB | 189.2 KiB | 198.6 KiB |
 | `/realtime` | 82.6 KiB | 86.2 KiB | 23.7 KiB | 25.0 KiB |
 | `/offline` | 171.8 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
@@ -15930,7 +15935,7 @@ available on the page before the code path that needs it runs.
 type: reference
 title: "Studio Package Contracts (`@honua/app-platform/studio`)"
 description: "One browser-safe import path for the Studio package families, the unified validation and preview envelopes, the capability manifest, and the publish, share and embed contracts."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Studio Package Contracts (`@honua/app-platform/studio`)
 
@@ -16510,9 +16515,10 @@ list:
   through the Honua widget host with non-byte-identical visuals.
   `honua-maplibre` does not paper over this — widget constructors
   fall to manual TODO instead of being silently rewritten. Under
-  `honua-compat` they are rewritten, but rendering still depends on
-  the app performing the [widget kit registration](#widget-kit-registration)
-  the codemod does not yet insert.
+  `honua-compat` they are rewritten and the codemod inserts the
+  [widget kit registration](#widget-kit-registration) loader for hosted
+  widgets, which the app can keep or narrow to individual
+  `registerComponent(...)` calls.
 - **3D / SceneView and scene layers.** `scene-view`,
   `SceneLayer`/`BuildingSceneLayer`/`IntegratedMeshLayer`/
   `PointCloudLayer`/`MeshLayer`/`ElevationLayer`/`VoxelLayer` are
