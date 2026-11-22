@@ -72,14 +72,13 @@ export function assertValidBbox(bbox: PublicationBounds): void {
 }
 
 function numericStat(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "bigint") value = Number(value);
   if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
     const view = new DataView(value.buffer, value.byteOffset, value.byteLength);
-    if (value.byteLength === 4) return view.getFloat32(0, true);
-    if (value.byteLength === 8) return view.getFloat64(0, true);
+    if (value.byteLength === 4) value = view.getFloat32(0, true);
+    else if (value.byteLength === 8) value = view.getFloat64(0, true);
   }
-  return undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function rowGroupBbox(rowGroup: BboxParquetRowGroup, bboxColumn: string): RowGroupBbox | undefined {
@@ -100,7 +99,15 @@ function rowGroupBbox(rowGroup: BboxParquetRowGroup, bboxColumn: string): RowGro
     if (leaf === "ymax") ymax = numericStat(stats.max_value ?? stats.max);
   }
 
-  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) return undefined;
+  if (
+    xmin === undefined ||
+    ymin === undefined ||
+    xmax === undefined ||
+    ymax === undefined ||
+    xmin > xmax ||
+    ymin > ymax
+  )
+    return undefined;
   return { xmin, ymin, xmax, ymax };
 }
 
@@ -175,6 +182,14 @@ export function rowMatchesBbox(
   const ymin = numericStat(box.ymin);
   const xmax = numericStat(box.xmax);
   const ymax = numericStat(box.ymax);
-  if (xmin === undefined || ymin === undefined || xmax === undefined || ymax === undefined) return true;
+  if (
+    xmin === undefined ||
+    ymin === undefined ||
+    xmax === undefined ||
+    ymax === undefined ||
+    xmin > xmax ||
+    ymin > ymax
+  )
+    return true;
   return bboxOverlaps([xmin, ymin, xmax, ymax], queryBbox);
 }

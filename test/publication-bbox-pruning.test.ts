@@ -147,6 +147,29 @@ describe("spatially-ordered GeoParquet bbox row-group pruning", () => {
     expect(disjoint.estimatedBytes).toBe(0);
   });
 
+  it("retains groups and rows with nonfinite or inverted bbox bounds", () => {
+    const query = [0, 0, 1, 1] as const;
+    const result = pruneRowGroupsByBbox(
+      {
+        row_groups: [
+          makeRowGroup(1, [Number.NaN, 0, 1, 1], { binaryStats: "f64" }),
+          makeRowGroup(1, [0, Number.POSITIVE_INFINITY, 1, 1], { binaryStats: "f32" }),
+          makeRowGroup(1, [5, 0, 4, 1]),
+          makeRowGroup(1, [0, 5, 1, 4]),
+        ],
+      },
+      "bbox",
+      query,
+      ["bbox"],
+    );
+    expect(result.rowGroups).toEqual([0, 1, 2, 3]);
+    expect(result.usedBboxStats).toBe(false);
+    expect(
+      rowMatchesBbox({ bbox: { xmin: encodeFloat64(Number.NaN), ymin: 0, xmax: 1, ymax: 1 } }, "bbox", query),
+    ).toBe(true);
+    expect(rowMatchesBbox({ bbox: { xmin: 5, ymin: 0, xmax: 4, ymax: 1 } }, "bbox", query)).toBe(true);
+  });
+
   it("conservatively retains row groups lacking bbox statistics and validates bbox geometry", () => {
     const metadata: BboxParquetMetadata = {
       row_groups: [makeRowGroup(100, [-156.51, 20.89, -156.5, 20.9]), makeRowGroup(100, undefined)],
