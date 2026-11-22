@@ -1,13 +1,20 @@
 import { readFileSync } from "node:fs";
 import type { Map as MapLibreMap } from "maplibre-gl";
+import ts from "typescript";
 import { expect, it, vi } from "vitest";
-
-import { dataBounds, fitMapToData } from "../packages/create-honua-app/templates/vanilla-ts/src/fit-to-data.js";
 
 const TEMPLATE_COPIES = [
   "packages/create-honua-app/templates/vanilla-ts/src/fit-to-data.ts",
   "packages/create-honua-app/templates/react-ts/src/fit-to-data.ts",
 ];
+
+const source = readFileSync(TEMPLATE_COPIES[0]!, "utf8");
+const compiled = ts.transpileModule(source, {
+  compilerOptions: { module: ts.ModuleKind.ESNext },
+}).outputText;
+const { dataBounds, fitMapToData } = await import(
+  `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
+);
 
 it("fit-to-data bounds GeoServices points, paths and rings", () => {
   const features = [
