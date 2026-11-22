@@ -230,10 +230,10 @@ export function createProtectedSceneAssetSession(
     }
     const previousStatus = status;
     status = "refreshing";
-    notifySnapshot();
 
-    const task = (async (): Promise<ActiveEnvelope> => {
+    const task = Promise.resolve().then(async (): Promise<ActiveEnvelope> => {
       try {
+        ensureNotDisposed();
         const raw = await options.execute<unknown>("POST", affordancePath, undefined, lifecycleController.signal);
         ensureNotDisposed();
         const parsed = parseEnvelopePayload(raw, sceneId, currentScope);
@@ -253,9 +253,10 @@ export function createProtectedSceneAssetSession(
       } finally {
         inFlightRefresh = undefined;
       }
-    })();
+    });
 
     inFlightRefresh = task;
+    notifySnapshot();
     return awaitWithSignal(task, signal);
   };
 
@@ -337,6 +338,9 @@ export function createProtectedSceneAssetSession(
         redirect: "manual",
         signal: request.signal,
       });
+      if (response.type === "opaqueredirect") {
+        throw new HonuaSceneAccessSessionError("redirect-denied", "Redirect target is unavailable to the scene session.");
+      }
       if (!REDIRECT_STATUSES.has(response.status)) {
         return response;
       }
@@ -392,7 +396,7 @@ export function createProtectedSceneAssetSession(
       if (firstResponse.status !== 401) {
         return firstResponse;
       }
-      const rotated = await ensureLiveEnvelope({ forceRefresh: true, signal: request.signal });
+      const rotated = await ensureLiveEnvelope({ forceRefresh: active === envelope, signal: request.signal });
       const retryResponse = await executeSingleFetch(request, rotated);
       if (retryResponse.status === 401) {
         throw new HonuaSceneAccessSessionError(

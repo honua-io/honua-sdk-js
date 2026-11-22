@@ -264,6 +264,31 @@ describe("protected scene asset session, separation of serving format vs content
     };
   }
 
+  it("allows acquisition to retry after a synchronous executor failure", async () => {
+    const srv = await startSceneServer();
+    let attempts = 0;
+    const session = createProtectedSceneAssetSession({
+      sceneId: "protected-city",
+      affordance: {
+        method: "POST",
+        path: "/scenes/protected-city/access-envelope",
+        origin: srv.origin,
+        pathPrefix: "/scenes/protected-city/",
+        transport: "header",
+      },
+      execute: <T = unknown>(method: string, path: string): Promise<T> => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("executor temporarily unavailable");
+        return fetch(`${srv.origin}${path}`, { method }).then((response) => response.json() as Promise<T>);
+      },
+      now: () => Date.UTC(2026, 10, 21, 0, 0, 10),
+    });
+
+    await expect(session.ensureAccess()).rejects.toBeInstanceOf(HonuaSceneAccessSessionError);
+    await expect(session.ensureAccess()).resolves.toMatchObject({ status: "active", generation: 1 });
+    expect(attempts).toBe(2);
+  });
+
   it("acquires single-flight POST envelopes, refreshes proactively, rotates on 401, fails closed on 403, and never leaks tokens", async () => {
     const srv = await startSceneServer();
     let clockMs = Date.UTC(2026, 10, 21, 0, 0, 10);
