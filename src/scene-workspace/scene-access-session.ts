@@ -337,6 +337,8 @@ export function createProtectedSceneAssetSession(
     envelope: ActiveEnvelope,
   ): Promise<Response> => {
     const method = (request.method ?? "GET").toUpperCase();
+    const sessionSignal = lifecycleController.signal;
+    const signal = request.signal ? AbortSignal.any([sessionSignal, request.signal]) : sessionSignal;
     let targetUrl = assertRequestInScope(request.url, method, envelope.scope);
 
     for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop += 1) {
@@ -346,7 +348,7 @@ export function createProtectedSceneAssetSession(
         method,
         headers: descriptor.headers,
         redirect: "manual",
-        signal: request.signal,
+        signal,
       });
       if (response.type === "opaqueredirect") {
         throw new HonuaSceneAccessSessionError(

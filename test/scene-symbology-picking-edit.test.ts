@@ -49,6 +49,13 @@ describe("3D symbology contract, evaluation, compilation, and identity-preservin
     selectionStyle: { color: "#facc15", outlineColor: "#ffffff", scaleMultiplier: 1.5 },
   };
 
+  it("reads live Cesium PropertyBag fields without exposing backing state", async () => {
+    const { PropertyBag } = await import("cesium");
+    const { readEntityProperties } = await import("../src/scene-workspace/entity-properties.js");
+    const bag = new PropertyBag({ name: "Tower A", height_m: 80 });
+    expect(readEntityProperties(bag)).toEqual({ name: "Tower A", height_m: 80 });
+  });
+
   it("evaluates class-breaks, continuous visual variables, scale range, labels, and selection highlights", () => {
     const normal = evaluateEntitySymbology(
       symbology,
@@ -118,6 +125,81 @@ describe("3D symbology contract, evaluation, compilation, and identity-preservin
         ["true", "color('#94a3b8', 0.85)"],
       ],
     });
+  });
+
+  it("compiles class-break and unique-value visibility with the evaluator's defaults", () => {
+    const base = { ...symbology, defaultSymbol: { visible: false } };
+    const breaks = { ...base, classBreaks: [{ minValue: 0, maxValue: 50, symbol: { visible: true } }] };
+    const values = {
+      ...base,
+      mode: "unique-value" as const,
+      uniqueValues: [{ value: 25, symbol: { visible: true } }],
+    };
+    for (const [descriptor, predicate] of [
+      [breaks, "${height_m} >= 0 && ${height_m} <= 50"],
+      [values, "${height_m} === 25"],
+    ] as const) {
+      expect(evaluateEntitySymbology(descriptor, { height_m: 25 }).visible).toBe(true);
+      expect(evaluateEntitySymbology(descriptor, { height_m: 100 }).visible).toBe(false);
+      expect(compile3DSymbologyToTilesetStyle(descriptor).spec?.style.show).toEqual({
+        conditions: [
+          [predicate, "true"],
+          ["true", "false"],
+        ],
+      });
+    }
+  });
+
+  it("interpolates continuous hex colors and rejects unsupported stops", () => {
+    const descriptor = {
+      ...symbology,
+      visualVariables: [
+        {
+          channel: "color" as const,
+          field: "priority",
+          stops: [
+            { value: 0, color: "#000" },
+            { value: 100, color: "#fff" },
+          ],
+        },
+      ],
+    };
+    expect(evaluateEntitySymbology(descriptor, { priority: 25 }).color).toBe("#404040");
+    expect(evaluateEntitySymbology(descriptor, { priority: 75 }).color).toBe("#bfbfbf");
+    const unsupported = {
+      ...descriptor,
+      visualVariables: [
+        {
+          channel: "color" as const,
+          field: "priority",
+          stops: [
+            { value: 0, color: "black" },
+            { value: 100, color: "#fff" },
+          ],
+        },
+      ],
+    };
+    expect(evaluateEntitySymbology(unsupported, { priority: 50 }).visible).toBe(false);
+    expect(compile3DSymbologyToTilesetStyle(unsupported).spec).toBeUndefined();
+  });
+
+  it("clears managed label text when values or descriptor labels disappear", () => {
+    const label = { text: undefined as string | undefined };
+    const entity = { label, properties: { name: "Lot 42" as string | undefined } };
+    const apply = (descriptor: Honua3DSymbologyV1) =>
+      applyEntityStyleUpdate({ collection: { getById: () => entity }, entityIds: ["42"], symbology: descriptor });
+    apply(symbology);
+    expect(label.text).toBe("Lot 42");
+    entity.properties.name = undefined;
+    apply(symbology);
+    expect(label.text).toBeUndefined();
+    entity.properties.name = "Lot 43";
+    apply(symbology);
+    expect(label.text).toBe("Lot 43");
+    const { label: _label, ...withoutLabel } = symbology;
+    apply(withoutLabel);
+    expect(entity.label).toBe(label);
+    expect(label.text).toBeUndefined();
   });
 
   it("updates mounted live Cesium entities in place, preserving object identity and selectedEntity", () => {

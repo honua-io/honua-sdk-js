@@ -274,6 +274,42 @@ describe("protected scene asset session, separation of serving format vs content
     };
   }
 
+  it("authenticates the root and cloned descendants through the real Cesium resource", async () => {
+    const srv = await startSceneServer();
+    const cesium = await import("cesium");
+    const { loadWithSceneResource } = await import("../src/scene-workspace/scene-cesium-resource.js");
+    const session = createProtectedSceneAssetSession({
+      sceneId: "protected-city",
+      affordance: {
+        method: "POST",
+        path: "/scenes/protected-city/access-envelope",
+        origin: srv.origin,
+        pathPrefix: "/scenes/protected-city/",
+        transport: "header",
+      },
+      execute: <T>(method: string, path: string) =>
+        fetch(`${srv.origin}${path}`, { method }).then((response) => response.json() as Promise<T>),
+      now: () => Date.UTC(2026, 10, 21, 0, 0, 10),
+    });
+    await loadWithSceneResource(
+      cesium as unknown as Parameters<typeof loadWithSceneResource>[0],
+      { url: `${srv.origin}/scenes/protected-city/tileset.json`, access: { session } },
+      async (root) => {
+        expect(root).toBeInstanceOf(cesium.Resource);
+        const resource = root as unknown as InstanceType<typeof cesium.Resource>;
+        await expect(resource.fetchJson()).resolves.toMatchObject({ asset: { version: expect.any(String) } });
+        const descendant = resource.clone().getDerivedResource({ url: "copc" });
+        descendant.headers.Range = "bytes=0-15";
+        expect(descendant.url).toBe(`${srv.origin}/scenes/protected-city/copc`);
+        expect(descendant.headers).toEqual({ Range: "bytes=0-15" });
+        await expect(descendant.fetchArrayBuffer()).resolves.toHaveProperty("byteLength", 16);
+        const outside = resource.getDerivedResource({ url: "../../outside.json" });
+        await expect(outside.fetchJson()).rejects.toMatchObject({ code: "scope-violation" });
+      },
+    );
+    expect(srv.seenHeaders.filter((headers) => headers["x-honua-token"])).toHaveLength(2);
+  });
+
   it("allows acquisition to retry after a synchronous executor failure", async () => {
     const srv = await startSceneServer();
     let attempts = 0;

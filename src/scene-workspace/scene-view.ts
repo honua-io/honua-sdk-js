@@ -67,6 +67,7 @@ import {
   type CesiumLayerHandle,
   type CesiumSceneRuntimeTarget,
   applyCesiumScenePrimitives,
+  applyCesiumScenePrimitivesInternal,
   cesiumCameraToSceneState,
 } from "./cesium-adapter.js";
 import type { ScenePrimitiveDiagnostic } from "./primitives.js";
@@ -213,7 +214,18 @@ export class SceneView {
 
     if (this.#target) {
       const primitives = sceneToRuntimePrimitives(resolved);
-      const result = await applyCesiumScenePrimitives(this.#target, primitives);
+      if (
+        this.#target.scene &&
+        resolved.auth?.requiresAuthentication &&
+        !this.#accessSession &&
+        primitives.some((primitive) => primitive.kind === "model-layer" || primitive.kind === "elevation-source")
+      ) {
+        throw new Error("Protected scene rendering requires a scoped access-session affordance.");
+      }
+      const result = await applyCesiumScenePrimitivesInternal(this.#target, primitives, {
+        ...(signal ? { signal } : {}),
+        ...(this.#accessSession ? { accessSession: this.#accessSession } : {}),
+      });
       this.#diagnostics = result.diagnostics;
       for (const [id, handle] of result.layers) this.#layerHandles.set(id, handle);
       this.#emit({ type: "diagnostics", diagnostics: this.#diagnostics });

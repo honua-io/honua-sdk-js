@@ -13,6 +13,7 @@
  */
 
 import type { Honua3DStyleSpec } from "./cesium-adapter.js";
+import { readEntityProperties } from "./entity-properties.js";
 import type { ScenePointCloudShading } from "./primitives.js";
 
 export const HONUA_3D_SYMBOLOGY_KIND = "honua.3d-symbology" as const;
@@ -48,6 +49,7 @@ export interface Scene3DClassBreakRule {
 /** Continuous interpolation stop for a visual variable. */
 export interface Scene3DVisualVariableStop {
   readonly value: number;
+  /** CSS hex color in RGB or RGBA form. */
   readonly color?: string;
   readonly size?: number;
   readonly opacity?: number;
@@ -247,6 +249,15 @@ export function validate3DSymbology(symbology: Honua3DSymbologyV1): readonly Sce
       });
     }
   }
+  for (const variable of symbology.visualVariables ?? []) {
+    if (variable.channel === "color" && variable.stops.some((stop) => !parseVisualColor(stop.color))) {
+      diagnostics.push({
+        code: "symbology-invalid-value",
+        severity: "error",
+        message: "Continuous color stops require CSS hexadecimal RGB or RGBA colors.",
+      });
+    }
+  }
   return diagnostics;
 }
 
@@ -336,27 +347,20 @@ export function compile3DSymbologyToTilesetStyle(symbology: Honua3DSymbologyV1):
   if (diagnostics.some((entry) => entry.severity === "error")) {
     return { diagnostics };
   }
-  const conditions: [string, string][] = [];
-  if (symbology.mode === "unique-value" && symbology.field && symbology.uniqueValues) {
-    for (const rule of symbology.uniqueValues) {
-      const literal = typeof rule.value === "string" ? JSON.stringify(rule.value) : String(rule.value);
-      const color = rule.symbol.color ?? symbology.defaultSymbol.color ?? DEFAULT_COLOR;
-      const opacity = clampUnit(rule.symbol.opacity ?? symbology.defaultSymbol.opacity ?? DEFAULT_OPACITY);
-      conditions.push([`\${${symbology.field}} === ${literal}`, `color('${color}', ${opacity})`]);
-    }
-  } else if (symbology.mode === "class-breaks" && symbology.field && symbology.classBreaks) {
-    for (const rule of symbology.classBreaks) {
-      const color = rule.symbol.color ?? symbology.defaultSymbol.color ?? DEFAULT_COLOR;
-      const opacity = clampUnit(rule.symbol.opacity ?? symbology.defaultSymbol.opacity ?? DEFAULT_OPACITY);
-      conditions.push([
-        `\${${symbology.field}} >= ${rule.minValue} && \${${symbology.field}} <= ${rule.maxValue}`,
-        `color('${color}', ${opacity})`,
-      ]);
-    }
-  }
   const defaultColor = symbology.defaultSymbol.color ?? DEFAULT_COLOR;
   const defaultOpacity = clampUnit(symbology.defaultSymbol.opacity ?? DEFAULT_OPACITY);
+  const defaultVisible = symbology.defaultSymbol.visible ?? true;
+  const rules = tilesetStyleRules(symbology);
+  const conditions: [string, string][] = rules.map(([predicate, symbol]) => [
+    predicate,
+    `color('${symbol.color ?? defaultColor}', ${clampUnit(symbol.opacity ?? defaultOpacity)})`,
+  ]);
   conditions.push(["true", `color('${defaultColor}', ${defaultOpacity})`]);
+  const visibility: [string, string][] = rules.map(([predicate, symbol]) => [
+    predicate,
+    String(symbol.visible ?? defaultVisible),
+  ]);
+  visibility.push(["true", String(defaultVisible)]);
 
   const spec: Honua3DStyleSpec = {
     encoding: "3d-tiles-styling",
@@ -364,10 +368,26 @@ export function compile3DSymbologyToTilesetStyle(symbology: Honua3DSymbologyV1):
     defaultMaterial: { color: defaultColor, opacity: defaultOpacity },
     style: {
       color: { conditions },
+      ...(visibility.some(([, show]) => show === "false") ? { show: { conditions: visibility } } : {}),
       ...(symbology.defaultSymbol.pixelSize !== undefined ? { pointSize: symbology.defaultSymbol.pixelSize } : {}),
     },
   };
   return { spec, diagnostics };
+}
+
+function tilesetStyleRules(symbology: Honua3DSymbologyV1): [string, Scene3DSymbolStyle][] {
+  if (!symbology.field) return [];
+  const field = `\${${symbology.field}}`;
+  if (symbology.mode === "unique-value") {
+    return (symbology.uniqueValues ?? []).map((rule) => [`${field} === ${JSON.stringify(rule.value)}`, rule.symbol]);
+  }
+  if (symbology.mode === "class-breaks") {
+    return (symbology.classBreaks ?? []).map((rule) => [
+      `${field} >= ${rule.minValue} && ${field} <= ${rule.maxValue}`,
+      rule.symbol,
+    ]);
+  }
+  return [];
 }
 
 /**
@@ -400,7 +420,7 @@ export function applyEntityStyleUpdate(options: {
       missing.push(id);
       continue;
     }
-    const attributes = extractEntityProperties(entity);
+    const attributes = readEntityProperties(entity.properties);
     const evaluated = evaluateEntitySymbology(options.symbology, attributes, {
       selected: options.selectedIds?.has(id) ?? false,
       cameraDistanceMeters: options.cameraDistanceMeters,
@@ -463,7 +483,7 @@ function interpolateVisualVariable(
     if (value > hi.value) continue;
     const t = hi.value === lo.value ? 0 : (value - lo.value) / (hi.value - lo.value);
     if (variable.channel === "color") {
-      return { color: t < 0.5 ? lo.color : hi.color };
+      return { color: blendVisualColors(lo.color, hi.color, t) };
     }
     const loNum = readStopNumber(variable.channel, lo);
     const hiNum = readStopNumber(variable.channel, hi);
@@ -472,6 +492,24 @@ function interpolateVisualVariable(
     return { [variable.channel]: blended };
   }
   return {};
+}
+
+function parseVisualColor(value: string | undefined): number[] | undefined {
+  if (!value || !/^#(?:[a-f\d]{3}|[a-f\d]{4}|[a-f\d]{6}|[a-f\d]{8})$/i.test(value)) return undefined;
+  const hex = value.slice(1);
+  const pairs = hex.length <= 4 ? [...hex].map((char) => char.repeat(2)) : hex.match(/../g)!;
+  const channels = pairs.map((pair) => Number.parseInt(pair, 16));
+  if (channels.length === 3) channels.push(255);
+  return channels;
+}
+
+function blendVisualColors(from: string | undefined, to: string | undefined, fraction: number): string | undefined {
+  const first = parseVisualColor(from);
+  const last = parseVisualColor(to);
+  if (!first || !last) return undefined;
+  const blended = first.map((channel, i) => Math.round(channel + (last[i]! - channel) * fraction));
+  const channels = blended[3] === 255 ? blended.slice(0, 3) : blended;
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function pickStopChannel(
@@ -498,17 +536,6 @@ function resolveLabelText(
     return val !== undefined && val !== null ? String(val) : undefined;
   }
   return label.text;
-}
-
-function extractEntityProperties(entity: Record<string, unknown>): Record<string, unknown> {
-  const bag = entity.properties;
-  if (!bag || typeof bag !== "object") return {};
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(bag as Record<string, unknown>)) {
-    const getter = value && typeof value === "object" ? (value as { getValue?: () => unknown }).getValue : undefined;
-    out[key] = typeof getter === "function" ? getter.call(value) : value;
-  }
-  return out;
 }
 
 function applyStyleToLiveEntity(
@@ -538,10 +565,22 @@ function applyStyleToLiveEntity(
     model.color = colorValue;
     model.scale = style.scale;
   }
-  if (style.labelText !== undefined) {
-    const existing = entity.label && typeof entity.label === "object" ? (entity.label as Record<string, unknown>) : {};
-    entity.label = { ...existing, text: style.labelText };
+  applyEntityLabel(entity, style.labelText);
+}
+
+const managedLabels = new WeakMap<object, unknown>();
+
+function applyEntityLabel(entity: Record<string, unknown>, text: string | undefined): void {
+  const label =
+    entity.label && typeof entity.label === "object" ? (entity.label as Record<string, unknown>) : undefined;
+  if (text !== undefined) {
+    if (label) label.text = text;
+    else entity.label = { text };
+    managedLabels.set(entity, entity.label);
+    return;
   }
+  if (label && managedLabels.get(entity) === label) label.text = undefined;
+  managedLabels.delete(entity);
 }
 
 function clampUnit(value: number): number {

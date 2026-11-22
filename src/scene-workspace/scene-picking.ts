@@ -14,6 +14,7 @@ import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FeatureSelectionTarget } from "../exploration/index.js";
 import type { SceneAnalysisPosition } from "./analysis-widgets.js";
 import { type CesiumSceneLike, resolvePickedFeatureAttributes } from "./cesium-adapter.js";
+import { readEntityProperties } from "./entity-properties.js";
 import type { SceneBookmark, SceneCameraState, SceneStoreState, SceneTimelineState } from "./types.js";
 
 /** Normalized target kind produced by {@link normalizeCesiumPick}. */
@@ -273,16 +274,6 @@ function parseProjectedFeatureId(id: string): FeatureId | undefined {
   } catch {
     return undefined;
   }
-}
-
-function readEntityProperties(bag: unknown): Record<string, unknown> {
-  if (!bag || typeof bag !== "object") return {};
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(bag as Record<string, unknown>)) {
-    const getter = value && typeof value === "object" ? (value as { getValue?: () => unknown }).getValue : undefined;
-    out[key] = typeof getter === "function" ? getter.call(value) : value;
-  }
-  return out;
 }
 
 function readPrimitiveId(candidate: unknown): string | undefined {
