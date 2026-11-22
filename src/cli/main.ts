@@ -18,6 +18,7 @@ import { layersCommand, servicesCommand } from "./commands/catalog.js";
 import { connectionCommand, importCommand } from "./commands/control-plane.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { explainCommand } from "./commands/explain.js";
+import { exportCommand } from "./commands/export.js";
 import { geocodeCommand } from "./commands/geocode.js";
 import { gpCommand } from "./commands/gp.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
@@ -118,6 +119,12 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "tenant" },
   { name: "if-match" },
   { name: "idempotency-key" },
+  { name: "kind" },
+  { name: "bucket" },
+  { name: "prefix" },
+  { name: "region" },
+  { name: "endpoint" },
+  { name: "public", boolean: true },
   { name: "count", boolean: true },
   { name: "image", boolean: true },
   { name: "wait", boolean: true },
@@ -139,6 +146,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   query: queryCommand,
   scene: sceneCommand,
   explain: explainCommand,
+  export: exportCommand,
   stac: stacCommand,
   studio: studioCommand,
   geocode: geocodeCommand,
@@ -195,6 +203,16 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
   honua connection test <connectionId> [options]
       Probe a stored connection through the shared connection.test command.
       --workspace <id>           Owning workspace, when the deployment scopes them
+
+  honua connection add --kind object-storage [options]
+      Print the object-storage quick-create link and probe the connection when --id is supplied.
+      --bucket / --prefix / --region / --endpoint   Non-secret quick-create hints
+      --id <connectionId>        Test the configured connection after printing the link
+
+  honua export <serviceId/layerId> [--id <exportId>]
+      Create a cloud-native Export (PMTiles + GeoParquet + Portolan STAC collection).
+  honua export list              List Exports
+  honua export remove <exportId> Unpublish an Export (requires --yes)
 
   honua import create --source-kind <kind> [options]
       Enqueue an import job through the shared import.create command.

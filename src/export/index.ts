@@ -7,6 +7,7 @@
  * @experimental
  * @module
  */
+export * from "./bbox-pruning.js";
 export * from "./collection.js";
 export * from "./dataset.js";
 export * from "./descriptor.js";
@@ -14,6 +15,8 @@ export { PUBLICATION_ENGINE_FILESYSTEM, publicationDriverFactory } from "./engin
 export * from "./errors.js";
 export {
   PUBLICATION_LOOKUP_BUDGET,
+  type PublicationBboxPlan,
+  type PublicationBboxResult,
   type PublicationLookup,
   type PublicationLookupOptions,
   type PublicationLookupPlan,

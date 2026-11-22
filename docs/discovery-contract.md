@@ -110,20 +110,21 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, WFS/WMS/WMTS, OData, PMTiles, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, gRPC, WFS/WMS/WMTS, OData, PMTiles, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages or bounded static STAC objects, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
+gRPC endpoints,
 WFS 2.0, WMS 1.3.0, and WMTS 1.0.0 endpoints, OData v4 service
 roots, direct PMTiles and static-file GeoParquet assets, and canonical GeoServices
 `FeatureServer` / `MapServer` service or layer URLs plus executable
-`ImageServer` raster catalogs. OGC, STAC, WFS, WMS, WMTS, OData, Records,
+`ImageServer` raster catalogs. OGC, STAC, gRPC, WFS, WMS, WMTS, OData, Records,
 Tiles, Maps, GeoParquet, and ordinary HTTPS PMTiles endpoints require an explicit
 `protocol: "ogc-features"`,
-`protocol: "stac"`, `protocol: "wfs"`, `protocol: "wms"`, `protocol: "wmts"`, `protocol: "odata"`,
-`protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`, or
-`protocol: "geoparquet"` or `protocol: "pmtiles"` hint. A
+`protocol: "stac"`, `protocol: "grpc"`, `protocol: "wfs"`, `protocol: "wms"`, `protocol: "wmts"`, `protocol: "odata"`,
+`protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`,
+`protocol: "geoparquet"`, or `protocol: "pmtiles"` hint. A
 `pmtiles://https://...` asset marker is the sole direct static-asset shape that
 `auto` accepts: the marker is structural evidence and is stripped before
 cache/network identity is computed. A `.pmtiles` filename alone remains

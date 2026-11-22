@@ -2,7 +2,7 @@
 type: reference
 title: "HonuaController Application API"
 description: "HonuaController, the renderer-neutral application API: selection, visibility, overlays, annotations, layer and source CRUD, and snapshots."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # HonuaController Application API
 

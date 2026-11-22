@@ -35,7 +35,8 @@ const app = await createHonuaApp({
     new maplibregl.Map({
       container: container!,
       style: { version: 8, sources: {}, layers: [] },
-      center: mapPackage.initialView?.center ?? [0, 0],
+      // initialView.center is a readonly tuple; MapLibre wants a mutable one.
+      center: mapPackage.initialView?.center ? [...mapPackage.initialView.center] : [0, 0],
       zoom: mapPackage.initialView?.zoom ?? 0,
     }),
   onEvent: (event) => {
@@ -109,14 +110,14 @@ controller, and owned runtime. Caller-provided handles are not disposed.
 
 | Event | Meaning |
 | --- | --- |
-| `status` | App state changed: `loading`, `ready`, `degraded`, `error`, or `disposed`. |
+| `status` | App state changed: `idle`, `loading`, `ready`, `degraded`, `error`, or `disposed`. |
 | `client-ready` | A `HonuaClient` was supplied or constructed. |
 | `package-loading` | A hosted package fetch is starting. |
 | `package-ready` | An inline, fetched, runtime-owned, or synthesized package is available. |
 | `runtime-ready` | The package was loaded onto the caller map. |
 | `controller-ready` | App and web-component controllers are ready. |
 | `degraded` | A non-fatal source bind or watch problem occurred. |
-| `error` | Bootstrap failed. `stage` distinguishes `auth`, `fetch`, `validate`, `source-bind`, `render`, `watch`, and `dispose`. |
+| `error` | Bootstrap failed. `stage` distinguishes `initialize`, `auth`, `fetch`, `validate`, `source-bind`, `render`, `watch`, and `dispose`. |
 | `watch` | A `watchMapDocument` event was forwarded. |
 | `disposed` | The handle was disposed. |
 

@@ -168,10 +168,11 @@ compatibility. The experimental typed semantic AST follows separate
 compiler/execution workflows in `@honua/sdk-js/query-planner`; it is not
 accepted by `Source.query()`.
 
-The built-in resolver handles `geoservices-feature-service`,
+The built-in resolver handles `grpc`, `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, `wmts`, and `odata`.
+`ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`, `wfs`, `wms`, `wmts`,
+`odata`, and `pmtiles`.
 MapLibre-native sources register through
 `CreateDatasetOptions.resolveSource`. OGC API
 Processes is a job runner rather than a queryable source — reach it
@@ -179,7 +180,7 @@ through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
 
 The five GeoServices factories cover the surface published in
-`honua-server/docs/gis/geoservices-rest-parity.md`:
+`honua-server/docs/reference/compatibility/geoservices-parity.md`:
 
 - `geoServicesFeatureSource` — FeatureServer (query, edits, related,
   attachments, object ids, replica/calculate/validateSQL/append/bins/estimate
@@ -362,8 +363,9 @@ The `AdapterTypeMap` interface uses TypeScript declaration merging so
 adapter tickets can plug in their own kind → instance type mapping
 without touching this file.
 `grpc` is a canonical protocol id for the shared FeatureService transport
-and fixture pack; it is consumed through the client gRPC-Web transport
-rather than a `Source.protocol("grpc")` adapter handle in this package.
+and fixture pack. `Source.protocol("grpc")` returns a `GrpcLayerHandle`
+with `serviceId`, `layerId`, and `describe()` for native layer metadata.
+Browser feature queries and edits use the client gRPC-Web transport.
 Its default capabilities exclude `queryAggregate`, which has no representation
 in the FeatureService wire contract. Aggregate requests fail with
 `HonuaCapabilityNotSupportedError` before transport dispatch.
@@ -376,7 +378,8 @@ declare module "@honua/sdk-js/contract" {
 }
 ```
 
-The shipped map covers `geoservices-feature-service` →
+The shipped map covers `grpc` → `GrpcLayerHandle`,
+`geoservices-feature-service` →
 `HonuaFeatureLayer`, `geoservices-map-service` → `HonuaMapService`,
 `geoservices-map-layer` → `HonuaMapLayer`, `geoservices-image-service`
 → `HonuaImageService`, `geoservices-geometry-service` →
