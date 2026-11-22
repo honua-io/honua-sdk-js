@@ -102,6 +102,24 @@ describe("paired source contract", () => {
     expect(result.features[0]?.geometry).toMatchObject({ type: "MultiPolygon" });
   });
 
+  it("checks decoded geometry against the requested bbox without covering columns", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-uncovered-"));
+    track(() => rmSync(directory, { recursive: true, force: true }));
+    const uncovered = path.join(directory, "descriptor.json");
+    writeFileSync(
+      uncovered,
+      JSON.stringify({
+        ...descriptor,
+        geometry: { ...descriptor.geometry, bboxColumn: undefined },
+      }),
+    );
+    const source = await pairedSource(await served({ descriptor: uncovered }));
+    const result = await source.queryBbox([10, 10, 11, 11]);
+    expect(result.plan.usedBboxStats).toBe(false);
+    expect(result.answeredBy).toBe("geoparquet");
+    expect(result.result.features).toEqual([]);
+  });
+
   it("descriptor exposes the GeoParquet capabilities", async () => {
     const source = await pairedSource(await served());
     expect(source.descriptor.protocol).toBe("geoparquet");

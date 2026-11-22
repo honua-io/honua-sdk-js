@@ -6,7 +6,10 @@ import {
   decodeGeoParquetNativeGeometryColumn,
 } from "../geoparquet/native-geometry.js";
 import { sharedTask } from "./abort.js";
-import type { PublicationLookupPlan } from "./lookup.js";
+import { bboxOverlaps, pruneRowGroupsByBbox, rowMatchesBbox } from "./bbox-pruning.js";
+import type { PublicationBounds } from "./descriptor.js";
+import { HonuaPublicationError } from "./errors.js";
+import type { PublicationBboxPlan, PublicationLookupPlan } from "./lookup.js";
 import { PUBLICATION_STAMP_KEY, type Publication, assertArtifactStamp } from "./open.js";
 import { type ArtifactRangeReader, type ByteMeter, artifactRangeReader } from "./range-reader.js";
 
@@ -45,11 +48,18 @@ export interface PreparedLookup<T> {
   read(): Promise<Result<T>>;
 }
 
+/** A spatial bounding-box query planned from per-row-group bbox statistics. */
+export interface PreparedBboxQuery<T> {
+  readonly plan: PublicationBboxPlan;
+  read(): Promise<Result<T>>;
+}
+
 /** Statistics-pruning reads of a publication's GeoParquet artifact, without the SQL engine. */
 export interface PublicationParquet {
   /** Reads the footer once per source and checks the artifact's publication stamp. */
   verify(signal?: AbortSignal): Promise<void>;
   prepareLookup<T>(value: string, signal?: AbortSignal): Promise<PreparedLookup<T>>;
+  prepareBboxQuery<T>(bbox: PublicationBounds, signal?: AbortSignal): Promise<PreparedBboxQuery<T>>;
 }
 
 function publicationStamp(metadata: FileMetaData): unknown {
@@ -99,6 +109,46 @@ function resultFrom<T>(publication: Publication, shape: RecordShape, rows: reado
     })),
     exceededTransferLimit: false,
   };
+}
+
+function expandGeometryBounds(value: unknown, bounds: [number, number, number, number]): void {
+  if (!Array.isArray(value)) return;
+  const [x, y] = value;
+  if (typeof x === "number" && typeof y === "number" && Number.isFinite(x) && Number.isFinite(y)) {
+    bounds[0] = Math.min(bounds[0], x);
+    bounds[1] = Math.min(bounds[1], y);
+    bounds[2] = Math.max(bounds[2], x);
+    bounds[3] = Math.max(bounds[3], y);
+    return;
+  }
+  for (const part of value) expandGeometryBounds(part, bounds);
+}
+
+function expandGeoJsonBounds(geometry: unknown, bounds: [number, number, number, number]): void {
+  if (geometry == null) return;
+  if (typeof geometry !== "object") {
+    throw new HonuaPublicationError("artifact-mismatch", "Cannot evaluate bbox against non-GeoJSON geometry.");
+  }
+  if ("coordinates" in geometry) {
+    expandGeometryBounds(geometry.coordinates, bounds);
+    return;
+  }
+  if ("geometries" in geometry && Array.isArray(geometry.geometries)) {
+    for (const child of geometry.geometries) expandGeoJsonBounds(child, bounds);
+    return;
+  }
+  throw new HonuaPublicationError("artifact-mismatch", "Cannot evaluate bbox against non-GeoJSON geometry.");
+}
+
+function geometryMatchesBbox(geometry: unknown, query: PublicationBounds): boolean {
+  const bounds: [number, number, number, number] = [
+    Number.POSITIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ];
+  expandGeoJsonBounds(geometry, bounds);
+  return bounds[0] !== Number.POSITIVE_INFINITY && bboxOverlaps(bounds, query);
 }
 
 function rangeBytes(ranges: readonly { readonly startByte: number; readonly endByte: number }[]): number {
@@ -157,10 +207,57 @@ export function publicationParquet(publication: Publication, fetchImpl: typeof f
     };
   }
 
+  async function prepareBboxQuery<T>(bbox: PublicationBounds, signal?: AbortSignal): Promise<PreparedBboxQuery<T>> {
+    const metadata = await verifiedMetadata(signal);
+    const parquet = await parquetModules();
+    const bboxColumn = publication.geometry.bboxColumn;
+    const bboxReadColumns =
+      bboxColumn && !readColumns.includes(bboxColumn) ? [...readColumns, bboxColumn] : readColumns;
+    const pruned = pruneRowGroupsByBbox(metadata, bbox, { bboxColumn, readColumns: bboxReadColumns });
+    const footerBytes = Math.max(Math.min(FOOTER_READ_BYTES, reader.byteLength), metadata.metadata_length + 8);
+    const plan: PublicationBboxPlan = Object.freeze({
+      rowGroups: pruned.rowGroups,
+      totalRowGroups: pruned.totalRowGroups,
+      prunedRowGroups: pruned.prunedRowGroups,
+      footerBytes,
+      plannedBytes: footerBytes + pruned.estimatedBytes,
+      usedBboxStats: pruned.usedBboxStats,
+    });
+    return {
+      plan,
+      read: async () => {
+        const matched: ParquetRow[] = [];
+        for (const range of pruned.ranges) {
+          const rows = await parquet.parquetReadObjects({
+            file: reader.view(signal),
+            metadata,
+            columns: bboxReadColumns,
+            rowStart: range.rowStart,
+            rowEnd: range.rowEnd,
+            rowFormat: "object",
+            compressors: parquet.compressors,
+            geoparquet: decodesWkb,
+          });
+          for (const row of rows.filter((row) => rowMatchesBbox(row, bboxColumn, bbox))) matched.push(row);
+        }
+        const result = resultFrom<T>(
+          publication,
+          { columns, dimensions: geometryDimensions(metadata, publication.geometry.column) },
+          matched,
+        );
+        return {
+          ...result,
+          features: result.features.filter((feature) => geometryMatchesBbox(feature.geometry, bbox)),
+        };
+      },
+    };
+  }
+
   return Object.freeze({
     verify: async (signal?: AbortSignal) => {
       await verifiedMetadata(signal);
     },
     prepareLookup,
+    prepareBboxQuery,
   });
 }
