@@ -1,3 +1,9 @@
+---
+type: guide
+title: Cloud-native exports from the CLI
+description: Submit exports and wait for server-confirmed public publication.
+---
+
 # Cloud-native exports from the CLI
 
 Submit an export using an authenticated administrator connection:
