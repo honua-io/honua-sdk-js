@@ -17,8 +17,9 @@ name: MCP Live Cross-Model Eval
 #   HONUA_MCP_API_KEY     — x-api-key for the live /mcp
 #
 # AWS credentials are not stored: each leg runs in the `bedrock-eval` environment
-# (trunk only) and assumes the GitHub OIDC role honua-sdk-js-gha-bedrock-eval from
-# honua-iac bootstrap/aws-ci-oidc-roles, which trusts only that environment.
+# (trunk only) and assumes the GitHub OIDC role configured in repository/environment
+# variable `HONUA_MCP_EVAL_BEDROCK_ROLE_ARN` (`honua-sdk-js-gha-bedrock-eval` from
+# honua-iac bootstrap/aws-ci-oidc-roles), which trusts only that environment.
 on:
   workflow_dispatch:
     inputs:
@@ -116,6 +117,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Require Bedrock OIDC role
+        env:
+          ROLE_ARN: ${{ vars.HONUA_MCP_EVAL_BEDROCK_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          [[ "${ROLE_ARN}" =~ ^arn:aws:iam::[0-9]{12}:role/honua-sdk-js-gha-bedrock-eval$ ]] || {
+            echo "::error::Configure HONUA_MCP_EVAL_BEDROCK_ROLE_ARN to the honua-sdk-js-gha-bedrock-eval OIDC role ARN"
+            exit 1
+          }
+
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -138,7 +149,7 @@ jobs:
       - name: Configure AWS credentials for Bedrock (OIDC)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::585192672263:role/honua-sdk-js-gha-bedrock-eval
+          role-to-assume: ${{ vars.HONUA_MCP_EVAL_BEDROCK_ROLE_ARN }}
           role-duration-seconds: 7200
           aws-region: ${{ env.AWS_REGION }}
 
