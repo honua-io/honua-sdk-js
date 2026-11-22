@@ -18,6 +18,7 @@
  */
 
 import { HonuaAuthError } from "../errors.js";
+import { assertSecureCredentialedBaseUrl } from "../transport-security.js";
 import type { HonuaAuthCredentials, HonuaAuthProviderContext, HonuaAuthRevocationContext } from "../types.js";
 import { InMemoryCredentialStore } from "./credential-store.js";
 import { type PkcePair, createPkcePair, createStateToken } from "./pkce.js";
@@ -64,6 +65,14 @@ export class OAuth2Provider {
   private memoryTransaction: PkceTransaction | undefined;
 
   public constructor(config: OAuth2Config) {
+    assertSecureCredentialedBaseUrl(config.tokenEndpoint, ["tokenEndpoint"], config.allowInsecureHttp === true);
+    if (config.revocationEndpoint) {
+      assertSecureCredentialedBaseUrl(
+        config.revocationEndpoint,
+        ["revocationEndpoint"],
+        config.allowInsecureHttp === true,
+      );
+    }
     this.config = config;
     this.store = config.store ?? new InMemoryCredentialStore();
     this.serviceKey = resolveServiceKey(config.serviceKey, config.clientId, config.tokenEndpoint);
@@ -266,6 +275,7 @@ export class OAuth2Provider {
           ...this.config.extraTokenParams,
         },
         previous: current,
+        allowInsecureHttp: this.config.allowInsecureHttp,
       });
       await this.store.set(this.serviceKey, refreshed);
       this.emit({ type: "token-refreshed", credential: refreshed });
@@ -296,6 +306,7 @@ export class OAuth2Provider {
         code_verifier: transaction.codeVerifier,
         ...this.config.extraTokenParams,
       },
+      allowInsecureHttp: this.config.allowInsecureHttp,
     });
   }
 

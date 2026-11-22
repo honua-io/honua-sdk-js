@@ -334,17 +334,17 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 9.4 KiB |
+| `@honua/sdk-js/geocoding` | 9.8 KiB |
 | `@honua/sdk-js/webmap` | 10.7 KiB |
-| `@honua/sdk-js/style` | 17.2 KiB |
-| `@honua/sdk-js/map` | 56.6 KiB |
-| `@honua/sdk-js` (root) | 209.7 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 61.5 KiB |
-| `{ connect }` from the root (tree-shake guard) | 170.1 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 199.0 KiB |
+| `@honua/sdk-js/style` | 17.3 KiB |
+| `@honua/sdk-js/map` | 56.7 KiB |
+| `@honua/sdk-js` (root) | 210.4 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.9 KiB |
+| `{ connect }` from the root (tree-shake guard) | 170.6 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 199.5 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 170.1 KiB gzip and `{ createHonua }` 199.0 KiB against the 209.7 KiB root, so size-sensitive
+alone costs 170.6 KiB gzip and `{ createHonua }` 199.5 KiB against the 210.4 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -1329,7 +1329,7 @@ Per-gate `browser` receipts prove the default Chromium-only Playwright lane. The
 
 | Sample | Last sealed run | Engines | Observed | Expires | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-11-14T17:39:03.757Z | 2026-11-21T17:39:03.757Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
+| [`maplibre-quickstart`](#maplibre-quickstart) | passed | chromium: passed<br>firefox: passed<br>webkit: passed | 2026-11-21T21:01:19.631Z | 2026-11-28T21:01:19.631Z | [`samples/evidence/maplibre-quickstart/release-matrix.v1.json`](../../samples/evidence/maplibre-quickstart/release-matrix.v1.json) |
 
 ## Executable samples
 
@@ -1942,18 +1942,18 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-20 at commit `958ea03a4`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-22 at commit `d6d27b16f`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 778.3 KiB | 209.7 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 240.7 KiB | 61.5 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.1 KiB | 15.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.0 KiB | 109.2 KiB |
-| Client compatibility layer (drop-in migration surface) | 1091.7 KiB | 277.5 KiB |
-| Geocoding client | 33.5 KiB | 9.4 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 780.3 KiB | 210.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 242.0 KiB | 61.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.3 KiB | 15.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.8 KiB | 109.5 KiB |
+| Client compatibility layer (drop-in migration surface) | 1093.6 KiB | 278.0 KiB |
+| Geocoding client | 34.3 KiB | 9.8 KiB |
 | Routing client | 29.0 KiB | 8.7 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
@@ -1964,8 +1964,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 778.3 KiB ≈ **2.31 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 209.7 KiB ≈ **0.63 MB**.
+- **Minified:** engine 1589.3 KiB + Honua root 780.3 KiB ≈ **2.31 MB**.
+- **Gzip:** engine 433.2 KiB + Honua root 210.4 KiB ≈ **0.63 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -8076,10 +8076,10 @@ produced it. Nothing here is hand-typed, and the generator recomputes every rate
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-11-16
-(13 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-11-21
+(14 distinct observation dates,
 3 cross-model eval artifacts,
-23 certification artifacts).
+25 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -8197,10 +8197,12 @@ schedule and it fails loudly.
 | 2026-11-02 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `c8715bcc9e32` |
 | 2026-11-16 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `0caf8a8d0061` |
 | 2026-11-16 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `0caf8a8d0061` |
+| 2026-11-21 | live honua /mcp (http://localhost:8080/mcp) | `remote` | 12 | 9/9 | 13/13 | 0 | 6 | 44 | ❌ fail | `7325752d2d49` |
+| 2026-11-21 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 11 | 3/3 | 1/1 | 0 | 9 | 54 | ✅ pass | `7325752d2d49` |
 
-### Certification failures and skips — 2026-11-16
+### Certification failures and skips — 2026-11-21
 
-From [`mcp/evals/runs/2026-11-16/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-11-21/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-21/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
@@ -8217,7 +8219,7 @@ certified surface, published unedited; skips name the reason they could not be c
 
 The same run recorded **54 known standard gaps** — tool families in the
 geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition controls, Composition exploration, Composition interactions, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Platform operations (reference shape), Publishing, unclassified).
-They are enumerated in [`mcp/evals/runs/2026-11-16/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) under `knownGaps`.
+They are enumerated in [`mcp/evals/runs/2026-11-21/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-21/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -8279,6 +8281,8 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-02/cert-standalone.json) | 2026-11-02 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `c8715bcc9e32` |
 | [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-candidate.json) | 2026-11-16 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `0caf8a8d0061` |
 | [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-16/cert-standalone.json) | 2026-11-16 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `0caf8a8d0061` |
+| [`cert-candidate.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-21/cert-candidate.json) | 2026-11-21 | certification | live honua /mcp (http://localhost:8080/mcp) | — | `2025-06-18` | 12 | `api-key` | `7325752d2d49` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-11-21/cert-standalone.json) | 2026-11-21 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 11 | `anonymous` | `7325752d2d49` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published
@@ -11419,11 +11423,17 @@ entry point (`@honua/sdk-js/react`, published standalone as `@honua/react`).
 ## Install
 
 ```bash
-npm install @honua/sdk-js @honua/react react react-dom maplibre-gl
+npm install @honua/sdk @honua/sdk-js @honua/react react react-dom maplibre-gl
 ```
 
-Inside this monorepo the same surface is available at the subpath
-`@honua/sdk-js/react`.
+From the first release after 0.4.0, `@honua/react` takes its `HonuaClient`
+from its `@honua/sdk` peer, so create the client from `@honua/sdk`. A
+`HonuaClient` from `@honua/sdk-js/honua` is a separate declaration and fails to
+type-check as `HonuaProvider`'s `client`. On 0.4.0, `@honua/react` still bundles
+its own client copy that no public import provides. Use the
+`@honua/sdk-js/react` subpath with `HonuaClient` from `@honua/sdk-js/honua`
+there. That pairing type-checks on every release and is the same surface this
+monorepo uses.
 
 ## Provider setup
 
@@ -11431,7 +11441,7 @@ Wrap your app once with a `HonuaClient`. The provider owns a session-scoped
 query cache shared by every hook below it.
 
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk";
 import { HonuaProvider } from "@honua/react";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example.com" });
@@ -11970,57 +11980,57 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-20 at commit `958ea03a4`._
+_Generated 2026-11-22 at commit `d6d27b16f`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 778.3 KiB | 829.3 KiB | 209.7 KiB | 211.8 KiB |
-| `/honua` | 952.7 KiB | 1033.4 KiB | 257.5 KiB | 278.1 KiB |
-| `/contract` | 398.0 KiB | 400.6 KiB | 109.2 KiB | 118.8 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 849.6 KiB | 859.4 KiB | 203.0 KiB | 218.1 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.4 KiB | 257.5 KiB | 26.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 883.6 KiB | 961.8 KiB | 212.3 KiB | 237.6 KiB |
+| `.` (root) | 780.3 KiB | 829.3 KiB | 210.4 KiB | 211.8 KiB |
+| `/honua` | 954.8 KiB | 1033.4 KiB | 258.3 KiB | 278.1 KiB |
+| `/contract` | 398.8 KiB | 400.6 KiB | 109.5 KiB | 118.8 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 851.2 KiB | 859.4 KiB | 203.5 KiB | 218.1 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 188.5 KiB | 257.5 KiB | 26.3 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 885.2 KiB | 961.8 KiB | 212.9 KiB | 237.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 68.7 KiB | 69.2 KiB | 20.7 KiB | 21.9 KiB |
 | `/agent-tools` | 46.4 KiB | 48.1 KiB | 12.7 KiB | 13.3 KiB |
 | `/agent-safety` | 69.4 KiB | 73.2 KiB | 19.1 KiB | 20.5 KiB |
 | `/nl-map-control` | 92.9 KiB | 94.2 KiB | 27.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
 | `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 58.9 KiB | 64.1 KiB | 19.2 KiB | 20.8 KiB |
-| `/runtime` | 729.2 KiB | 752.5 KiB | 188.9 KiB | 198.6 KiB |
+| `/runtime` | 730.0 KiB | 752.5 KiB | 189.2 KiB | 198.6 KiB |
 | `/realtime` | 82.6 KiB | 86.2 KiB | 23.7 KiB | 25.0 KiB |
 | `/offline` | 171.8 KiB | 186.2 KiB | 45.6 KiB | 49.7 KiB |
-| `/query-planner` (worker runtime injected) | 707.1 KiB | 778.7 KiB | 170.8 KiB | 182.9 KiB |
+| `/query-planner` (worker runtime injected) | 707.4 KiB | 778.7 KiB | 170.9 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 174.4 KiB | 183.6 KiB | 52.6 KiB | 55.8 KiB |
-| `/client-compat` | 1091.7 KiB | 1139.7 KiB | 277.5 KiB | 309.5 KiB |
+| `/client-compat` | 1093.6 KiB | 1139.7 KiB | 278.0 KiB | 309.5 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 35.0 KiB | 38.6 KiB | 10.7 KiB | 11.8 KiB |
-| `/geocoding` | 33.5 KiB | 35.9 KiB | 9.4 KiB | 10.1 KiB |
+| `/geocoding` | 34.3 KiB | 35.9 KiB | 9.8 KiB | 10.1 KiB |
 | `/routing` | 29.0 KiB | 31.8 KiB | 8.7 KiB | 9.5 KiB |
-| `/auth` | 28.5 KiB | 30.6 KiB | 7.8 KiB | 8.7 KiB |
-| `/style` | 67.9 KiB | 69.0 KiB | 17.2 KiB | 18.9 KiB |
-| `/map` | 198.8 KiB | 218.2 KiB | 56.6 KiB | 62.1 KiB |
+| `/auth` | 29.7 KiB | 30.6 KiB | 8.2 KiB | 8.7 KiB |
+| `/style` | 68.1 KiB | 69.0 KiB | 17.3 KiB | 18.9 KiB |
+| `/map` | 199.2 KiB | 218.2 KiB | 56.7 KiB | 62.1 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 148.4 KiB | 154.9 KiB | 44.4 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.9 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 335.2 KiB | 364.2 KiB | 89.7 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 336.5 KiB | 364.2 KiB | 90.1 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 70.1 KiB | 77.7 KiB | 19.1 KiB | 21.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1231.3 KiB | 1275.0 KiB | 325.0 KiB | 344.5 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1341.1 KiB | 1395.4 KiB | 358.2 KiB | 391.9 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1232.9 KiB | 1275.0 KiB | 325.5 KiB | 344.5 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1342.7 KiB | 1395.4 KiB | 358.7 KiB | 391.9 KiB |
+| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.7 KiB | 67.5 KiB | 18.0 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 41.7 KiB | 45.5 KiB | 13.0 KiB | 13.9 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 14.6 KiB | 16.0 KiB | 5.4 KiB | 5.7 KiB |
-| `/react` (react/react-dom external) | 573.3 KiB | 619.8 KiB | 156.1 KiB | 165.2 KiB |
-| `/geometry` (turf/proj4 bundled — real consumer cost) | 525.8 KiB | 568.0 KiB | 147.3 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 778.5 KiB | 832.8 KiB | 209.9 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 778.1 KiB | 828.5 KiB | 209.7 KiB | 221.7 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 240.7 KiB | 280.2 KiB | 61.5 KiB | 74.3 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 635.6 KiB | 695.1 KiB | 170.1 KiB | 186.7 KiB |
+| `/react` (react/react-dom external) | 574.1 KiB | 619.8 KiB | 156.4 KiB | 165.2 KiB |
+| `/geometry` (turf/proj4 bundled — real consumer cost) | 526.4 KiB | 568.0 KiB | 147.5 KiB | 157.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 780.5 KiB | 832.8 KiB | 210.6 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 780.1 KiB | 828.5 KiB | 210.4 KiB | 221.7 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 242.0 KiB | 280.2 KiB | 61.9 KiB | 74.3 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 637.2 KiB | 695.1 KiB | 170.6 KiB | 186.7 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 17.0 KiB | 17.1 KiB | 4.5 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.7 KiB | 18.5 KiB | 3.7 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 737.8 KiB | 791.3 KiB | 199.0 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 264.8 KiB | 296.3 KiB | 68.2 KiB | 77.7 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 739.4 KiB | 791.3 KiB | 199.5 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/client-compat`) | 266.0 KiB | 296.3 KiB | 68.6 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 286.0 KiB | 316.3 KiB | 65.2 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 50.1 KiB | 54.4 KiB | 15.3 KiB | 16.4 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 50.3 KiB | 54.4 KiB | 15.3 KiB | 16.4 KiB |
 | tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 35.1 KiB | 35.1 KiB | 9.7 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.4 KiB | 3.8 KiB | 1.5 KiB | 1.7 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 33.0 KiB | 35.9 KiB | 10.6 KiB | 11.3 KiB |
@@ -14593,7 +14603,7 @@ accepts a `formatWhere` override for servers that need date literals.
 ---
 type: reference
 title: "MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)"
-description: "The MapLibre GL JS runtime for a server-produced map document: MapLibre 5/6 compatibility, accepted-plan and automatic mounting, raster sources, loader options, mutation, hosted fetch, hit testing, events, errors and telemetry."
+description: "The MapLibre GL JS runtime for a server-produced map document: MapLibre 6.4.1+ support, accepted-plan and automatic mounting, raster sources, loader options, mutation, hosted fetch, hit testing, events, errors and telemetry."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
@@ -14648,8 +14658,8 @@ starters ship `src/maplibre-worker.ts`, both of which use Vite's `?worker&url`
 pipeline before creating a map. See MapLibre's official
 [v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
 
-WebGL context attributes belong under `canvasContextAttributes` on both
-supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
+WebGL context attributes belong under `canvasContextAttributes` on the
+supported 6.x line — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
 `failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
 `preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
 `@honua/app-platform/web-components` requires the nested form:
@@ -14668,12 +14678,12 @@ rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
 are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
-GeoJSON updates, events, controls, and PMTiles registration are covered on both
-renderer majors; v6-only style extensions should use `renderer-deferred`
-validation for now.
+GeoJSON updates, events, controls, and PMTiles registration are covered on the
+supported 6.x renderer line. Style properties newer than style-spec 24 should use
+`renderer-deferred` validation for now.
 
 The SDK requires Node `>=22.12.0`; repository checks use Node `22.23.3` LTS.
-The existing `@mapbox/jsonlint-lines-primitives` 2.0.2 pin remains in place for
+The existing `@mapbox/jsonlint-lines-primitives` 2.0.3 pin remains in place for
 the direct style-spec 24.x validator. It originated with the earlier Node 20
 compatibility work; moving the runtime baseline does not independently upgrade
 that parser or change which renderer features the SDK validates.
@@ -15892,11 +15902,11 @@ unpkg works the same way:
 
 The bundle is focused on the **core SDK public API** (everything re-exported
 from `src/index.ts`). Its stable-core runtime dependency,
-`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has two
-other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
-migration forwarders outside the browser graph, and
-`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser. That pin originated with the earlier Node 20 compatibility
+`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has
+three other bounded direct dependencies: `hyparquet` and `fzstd` back the
+lazily loaded Parquet reader in `@honua/sdk-js/export`, outside the browser
+graph, and `@mapbox/jsonlint-lines-primitives@2.0.3` temporarily pins
+style-spec's existing parser. That pin originated with the earlier Node 20 compatibility
 work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and

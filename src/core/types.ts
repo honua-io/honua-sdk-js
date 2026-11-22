@@ -946,12 +946,16 @@ export interface GeoServicesPoint {
 /** An Esri polyline geometry. */
 export interface GeoServicesPolyline {
   paths: number[][][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 
 /** An Esri polygon geometry. */
 export interface GeoServicesPolygon {
   rings: number[][][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 
@@ -967,6 +971,8 @@ export interface GeoServicesEnvelope {
 /** An Esri multipoint geometry. */
 export interface GeoServicesMultipoint {
   points: number[][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 

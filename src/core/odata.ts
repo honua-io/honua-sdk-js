@@ -807,11 +807,14 @@ function parseNextLink(
   serverBaseUrl: string,
   basePath: string,
 ): { path: string; query: Record<string, string | number | boolean> } {
-  const absolute =
-    link.startsWith("http://") || link.startsWith("https://")
-      ? new URL(link)
-      : new URL(link, `${ensureTrailingSlash(serverBaseUrl)}${stripLeadingSlash(basePath)}/`);
-  const serverBase = new URL(serverBaseUrl);
+  const serverBase = resolveOdataBaseUrl(serverBaseUrl);
+  const isAbsoluteLink = /^https?:\/\//i.test(link);
+  const absolute = isAbsoluteLink
+    ? new URL(link)
+    : new URL(link, `${ensureTrailingSlash(serverBase.toString())}${stripLeadingSlash(basePath)}/`);
+  if (!isAbsoluteLink && absolute.origin !== serverBase.origin) {
+    throw new Error(`Cross-origin OData nextLink is not allowed: ${link}`);
+  }
   const serverPath = trimTrailingSlashes(serverBase.pathname);
   const path =
     serverPath && absolute.pathname.startsWith(`${serverPath}/`)
@@ -820,6 +823,17 @@ function parseNextLink(
   const query: Record<string, string | number | boolean> = {};
   for (const [key, value] of absolute.searchParams) query[key] = value;
   return { path, query };
+}
+
+function resolveOdataBaseUrl(serverBaseUrl: string): URL {
+  if (/^https?:\/\//i.test(serverBaseUrl)) {
+    return new URL(serverBaseUrl);
+  }
+  const fallbackOrigin =
+    typeof globalThis.location?.origin === "string" && /^https?:\/\//i.test(globalThis.location.origin)
+      ? globalThis.location.origin
+      : "http://localhost";
+  return new URL(serverBaseUrl || "/", fallbackOrigin);
 }
 
 function ensureTrailingSlash(url: string): string {

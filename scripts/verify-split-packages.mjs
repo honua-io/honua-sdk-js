@@ -193,6 +193,7 @@ try {
       "@honua/react": `file:${packageDirs["@honua/react"]}`,
       react: ROOT_PACKAGE_JSON.devDependencies.react,
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
+      "@types/react": ROOT_PACKAGE_JSON.devDependencies["@types/react"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
       // The web-components entry statically imports maplibre-gl. It is an
@@ -238,6 +239,8 @@ import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
 } from "@honua/app-platform/control-plane";
+import { createHonuaStudioLifecycleClient } from "@honua/app-platform/studio";
+import { HonuaClient as AppPlatformHonuaClient } from "./node_modules/@honua/app-platform/core/client.js";
 import {
   createFixtureMapCollaborationTransport,
   createHonuaMapCollaboration,
@@ -1150,11 +1153,29 @@ if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buff
     throw new Error("LocatorSearchSourceCompat did not honor the provider suggest capability declaration");
 }
 
+if (AppPlatformHonuaClient !== HonuaClient) {
+  throw new Error("@honua/app-platform must forward HonuaClient to the @honua/sdk peer constructor");
+}
+{
+  const studioLifecycle = createHonuaStudioLifecycleClient({
+    client: new HonuaClient({ baseUrl: "https://example.invalid" }),
+  });
+  if (typeof studioLifecycle.drafts?.list !== "function") {
+    throw new Error("createHonuaStudioLifecycleClient did not accept @honua/sdk HonuaClient");
+  }
+}
+
 console.log("splitPackageSmoke=ok");
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
   const declarationSmoke = `
+import { HonuaClient } from "@honua/sdk";
+import { createHonuaApp } from "@honua/app-platform/app";
+import { createHonuaAdminClient, createHonuaControlPlane } from "@honua/app-platform/control-plane";
+import { createHonuaOperate } from "@honua/app-platform/operate";
+import { createHonuaStudioLifecycleClient } from "@honua/app-platform/studio";
+import type { HonuaProviderProps } from "@honua/react";
 import type { SourceDescriptor as ClientSourceDescriptor } from "./node_modules/@honua/sdk-client-compat/contract/index.js";
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
@@ -1178,6 +1199,14 @@ export const acceptsSceneSpatialReference = (
   capabilities: SceneSpatialCapabilities,
   fidelity: SceneSpatialFidelity,
 ): string => \`\${primitive.crs ?? ""}:\${primitive.verticalDatum ?? ""}:\${capabilities.exactHorizontalCrs?.[0] ?? ""}:\${fidelity}\`;
+
+const coreClient = new HonuaClient({ baseUrl: "https://example.invalid" });
+export const studioLifecycleFromCoreClient = createHonuaStudioLifecycleClient({ client: coreClient });
+export const controlPlaneFromCoreClient = createHonuaControlPlane({ client: coreClient });
+export const operateFromCoreClient = createHonuaOperate({ client: coreClient });
+export const adminFromCoreOptions = createHonuaAdminClient({ baseUrl: "https://example.invalid" });
+export const appFromCoreOptions = createHonuaApp({ baseUrl: "https://example.invalid" });
+export const reactProviderCoreClient: HonuaProviderProps["client"] = coreClient;
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke-types.ts"), declarationSmoke, "utf8");
   fs.writeFileSync(
@@ -1185,7 +1214,7 @@ export const acceptsSceneSpatialReference = (
     `${JSON.stringify(
       {
         compilerOptions: {
-          lib: ["ES2022", "DOM", "DOM.Iterable"],
+          lib: ["ES2022", "ESNext.Disposable", "DOM", "DOM.Iterable"],
           module: "NodeNext",
           moduleResolution: "NodeNext",
           noEmit: true,

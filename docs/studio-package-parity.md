@@ -2,7 +2,7 @@
 type: reference
 title: "Studio package parity: MCP, QGIS, and Console"
 description: "How an AI-generated map, dashboard or report keeps parity with the hand-authored package contracts, so generated output is a first-class package rather than a special case."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Studio package parity: MCP, QGIS, and Console
 

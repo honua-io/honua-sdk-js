@@ -108,6 +108,8 @@ export interface OAuth2Config {
   popupFeatures?: string;
   /** Override `fetch` (Node/tests). Defaults to `globalThis.fetch`. */
   fetchFn?: typeof fetch;
+  /** Explicit opt-in to send OAuth2 token requests over non-loopback plain HTTP. */
+  allowInsecureHttp?: boolean;
   /**
    * Window used for redirect/popup + transaction persistence. Defaults to
    * `globalThis.window`. Injectable for tests / non-DOM hosts.
@@ -131,6 +133,7 @@ export interface ClientCredentialsConfig {
   serviceKey?: string;
   clockSkewMs?: number;
   extraTokenParams?: Record<string, string>;
+  allowInsecureHttp?: boolean;
   fetchFn?: typeof fetch;
   onEvent?: HonuaAuthEventListener;
 }

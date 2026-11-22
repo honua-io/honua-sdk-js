@@ -928,7 +928,7 @@ import {
   defineHonuaFilterBuilder,
   HonuaFilterBuilderElement,
 } from "@honua/app-platform/controls";
-import { createFilterRegistry } from "@honua/app-platform/filter-registry";
+import { createFilterRegistry } from "@honua/sdk-js/filter-registry";
 
 defineHonuaFilterBuilder();
 const builder = new HonuaFilterBuilderElement();

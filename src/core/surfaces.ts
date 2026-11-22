@@ -423,7 +423,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
       }
     }
 
-    return features;
+    return maxRecords !== undefined && features.length > maxRecords ? features.slice(0, maxRecords) : features;
   }
 
   public async *queryFeaturesStream(
@@ -1020,7 +1020,7 @@ export class HonuaMapLayer {
       }
     }
 
-    return features;
+    return maxRecords !== undefined && features.length > maxRecords ? features.slice(0, maxRecords) : features;
   }
 
   public async *queryFeaturesStream(

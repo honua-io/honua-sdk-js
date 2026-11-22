@@ -386,6 +386,7 @@ function createCompatPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  forwardCoreClientToSdkPeer(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "client-compat"), path.join(packageRoot, "client-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   // The geometryEngine compat shim (client-compat/geometry-engine.js) imports the
@@ -459,6 +460,7 @@ function createGeometryPackage() {
   // resolve; only geometry + the GeoServices conversion module load at runtime.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  forwardCoreClientToSdkPeer(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
@@ -536,6 +538,7 @@ function createReactPackage() {
   for (const directory of reactClosureDirectories) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  forwardCoreClientToSdkPeer(packageRoot);
   copyColumnarRuntimeClosure(packageRoot);
   copyEmittedModule(packageRoot, "widget-capabilities");
   // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
@@ -632,6 +635,7 @@ function createAppPlatformPackage() {
   for (const directory of [...appPlatformDirectories, ...stableClosureDirectories]) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  forwardCoreClientToSdkPeer(packageRoot);
   // Scene imagery applies the same credential-name classifier as discovery so
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
@@ -749,6 +753,17 @@ function copySourceCapabilityContractSupport(packageRoot) {
     `export { isRegisteredCapabilityProfile, matchesRegisteredCapabilityProfileSource } from "${verifier}";\n`;
   fs.writeFileSync(path.join(packageRoot, "source-capability-registry.js"), forwardingModule, "utf8");
   fs.writeFileSync(path.join(packageRoot, "source-capability-registry.d.ts"), forwardingModule, "utf8");
+}
+
+function forwardCoreClientToSdkPeer(packageRoot) {
+  // Companion packages declare the exact `@honua/sdk` peer. Re-exporting
+  // `HonuaClient` from that peer keeps one nominal class declaration and
+  // runtime constructor across `@honua/sdk`, `@honua/app-platform`,
+  // `@honua/react`, `@honua/sdk-client-compat`, and `@honua/geometry`.
+  const forwardingModule =
+    'export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "@honua/sdk";\n';
+  fs.writeFileSync(path.join(packageRoot, "core", "client.js"), forwardingModule, "utf8");
+  fs.writeFileSync(path.join(packageRoot, "core", "client.d.ts"), forwardingModule, "utf8");
 }
 
 function writeCanonicalCapabilityProfileVerifier(packageRoot) {

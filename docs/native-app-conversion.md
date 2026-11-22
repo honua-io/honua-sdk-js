@@ -82,8 +82,8 @@ Check the deployment and the linked work before removing a compatibility path.
 | Identify | `identifySources(selectedSources, options)` | Queries each selected source; coordinate-space envelope tolerance, one bounded page per source. |
 | Find | `findSources([{ source, fields }], options)` | Typed equality or explicit LIKE pattern over chosen fields; no service-wide discovery. |
 | Legend | `legendFromStyle(style, options)` | Style-derived colors plus the full symbol definition; complex expressions need a renderer. No server legend call. |
-| Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Uses unary gRPC-Web `ApplyEdits` with no REST fallback when configured for gRPC-Web. Per-row errors remain in the result; whole-call failures reject. Set the source schema primary key for custom object IDs. |
-| Edits keyed by global ID | `source.applyEdits({ useGlobalIds: true, updates: [{ globalId, attributes }], deletes: [globalId] })` | Outcomes carry `globalId` with `id`. On gRPC this requires a geospatial-grpc 1.2 server and a declared global-ID field; on REST only global-ID deletes are forwarded. Adds may supply client-generated global IDs. |
+| Add/update/delete/applyEdits | `source.applyEdits({ adds, updates, deletes, rollbackOnFailure })` | Uses unary gRPC-Web `ApplyEdits` with no REST fallback when configured for gRPC-Web. Per-row errors remain in the result; whole-call failures reject. A missing or hidden update or delete target rejects the whole call with `NOT_FOUND` before any row is written, even with `rollbackOnFailure: false` (GeoServices reports a per-row error instead). Set the source schema primary key for custom object IDs. |
+| Edits keyed by global ID | `source.applyEdits({ useGlobalIds: true, updates: [{ globalId, attributes }], deletes: [globalId] })` | Outcomes carry `globalId` with `id`. On gRPC this requires a geospatial-grpc 1.2 server and a declared global-ID field; on REST only global-ID deletes are forwarded. Adds may supply client-generated global IDs. A missing or hidden global ID rejects the whole call with `NOT_FOUND`, as object IDs do. |
 | Parent and child transaction | `createServiceEditSession({ dataset })`, then `session.submit({ edits, rollbackOnFailure })` | [Native service edit sessions](shared-client-contract.md#native-service-edit-sessions) use one gRPC-Web `ApplyServiceEdits` call and require a server supporting geospatial-grpc 1.4. Sources must use distinct layers on the same gRPC service endpoint. Rollback defaults to true, so all layers commit or none. Key children to parents with client-generated global IDs. |
 | Query attachment metadata | `source.attachments.list(parentId)` or `.query({ parentIds })` | Unary `ListAttachments` with attachment page tokens; explicit parent IDs, no filter text. Low level: `client.attachments.list`. |
 | Add/update/delete attachment | `source.attachments.add/update/delete` with a `Blob` or `File` | The SDK picks unary upload or a chunked upload session from the layer's advertised limits. Retry a failed upload with the same `idempotencyKey` to resume its session; deletes return one outcome per row. Requires a server implementing the additive 1.3.0 contract. |
@@ -153,6 +153,11 @@ Keep omitted values separate from explicit nulls. Check exact 64-bit IDs before
 converting them to JavaScript numbers. Preserve stable global IDs independently of
 server-assigned object IDs. Store coded domain values rather than their labels,
 and apply subtype-specific defaults and templates from the descriptor.
+
+Send edit geometry in the layer's coordinate system, in the canonical `{ x, y }`,
+`points`, `paths` or `rings` shape, without `spatialReference`. gRPC edits do not
+reproject: the SDK rejects, before sending, any geometry that names a spatial
+reference, even the layer's own. This also applies to service edit sessions.
 
 Keep dates, date-only, time-only and offset timestamps distinct. Carry Z and M
 ordinates separately; an M-only tuple must not become Z. Current curve support

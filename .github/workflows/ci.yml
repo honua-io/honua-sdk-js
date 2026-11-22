@@ -479,6 +479,9 @@ jobs:
       - name: Test reseal credential lifetime policy
         run: node --test test/scripts/reseal-token-lifetime.test.mjs
 
+      - name: Test workflow OIDC role variable policy
+        run: node --test test/scripts/workflow-oidc-role-variables.test.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

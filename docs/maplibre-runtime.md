@@ -1,7 +1,7 @@
 ---
 type: reference
 title: "MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)"
-description: "The MapLibre GL JS runtime for a server-produced map document: MapLibre 5/6 compatibility, accepted-plan and automatic mounting, raster sources, loader options, mutation, hosted fetch, hit testing, events, errors and telemetry."
+description: "The MapLibre GL JS runtime for a server-produced map document: MapLibre 6.4.1+ support, accepted-plan and automatic mounting, raster sources, loader options, mutation, hosted fetch, hit testing, events, errors and telemetry."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # MapLibre GL JS Runtime (`@honua/sdk-js/runtime`)
@@ -56,8 +56,8 @@ starters ship `src/maplibre-worker.ts`, both of which use Vite's `?worker&url`
 pipeline before creating a map. See MapLibre's official
 [v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
 
-WebGL context attributes belong under `canvasContextAttributes` on both
-supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
+WebGL context attributes belong under `canvasContextAttributes` on the
+supported 6.x line — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
 `failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
 `preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
 `@honua/app-platform/web-components` requires the nested form:
@@ -76,12 +76,12 @@ rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
 are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
-GeoJSON updates, events, controls, and PMTiles registration are covered on both
-renderer majors; v6-only style extensions should use `renderer-deferred`
-validation for now.
+GeoJSON updates, events, controls, and PMTiles registration are covered on the
+supported 6.x renderer line. Style properties newer than style-spec 24 should use
+`renderer-deferred` validation for now.
 
 The SDK requires Node `>=22.12.0`; repository checks use Node `22.23.3` LTS.
-The existing `@mapbox/jsonlint-lines-primitives` 2.0.2 pin remains in place for
+The existing `@mapbox/jsonlint-lines-primitives` 2.0.3 pin remains in place for
 the direct style-spec 24.x validator. It originated with the earlier Node 20
 compatibility work; moving the runtime baseline does not independently upgrade
 that parser or change which renderer features the SDK validates.

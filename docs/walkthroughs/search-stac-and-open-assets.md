@@ -24,7 +24,7 @@ The deterministic project records browser request and signing evidence but does 
 import { createDynamicStacClient } from "@honua/sdk-js/stac";
 
 const stac = createDynamicStacClient({
-  baseUrl: "https://your-honua.example/api/stac",
+  baseUrl: "https://your-honua.example/stac",
 });
 
 const catalog = await stac.catalog(AbortSignal.timeout(5_000));
