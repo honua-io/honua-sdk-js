@@ -257,11 +257,10 @@ export function createProtectedSceneAssetSession(
         return parsed;
       } catch (cause) {
         const error = classifyAcquisitionError(cause, active?.token);
-        if (!isDisposed()) {
-          if (error.code === "unauthorized" || error.code === "forbidden") active = undefined;
-          status = active && now() < active.expiresAtMs ? "active" : "expired";
-          notifySnapshot();
-        }
+        if (isDisposed()) throw error;
+        if (error.code === "unauthorized" || error.code === "forbidden") active = undefined;
+        status = active && now() < active.expiresAtMs ? "active" : "expired";
+        notifySnapshot();
         throw error;
       } finally {
         inFlightRefresh = undefined;
