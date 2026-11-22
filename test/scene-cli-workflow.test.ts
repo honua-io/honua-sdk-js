@@ -140,7 +140,10 @@ describe("scene catalog commands and CLI", () => {
       };
       const jobUrl = "/api/v1/admin/scenes/jobs/job-cli-1";
       const { requests, fetchFn } = makeRecorder(({ method, path }) => {
-        if (method === "POST" && /^\/api\/v1\/admin\/scenes\/ingest\/(archive|model)$/.test(path)) {
+        if (method === "POST" && path.endsWith("/ingest/model")) {
+          return { status: 201, body: { sceneId: "downtown", tilesetUrl: url, sourceFormat: "glb", warnings: [] } };
+        }
+        if (method === "POST" && path.endsWith("/ingest/archive")) {
           return {
             status: 202,
             body: { status: "queued", jobId: "job-cli-1", sceneId: "downtown", statusUrl: jobUrl },
@@ -167,6 +170,7 @@ describe("scene catalog commands and CLI", () => {
         "3d-tiles",
         "--scene-id",
         "downtown",
+        "--async",
         "--wait",
         "--yes",
       ]);
@@ -180,8 +184,20 @@ describe("scene catalog commands and CLI", () => {
       expect(await file.text()).toBe("archive bytes");
       expect(requests[0]?.headers["content-type"]).toBeUndefined();
 
-      await cli(["import", modelPath, "--format", "glb", "--longitude", "-157.82", "--latitude", "21.3", "--yes"]);
+      const model = await cli([
+        "import",
+        modelPath,
+        "--format",
+        "glb",
+        "--longitude",
+        "-157.82",
+        "--latitude",
+        "21.3",
+        "--yes",
+      ]);
       const modelForm = requests.find(({ path }) => path.endsWith("/ingest/model"))?.body as FormData;
+      expect(model.output.tilesetUrl).toBe(url);
+      expect(modelForm.get("async")).toBeNull();
       expect(modelForm.get("longitude")).toBe("-157.82");
       expect(modelForm.get("latitude")).toBe("21.3");
       expect((modelForm.get("file") as File).name).toBe("downtown.glb");

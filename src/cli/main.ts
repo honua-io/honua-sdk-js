@@ -121,6 +121,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "count", boolean: true },
   { name: "image", boolean: true },
   { name: "wait", boolean: true },
+  { name: "async", boolean: true },
   { name: "requires-auth", boolean: true },
   { name: "json", boolean: true },
   { name: "dry-run", boolean: true },
@@ -234,7 +235,7 @@ SCENES (3D Tiles, models, point clouds)
   honua scene list [--json]
   honua scene get <sceneId> [--json]
   honua scene resolve <sceneId> [--json]
-  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--wait] [--yes]
+  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--async [--wait]] [--yes]
   honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
   honua scene retire <datasetId> [--yes] [--json]
 

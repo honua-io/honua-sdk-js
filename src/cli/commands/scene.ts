@@ -24,7 +24,7 @@ const SCENE_USAGE = `Usage:
   honua scene list [--json]
   honua scene get <sceneId> [--json]
   honua scene resolve <sceneId> [--json]
-  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--wait] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]
+  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--async [--wait]] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]
   honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
   honua scene retire <datasetId> [--dry-run] [--yes] [--json]`;
 
@@ -171,7 +171,8 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
   if (!supportedExtensions.includes(extension)) {
     throw new ArgError(`File extension must be ${supportedExtensions.join(" or ")}.`);
   }
-  const fields: Record<string, string> = { async: "true" };
+  const fields: Record<string, string> = {};
+  if (getBoolean(parsed, "async")) fields.async = "true";
   for (const [flag, field] of [
     ["scene-id", "sceneId"],
     ["title", "displayName"],
@@ -212,10 +213,16 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
     sceneId?: string;
     statusUrl: string;
   }
-  const command: HonuaCommand<typeof input, AcceptedJob> = {
+  interface CreatedScene {
+    jobId?: undefined;
+    status?: undefined;
+    sceneId: string;
+    tilesetUrl: string;
+  }
+  const command: HonuaCommand<typeof input, AcceptedJob | CreatedScene> = {
     id: "scene.import.submit",
     title: "Submit a scene import",
-    description: "Upload a tiles archive or a georeferenced model to a scene ingest job.",
+    description: "Upload a tiles archive or a georeferenced model using scene ingest.",
     mode: "action",
     resourceKind: "scene-import-job",
     inputSchema: { type: "object", additionalProperties: true },
@@ -225,7 +232,7 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
       payload.append("file", await openAsBlob(filePath), fileName);
       for (const [key, value] of Object.entries(fields)) payload.append(key, value);
       const client = createClient(ctx);
-      const output = await client.pipelineRequestJson<AcceptedJob>(
+      const output = await client.pipelineRequestJson<AcceptedJob | CreatedScene>(
         "POST",
         endpoint,
         {
@@ -234,9 +241,13 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
         },
         context.requestOptions().signal,
       );
-      if (!output?.jobId || typeof output.status !== "string")
-        throw new Error("Server did not return an accepted scene job.");
-      return { output, resourceRef: { type: "scene-import-job", id: output.jobId } };
+      if (output?.jobId && typeof output.status === "string") {
+        return { output, resourceRef: { type: "scene-import-job", id: output.jobId } };
+      }
+      if (output?.sceneId && "tilesetUrl" in output && typeof output.tilesetUrl === "string") {
+        return { output, resourceRef: { type: "scene", id: output.sceneId } };
+      }
+      throw new Error("Server did not return a created scene or an accepted scene job.");
     },
   };
   const runtime = createCommandRuntime(ctx);
@@ -262,14 +273,14 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
         {
           command: receipt.commandId,
           status: finalJob?.status ?? receipt.output?.status ?? receipt.status,
-          jobId: receipt.output?.jobId ?? "(pending)",
+          ...(receipt.output?.jobId ? { jobId: receipt.output.jobId } : {}),
           sceneId: receipt.output?.sceneId ?? fields.sceneId ?? "(pending)",
           correlationId: receipt.correlationId,
           auditKey: receipt.auditKey,
         },
         {
           title: statusHeading(
-            finalJob ? "Scene import completed" : "Scene import submitted",
+            finalJob || !receipt.output?.jobId ? "Scene import completed" : "Scene import submitted",
             "Scene import",
           )(receipt.status),
         },
