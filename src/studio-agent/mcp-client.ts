@@ -184,7 +184,7 @@ export class McpClient {
     if (options.apiKey && options.auth) {
       throw new Error("Configure exactly one MCP authentication scheme.");
     }
-    this.#baseUrl = (options.baseUrl ?? "").replace(/\/+$/, "");
+    this.#baseUrl = stripTrailingSlashes(options.baseUrl ?? "");
     this.#auth = options.auth;
     this.#apiKey = options.apiKey;
     this.#clientName = options.clientName ?? "honua-sdk-js";
@@ -550,4 +550,12 @@ function parseToolError(result: McpToolsCallResult, toolName: string): McpToolEr
     return new McpToolError(firstText, "unknown", toolName, result);
   }
   return new McpToolError(`Tool "${toolName}" failed with no structured error detail.`, "unknown", toolName, result);
+}
+
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
 }

@@ -177,7 +177,7 @@ export class McpNotificationStream {
   #loop: Promise<void> = Promise.resolve();
 
   public constructor(options: McpNotificationStreamOptions) {
-    this.#baseUrl = (options.baseUrl ?? "").replace(/\/+$/, "");
+    this.#baseUrl = stripTrailingSlashes(options.baseUrl ?? "");
     this.#auth = options.auth;
     // Bound to globalThis for the same reason `McpClient` binds it: browser
     // `fetch` is receiver-sensitive and a private-field call passes the
@@ -442,4 +442,12 @@ export class McpNotificationStream {
       this.#retryTimer = setTimeout(finish, ms);
     });
   }
+}
+
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
 }

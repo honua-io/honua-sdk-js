@@ -1236,7 +1236,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 }
 
 function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
-  const trimmed = (baseUrl ?? "/api").replace(/\/+$/, "");
+  const trimmed = stripTrailingSlashes(baseUrl ?? "/api");
   if (trimmed === "/api") {
     return "";
   }
@@ -1244,6 +1244,14 @@ function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
     return trimmed.slice(0, -"/api".length);
   }
   return trimmed;
+}
+
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
 }
 
 interface PendingToolCall {
