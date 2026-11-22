@@ -197,10 +197,10 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
       --bucket / --prefix / --region / --endpoint   Non-secret quick-create hints
       --id <connectionId>        Test the configured connection after printing the link
 
-  honua export <layer> [--id <exportId>] [--public]
+  honua export <serviceId/layerId> [--id <exportId>]
       Create a cloud-native Export (PMTiles + GeoParquet + Portolan STAC collection).
-  honua export list              List published Exports
-  honua export remove <exportId> Remove an Export (requires --yes)
+  honua export list              List Exports
+  honua export remove <exportId> Unpublish an Export (requires --yes)
 
   honua import create --source-kind <kind> [options]
       Enqueue an import job through the shared import.create command.

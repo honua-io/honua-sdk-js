@@ -3,7 +3,7 @@
  * Portolan STAC collection) through the SDK control-plane client.
  *
  * Supported forms:
- * - `honua export <layer> [--id <exportId>] [--public] [--dry-run] [--yes] [--json]`
+ * - `honua export <serviceId/layerId> [--id <exportId>] [--dry-run] [--yes] [--json]`
  * - `honua export list [--json]`
  * - `honua export remove <exportId> [--dry-run] [--yes] [--json]`
  *
@@ -19,37 +19,64 @@ import { printLine, renderDetail, renderJson, renderTable } from "../output.js";
 
 export const EXPORT_USAGE =
   "Usage:\n" +
-  "  honua export <layer> [--id <exportId>] [--public] [--dry-run] [--yes] [--json]\n" +
+  "  honua export <serviceId/layerId> [--id <exportId>] [--dry-run] [--yes] [--json]\n" +
   "  honua export list [--json]\n" +
   "  honua export remove <exportId> [--dry-run] [--yes] [--json]";
 
+interface ExportSource {
+  readonly kind: string;
+  readonly serviceId?: string;
+  readonly layerId?: number;
+  readonly name?: string;
+}
+
 export interface ExportRecord {
   readonly id: string;
-  readonly layer: string;
-  readonly version?: string;
-  readonly visibility: "public" | "private";
+  readonly title: string;
+  readonly source: ExportSource;
+  readonly currentVersion?: string;
   readonly status: string;
   readonly collectionUrl?: string;
-  readonly formats?: readonly string[];
+  readonly publicUrl?: string;
+  readonly notPublicReason?: string;
+  readonly jobId?: string;
 }
 
 interface ExportListResponse {
-  readonly items?: readonly ExportRecord[];
-  readonly exports?: readonly ExportRecord[];
+  readonly items: readonly ExportRecord[];
+}
+
+interface ApiResponse<T> {
+  readonly success: boolean;
+  readonly data?: T;
+  readonly message?: string;
 }
 
 function unwrapResponse<T>(
-  result: { readonly supported: true; readonly value: T } | { readonly supported: false; readonly reason: string },
+  result:
+    | { readonly supported: true; readonly value: ApiResponse<T> }
+    | { readonly supported: false; readonly reason: string },
 ): T {
-  if (result.supported) return result.value;
-  throw new Error(result.reason);
+  if (!result.supported) throw new Error(result.reason);
+  if (!result.value?.success || result.value.data == null) {
+    throw new Error(result.value?.message ?? "The server returned an invalid export response.");
+  }
+  return result.value.data;
+}
+
+function sourceLabel(source: ExportSource): string {
+  return source.serviceId && source.layerId != null
+    ? `${source.serviceId}/${source.layerId}`
+    : (source.name ?? source.kind);
 }
 
 async function listExports(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const client = createClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
-  const response = unwrapResponse(await controlPlane.raw<ExportListResponse>({ method: "GET", path: "/exports" }));
-  const items = response?.items ?? response?.exports ?? [];
+  const response = unwrapResponse(
+    await controlPlane.raw<ApiResponse<ExportListResponse>>({ method: "GET", path: "/exports" }),
+  );
+  const items = response.items;
 
   if (getBoolean(parsed, "json")) {
     printLine(renderJson({ items }));
@@ -58,9 +85,9 @@ async function listExports(parsed: ParsedArgs, ctx: CommandContext): Promise<voi
 
   const rows = items.map((item) => ({
     id: item.id,
-    layer: item.layer,
-    version: item.version ?? "-",
-    visibility: item.visibility,
+    layer: sourceLabel(item.source),
+    version: item.currentVersion ?? "-",
+    visibility: item.publicUrl ? "public" : "signed-in",
     status: item.status,
     collectionUrl: item.collectionUrl ?? "-",
   }));
@@ -92,37 +119,43 @@ async function removeExport(exportId: string | undefined, parsed: ParsedArgs, ct
       return;
     }
     printLine(
-      renderDetail({ exportId, request: `DELETE ${path}`, status: "dry-run" }, { title: "Export removal (dry run)" }),
+      renderDetail({ exportId, request: `DELETE ${path}`, status: "dry-run" }, { title: "Export unpublish (dry run)" }),
     );
     return;
   }
 
   if (!getBoolean(parsed, "yes")) {
     throw new ArgError(
-      `honua export remove deletes export "${exportId}". Re-run with --yes, or preview with --dry-run.`,
+      `honua export remove unpublishes export "${exportId}". Re-run with --yes, or preview with --dry-run.`,
     );
   }
 
   const client = createClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
-  const removed = unwrapResponse(await controlPlane.raw<Record<string, unknown>>({ method: "DELETE", path }));
-  const result = { exportId, status: "removed", ...(removed ?? {}) };
+  const removed = unwrapResponse(await controlPlane.raw<ApiResponse<ExportRecord>>({ method: "DELETE", path }));
   if (getBoolean(parsed, "json")) {
-    printLine(renderJson(result));
+    printLine(renderJson(removed));
     return;
   }
-  printLine(renderDetail({ exportId, status: "removed" }, { title: "Export removed" }));
+  printLine(renderDetail({ exportId: removed.id, status: removed.status }, { title: "Export unpublished" }));
 }
 
 async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const id = getString(parsed, "id");
-  const visibility: "public" | "private" = getBoolean(parsed, "public") ? "public" : "private";
+  if (getBoolean(parsed, "public")) {
+    throw new ArgError("The server supports signed-in exports. Omit --public to create a signed-in export.");
+  }
+
+  const source = /^([^/]+)\/(\d+)$/.exec(layer);
+  const layerId = Number(source?.[2]);
+  if (!source?.[1]?.trim() || !Number.isInteger(layerId) || layerId > 2_147_483_647) {
+    throw new ArgError("Specify an export source as <serviceId/layerId>, for example maui-parcels/1.");
+  }
+
+  const exportId = getString(parsed, "id");
   const dryRun = getBoolean(parsed, "dry-run");
   const payload = {
-    layer,
-    ...(id ? { id } : {}),
-    visibility,
-    formats: ["pmtiles", "geoparquet"],
+    source: { kind: "layer", serviceId: source[1], layerId },
+    ...(exportId ? { exportId } : {}),
   };
 
   if (dryRun) {
@@ -135,9 +168,7 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
       renderDetail(
         {
           layer,
-          ...(id ? { id } : {}),
-          visibility,
-          formats: "pmtiles, geoparquet",
+          ...(exportId ? { exportId } : {}),
           request: "POST /exports",
           status: "dry-run",
         },
@@ -150,7 +181,7 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
   const client = createClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
   const created = unwrapResponse(
-    await controlPlane.raw<ExportRecord>({ method: "POST", path: "/exports", body: payload }),
+    await controlPlane.raw<ApiResponse<ExportRecord>>({ method: "POST", path: "/exports", body: payload }),
   );
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(created));
@@ -160,14 +191,14 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
     renderDetail(
       {
         id: created.id,
-        layer: created.layer,
-        ...(created.version ? { version: created.version } : {}),
-        visibility: created.visibility,
+        layer: sourceLabel(created.source),
+        ...(created.currentVersion ? { version: created.currentVersion } : {}),
         status: created.status,
         ...(created.collectionUrl ? { collectionUrl: created.collectionUrl } : {}),
-        formats: (created.formats ?? ["pmtiles", "geoparquet"]).join(", "),
+        ...(created.jobId ? { jobId: created.jobId } : {}),
+        ...(created.notPublicReason ? { notPublicReason: created.notPublicReason } : {}),
       },
-      { title: "Export created" },
+      { title: "Export submitted" },
     ),
   );
 }

@@ -24,139 +24,66 @@ function captureOutput() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("honua export CLI", () => {
-  it("creates an export with --id and --public and renders deterministic output", async () => {
-    const requests: Array<{ url: string; method: string; body?: string }> = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-        requests.push({
-          url: String(input),
-          method: init?.method ?? "GET",
-          body: typeof init?.body === "string" ? init.body : undefined,
-        });
-        return new Response(
-          JSON.stringify({
-            id: "maui-parcels-public",
-            layer: "maui-parcels/1",
-            version: "v1",
-            visibility: "public",
-            status: "ready",
-            collectionUrl: "https://data.honua.example/exports/maui-parcels-public/v1/collection.json",
-            formats: ["pmtiles", "geoparquet"],
-          }),
-          { status: 201, headers: { "content-type": "application/json" } },
-        );
-      }),
-    );
+  const options = { baseUrl: "https://honua.example", apiKey: "test-key" };
+  const source = { kind: "layer", serviceId: "maui-parcels", layerId: 1 };
+  const exportId = "maui-parcels";
+  const record = { id: exportId, title: "Maui parcels", source, versions: [] };
 
+  function response(data: unknown, status = 200) {
+    return Response.json({ success: true, data }, { status });
+  }
+
+  it("submits a signed-in layer export and displays the accepted job", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      response({ ...record, status: "running", jobId: "job-1", notPublicReason: "Signed-in access" }, 202),
+    );
+    vi.stubGlobal("fetch", fetchMock);
     const cap = captureOutput();
-    try {
-      const code = await run(["export", "maui-parcels/1", "--id", "maui-parcels-public", "--public"], {
-        baseUrl: "https://honua.example",
-        apiKey: "test-key",
-      });
-      expect(code).toBe(0);
-      expect(requests).toHaveLength(1);
-      expect(requests[0]).toMatchObject({
-        url: "https://honua.example/api/v1/admin/exports",
-        method: "POST",
-      });
-      expect(JSON.parse(requests[0]!.body!)).toEqual({
-        layer: "maui-parcels/1",
-        id: "maui-parcels-public",
-        visibility: "public",
-        formats: ["pmtiles", "geoparquet"],
-      });
-      expect(cap.stdout()).toMatchInlineSnapshot(`
-        "Export created
-        id:             maui-parcels-public
-        layer:          maui-parcels/1
-        version:        v1
-        visibility:     public
-        status:         ready
-        collectionUrl:  https://data.honua.example/exports/maui-parcels-public/v1/collection.json
-        formats:        pmtiles, geoparquet
-        "
-      `);
-    } finally {
-      cap.restore();
-    }
+    expect(await run(["export", "maui-parcels/1", "--id", exportId], options)).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://honua.example/api/v1/admin/exports");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ source, exportId });
+    expect(cap.stdout()).toContain("Export submitted");
+    expect(cap.stdout()).toContain("job-1");
+    expect(cap.stdout()).toContain("running");
   });
 
-  it("lists exports as a table and removes an export only with --yes", async () => {
-    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-      if (init?.method === "DELETE") {
-        return new Response(JSON.stringify({ deleted: true }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      }
-      return new Response(
-        JSON.stringify({
-          items: [
-            {
-              id: "maui-parcels-public",
-              layer: "maui-parcels/1",
-              version: "v1",
-              visibility: "public",
-              status: "ready",
-              collectionUrl: "https://data.honua.example/exports/maui-parcels-public/v1/collection.json",
-            },
-          ],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    });
+  it("rejects unsupported public promotion and malformed layer references without transport", async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    const cap = captureOutput();
+    expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(2);
+    expect(cap.stderr()).toContain("Omit --public");
+    expect(await run(["export", "maui-parcels/2147483648"], options)).toBe(2);
+    expect(cap.stderr()).toContain("<serviceId/layerId>");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-    const listCap = captureOutput();
-    try {
-      const code = await run(["export", "list"], { baseUrl: "https://honua.example", apiKey: "test-key" });
-      expect(code).toBe(0);
-      expect(listCap.stdout()).toMatchInlineSnapshot(`
-        "Exports on https://honua.example
-        ID                   LAYER           VERSION  VISIBILITY  STATUS  COLLECTION
-        -------------------  --------------  -------  ----------  ------  -------------------------------------------------------------------------
-        maui-parcels-public  maui-parcels/1  v1       public      ready   https://data.honua.example/exports/maui-parcels-public/v1/collection.json
-        "
-      `);
-    } finally {
-      listCap.restore();
-    }
-
-    // Refuses remove without --yes
-    const refuseCap = captureOutput();
-    try {
-      const code = await run(["export", "remove", "maui-parcels-public"], {
-        baseUrl: "https://honua.example",
-        apiKey: "test-key",
-      });
-      expect(code).toBe(2);
-      expect(refuseCap.stderr()).toContain("Re-run with --yes");
-    } finally {
-      refuseCap.restore();
-    }
-
-    // Removes with --yes
-    const removeCap = captureOutput();
-    try {
-      const code = await run(["export", "remove", "maui-parcels-public", "--yes"], {
-        baseUrl: "https://honua.example",
-        apiKey: "test-key",
-      });
-      expect(code).toBe(0);
-      expect(removeCap.stdout()).toMatchInlineSnapshot(`
-        "Export removed
-        exportId:  maui-parcels-public
-        status:    removed
-        "
-      `);
-    } finally {
-      removeCap.restore();
-    }
+  it("lists exports and requires confirmation before unpublishing", async () => {
+    const collectionUrl = "https://data.honua.example/collection.json";
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
+      init?.method === "DELETE"
+        ? response({ ...record, status: "unpublished" })
+        : response({ items: [{ ...record, status: "ready", currentVersion: "v1", collectionUrl }] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const cap = captureOutput();
+    expect(await run(["export", "list"], options)).toBe(0);
+    expect(cap.stdout()).toContain("maui-parcels/1");
+    expect(cap.stdout()).toContain("signed-in");
+    expect(cap.stdout()).toContain(collectionUrl);
+    expect(await run(["export", "remove", exportId], options)).toBe(2);
+    expect(cap.stderr()).toContain("Re-run with --yes");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await run(["export", "remove", exportId, "--yes"], options)).toBe(0);
+    expect(cap.stdout()).toContain("Export unpublished");
+    expect(String(fetchMock.mock.calls[1]![0])).toBe("https://honua.example/api/v1/admin/exports/maui-parcels");
   });
 });
 

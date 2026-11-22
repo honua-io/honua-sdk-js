@@ -216,6 +216,17 @@ describe("governed warehouse source and capability contract", () => {
     }
   });
 
+  it("rejects incompatible versions and malformed field and spatial declarations", () => {
+    const valid = sampleCapabilities("snowflake");
+    for (const invalid of [
+      { schemaVersion: "honua.warehouse-source-capabilities.v2" },
+      { fields: [{ name: "id", type: "integer" }] },
+      { spatialPredicates: ["unknown"] },
+    ]) {
+      expect(() => validateWarehouseSourceCapabilities({ ...valid, ...invalid })).toThrow(HonuaWarehouseError);
+    }
+  });
+
   it("never infers capabilities from provider name and fails closed with HonuaCapabilityNotSupportedError", async () => {
     const restricted = sampleCapabilities("snowflake", {
       formats: ["format.geoparquet"],

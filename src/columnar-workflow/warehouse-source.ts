@@ -161,6 +161,17 @@ export interface GovernedWarehouseSource<T = Record<string, unknown>> extends Ca
 }
 
 const VALID_FORMATS = new Set<string>(["format.geoparquet", "format.geoarrow", "format.geojson", "format.mvt"]);
+const VALID_SPATIAL_PREDICATES = new Set<string>([
+  "bbox-intersects",
+  "intersects",
+  "within",
+  "contains",
+  "disjoint",
+  "touches",
+  "overlaps",
+  "crosses",
+  "within-distance",
+]);
 const VALID_AVAILABILITY = new Set<string>(["available", "degraded", "unavailable"]);
 const VALID_GEOMETRY_MODELS = new Set<string>(["planar", "geodetic", "mixed"]);
 
@@ -294,6 +305,9 @@ export function validateWarehouseSourceCapabilities(input: unknown): WarehouseEf
     throw new HonuaWarehouseError("invalid-descriptor", "Warehouse source capability descriptor must be an object.");
   }
   assertNoWarehouseSecrets(input);
+  if (input.schemaVersion !== WAREHOUSE_SOURCE_CAPABILITY_SCHEMA_VERSION) {
+    throw new HonuaWarehouseError("invalid-descriptor", "Unsupported warehouse source capability schema version.");
+  }
   if ("sql" in input || "rawSql" in input) {
     throw new HonuaWarehouseError(
       "invalid-descriptor",
@@ -326,6 +340,26 @@ export function validateWarehouseSourceCapabilities(input: unknown): WarehouseEf
   if (!Array.isArray(input.fields)) {
     throw new HonuaWarehouseError("invalid-descriptor", "Warehouse source descriptor requires fields array.");
   }
+  const fields = input.fields.map((field): WarehouseSourceFieldSchema => {
+    if (
+      !isPlainRecord(field) ||
+      typeof field.name !== "string" ||
+      !field.name.trim() ||
+      typeof field.type !== "string" ||
+      !field.type.trim() ||
+      typeof field.nullable !== "boolean"
+    ) {
+      throw new HonuaWarehouseError("invalid-descriptor", "Warehouse source fields require name, type, and nullable.");
+    }
+    return Object.freeze({ name: field.name, type: field.type, nullable: field.nullable });
+  });
+  const spatialPredicates = input.spatialPredicates;
+  if (
+    !Array.isArray(spatialPredicates) ||
+    spatialPredicates.some((predicate) => typeof predicate !== "string" || !VALID_SPATIAL_PREDICATES.has(predicate))
+  ) {
+    throw new HonuaWarehouseError("invalid-descriptor", "Warehouse source spatial predicates are invalid.");
+  }
   const limitsRaw = isPlainRecord(input.limits) ? input.limits : undefined;
   if (!limitsRaw || typeof limitsRaw.costHintAvailable !== "boolean") {
     throw new HonuaWarehouseError("invalid-descriptor", "Warehouse source limits with costHintAvailable are required.");
@@ -341,7 +375,7 @@ export function validateWarehouseSourceCapabilities(input: unknown): WarehouseEf
     schemaVersionToken,
     ...(typeof input.geometryField === "string" && input.geometryField ? { geometryField: input.geometryField } : {}),
     ...(typeof input.temporalField === "string" && input.temporalField ? { temporalField: input.temporalField } : {}),
-    fields: Object.freeze(input.fields.map((field) => Object.freeze({ ...(field as WarehouseSourceFieldSchema) }))),
+    fields: Object.freeze(fields),
     availability: validateAvailability(input.availability),
     policy: validatePolicy(input.policy),
     crs: validateCrs(input.crs),
@@ -354,9 +388,7 @@ export function validateWarehouseSourceCapabilities(input: unknown): WarehouseEf
       costHintAvailable: limitsRaw.costHintAvailable,
     }),
     formats: validateFormats(input.formats),
-    spatialPredicates: Object.freeze(
-      Array.isArray(input.spatialPredicates) ? [...(input.spatialPredicates as WarehouseSpatialPredicate[])] : [],
-    ),
+    spatialPredicates: Object.freeze([...new Set(spatialPredicates as WarehouseSpatialPredicate[])]),
     capabilities: validateFlags(input.capabilities),
     ...(isPlainRecord(input.freshness)
       ? { freshness: Object.freeze({ ...(input.freshness as unknown as SourceFreshnessContract) }) }
