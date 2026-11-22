@@ -58,6 +58,7 @@ const SCENE = {
 const SCENE_RESOLUTION = {
   sceneId: SCENE.sceneId,
   tilesetUrl: SCENE.tilesetUrl,
+  terrainUrl: SCENE.terrainUrl,
   endpoints: [
     {
       kind: "3d-tiles",
@@ -228,7 +229,7 @@ describe("SceneView scene loading + rendering", () => {
     expect(read?.longitude).toBeCloseTo(-157.85, 4);
   });
 
-  it("does not invent a tileset url when resolve omits one", async () => {
+  it("discards metadata runtime fields omitted by resolve", async () => {
     const execute = vi.fn(async (_method: QueryMethod, path: string) => {
       if (path.endsWith("/resolve")) {
         return {
@@ -238,18 +239,70 @@ describe("SceneView scene loading + rendering", () => {
           auth: { requiresAuthentication: false, schemes: [] },
         };
       }
-      return { id: "downtown", name: "Downtown" };
+      return {
+        ...SCENE,
+        copcUrl: "https://cdn.example/point-cloud.copc",
+        servingFormat: "3d-tiles",
+        contentKind: "buildings",
+        accessAffordance: {
+          method: "POST",
+          path: "/api/scenes/downtown/access-envelope",
+          origin: "https://cdn.example",
+          pathPrefix: "/scenes/downtown/",
+          transport: "header",
+        },
+      };
     });
     const view = new SceneView({
       execute: execute as unknown as SceneViewRequestExecutor,
       target: { camera: createMockCamera(), scene: createMockScene() },
     });
     const loaded = await view.loadScene("downtown");
-    expect(loaded.tilesetUrl).toBeUndefined();
+    for (const field of ["tilesetUrl", "copcUrl", "terrainUrl", "servingFormat", "contentKind", "accessAffordance"]) {
+      expect(loaded).not.toHaveProperty(field);
+    }
     expect(tilesetFromUrl).not.toHaveBeenCalled();
+    expect(terrainFromUrl).not.toHaveBeenCalled();
     expect(view.layers).toEqual([]);
     const paths = execute.mock.calls.map((call) => String(call[1]));
     expect(paths.some((path) => path.includes("/scenes//"))).toBe(false);
+  });
+
+  it("preserves the last rendered scene when the next scene lacks a protected affordance", async () => {
+    const execute = vi.fn(async (_method: QueryMethod, path: string) => {
+      if (!path.endsWith("/resolve")) return { scene: SCENE };
+      if (path.includes("/protected/")) {
+        return {
+          ...SCENE_RESOLUTION,
+          sceneId: "protected",
+          auth: { requiresAuthentication: true, schemes: ["bearer"] },
+        };
+      }
+      return SCENE_RESOLUTION;
+    }) as unknown as SceneViewRequestExecutor;
+    const scene = createMockScene();
+    const view = new SceneView({ execute, target: { camera: createMockCamera(), scene } });
+    const listener = vi.fn();
+    view.on(listener);
+    const previous = await view.loadScene("downtown");
+    const layers = view.layers;
+    const bookmarks = view.bookmarks;
+    const diagnostics = view.diagnostics;
+    const primitives = [...scene._primitives];
+    const provider = scene.terrainProvider;
+    listener.mockClear();
+
+    await expect(view.loadScene("protected")).rejects.toThrow(/requires a scoped access-session affordance/);
+    expect(view.scene).toBe(previous);
+    expect(view.layers).toBe(layers);
+    expect(view.bookmarks).toBe(bookmarks);
+    expect(view.diagnostics).toBe(diagnostics);
+    expect(scene._primitives).toEqual(primitives);
+    expect(scene.terrainProvider).toBe(provider);
+    expect(listener).not.toHaveBeenCalled();
+
+    const cameraOnly = new SceneView({ execute, target: { camera: createMockCamera() } });
+    await expect(cameraOnly.loadScene("protected")).resolves.toMatchObject({ sceneId: "protected" });
   });
 
   it("rejects an empty scene id before requesting", async () => {

@@ -201,23 +201,24 @@ export class SceneView {
     const sceneId = requestedId.trim();
     const execute = this.#discoveryExecutor();
     const metadata = typeof scene === "string" ? await getScene(execute, sceneId, signal) : scene;
-    // Resolve is the only source of the runtime tileset URL. Do not synthesize
-    // `/scenes/{id}/tileset.json` from the client origin when the payload omits one.
     const resolution = await requestSceneResolution(execute, sceneId, signal);
     const resolved = sceneWithResolvedRuntime(metadata, resolution);
+    const primitives = sceneToRuntimePrimitives(resolved);
+    const accessSession = createSessionIfProtected(resolved, execute, this.#fetchFn);
+    // Camera-only targets apply camera state and never request scene assets.
+    const rendersAssets =
+      this.#target?.scene && primitives.some(({ kind }) => kind === "model-layer" || kind === "elevation-source");
+    if (rendersAssets && resolved.auth?.requiresAuthentication && !accessSession) {
+      throw new Error("Protected scene rendering requires a scoped access-session affordance.");
+    }
     this.#teardownLayers();
     this.#accessSession?.dispose();
-    this.#accessSession = createSessionIfProtected(resolved, execute, this.#fetchFn);
+    this.#accessSession = accessSession;
     this.#scene = resolved;
     this.#bookmarks = sceneViewpointBookmarks(resolved);
     this.#layers = sceneLayerStates(resolved);
 
     if (this.#target) {
-      const primitives = sceneToRuntimePrimitives(resolved);
-      const needsSession = this.#target.scene && resolved.auth?.requiresAuthentication && !this.#accessSession;
-      if (needsSession && primitives.some(({ kind }) => kind === "model-layer" || kind === "elevation-source")) {
-        throw new Error("Protected scene rendering requires a scoped access-session affordance.");
-      }
       const result = await applyCesiumScenePrimitivesInternal(this.#target, primitives, {
         signal,
         accessSession: this.#accessSession,
@@ -452,11 +453,19 @@ function createSessionIfProtected(
   });
 }
 
-/** Keep metadata for display, but take the runtime tileset URL only from resolve. */
+/** Take runtime fields from the current resolution. */
 function sceneWithResolvedRuntime(scene: HonuaScene, resolution: HonuaSceneResolution): HonuaScene {
-  const { tilesetUrl: _metadataTilesetUrl, ...rest } = scene;
+  const {
+    tilesetUrl: _tilesetUrl,
+    copcUrl: _copcUrl,
+    terrainUrl: _terrainUrl,
+    servingFormat: _servingFormat,
+    contentKind: _contentKind,
+    accessAffordance: _accessAffordance,
+    ...metadata
+  } = scene;
   return {
-    ...rest,
+    ...metadata,
     sceneId: resolution.sceneId,
     capabilities: resolution.capabilities,
     auth: resolution.auth,

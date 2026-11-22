@@ -82,6 +82,8 @@ describe("protected scene asset session, separation of serving format vs content
   const closers: Array<() => Promise<void>> = [];
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     while (closers.length > 0) {
       await closers.pop()?.();
     }
@@ -200,6 +202,22 @@ describe("protected scene asset session, separation of serving format vs content
         return;
       }
 
+      if (url.pathname === "/scenes/protected-city/texture.png") {
+        if (req.headers["x-honua-token"] !== activeToken) {
+          res.writeHead(401);
+          res.end();
+          return;
+        }
+        res.writeHead(200, { "content-type": "image/png" });
+        res.end(
+          Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l2sAAAAASUVORK5CYII=",
+            "base64",
+          ),
+        );
+        return;
+      }
+
       if (url.pathname === "/scenes/protected-city/tileset.json") {
         const token = req.headers["x-honua-token"];
         if (token !== activeToken) {
@@ -276,7 +294,24 @@ describe("protected scene asset session, separation of serving format vs content
 
   it("authenticates the root and cloned descendants through the real Cesium resource", async () => {
     const srv = await startSceneServer();
+    // Cesium checks XHR blob capability during module initialization. Node
+    // supplies fetch/Blob but no XHR or bitmap decoding.
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class {
+        responseType = "";
+        open() {}
+      },
+    );
     const cesium = await import("cesium");
+    vi.unstubAllGlobals();
+    const bitmap = { width: 1, height: 1 };
+    const imageResource = cesium.Resource as typeof cesium.Resource & {
+      supportsImageBitmapOptions(): Promise<boolean>;
+      createImageBitmapFromBlob(blob: Blob, options: ImageBitmapOptions): Promise<ImageBitmap>;
+    };
+    vi.spyOn(imageResource, "supportsImageBitmapOptions").mockResolvedValue(true);
+    const decode = vi.spyOn(imageResource, "createImageBitmapFromBlob").mockResolvedValue(bitmap as ImageBitmap);
     const { loadWithSceneResource } = await import("../src/scene-workspace/scene-cesium-resource.js");
     const session = createProtectedSceneAssetSession({
       sceneId: "protected-city",
@@ -303,11 +338,17 @@ describe("protected scene asset session, separation of serving format vs content
         expect(descendant.url).toBe(`${srv.origin}/scenes/protected-city/copc`);
         expect(descendant.headers).toEqual({ Range: "bytes=0-15" });
         await expect(descendant.fetchArrayBuffer()).resolves.toHaveProperty("byteLength", 16);
+        const texture = resource.getDerivedResource({ url: "texture.png" });
+        await expect(texture.fetchImage({ preferImageBitmap: true })).resolves.toBe(bitmap);
+        expect(decode).toHaveBeenCalledWith(expect.objectContaining({ type: "image/png" }), expect.any(Object));
         const outside = resource.getDerivedResource({ url: "../../outside.json" });
         await expect(outside.fetchJson()).rejects.toMatchObject({ code: "scope-violation" });
+        await expect(outside.fetchImage({ preferImageBitmap: true })).rejects.toMatchObject({
+          code: "scope-violation",
+        });
       },
     );
-    expect(srv.seenHeaders.filter((headers) => headers["x-honua-token"])).toHaveLength(2);
+    expect(srv.seenHeaders.filter((headers) => headers["x-honua-token"])).toHaveLength(3);
   });
 
   it("allows acquisition to retry after a synchronous executor failure", async () => {
