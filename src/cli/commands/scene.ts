@@ -1,36 +1,16 @@
-/**
- * `honua scene` — terminal-first scene upload, import, job status/wait/cancel,
- * catalog discovery, resolution, and retirement commands.
- *
- * Wraps the shared control-plane scene commands (`src/control-plane/commands/scene-catalog.ts`)
- * and public scene discovery (`src/scene-workspace/scene-discovery.ts`) so CLI,
- * MCP, Studio, and direct JS produce identical receipts and audit keys without
- * ever persisting credentials or signed URLs in resume files or logs.
- *
- * @packageDocumentation
- */
-
-import { createHash } from "node:crypto";
-import fs from "node:fs";
+import { openAsBlob } from "node:fs";
 import path from "node:path";
 import {
+  type HonuaCommand,
   type HonuaCommandInvocation,
   type HonuaCommandStatus,
-  type SceneAssetSourceFormat,
+  type HonuaControlPlaneJob,
   type SceneIdCommandInput,
-  type SceneImportSubmitInput,
   type SceneJobStatusInput,
-  type SceneUploadCreateInput,
-  type SceneUploadSessionView,
-  pendingSceneUploadChunks,
   pollSceneJobUntilTerminal,
-  sceneImportSubmitCommand,
-  sceneJobCancelCommand,
   sceneJobStatusCommand,
   sceneResolveCommand,
   sceneRetireCommand,
-  sceneUploadCreateCommand,
-  validateSceneUploadResumeState,
 } from "../../control-plane/index.js";
 import { getScene, listScenes } from "../../scene-workspace/scene-discovery.js";
 import type { ParsedArgs } from "../args.js";
@@ -44,77 +24,11 @@ const SCENE_USAGE = `Usage:
   honua scene list [--json]
   honua scene get <sceneId> [--json]
   honua scene resolve <sceneId> [--json]
-  honua scene upload <file> --format <3d-tiles|gltf|glb|citygml|las|laz|copc> [--scene-id <id>] [--resume <file>] [--chunk-bytes <n>] [--dry-run] [--yes] [--json]
-  honua scene import --format <format> (--upload-id <id> | --source-url <url>) [--scene-id <id>] [--title <text>] [--wait] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]
+  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--wait] [--timeout-ms <ms>] [--dry-run] [--yes] [--json]
   honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
-  honua scene cancel <jobId> [--dry-run] [--yes] [--json]
-  honua scene retire <sceneId> [--if-match <etag>] [--dry-run] [--yes] [--json]`;
+  honua scene retire <datasetId> [--dry-run] [--yes] [--json]`;
 
-const VALID_FORMATS = new Set<SceneAssetSourceFormat>(["3d-tiles", "gltf", "glb", "citygml", "las", "laz", "copc"]);
-const DEFAULT_CHUNK_BYTES = 5 * 1024 * 1024;
-
-/** Parse `honua scene upload` flags into shared command input + invocation. */
-export function sceneUploadInvocation(parsed: ParsedArgs): {
-  readonly filePath: string;
-  readonly resumeFile?: string;
-  readonly input: SceneUploadCreateInput;
-  readonly invocation: HonuaCommandInvocation;
-} {
-  const filePath = parsed.positionals[0];
-  const format = requireSceneFormat(getString(parsed, "format"));
-  if (!filePath) throw new ArgError(SCENE_USAGE);
-  const stat = fs.statSync(filePath);
-  const bytes = fs.readFileSync(filePath);
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const chunkBytes = getNumber(parsed, "chunk-bytes") ?? DEFAULT_CHUNK_BYTES;
-  const sceneId = getString(parsed, "scene-id");
-  const workspaceId = getString(parsed, "workspace");
-  const resumeFile = getString(parsed, "resume");
-  return {
-    filePath,
-    ...(resumeFile ? { resumeFile } : {}),
-    input: {
-      fileName: path.basename(filePath),
-      format,
-      totalBytes: stat.size,
-      sha256,
-      chunkBytes,
-      ...(sceneId ? { sceneId } : {}),
-      ...(workspaceId ? { workspaceId } : {}),
-    },
-    invocation: cliCommandInvocation(parsed),
-  };
-}
-
-/** Parse `honua scene import` flags into shared command input + invocation. */
-export function sceneImportInvocation(parsed: ParsedArgs): {
-  readonly input: SceneImportSubmitInput;
-  readonly invocation: HonuaCommandInvocation;
-} {
-  const format = requireSceneFormat(getString(parsed, "format"));
-  const uploadId = getString(parsed, "upload-id");
-  const sourceUrl = getString(parsed, "source-url");
-  const sceneId = getString(parsed, "scene-id");
-  const title = getString(parsed, "title");
-  const description = getString(parsed, "description");
-  const workspaceId = getString(parsed, "workspace");
-  const requiresAuth = parsed.flags["requires-auth"] === true ? true : undefined;
-  return {
-    input: {
-      format,
-      ...(uploadId ? { uploadId } : {}),
-      ...(sourceUrl ? { sourceUrl } : {}),
-      ...(sceneId ? { sceneId } : {}),
-      ...(title ? { title } : {}),
-      ...(description ? { description } : {}),
-      ...(workspaceId ? { workspaceId } : {}),
-      ...(requiresAuth !== undefined ? { requiresAuth } : {}),
-    },
-    invocation: cliCommandInvocation(parsed),
-  };
-}
-
-/** Parse `honua scene status|cancel` flags into shared command input + invocation. */
+/** Parse `honua scene status` flags into shared command input + invocation. */
 export function sceneJobInvocation(parsed: ParsedArgs): {
   readonly input: SceneJobStatusInput;
   readonly invocation: HonuaCommandInvocation;
@@ -156,8 +70,7 @@ export async function sceneCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
       await handleSceneResolve(rest, ctx);
       return;
     case "upload":
-      await handleSceneUpload(rest, ctx);
-      return;
+      throw new ArgError("Use honua scene import <file> to submit an archive or model.");
     case "import":
       await handleSceneImport(rest, ctx);
       return;
@@ -165,8 +78,7 @@ export async function sceneCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
       await handleSceneStatus(rest, ctx);
       return;
     case "cancel":
-      await handleSceneCancel(rest, ctx);
-      return;
+      throw new ArgError("This server API does not support cancelling scene jobs.");
     case "retire":
       await handleSceneRetire(rest, ctx);
       return;
@@ -242,56 +154,95 @@ async function handleSceneResolve(parsed: ParsedArgs, ctx: CommandContext): Prom
   });
 }
 
-async function handleSceneUpload(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const { resumeFile, input, invocation } = sceneUploadInvocation(parsed);
-  if (resumeFile && fs.existsSync(resumeFile)) {
-    const saved = JSON.parse(fs.readFileSync(resumeFile, "utf8")) as SceneUploadSessionView;
-    validateSceneUploadResumeState(saved, {
-      sha256: input.sha256,
-      totalBytes: input.totalBytes,
-      ...(input.sceneId ? { sceneId: input.sceneId } : {}),
-    });
-  }
-  if (!invocation.dryRun && !getBoolean(parsed, "yes")) {
-    throw new ArgError(
-      "honua scene upload creates a durable upload session. Re-run with --yes, or preview with --dry-run.",
-    );
-  }
-  const runtime = createCommandRuntime(ctx);
-  const receipt = await runtime.execute(sceneUploadCreateCommand, input, invocation);
-  if (resumeFile && receipt.status === "ok" && receipt.output) {
-    // Persist strictly non-secret upload metadata only.
-    fs.writeFileSync(resumeFile, JSON.stringify(receipt.output, null, 2), "utf8");
-  }
-  const pending = receipt.output ? pendingSceneUploadChunks(receipt.output) : [];
-  if (getBoolean(parsed, "json")) {
-    printLine(renderJson({ ...receipt, pendingChunks: pending }));
-    return;
-  }
-  printLine(
-    renderDetail(
-      {
-        command: receipt.commandId,
-        status: receipt.status,
-        uploadId: receipt.output?.uploadId ?? "(dry-run)",
-        pendingChunks: String(pending.length),
-        correlationId: receipt.correlationId,
-        auditKey: receipt.auditKey,
-      },
-      { title: statusHeading("Scene upload session ready", "Scene upload")(receipt.status) },
-    ),
-  );
-}
-
 async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const { input, invocation } = sceneImportInvocation(parsed);
+  const filePath = parsed.positionals[0];
+  if (!filePath) throw new ArgError(SCENE_USAGE);
+  const format = getString(parsed, "format");
+  if (format !== "3d-tiles" && format !== "gltf" && format !== "glb" && format !== "obj") {
+    throw new ArgError("--format must be one of 3d-tiles, gltf, glb, or obj.");
+  }
+  if (["upload-id", "source-url", "workspace", "resume", "chunk-bytes"].some((flag) => flag in parsed.flags)) {
+    throw new ArgError("Provide a local file and remove upload, remote source, or workspace flags.");
+  }
+  const archive = format === "3d-tiles";
+  const fileName = path.basename(filePath);
+  const extension = path.extname(fileName).toLowerCase();
+  const supportedExtensions = archive ? [".zip", ".3tz"] : [`.${format}`];
+  if (!supportedExtensions.includes(extension)) {
+    throw new ArgError(`File extension must be ${supportedExtensions.join(" or ")}.`);
+  }
+  const fields: Record<string, string> = { async: "true" };
+  for (const [flag, field] of [
+    ["scene-id", "sceneId"],
+    ["title", "displayName"],
+    ["description", "description"],
+  ] as const) {
+    const value = getString(parsed, flag);
+    if (value !== undefined) fields[field] = value;
+  }
+  if (getBoolean(parsed, "requires-auth")) fields.requiresAuth = "true";
+  if (archive && ("longitude" in parsed.flags || "latitude" in parsed.flags)) {
+    throw new ArgError("Longitude and latitude apply to models. A tiles archive supplies its own placement.");
+  }
+  if (!archive) {
+    const longitude = getNumber(parsed, "longitude");
+    const latitude = getNumber(parsed, "latitude");
+    if (
+      longitude === undefined ||
+      !Number.isFinite(longitude) ||
+      Math.abs(longitude) > 180 ||
+      latitude === undefined ||
+      !Number.isFinite(latitude) ||
+      Math.abs(latitude) > 90
+    ) {
+      throw new ArgError("Model imports require --longitude from -180 to 180 and --latitude from -90 to 90.");
+    }
+    fields.longitude = String(longitude);
+    fields.latitude = String(latitude);
+  }
+  const invocation = cliCommandInvocation(parsed);
   if (!invocation.dryRun && !getBoolean(parsed, "yes")) {
     throw new ArgError("honua scene import mutates state. Re-run with --yes, or preview with --dry-run.");
   }
+  const endpoint = `/api/v1/admin/scenes/ingest/${archive ? "archive" : "model"}`;
+  const input = { fileName, ...fields };
+  interface AcceptedJob {
+    jobId: string;
+    status: string;
+    sceneId?: string;
+    statusUrl: string;
+  }
+  const command: HonuaCommand<typeof input, AcceptedJob> = {
+    id: "scene.import.submit",
+    title: "Submit a scene import",
+    description: "Upload a tiles archive or a georeferenced model to a scene ingest job.",
+    mode: "action",
+    resourceKind: "scene-import-job",
+    inputSchema: { type: "object", additionalProperties: true },
+    plan: () => ({ method: "POST", path: endpoint, summary: `Import ${fileName}` }),
+    async execute(context) {
+      const payload = new FormData();
+      payload.append("file", await openAsBlob(filePath), fileName);
+      for (const [key, value] of Object.entries(fields)) payload.append(key, value);
+      const client = createClient(ctx);
+      const output = await client.pipelineRequestJson<AcceptedJob>(
+        "POST",
+        endpoint,
+        {
+          headers: { "X-Correlation-ID": context.correlationId, "Idempotency-Key": context.idempotencyKey },
+          body: payload,
+        },
+        context.requestOptions().signal,
+      );
+      if (!output?.jobId || typeof output.status !== "string")
+        throw new Error("Server did not return an accepted scene job.");
+      return { output, resourceRef: { type: "scene-import-job", id: output.jobId } };
+    },
+  };
   const runtime = createCommandRuntime(ctx);
-  const receipt = await runtime.execute(sceneImportSubmitCommand, input, invocation);
+  const receipt = await runtime.execute(command, input, invocation);
   const waitForCompletion = getBoolean(parsed, "wait");
-  let finalJob: unknown;
+  let finalJob: HonuaControlPlaneJob | undefined;
   if (waitForCompletion && receipt.status === "ok" && receipt.output?.jobId) {
     const jobId = receipt.output.jobId;
     finalJob = await pollSceneJobUntilTerminal({
@@ -305,27 +256,35 @@ async function handleSceneImport(parsed: ParsedArgs, ctx: CommandContext): Promi
   }
   if (getBoolean(parsed, "json")) {
     printLine(renderJson(finalJob ? { ...receipt, finalJob } : receipt));
-    return;
+  } else {
+    printLine(
+      renderDetail(
+        {
+          command: receipt.commandId,
+          status: finalJob?.status ?? receipt.output?.status ?? receipt.status,
+          jobId: receipt.output?.jobId ?? "(pending)",
+          sceneId: receipt.output?.sceneId ?? fields.sceneId ?? "(pending)",
+          correlationId: receipt.correlationId,
+          auditKey: receipt.auditKey,
+        },
+        {
+          title: statusHeading(
+            finalJob ? "Scene import completed" : "Scene import submitted",
+            "Scene import",
+          )(receipt.status),
+        },
+      ),
+    );
   }
-  printLine(
-    renderDetail(
-      {
-        command: receipt.commandId,
-        status: receipt.status,
-        jobId: receipt.output?.jobId ?? "(sync)",
-        sceneId: receipt.output?.sceneId ?? input.sceneId ?? "(pending)",
-        correlationId: receipt.correlationId,
-        auditKey: receipt.auditKey,
-      },
-      { title: statusHeading("Scene import submitted", "Scene import")(receipt.status) },
-    ),
-  );
+  if (finalJob && ["failed", "cancelled", "canceled"].includes(finalJob.status.toLowerCase())) {
+    throw new Error(`Scene job ${finalJob.id} ended with status ${finalJob.status}.`);
+  }
 }
 
 async function handleSceneStatus(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const { input, invocation } = sceneJobInvocation(parsed);
   const wait = getBoolean(parsed, "wait");
-  if (!wait) {
+  if (!wait || invocation.dryRun) {
     await runCommandVerb({
       command: sceneJobStatusCommand,
       input,
@@ -364,24 +323,8 @@ async function handleSceneStatus(parsed: ParsedArgs, ctx: CommandContext): Promi
   );
 }
 
-async function handleSceneCancel(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const { input, invocation } = sceneJobInvocation(parsed);
-  await runCommandVerb({
-    command: sceneJobCancelCommand,
-    input,
-    invocation,
-    parsed,
-    ctx,
-    heading: statusHeading("Scene job cancelled", "Scene job cancel"),
-    confirm: "honua scene cancel stops a running scene job. Re-run with --yes, or preview with --dry-run.",
-    detail: (receipt) => ({
-      jobId: receipt.output?.id ?? input.jobId,
-      jobStatus: receipt.output?.status ?? "(unknown)",
-    }),
-  });
-}
-
 async function handleSceneRetire(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
+  if ("if-match" in parsed.flags) throw new ArgError("The scene retirement API does not support --if-match.");
   const { input, invocation } = sceneIdInvocation(parsed);
   await runCommandVerb({
     command: sceneRetireCommand,
@@ -396,13 +339,6 @@ async function handleSceneRetire(parsed: ParsedArgs, ctx: CommandContext): Promi
       retired: receipt.output?.retired ? "yes" : "no",
     }),
   });
-}
-
-function requireSceneFormat(raw: string | undefined): SceneAssetSourceFormat {
-  if (!raw || !VALID_FORMATS.has(raw as SceneAssetSourceFormat)) {
-    throw new ArgError(`--format must be one of: ${[...VALID_FORMATS].join(", ")}.`);
-  }
-  return raw as SceneAssetSourceFormat;
 }
 
 function statusHeading(okTitle: string, base: string): (status: HonuaCommandStatus) => string {

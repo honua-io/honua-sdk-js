@@ -307,6 +307,30 @@ function readAccessAffordance(record: Record<string, unknown>): SceneAccessAffor
   };
 }
 
+function readEndpointAccessAffordance(value: unknown): SceneAccessAffordance | undefined {
+  if (!Array.isArray(value)) return undefined;
+  for (const record of value) {
+    if (record?.requiresAuthentication !== true || typeof record.url !== "string") continue;
+    const affordance = readAccessAffordance(record);
+    if (!affordance) continue;
+    try {
+      const asset = new URL(record.url);
+      const acquisition = new URL(affordance.path, asset);
+      if (!["http:", "https:"].includes(asset.protocol) || acquisition.origin !== asset.origin) continue;
+      if (acquisition.username || acquisition.password || asset.username || asset.password) continue;
+      return {
+        method: "POST",
+        path: acquisition.href,
+        origin: asset.origin,
+        pathPrefix: asset.pathname.slice(0, asset.pathname.lastIndexOf("/") + 1),
+      };
+    } catch {
+      // Ignore unusable endpoint metadata.
+    }
+  }
+  return undefined;
+}
+
 function readEndpoints(value: unknown): HonuaSceneEndpoint[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
@@ -450,7 +474,7 @@ function readScene(record: Record<string, unknown>, missingIdMessage: string): H
   const servingFormat =
     readText(record.servingFormat) ?? readText(record.serving_format) ?? endpoints[0]?.servingFormat;
   const contentKind = readText(record.contentKind) ?? readText(record.content_kind) ?? endpoints[0]?.contentKind;
-  const accessAffordance = readAccessAffordance(record);
+  const accessAffordance = readEndpointAccessAffordance(record.endpoints) ?? readAccessAffordance(record);
   const extent = readExtent(record);
   const initialCamera = readInitialCamera(record);
   const styleExpression = readStyleExpression(record);
@@ -567,7 +591,7 @@ export function normalizeSceneResolution(raw: unknown): HonuaSceneResolution {
   const servingFormat =
     readText(record.servingFormat) ?? readText(record.serving_format) ?? endpoints[0]?.servingFormat;
   const contentKind = readText(record.contentKind) ?? readText(record.content_kind) ?? endpoints[0]?.contentKind;
-  const accessAffordance = readAccessAffordance(record);
+  const accessAffordance = readEndpointAccessAffordance(record.endpoints) ?? readAccessAffordance(record);
   const auth = readAuth(record.auth) ?? { requiresAuthentication: false, schemes: [] };
   return {
     sceneId,

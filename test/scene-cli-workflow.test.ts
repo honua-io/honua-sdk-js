@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,15 +10,10 @@ import {
   HONUA_SCENE_COMMAND_IDS,
   createHonuaCommandRuntime,
   honuaCommandAuditKey,
-  pendingSceneUploadChunks,
   pollSceneJobUntilTerminal,
-  sceneImportSubmitCommand,
-  sceneJobCancelCommand,
   sceneJobStatusCommand,
   sceneResolveCommand,
   sceneRetireCommand,
-  sceneUploadCreateCommand,
-  validateSceneUploadResumeState,
 } from "../src/control-plane/index.js";
 import { HonuaClient } from "../src/index.js";
 
@@ -55,11 +49,11 @@ function makeRecorder(
       method: init?.method ?? "GET",
       path: `${url.pathname}${url.search}`,
       headers,
-      body: typeof init?.body === "string" && init.body ? JSON.parse(init.body) : undefined,
+      body: typeof init?.body === "string" && init.body ? JSON.parse(init.body) : init?.body,
     };
     requests.push(req);
     const reply = handler(req);
-    return new Response(JSON.stringify(reply.body ?? {}), {
+    return new Response(reply.status === 204 ? null : JSON.stringify(reply.body ?? {}), {
       status: reply.status ?? 200,
       headers: { "content-type": "application/json", ...reply.headers },
     });
@@ -81,287 +75,144 @@ function captureStreams(): { readonly stdout: string[]; readonly stderr: string[
   return { stdout, stderr };
 }
 
-describe("terminal-first scene workflow commands and CLI", () => {
-  it("registers all 6 scene commands with closed schemas and transport-invariant audit keys", async () => {
-    expect([...HONUA_SCENE_COMMAND_IDS]).toEqual([
-      "scene.upload.create",
-      "scene.import.submit",
-      "scene.job.status",
-      "scene.job.cancel",
-      "scene.resolve",
-      "scene.retire",
-    ]);
-
+describe("scene catalog commands and CLI", () => {
+  it("registers supported commands with closed schemas and stable dry-run audit keys", async () => {
+    expect([...HONUA_SCENE_COMMAND_IDS]).toEqual(["scene.job.status", "scene.resolve", "scene.retire"]);
     for (const id of HONUA_SCENE_COMMAND_IDS) {
-      const cmd = HONUA_SCENE_COMMANDS[id];
-      expect(cmd.id).toBe(id);
-      expect(cmd.inputSchema.additionalProperties).toBe(false);
+      expect(HONUA_SCENE_COMMANDS[id].id).toBe(id);
+      expect(HONUA_SCENE_COMMANDS[id].inputSchema.additionalProperties).toBe(false);
     }
-
-    const { requests, fetchFn } = makeRecorder(() => ({
-      status: 202,
-      body: { accepted: true, status: "running", jobId: "job-77", sceneId: "harbor-3d" },
-    }));
-    const client = new HonuaClient({ baseUrl: "https://scenes.test", fetchFn });
-    const runtime = createHonuaCommandRuntime({ client });
-
-    // Dry-run never issues an HTTP request and produces identical auditKey across transports.
-    const cliDry = await runtime.execute(
-      sceneImportSubmitCommand,
-      { format: "3d-tiles", uploadId: "up-1", sceneId: "harbor-3d" },
-      { transport: "cli", dryRun: true, idempotencyKey: "idem-1" },
-    );
-    const mcpDry = await runtime.execute(
-      sceneImportSubmitCommand,
-      { format: "3d-tiles", uploadId: "up-1", sceneId: "harbor-3d" },
-      { transport: "mcp", dryRun: true, idempotencyKey: "idem-1" },
-    );
+    const { requests, fetchFn } = makeRecorder(() => ({ status: 404 }));
+    const runtime = createHonuaCommandRuntime({ client: new HonuaClient({ baseUrl: "https://scenes.test", fetchFn }) });
+    const input = { jobId: "job-77" };
+    const cliDry = await runtime.execute(sceneJobStatusCommand, input, { transport: "cli", dryRun: true });
+    const mcpDry = await runtime.execute(sceneJobStatusCommand, input, { transport: "mcp", dryRun: true });
     expect(requests).toHaveLength(0);
     expect(cliDry.status).toBe("dry-run");
     expect(cliDry.auditKey).toBe(mcpDry.auditKey);
     expect(cliDry.auditKey).toBe(honuaCommandAuditKey(cliDry));
-
-    // Closed schema rejects unknown properties (e.g., approval bypass fields).
     await expect(
-      runtime.execute(sceneRetireCommand, { sceneId: "harbor-3d", approved: true } as unknown as { sceneId: string }, {
+      runtime.execute(sceneRetireCommand, { sceneId: "downtown", approved: true } as { sceneId: string }, {
         transport: "cli",
       }),
     ).rejects.toThrow();
   });
 
-  it("validates non-secret resume checkpoints and polls async 202 jobs until terminal status", async () => {
-    const payload = Buffer.from("synthetic-3d-tiles-archive-bytes");
-    const sha256 = createHash("sha256").update(payload).digest("hex");
-    const saved = {
-      uploadId: "up-42",
-      status: "open" as const,
-      sceneId: "campus",
-      fileName: "campus.zip",
-      format: "3d-tiles" as const,
-      totalBytes: 12_000,
-      chunkBytes: 4_096,
-      sha256,
-      acknowledgedChunks: [0, 2],
-    };
-
-    expect(() =>
-      validateSceneUploadResumeState(saved, { sha256, totalBytes: 12_000, sceneId: "campus" }),
-    ).not.toThrow();
-    expect(() => validateSceneUploadResumeState(saved, { sha256: "0".repeat(64), totalBytes: 12_000 })).toThrow(
-      /SHA-256/,
-    );
-    expect(() => validateSceneUploadResumeState(saved, { sha256, totalBytes: 999 })).toThrow(/size/);
-    expect(() => validateSceneUploadResumeState(saved, { sha256, totalBytes: 12_000, sceneId: "other-scene" })).toThrow(
-      /sceneId/,
-    );
-    expect(pendingSceneUploadChunks(saved)).toEqual([1]);
-
-    let calls = 0;
-    const states = ["queued", "running", "succeeded"];
-    const terminal = await pollSceneJobUntilTerminal({
-      pollIntervalMs: 1,
-      timeoutMs: 2_000,
-      fetchStatus: async () => {
-        const status = states[Math.min(calls, states.length - 1)]!;
-        calls += 1;
-        return { id: "job-99", status };
-      },
-    });
+  it("polls running jobs until the server reports a terminal state", async () => {
+    const fetchStatus = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "job-99", status: "queued" })
+      .mockResolvedValueOnce({ id: "job-99", status: "running" })
+      .mockResolvedValue({ id: "job-99", status: "succeeded" });
+    const terminal = await pollSceneJobUntilTerminal({ pollIntervalMs: 1, timeoutMs: 2000, fetchStatus });
     expect(terminal.status).toBe("succeeded");
-    expect(calls).toBe(3);
+    expect(fetchStatus).toHaveBeenCalledTimes(3);
   });
 
-  it("executes end-to-end honua scene CLI subcommands (upload --resume, import --wait, status, cancel, list, get, resolve, retire) without persisting secrets", async () => {
+  it("uses the server multipart ingest, job, catalog and retirement contracts", async () => {
     const dir = mkdtempSync(join(tmpdir(), "honua-scene-cli-"));
     const archivePath = join(dir, "downtown.zip");
-    const resumePath = join(dir, "resume.json");
-    writeFileSync(archivePath, Buffer.alloc(4096, 7));
-
+    const modelPath = join(dir, "downtown.glb");
+    const datasetId = "da6092da-af15-4860-9595-81156c610899";
+    writeFileSync(archivePath, "archive bytes");
+    writeFileSync(modelPath, "model bytes");
     try {
-      let pollCount = 0;
-      const { requests, fetchFn } = makeRecorder((req) => {
-        if (req.method === "POST" && req.path === "/api/v1/admin/scenes/uploads") {
-          return {
-            status: 201,
-            body: {
-              uploadId: "up-cli-1",
-              status: "open",
-              sceneId: "downtown",
-              fileName: "downtown.zip",
-              format: "3d-tiles",
-              totalBytes: 4096,
-              chunkBytes: 2048,
-              sha256: (req.body as { sha256: string }).sha256,
-              acknowledgedChunks: [0],
-              // Simulate a server accidentally returning a secret-like field; sanitizer must drop it!
-              signedUrl: "https://storage.example/put?sig=DO_NOT_SAVE",
-              bearerToken: "DO_NOT_SAVE_TOKEN",
-            },
-          };
-        }
-        if (req.method === "POST" && req.path === "/api/v1/admin/scenes/imports") {
+      const url = "https://scenes.test/scenes/downtown/tileset.json";
+      const scene = {
+        sceneId: "downtown",
+        title: "Downtown 3D",
+        servingFormat: "3d-tiles",
+        contentKind: "mesh",
+        tilesetUrl: url,
+        capabilities: ["3d-tiles"],
+        endpoints: [
+          {
+            kind: "3d-tiles",
+            endpointFormat: "3d-tiles",
+            url,
+            mediaType: "application/json",
+            format: "3d-tiles",
+            requiresAuthentication: true,
+            accessSession: { href: "https://scenes.test/scenes/downtown/access-envelope", method: "POST" },
+          },
+        ],
+        auth: { requiresAuthentication: true, schemes: ["Bearer", "ApiKey"] },
+      };
+      const jobUrl = "/api/v1/admin/scenes/jobs/job-cli-1";
+      const { requests, fetchFn } = makeRecorder(({ method, path }) => {
+        if (method === "POST" && /^\/api\/v1\/admin\/scenes\/ingest\/(archive|model)$/.test(path)) {
           return {
             status: 202,
-            body: { accepted: true, status: "queued", jobId: "job-cli-1", sceneId: "downtown" },
+            body: { status: "queued", jobId: "job-cli-1", sceneId: "downtown", statusUrl: jobUrl },
           };
         }
-        if (req.method === "GET" && req.path === "/api/v1/admin/scenes/jobs/job-cli-1") {
-          pollCount += 1;
-          return {
-            status: 200,
-            body: { id: "job-cli-1", status: pollCount >= 2 ? "succeeded" : "running" },
-          };
-        }
-        if (req.method === "POST" && req.path === "/api/v1/admin/scenes/jobs/job-cli-2/cancel") {
-          return { status: 200, body: { id: "job-cli-2", status: "cancelled" } };
-        }
-        if (req.method === "GET" && req.path === "/api/scenes") {
-          return {
-            status: 200,
-            body: {
-              scenes: [
-                {
-                  sceneId: "downtown",
-                  title: "Downtown 3D",
-                  servingFormat: "3d-tiles",
-                  auth: { requiresAuthentication: false },
-                },
-              ],
-            },
-          };
-        }
-        if (req.method === "GET" && req.path === "/api/scenes/downtown") {
-          return {
-            status: 200,
-            body: {
-              sceneId: "downtown",
-              title: "Downtown 3D",
-              tilesetUrl: "https://scenes.test/scenes/downtown/tileset.json",
-              capabilities: ["3d-tiles"],
-              auth: { requiresAuthentication: false },
-            },
-          };
-        }
-        if (req.method === "GET" && req.path === "/api/v1/admin/scenes/downtown/resolve") {
-          return {
-            status: 200,
-            body: {
-              sceneId: "downtown",
-              tilesetUrl: "https://scenes.test/scenes/downtown/tileset.json",
-              endpoints: [],
-              capabilities: ["3d-tiles"],
-              auth: { requiresAuthentication: true },
-              accessAffordance: { method: "POST", path: "/scenes/downtown/access-envelope" },
-            },
-          };
-        }
-        if (req.method === "DELETE" && req.path === "/api/v1/admin/scenes/downtown") {
-          return { status: 200, body: { retired: true } };
-        }
-        return { status: 404, body: { error: `unexpected ${req.method} ${req.path}` } };
+        if (method === "GET" && path === jobUrl) return { body: { jobId: "job-cli-1", status: "succeeded" } };
+        if (method === "GET" && path === "/api/scenes") return { body: { scenes: [scene] } };
+        if (method === "GET" && ["/api/scenes/downtown", "/api/scenes/downtown/resolve"].includes(path))
+          return { body: scene };
+        if (method === "DELETE" && path === `/api/v1/admin/scenes/${datasetId}`) return { status: 204 };
+        return { status: 404, body: { error: `unexpected ${method} ${path}` } };
       });
-
       vi.stubGlobal("fetch", fetchFn);
-
-      // 1. Upload with --resume writes sanitized non-secret state
-      const out1 = captureStreams();
-      const code1 = await run([
-        "scene",
-        "upload",
+      const cli = async (args: string[]) => {
+        const out = captureStreams();
+        const code = await run(["scene", ...args, "--json", "--base-url", "https://scenes.test"]);
+        expect(code, out.stderr.join("")).toBe(0);
+        return JSON.parse(out.stdout.join(""));
+      };
+      const archive = await cli([
+        "import",
         archivePath,
         "--format",
         "3d-tiles",
         "--scene-id",
         "downtown",
-        "--chunk-bytes",
-        "2048",
-        "--resume",
-        resumePath,
-        "--yes",
-        "--json",
-        "--base-url",
-        "https://scenes.test",
-        "--api-key",
-        "super-secret-api-key",
-      ]);
-      expect(code1).toBe(0);
-      const resumeRaw = readFileSync(resumePath, "utf8");
-      expect(resumeRaw).not.toContain("super-secret-api-key");
-      expect(resumeRaw).not.toContain("DO_NOT_SAVE");
-      expect(JSON.parse(resumeRaw).uploadId).toBe("up-cli-1");
-      expect(JSON.parse(out1.stdout.join("")).pendingChunks).toEqual([1]);
-
-      // 2. Import with --wait polls async 202 job to completion
-      const out2 = captureStreams();
-      const code2 = await run([
-        "scene",
-        "import",
-        "--format",
-        "3d-tiles",
-        "--upload-id",
-        "up-cli-1",
-        "--scene-id",
-        "downtown",
         "--wait",
         "--yes",
-        "--json",
-        "--base-url",
-        "https://scenes.test",
       ]);
-      expect(code2).toBe(0);
-      const importJson = JSON.parse(out2.stdout.join(""));
-      expect(importJson.output.jobId).toBe("job-cli-1");
-      expect(importJson.finalJob.status).toBe("succeeded");
+      expect(archive.output.jobId).toBe("job-cli-1");
+      expect(archive.finalJob.status).toBe("succeeded");
+      const archiveForm = requests[0]?.body as FormData;
+      expect(archiveForm.get("async")).toBe("true");
+      expect(archiveForm.get("sceneId")).toBe("downtown");
+      const file = archiveForm.get("file") as File;
+      expect(file.name).toBe("downtown.zip");
+      expect(await file.text()).toBe("archive bytes");
+      expect(requests[0]?.headers["content-type"]).toBeUndefined();
 
-      // 3. list, get, resolve, cancel, retire
-      const outList = captureStreams();
-      expect(await run(["scene", "list", "--json", "--base-url", "https://scenes.test"])).toBe(0);
-      expect(JSON.parse(outList.stdout.join("")).scenes[0].sceneId).toBe("downtown");
+      await cli(["import", modelPath, "--format", "glb", "--longitude", "-157.82", "--latitude", "21.3", "--yes"]);
+      const modelForm = requests.find(({ path }) => path.endsWith("/ingest/model"))?.body as FormData;
+      expect(modelForm.get("longitude")).toBe("-157.82");
+      expect(modelForm.get("latitude")).toBe("21.3");
+      expect((modelForm.get("file") as File).name).toBe("downtown.glb");
+      expect((await cli(["list"])).scenes[0].sceneId).toBe("downtown");
+      expect((await cli(["get", "downtown"])).sceneId).toBe("downtown");
+      expect((await cli(["resolve", "downtown"])).output.accessAffordance.method).toBe("POST");
+      expect((await cli(["retire", datasetId, "--yes"])).output.retired).toBe(true);
 
-      const outGet = captureStreams();
-      expect(await run(["scene", "get", "downtown", "--json", "--base-url", "https://scenes.test"])).toBe(0);
-      expect(JSON.parse(outGet.stdout.join("")).sceneId).toBe("downtown");
-
-      const outResolve = captureStreams();
-      expect(await run(["scene", "resolve", "downtown", "--json", "--base-url", "https://scenes.test"])).toBe(0);
-      expect(JSON.parse(outResolve.stdout.join("")).output.accessAffordance.method).toBe("POST");
-
-      const outCancel = captureStreams();
-      expect(await run(["scene", "cancel", "job-cli-2", "--yes", "--json", "--base-url", "https://scenes.test"])).toBe(
-        0,
-      );
-      expect(JSON.parse(outCancel.stdout.join("")).output.status).toBe("cancelled");
-
-      const outRetire = captureStreams();
-      expect(await run(["scene", "retire", "downtown", "--yes", "--json", "--base-url", "https://scenes.test"])).toBe(
-        0,
-      );
-      expect(JSON.parse(outRetire.stdout.join("")).output.retired).toBe(true);
-
-      // Verify runtime helpers also execute directly through SDK
       const runtime = createHonuaCommandRuntime({
         client: new HonuaClient({ baseUrl: "https://scenes.test", fetchFn }),
       });
-      const statusReceipt = await runtime.execute(sceneJobStatusCommand, { jobId: "job-cli-1" }, { transport: "sdk" });
-      expect(statusReceipt.output?.status).toBe("succeeded");
-      const cancelReceipt = await runtime.execute(sceneJobCancelCommand, { jobId: "job-cli-2" }, { transport: "sdk" });
-      expect(cancelReceipt.output?.status).toBe("cancelled");
-      const resolveReceipt = await runtime.execute(sceneResolveCommand, { sceneId: "downtown" }, { transport: "sdk" });
-      expect(resolveReceipt.output?.sceneId).toBe("downtown");
-      const uploadDry = await runtime.execute(
-        sceneUploadCreateCommand,
-        {
-          fileName: "downtown.zip",
-          format: "3d-tiles",
-          totalBytes: 4096,
-          sha256: "a".repeat(64),
-        },
-        { transport: "sdk", dryRun: true },
-      );
-      expect(uploadDry.status).toBe("dry-run");
-      expect(requests.length).toBeGreaterThanOrEqual(8);
+      const result = await runtime.execute(sceneResolveCommand, { sceneId: "downtown" }, { transport: "sdk" });
+      expect(result.output?.sceneId).toBe("downtown");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("previews a missing file and rejects unsupported operations before transport", async () => {
+    const { requests, fetchFn } = makeRecorder(() => ({ status: 404 }));
+    vi.stubGlobal("fetch", fetchFn);
+    const runScene = (args: string[]) => run(["scene", ...args, "--json", "--base-url", "https://scenes.test"]);
+    const out = captureStreams();
+    expect(await runScene(["import", "missing.zip", "--format", "3d-tiles", "--dry-run"])).toBe(0);
+    expect(JSON.parse(out.stdout.join("")).status).toBe("dry-run");
+    for (const args of [
+      ["upload", "missing.zip"],
+      ["cancel", "job-cli-1"],
+      ["import", "missing.glb", "--format", "glb", "--yes"],
+    ])
+      expect(await runScene(args)).not.toBe(0);
+    expect(requests).toHaveLength(0);
   });
 });

@@ -419,7 +419,13 @@ export class SceneView {
 
 function bindClientExecutor(client: HonuaClient | undefined): SceneViewRequestExecutor | undefined {
   if (!client) return undefined;
-  return (method, path, init, signal) => client.pipelineRequestJson(method, path, init, signal);
+  const origin = new URL(client.serverBaseUrl).origin;
+  return (method, path, init, signal) => {
+    if (new URL(path, client.serverBaseUrl).origin !== origin) {
+      throw new Error("Scene discovery requests must use the configured server origin.");
+    }
+    return client.pipelineRequestJson(method, path, init, signal);
+  };
 }
 
 function createSessionIfProtected(

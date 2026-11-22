@@ -232,11 +232,9 @@ SCENES (3D Tiles, models, point clouds)
   honua scene list [--json]
   honua scene get <sceneId> [--json]
   honua scene resolve <sceneId> [--json]
-  honua scene upload <file> --format <3d-tiles|gltf|glb|citygml|las|laz|copc> [--scene-id <id>] [--resume <file>] [--yes]
-  honua scene import --format <format> (--upload-id <id> | --source-url <url>) [--scene-id <id>] [--wait] [--yes]
+  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--wait] [--yes]
   honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
-  honua scene cancel <jobId> [--yes] [--json]
-  honua scene retire <sceneId> [--if-match <etag>] [--yes] [--json]
+  honua scene retire <datasetId> [--yes] [--json]
 
 AUTH / CONFIG
   honua login --base-url <url> [--api-key <key>]

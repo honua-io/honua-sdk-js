@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   HonuaSceneAccessSessionError,
@@ -87,7 +87,7 @@ describe("protected scene asset session, separation of serving format vs content
     }
   });
 
-  async function startSceneServer(options: { readonly allowRedirects?: boolean } = {}) {
+  async function startSceneServer(options: { readonly allowRedirects?: boolean; readonly baseTime?: number } = {}) {
     const copcBytes = buildSyntheticCopcPayload();
     let tokenSeq = 0;
     let activeToken = "";
@@ -102,7 +102,7 @@ describe("protected scene asset session, separation of serving format vs content
         envelopeRequests += 1;
         tokenSeq += 1;
         activeToken = `secret-scene-token-${tokenSeq}`;
-        const base = Date.UTC(2026, 10, 21, 0, 0, 0);
+        const base = options.baseTime ?? Date.UTC(2026, 10, 21, 0, 0, 0);
         res.writeHead(200, {
           "content-type": "application/json",
           "cache-control": "no-store",
@@ -113,7 +113,17 @@ describe("protected scene asset session, separation of serving format vs content
             token: activeToken,
             expiresAt: new Date(base + 300_000 * tokenSeq).toISOString(),
             refreshAfter: new Date(base + 180_000 * tokenSeq).toISOString(),
+            contractVersion: "2026-08-v1",
             allowedMethods: ["GET", "HEAD"],
+            transports: [{ kind: "header", name: "X-Honua-Token", valueTemplate: "{token}", preferred: true }],
+            assetScopes: [
+              {
+                scheme: "http",
+                host: "127.0.0.1",
+                port: (server.address() as AddressInfo).port,
+                pathPrefix: "/scenes/protected-city/",
+              },
+            ],
           }),
         );
         return;
@@ -289,6 +299,71 @@ describe("protected scene asset session, separation of serving format vs content
     expect(attempts).toBe(2);
   });
 
+  it("intersects advertised path and method restrictions with the caller scope", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response(null));
+    let expiresAt = "2026-08-22T00:15:00+00:00";
+    let refreshAfter = "2026-08-22T00:07:30+00:00";
+    const session = createProtectedSceneAssetSession({
+      sceneId: "protected-campus",
+      affordance: {
+        method: "POST",
+        path: "/scenes/protected-campus/access-envelope",
+        origin: "https://maps.example.test",
+        pathPrefix: "/scenes/protected-campus/",
+      },
+      execute: async <T>() =>
+        ({
+          sceneId: "protected-campus",
+          token: "opaque-token",
+          expiresAt,
+          refreshAfter,
+          allowedMethods: ["HEAD", "POST"],
+          contractVersion: "2026-08-v1",
+          transports: [
+            { kind: "query", name: "token", valueTemplate: "{token}", preferred: false },
+            { kind: "header", name: "X-Honua-Token", valueTemplate: "{token}", preferred: true },
+          ],
+          assetScopes: [
+            { scheme: "https", host: "maps.example.test", port: 443, pathPrefix: "/scenes/protected-campus/tiles/" },
+            { scheme: "https", host: "other.example.test", port: 443, pathPrefix: "/" },
+          ],
+        }) as T,
+      fetchFn,
+      now: () => Date.parse("2026-08-22T00:00:00Z"),
+    });
+    expiresAt = "2026-08-21T23:59:59Z";
+    await expect(session.ensureAccess()).rejects.toMatchObject({ code: "refresh-failed" });
+    expiresAt = "2026-08-22T00:15:00Z";
+    refreshAfter = expiresAt;
+    await expect(session.ensureAccess()).rejects.toMatchObject({ code: "refresh-failed" });
+    refreshAfter = "2026-08-22T00:07:30Z";
+    expect(await session.ensureAccess()).toMatchObject({
+      allowedMethods: ["HEAD"],
+      transport: "header",
+      pathPrefix: "/scenes/protected-campus/tiles/",
+    });
+    const url = "https://maps.example.test/scenes/protected-campus/tiles/0.glb";
+    await expect(session.fetchAsset({ url })).rejects.toBeInstanceOf(HonuaSceneAccessSessionError);
+    await expect(
+      session.fetchAsset({
+        method: "HEAD",
+        url: "https://maps.example.test/scenes/protected-campus/tileset.json",
+      }),
+    ).rejects.toBeInstanceOf(HonuaSceneAccessSessionError);
+    for (const ambiguous of ["%2f..%2f", "%5c%2e%2e%5c", "%252f%252e%252e%252f"]) {
+      await expect(
+        session.fetchAsset({
+          method: "HEAD",
+          url: `https://maps.example.test/scenes/protected-campus/tiles/${ambiguous}private.glb`,
+        }),
+      ).rejects.toMatchObject({ code: "scope-violation" });
+    }
+    expect(fetchFn).not.toHaveBeenCalled();
+    await expect(session.fetchAsset({ url, method: "HEAD" })).resolves.toMatchObject({ status: 200 });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(new Headers(fetchFn.mock.calls[0]?.[1]?.headers).get("X-Honua-Token")).toBe("opaque-token");
+  });
+
   it("acquires single-flight POST envelopes, refreshes proactively, rotates on 401, fails closed on 403, and never leaks tokens", async () => {
     const srv = await startSceneServer();
     let clockMs = Date.UTC(2026, 10, 21, 0, 0, 10);
@@ -407,7 +482,7 @@ describe("protected scene asset session, separation of serving format vs content
   });
 
   it("separates servingFormat from semantic contentKind and wires protected SceneView sessions + COPC range access", async () => {
-    const srv = await startSceneServer();
+    const srv = await startSceneServer({ baseTime: Date.now() });
     const execute = async <T = unknown>(
       method: string,
       path: string,

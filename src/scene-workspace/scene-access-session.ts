@@ -68,15 +68,20 @@ export interface SceneAccessEnvelopePayload {
   readonly token: string;
   readonly expiresAt: string;
   readonly refreshAfter: string;
-  readonly allowedMethods?: readonly string[];
-  readonly scope?: {
-    readonly origin?: string;
-    readonly pathPrefix?: string;
-    readonly transport?: SceneAccessCredentialTransport;
-    readonly headerName?: string;
-    readonly queryParam?: string;
-    readonly allowRedirects?: boolean;
-  };
+  readonly contractVersion: "2026-08-v1";
+  readonly allowedMethods: readonly string[];
+  readonly assetScopes: readonly {
+    readonly scheme: string;
+    readonly host: string;
+    readonly port: number;
+    readonly pathPrefix: string;
+  }[];
+  readonly transports: readonly {
+    readonly kind: SceneAccessCredentialTransport;
+    readonly name: string;
+    readonly valueTemplate: string;
+    readonly preferred: boolean;
+  }[];
 }
 
 /** Credential-free, serializable snapshot of a protected-scene asset session. */
@@ -236,7 +241,7 @@ export function createProtectedSceneAssetSession(
         ensureNotDisposed();
         const raw = await options.execute<unknown>("POST", affordancePath, undefined, lifecycleController.signal);
         ensureNotDisposed();
-        const parsed = parseEnvelopePayload(raw, sceneId, currentScope);
+        const parsed = parseEnvelopePayload(raw, sceneId, initialScope, now(), options.affordance.transport);
         active = parsed;
         currentScope = parsed.scope;
         refreshCount += 1;
@@ -492,17 +497,23 @@ function parseInitialScope(affordance: SceneAccessAffordance): SceneAccessScope 
   };
 }
 
-function parseEnvelopePayload(raw: unknown, expectedSceneId: string, baseScope: SceneAccessScope): ActiveEnvelope {
+function parseEnvelopePayload(
+  raw: unknown,
+  expectedSceneId: string,
+  baseScope: SceneAccessScope,
+  timestamp: number,
+  expectedTransport?: SceneAccessCredentialTransport,
+): ActiveEnvelope {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new HonuaSceneAccessSessionError("refresh-failed", "Access envelope response must be a JSON object.");
   }
   const record = raw as Record<string, unknown>;
   const token = requireNonEmpty(record.token, "refresh-failed", "Access envelope response is missing a token.");
-  const responseSceneId = typeof record.sceneId === "string" ? record.sceneId.trim() : expectedSceneId;
+  const responseSceneId = record.sceneId;
   if (responseSceneId !== expectedSceneId) {
     throw new HonuaSceneAccessSessionError(
       "scope-violation",
-      `Access envelope sceneId "${responseSceneId}" does not match expected scene "${expectedSceneId}".`,
+      "Access envelope scene ID does not match the requested scene.",
     );
   }
   const expiresAtIso = requireNonEmpty(record.expiresAt, "refresh-failed", "Access envelope is missing expiresAt.");
@@ -519,59 +530,75 @@ function parseEnvelopePayload(raw: unknown, expectedSceneId: string, baseScope: 
       "Access envelope timestamps must be valid ISO-8601 values.",
     );
   }
-  const scope = narrowScope(baseScope, record);
+  if (expiresAtMs <= timestamp || refreshAfterMs >= expiresAtMs) {
+    throw new HonuaSceneAccessSessionError(
+      "refresh-failed",
+      "Access envelope must be unexpired and refreshable before expiration.",
+    );
+  }
+  const scope = narrowScope(baseScope, record, expectedTransport);
   return { token, expiresAtIso, expiresAtMs, refreshAfterIso, refreshAfterMs, scope };
 }
 
-function narrowScope(baseScope: SceneAccessScope, record: Record<string, unknown>): SceneAccessScope {
-  const allowedRaw = Array.isArray(record.allowedMethods)
-    ? record.allowedMethods
-        .filter((item): item is string => typeof item === "string" && item.trim() !== "")
-        .map((item) => item.trim().toUpperCase())
-    : [];
-  const allowedMethods = allowedRaw.length > 0 ? allowedRaw : baseScope.allowedMethods;
-
-  const scopeRecord =
-    record.scope && typeof record.scope === "object" && !Array.isArray(record.scope)
-      ? (record.scope as Record<string, unknown>)
-      : undefined;
-  if (!scopeRecord) {
-    return { ...baseScope, allowedMethods };
+function narrowScope(
+  baseScope: SceneAccessScope,
+  record: Record<string, unknown>,
+  expectedTransport?: SceneAccessCredentialTransport,
+): SceneAccessScope {
+  if (
+    record.contractVersion !== "2026-08-v1" ||
+    !Array.isArray(record.allowedMethods) ||
+    !Array.isArray(record.assetScopes) ||
+    !Array.isArray(record.transports)
+  ) {
+    throw new HonuaSceneAccessSessionError("refresh-failed", "Unsupported scene access envelope contract.");
+  }
+  const advertisedMethods = record.allowedMethods;
+  const allowedMethods = baseScope.allowedMethods.filter((method) => advertisedMethods.includes(method));
+  const callerOrigin = new URL(baseScope.origin);
+  const callerPort = Number(callerOrigin.port || (callerOrigin.protocol === "https:" ? 443 : 80));
+  let pathPrefix: string | undefined;
+  for (const scope of record.assetScopes) {
+    if (
+      scope?.scheme !== callerOrigin.protocol.slice(0, -1) ||
+      typeof scope.host !== "string" ||
+      scope.host.toLowerCase() !== callerOrigin.hostname.toLowerCase() ||
+      scope.port !== callerPort ||
+      typeof scope.pathPrefix !== "string"
+    )
+      continue;
+    const prefix = normalizePathPrefix(scope.pathPrefix);
+    const intersection = isPathWithinPrefix(baseScope.pathPrefix, prefix)
+      ? baseScope.pathPrefix
+      : isPathWithinPrefix(prefix, baseScope.pathPrefix)
+        ? prefix
+        : undefined;
+    if (intersection && (pathPrefix === undefined || intersection.length < pathPrefix.length)) {
+      pathPrefix = intersection;
+    }
+  }
+  if (pathPrefix === undefined) {
+    throw new HonuaSceneAccessSessionError("scope-violation", "Envelope has no asset scope matching the scene.");
   }
 
-  const origin =
-    typeof scopeRecord.origin === "string" && scopeRecord.origin.trim() !== ""
-      ? parseHttpUrl(scopeRecord.origin, "scope-violation").origin
-      : baseScope.origin;
-  if (origin !== baseScope.origin) {
-    throw new HonuaSceneAccessSessionError(
-      "cross-origin-denied",
-      `Envelope scope origin "${origin}" cannot widen beyond "${baseScope.origin}".`,
-    );
+  const transports = record.transports.filter(
+    (transport) =>
+      (transport?.kind === "header" || transport?.kind === "query") &&
+      (expectedTransport === undefined || transport.kind === expectedTransport) &&
+      typeof transport.name === "string" &&
+      /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(transport.name) &&
+      transport.valueTemplate === "{token}",
+  );
+  const transport = transports.find((item) => item.preferred === true) ?? transports[0];
+  if (!transport) {
+    throw new HonuaSceneAccessSessionError("refresh-failed", "Envelope has no supported credential transport.");
   }
-  const nextPrefix =
-    typeof scopeRecord.pathPrefix === "string" && scopeRecord.pathPrefix.trim() !== ""
-      ? normalizePathPrefix(scopeRecord.pathPrefix)
-      : baseScope.pathPrefix;
-  if (!isPathWithinPrefix(nextPrefix, baseScope.pathPrefix)) {
-    throw new HonuaSceneAccessSessionError(
-      "scope-violation",
-      `Envelope pathPrefix "${nextPrefix}" cannot widen beyond "${baseScope.pathPrefix}".`,
-    );
-  }
-  const transport =
-    scopeRecord.transport === "header" || scopeRecord.transport === "query"
-      ? scopeRecord.transport
-      : baseScope.transport;
   return {
-    origin,
-    pathPrefix: nextPrefix,
+    ...baseScope,
+    pathPrefix,
     allowedMethods,
-    transport,
-    headerName: typeof scopeRecord.headerName === "string" ? scopeRecord.headerName : baseScope.headerName,
-    queryParam: typeof scopeRecord.queryParam === "string" ? scopeRecord.queryParam : baseScope.queryParam,
-    allowRedirects:
-      typeof scopeRecord.allowRedirects === "boolean" ? scopeRecord.allowRedirects : baseScope.allowRedirects,
+    transport: transport.kind,
+    ...(transport.kind === "header" ? { headerName: transport.name } : { queryParam: transport.name }),
   };
 }
 
@@ -590,14 +617,19 @@ function parseHttpUrl(rawUrl: string, code: SceneAccessSessionErrorCode): URL {
 
 function normalizePathPrefix(prefix: string): string {
   const trimmed = prefix.trim();
-  if (!trimmed.startsWith("/") || trimmed.includes("..")) {
+  if (!trimmed.startsWith("/") || !isUnambiguousAssetPath(trimmed)) {
     throw new HonuaSceneAccessSessionError("invalid-affordance", `Invalid asset pathPrefix "${prefix}".`);
   }
   return trimmed.endsWith("/") ? trimmed : `${trimmed}/`;
 }
 
+function isUnambiguousAssetPath(pathname: string): boolean {
+  // Avoid percent-encoded traversal and separators that intermediaries may decode.
+  return !pathname.includes("..") && !pathname.includes("\\") && !/%(?:25|2e|2f|5c)/i.test(pathname);
+}
+
 function isPathWithinPrefix(pathname: string, normalizedPrefix: string): boolean {
-  if (pathname.includes("..")) return false;
+  if (!isUnambiguousAssetPath(pathname)) return false;
   const barePrefix = normalizedPrefix.endsWith("/") ? normalizedPrefix.slice(0, -1) : normalizedPrefix;
   return pathname === barePrefix || pathname.startsWith(normalizedPrefix);
 }
