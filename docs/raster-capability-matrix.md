@@ -14,13 +14,13 @@ injected adapter.
 
 | Source | Client | Server | End to end | Executable operations |
 | --- | --- | --- | --- | --- |
-| Direct COG | Experimental | Unavailable | Experimental | Structural inspect, bounded pixel window, bands, no-data statistics, histogram, value inspect, MapLibre mount |
+| Direct COG | Experimental | Not applicable | Experimental | Structural inspect, bounded pixel window, bands, no-data statistics, histogram, value inspect, MapLibre mount |
 | ImageServer | Supported | Supported | Supported | Metadata, bounded bbox render, bands, rendering rule, identify, MapLibre/deck.gl image handoff |
-| OGC API Coverages | Experimental | Experimental | Experimental | Collection/domain/range metadata, bounded bbox retrieval, named range fields, MapLibre/deck.gl image handoff |
-| WCS | Experimental | Experimental | Experimental | DescribeCoverage, bounded bbox retrieval, named range fields, advertised-axis scaling, MapLibre/deck.gl image handoff |
+| OGC API Coverages | Experimental | Supported | Experimental | Collection/domain/range metadata, bounded bbox retrieval, named range fields, MapLibre/deck.gl image handoff |
+| WCS | Experimental | Supported | Experimental | DescribeCoverage, bounded bbox retrieval, named range fields, advertised-axis scaling, MapLibre/deck.gl image handoff |
 | Direct Zarr | Experimental | Not applicable | Experimental | Structural inspect, bounded chunk window, bands, nodata, statistics, histogram, value inspect, MapLibre image handoff with fidelity and provenance |
 | Zarr server facade | Experimental | Experimental | Unavailable | Discovery and metadata only; live server execution is a separate contract |
-| NetCDF | Unavailable | Varies | Unavailable | No executable adapter yet |
+| NetCDF | Unavailable | Metadata only | Unavailable | No executable adapter yet |
 
 `UNIFIED_RASTER_CAPABILITY_MATRIX` and `RASTER_FORMAT_MATURITY` use the canonical
 `CloudNativeMaturity` vocabulary. Coverage/WCS operations reuse the bounded
