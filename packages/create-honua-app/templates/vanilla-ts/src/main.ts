@@ -8,6 +8,7 @@ import type { ConnectProtocolHint } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 
+import { fitMapToData } from "./fit-to-data.js";
 import { FIXTURE_LAYER_PATH } from "./fixture-endpoint.js";
 import "./styles.css";
 
@@ -103,6 +104,8 @@ async function run(): Promise<void> {
     await mounted.ready;
     const rawMap = mounted.raw("maplibre");
     if (!rawMap) throw new Error("The mounted map is unavailable.");
+    // The fixture lane keeps its fixed view; a live endpoint can be anywhere.
+    if (configuredEndpoint) fitMapToData(rawMap as maplibregl.Map, result.features);
     const stopObserving = observeRenderedFeatures(rawMap as maplibregl.Map);
     const disposeBasemap =
       configuredEndpoint && rawMap
