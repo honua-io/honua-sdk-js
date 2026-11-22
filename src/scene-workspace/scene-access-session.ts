@@ -339,7 +339,10 @@ export function createProtectedSceneAssetSession(
         signal: request.signal,
       });
       if (response.type === "opaqueredirect") {
-        throw new HonuaSceneAccessSessionError("redirect-denied", "Redirect target is unavailable to the scene session.");
+        throw new HonuaSceneAccessSessionError(
+          "redirect-denied",
+          "Redirect target is unavailable to the scene session.",
+        );
       }
       if (!REDIRECT_STATUSES.has(response.status)) {
         return response;
