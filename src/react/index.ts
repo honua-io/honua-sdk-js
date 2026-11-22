@@ -9,7 +9,7 @@
  *
  * @example
  * ```tsx
- * import { HonuaClient } from "@honua/sdk-js/honua";
+ * import { HonuaClient } from "@honua/sdk";
  * import { HonuaProvider, useDataset, useQuery } from "@honua/react";
  *
  * const client = new HonuaClient({ baseUrl: "https://honua.example.com" });
