@@ -90,22 +90,38 @@ export function mauiExportCollection(overrides: Record<string, unknown> = {}): R
   };
 }
 
-/** Serve the Maui pair beside a collection document; `head: false` makes the host refuse HEAD. */
-export async function serveExport(collection: Record<string, unknown>, options: { head?: boolean } = {}) {
+/** Where a served Export's files live: a URL prefix and the artifact files beside its collection document. */
+export interface ExportFiles {
+  readonly prefix: string;
+  readonly directory: string;
+  readonly artifacts: readonly string[];
+}
+
+const MAUI_FILES: ExportFiles = {
+  prefix: "/exports/maui",
+  directory: FIXTURE_DIRECTORY,
+  artifacts: ["parcels.parquet", "parcels.pmtiles"],
+};
+
+/** Serve an Export's files beside a collection document (the Maui pair by default); `head: false` makes the host refuse HEAD. */
+export async function serveExport(
+  collection: Record<string, unknown>,
+  options: { head?: boolean; files?: ExportFiles } = {},
+) {
+  const { prefix, directory: artifactDirectory, artifacts } = options.files ?? MAUI_FILES;
   const directory = mkdtempSync(path.join(tmpdir(), "honua-export-"));
   const file = path.join(directory, "collection.json");
   writeFileSync(file, JSON.stringify(collection));
   const server = await startStaticRangeServer({
     files: {
-      "/exports/maui/collection.json": file,
-      "/exports/maui/parcels.parquet": path.join(FIXTURE_DIRECTORY, "parcels.parquet"),
-      "/exports/maui/parcels.pmtiles": path.join(FIXTURE_DIRECTORY, "parcels.pmtiles"),
+      [`${prefix}/collection.json`]: file,
+      ...Object.fromEntries(artifacts.map((name) => [`${prefix}/${name}`, path.join(artifactDirectory, name)])),
     },
     ...(options.head === false ? { head: false } : {}),
   });
   return {
     server,
-    url: `${server.origin}/exports/maui/collection.json`,
+    url: `${server.origin}${prefix}/collection.json`,
     async close() {
       await server.close();
       rmSync(directory, { recursive: true, force: true });
