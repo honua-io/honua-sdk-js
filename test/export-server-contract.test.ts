@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 
 import { openExport, publicationSource, verifyPmtilesArtifact } from "../src/export/index.js";
 import { serveExport } from "./helpers/export-fixture.js";
@@ -30,62 +30,60 @@ async function serve(collection: Record<string, unknown> = COLLECTION) {
   return host;
 }
 
-describe("an Export written by honua-server", () => {
-  it("opens with every public field, numeric ones included", async () => {
-    const { server, url } = await serve();
-    const opened = await openExport(url);
-    const publication = opened.publication!;
+it("opens with every public field, numeric ones included", async () => {
+  const { server, url } = await serve();
+  const opened = await openExport(url);
+  const publication = opened.publication!;
 
-    expect(opened.display).toMatchObject({
-      pmtilesUrl: `${server.origin}${FILES.prefix}/${EXPORT_ID}.pmtiles`,
-      sourceLayer: "layer",
-      promoteId: "parcel_id",
-    });
-    expect(publication.publicFields.map((field) => [field.name, field.type])).toEqual([
-      ["objectid", "integer"],
-      ["id", "integer"],
-      ["parcel_id", "string"],
-      ["zone", "string"],
-      ["acres", "number"],
-      ["owner_note", "string"],
-    ]);
-    await verifyPmtilesArtifact(publication);
+  expect(opened.display).toMatchObject({
+    pmtilesUrl: `${server.origin}${FILES.prefix}/${EXPORT_ID}.pmtiles`,
+    sourceLayer: "layer",
+    promoteId: "parcel_id",
   });
+  expect(publication.publicFields.map((field) => [field.name, field.type])).toEqual([
+    ["objectid", "integer"],
+    ["id", "integer"],
+    ["parcel_id", "string"],
+    ["zone", "string"],
+    ["acres", "number"],
+    ["owner_note", "string"],
+  ]);
+  await verifyPmtilesArtifact(publication);
+});
 
-  it("continues to open collections declaring the legacy extension URI", async () => {
-    const { url } = await serve({
-      ...COLLECTION,
-      stac_extensions: [
-        "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json",
-        "https://schemas.honua.io/stac/honua/v1.0.0/schema.json",
-      ],
-    });
-    await expect(openExport(url)).resolves.toMatchObject({ collection: { id: EXPORT_ID } });
+it("continues to open collections declaring the legacy extension URI", async () => {
+  const { url } = await serve({
+    ...COLLECTION,
+    stac_extensions: [
+      "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json",
+      "https://schemas.honua.io/stac/honua/v1.0.0/schema.json",
+    ],
   });
+  await expect(openExport(url)).resolves.toMatchObject({ collection: { id: EXPORT_ID } });
+});
 
-  it("reports an unsupported public attribute type", async () => {
-    const columns = COLLECTION["table:columns"] as ReadonlyArray<{ name: string; type: string }>;
-    const { url } = await serve({
-      ...COLLECTION,
-      "table:columns": columns.map((column) => (column.name === "acres" ? { ...column, type: "unknown" } : column)),
-    });
-    await expect(openExport(url)).rejects.toThrow("unsupported type unknown for public field acres");
+it("reports an unsupported public attribute type", async () => {
+  const columns = COLLECTION["table:columns"] as ReadonlyArray<{ name: string; type: string }>;
+  const { url } = await serve({
+    ...COLLECTION,
+    "table:columns": columns.map((column) => (column.name === "acres" ? { ...column, type: "unknown" } : column)),
   });
+  await expect(openExport(url)).rejects.toThrow("unsupported type unknown for public field acres");
+});
 
-  it("resolves an identity from its GeoParquet on a host that refuses HEAD", async () => {
-    const { server, url } = await serve();
-    const source = publicationSource((await openExport(url)).publication!, { driverFactory: nodeDriver });
+it("resolves an identity from its GeoParquet on a host that refuses HEAD", async () => {
+  const { server, url } = await serve();
+  const source = publicationSource((await openExport(url)).publication!, { driverFactory: nodeDriver });
 
-    const { result, answeredBy } = await source.lookup("P203");
+  const { result, answeredBy } = await source.lookup("P203");
 
-    expect(answeredBy).toBe("geoparquet");
-    expect(result.features[0]?.attributes).toMatchObject({ parcel_id: "P203", zone: "C1", acres: 2.3 });
-    expect(server.requests.some((entry) => entry.method === "HEAD")).toBe(false);
-  });
+  expect(answeredBy).toBe("geoparquet");
+  expect(result.features[0]?.attributes).toMatchObject({ parcel_id: "P203", zone: "C1", acres: 2.3 });
+  expect(server.requests.some((entry) => entry.method === "HEAD")).toBe(false);
+});
 
-  it("still refuses files from another capture", async () => {
-    const { url } = await serve({ ...COLLECTION, "honua:capture_id": "capture-other" });
-    const source = publicationSource((await openExport(url)).publication!, { driverFactory: nodeDriver });
-    await expect(source.lookup("P203")).rejects.toMatchObject({ code: "artifact-mismatch" });
-  });
+it("still refuses files from another capture", async () => {
+  const { url } = await serve({ ...COLLECTION, "honua:capture_id": "capture-other" });
+  const source = publicationSource((await openExport(url)).publication!, { driverFactory: nodeDriver });
+  await expect(source.lookup("P203")).rejects.toMatchObject({ code: "artifact-mismatch" });
 });
