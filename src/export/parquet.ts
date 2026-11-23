@@ -10,8 +10,9 @@ import { bboxOverlaps, pruneRowGroupsByBbox, rowMatchesBbox } from "./bbox-pruni
 import type { PublicationBounds } from "./descriptor.js";
 import { HonuaPublicationError } from "./errors.js";
 import type { PublicationBboxPlan, PublicationLookupPlan } from "./lookup.js";
-import { PUBLICATION_STAMP_KEY, type Publication, assertArtifactStamp } from "./open.js";
+import { type Publication, assertArtifactStamp } from "./open.js";
 import { type ArtifactRangeReader, type ByteMeter, artifactRangeReader } from "./range-reader.js";
+import { PUBLICATION_STAMP_KEY, readArtifactStamp } from "./stamp.js";
 
 /** The first read of a cold lookup: the Parquet footer of a county-sized file fits in one request. */
 const FOOTER_READ_BYTES = 64 * 1024;
@@ -63,12 +64,16 @@ export interface PublicationParquet {
 }
 
 function publicationStamp(metadata: FileMetaData): unknown {
-  const value = metadata.key_value_metadata?.find((entry) => entry.key === PUBLICATION_STAMP_KEY)?.value;
-  try {
-    return typeof value === "string" ? JSON.parse(value) : undefined;
-  } catch {
-    return undefined;
-  }
+  const entries = metadata.key_value_metadata ?? [];
+  return readArtifactStamp((key) => {
+    const value = entries.find((entry) => entry.key === key)?.value;
+    if (key !== PUBLICATION_STAMP_KEY) return value;
+    try {
+      return typeof value === "string" ? JSON.parse(value) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
 }
 
 /** Public columns to return and the coordinate dimensions of a native geometry column. */

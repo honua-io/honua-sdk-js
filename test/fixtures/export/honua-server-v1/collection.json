@@ -1,0 +1,207 @@
+{
+  "type": "Collection",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json",
+    "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json",
+    "https://stac-extensions.github.io/version/v1.2.0/schema.json",
+    "https://honua.io/schemas/stac/honua/v1.0.0/schema.json"
+  ],
+  "id": "scol2636-x2636-6c79f78d",
+  "title": "parcels",
+  "description": "Synthetic parcels exported by honua-server trunk 60e7b90b56 (test fixture; files byte-for-byte as the server wrote them).",
+  "license": "other",
+  "version": "20261123T141255Z-d24e032d",
+  "updated": "2026-11-23T14:12:56.26293Z",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          -157.86,
+          21.3,
+          -157.82850000000002,
+          21.3235
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2026-11-23T14:12:55.2448587Z",
+          "2026-11-23T14:12:55.2448587Z"
+        ]
+      ]
+    }
+  },
+  "table:columns": [
+    {
+      "name": "objectid",
+      "type": "integer",
+      "title": "objectid"
+    },
+    {
+      "name": "id",
+      "type": "integer",
+      "title": "id"
+    },
+    {
+      "name": "parcel_id",
+      "type": "string",
+      "title": "parcel_id"
+    },
+    {
+      "name": "zone",
+      "type": "string",
+      "title": "zone"
+    },
+    {
+      "name": "acres",
+      "type": "number",
+      "title": "acres"
+    },
+    {
+      "name": "owner_note",
+      "type": "string",
+      "title": "owner_note"
+    }
+  ],
+  "honua:capture_id": "capture-480649a8a22d4cb1bd2af438d24e032d",
+  "honua:captured_at": "2026-11-23T14:12:55.2448587Z",
+  "honua:source_revision": "metadata-745:changes-5224",
+  "honua:feature_count": 48,
+  "honua:source": {
+    "service": "svc-publish-x2636-6c79f78d",
+    "layer": "res-layer-218",
+    "title": "parcels"
+  },
+  "honua:source_crs": "EPSG:4326",
+  "honua:identity": {
+    "field": "parcel_id",
+    "pmtiles_property": "parcel_id",
+    "geoparquet_column": "parcel_id",
+    "stable": false
+  },
+  "honua:geometry": {
+    "column": "geometry",
+    "encoding": "wkb",
+    "types": [
+      "MultiPolygon"
+    ]
+  },
+  "honua:public_fields": [
+    "objectid",
+    "id",
+    "parcel_id",
+    "zone",
+    "acres",
+    "owner_note"
+  ],
+  "honua:validation": {
+    "status": "passed",
+    "validated_at": "2026-11-23T14:12:56.0839225Z",
+    "checks": [
+      {
+        "name": "pmtiles-stored",
+        "status": "passed"
+      },
+      {
+        "name": "geoparquet-stored",
+        "status": "passed"
+      },
+      {
+        "name": "source-unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "descriptor-rules",
+        "status": "passed"
+      }
+    ]
+  },
+  "links": [
+    {
+      "rel": "pmtiles",
+      "href": "scol2636-x2636-6c79f78d.pmtiles",
+      "type": "application/vnd.pmtiles",
+      "pmtiles:layers": [
+        "layer"
+      ]
+    },
+    {
+      "rel": "agents",
+      "href": "AGENTS.md",
+      "type": "text/markdown"
+    },
+    {
+      "rel": "describedby",
+      "href": "README.md",
+      "type": "text/markdown"
+    }
+  ],
+  "assets": {
+    "geoparquet": {
+      "href": "scol2636-x2636-6c79f78d.parquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ],
+      "title": "GeoParquet",
+      "file:size": 7129,
+      "file:checksum": "12207c75940ddfd9097aa21cca61682a0fe58e4b37e094eae95fb05e738a64f00d15",
+      "honua:capture_id": "capture-480649a8a22d4cb1bd2af438d24e032d",
+      "honua:fields": [
+        "objectid",
+        "id",
+        "parcel_id",
+        "zone",
+        "acres",
+        "owner_note"
+      ]
+    },
+    "pmtiles": {
+      "href": "scol2636-x2636-6c79f78d.pmtiles",
+      "type": "application/vnd.pmtiles",
+      "roles": [
+        "visual"
+      ],
+      "title": "PMTiles",
+      "file:size": 47350,
+      "file:checksum": "1220183fde65419f1fb26800fd4c1e4b4ab2be2d12bcc7dd13c14bf05b5f0405db8a",
+      "honua:capture_id": "capture-480649a8a22d4cb1bd2af438d24e032d",
+      "honua:fields": [
+        "objectid",
+        "id",
+        "parcel_id",
+        "zone",
+        "acres",
+        "owner_note"
+      ],
+      "honua:minzoom": 5,
+      "honua:maxzoom": 14
+    },
+    "style": {
+      "href": "style.json",
+      "type": "application/vnd.mapbox.style+json",
+      "roles": [
+        "style"
+      ]
+    },
+    "thumbnail": {
+      "href": "thumbnail.png",
+      "type": "image/png",
+      "roles": [
+        "thumbnail"
+      ]
+    }
+  },
+  "providers": [
+    {
+      "name": "x2636-6c79f78d",
+      "roles": [
+        "host"
+      ],
+      "url": "https://honua.io"
+    }
+  ]
+}

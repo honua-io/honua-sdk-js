@@ -11,6 +11,7 @@ import {
 } from "./descriptor.js";
 import { HonuaPublicationError } from "./errors.js";
 import { pairedSourceDescriptors } from "./pair.js";
+import { readArtifactStamp } from "./stamp.js";
 
 /** When the published data was read from its source and when this version went live. */
 export interface PublicationFreshness {
@@ -76,7 +77,7 @@ export interface OpenPublicationOptions {
   readonly headers?: HeadersInit;
 }
 
-export const PUBLICATION_STAMP_KEY = "honua:publication";
+export { PUBLICATION_STAMP_KEY } from "./stamp.js";
 
 function absoluteUrl(reference: string, base: string): string {
   return new URL(reference, base).href;
@@ -216,5 +217,9 @@ export async function verifyPmtilesArtifact(
   deps: DescribePmtilesArchiveDeps = {},
 ): Promise<void> {
   const description = await describePmtilesArchive(publication.display.pmtilesUrl, deps);
-  assertArtifactStamp(publication, "pmtiles", description.metadata[PUBLICATION_STAMP_KEY]);
+  assertArtifactStamp(
+    publication,
+    "pmtiles",
+    readArtifactStamp((key) => description.metadata[key]),
+  );
 }
