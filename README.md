@@ -547,6 +547,7 @@ HTTP, no URL-encoding, no `f=json`), prints readable tables by default, and adds
 npm i -g @honua/sdk-js            # or, without installing: npx -p @honua/sdk-js honua <command>
 export HONUA_BASE_URL=https://demo.honua.io   # anonymous reads on the public demo
 
+honua --version                   # CLI version, then the server's Honua platform version
 honua services                    # list published services
 honua layers maui-parcels         # list a service's layers
 honua query maui-parcels/1 --count
