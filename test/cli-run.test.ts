@@ -18,6 +18,7 @@ describe("run() dispatch", () => {
   });
   afterEach(() => {
     cap.restore();
+    vi.unstubAllEnvs();
   });
 
   it("prints help and exits 0 with no command", async () => {
@@ -31,7 +32,6 @@ describe("run() dispatch", () => {
     vi.stubEnv("HONUA_BASE_URL", undefined);
     vi.stubEnv("HONUA_CONFIG_HOME", "/nonexistent/honua-cli-run-test");
     const code = await run(["--version"]);
-    vi.unstubAllEnvs();
     expect(code).toBe(0);
     expect(cap.lines.join("")).toContain(CLI_VERSION);
   });

@@ -147,7 +147,12 @@ describe("honua --version transport and credential edge cases", () => {
       throw new TypeError("fetch failed");
     });
     expect(await run(["--version", "--json"])).toBe(0);
-    expect(JSON.parse(stdout.join(""))).toMatchObject({ version: CLI_VERSION, server, platformVersion: null });
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      version: CLI_VERSION,
+      server,
+      platformVersion: null,
+      platformError: expect.stringContaining("fetch failed"),
+    });
   });
 
   it("probes even when the environment holds two conflicting credentials", async () => {
