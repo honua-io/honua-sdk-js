@@ -4,9 +4,9 @@ name: Docs site
 # demo gallery). Publication requires fresh derived artifacts and immutable SDK
 # release tags. regenerate-derived-artifacts.yml dispatches this workflow on
 # every clean regeneration tip (four times a day), and release automation
-# dispatches it at release time. There is no schedule: GitHub fires crons hours
-# late, so a scheduled build found trunk inside the accepted derived-artifact
-# staleness window and failed the strict receipt gate (honua-sdk-js#2745).
+# dispatches it at release time. It has no schedule because a cron build can
+# land on a trunk tip inside the accepted derived-artifact staleness window,
+# where the strict receipt gate fails.
 # Decision record: docs/decisions/sdk-docs-hosting.md.
 
 on:
