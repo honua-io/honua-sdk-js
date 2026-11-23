@@ -17,8 +17,28 @@ chmod 755 "$apt_state" "$apt_state/sources" "$apt_state/lists"
 install -m 644 "$ubuntu_sources" "$apt_state/sources/ubuntu.sources"
 
 version="$(node -p 'require("./package-lock.json").packages["node_modules/playwright"].version')"
-plan="$(npx --yes "playwright@${version}" install-deps --dry-run "$browser")"
+# Playwright 1.58 prints the full apt-get command and exits 0. Playwright 1.65
+# lists only the missing packages under "Missing system dependencies (N):" and
+# exits non-zero when any are missing, so the exit status alone is not a failure.
+plan_status=0
+plan="$(npx --yes "playwright@${version}" install-deps --dry-run "$browser" 2>&1)" || plan_status=$?
 packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \([^"]*\)".*/\1/p' <<<"$plan")"
+missing_header="$(grep -m1 -E '^Missing system dependencies \([0-9]+\):$' <<<"$plan" || true)"
+if [[ -z "$packages" && -n "$missing_header" ]]; then
+  expected="$(sed -E 's/.*\(([0-9]+)\):$/\1/' <<<"$missing_header")"
+  packages="$(sed -n '/^Missing system dependencies/,/^\([^[:space:]]\|$\)/s/^[[:space:]]\{2,\}\([a-z0-9][a-z0-9.+-]*\)$/\1/p' <<<"$plan" | xargs)"
+  read -r -a listed <<<"$packages"
+  if (( ${#listed[@]} != expected )); then
+    echo "::error::Playwright listed ${expected} missing packages but ${#listed[@]} could be read"
+    echo "$plan"
+    exit 1
+  fi
+fi
+if [[ -z "$packages" && "$plan_status" == 0 && "$plan" != *apt-get* ]]; then
+  echo "Playwright ${version} reports no missing OS dependencies for ${browser}:"
+  echo "$plan"
+  exit 0
+fi
 if [[ -z "$packages" ]]; then
   echo "::error::Could not read Playwright's OS dependency list"
   echo "$plan"
