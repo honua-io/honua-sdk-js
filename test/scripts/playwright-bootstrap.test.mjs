@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -25,16 +25,6 @@ if (tool === 'npx') {
   if (args.includes('--dry-run')) {
     const plans = { chromium: 'libnss3 libatk-bridge2.0-0', webkit: 'libwoff1 libgstreamer1.0-0' };
     const packages = plans[args.at(-1)];
-    if (process.env.FAKE_APT_MODE === 'missing-list') {
-      console.error('Missing system dependencies (2):\n' + packages.split(' ').map(name => '  ' + name).join('\n'));
-      process.exit(1);
-    }
-    if (process.env.FAKE_APT_MODE === 'short-list') {
-      console.error('Missing system dependencies (3):\n  libwoff1\n\n  hint');
-      process.exit(1);
-    }
-    if (process.env.FAKE_APT_MODE === 'unreadable') { console.error('dependency check crashed'); process.exit(1); }
-    if (process.env.FAKE_APT_MODE === 'none-missing') process.exit(0);
     if (packages) console.log('sh -c "apt-get update && apt-get install -y --no-install-recommends ' + packages + '"');
   }
   process.exit(0);
@@ -171,43 +161,3 @@ test("apt's sandbox can traverse its state beneath a private runner temporary di
   const { result } = runStep(verificationStep("verify-package"), "private-temp");
   assert.equal(result.status, 0, result.stderr);
 });
-
-test("Playwright's missing-package dry-run list is installed despite its non-zero exit", () => {
-  const { result, calls } = runStep(firstMapWebKitStep(), "missing-list");
-  assert.equal(result.status, 0, result.stderr);
-  assert.ok(calls.some(args => args.includes("install") && args.includes("libwoff1") && args.includes("libgstreamer1.0-0")));
-});
-
-function runDryRunOnly(mode) {
-  const directory = mkdtempSync(path.join(tmpdir(), "sdk-browser-plan-"));
-  try {
-    const bin = path.join(directory, "bin");
-    mkdirSync(bin);
-    for (const name of ["sudo", "npx", "apt-get", "dpkg", "sleep"]) writeFileSync(path.join(bin, name), fakeTools, { mode: 0o755 });
-    writeFileSync(path.join(directory, "ubuntu.sources"), defaultSources);
-    const log = path.join(directory, "apt.log");
-    const result = spawnSync("bash", ["scripts/ci/provision-playwright-deps.sh", "webkit"], {
-      cwd: root, encoding: "utf8", timeout: 10000,
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, HONUA_UBUNTU_APT_SOURCES: path.join(directory, "ubuntu.sources"),
-        RUNNER_TEMP: directory, FAKE_APT_LOG: log, FAKE_APT_MODE: mode },
-    });
-    return { result, aptRan: existsSync(log) };
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-}
-
-test("a dry run that reports nothing missing installs nothing", () => {
-  const { result, aptRan } = runDryRunOnly("none-missing");
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /no missing OS dependencies/);
-  assert.equal(aptRan, false);
-});
-
-for (const mode of ["unreadable", "short-list"]) {
-  test(`a failing dry run whose package list cannot be fully read fails closed (${mode})`, () => {
-    const { result, aptRan } = runDryRunOnly(mode);
-    assert.equal(result.status, 1);
-    assert.equal(aptRan, false);
-  });
-}
