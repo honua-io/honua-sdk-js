@@ -62,7 +62,7 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-describe("honua --version platform report", () => {
+describe("honua --version without a server", () => {
   it("strips the server build revision from the platform version", () => {
     expect(platformVersionOf("2026.1.0+5f4adbb")).toBe("2026.1.0");
     expect(platformVersionOf("2026.1.0-rc.2")).toBe("2026.1.0-rc.2");
@@ -78,6 +78,9 @@ describe("honua --version platform report", () => {
     );
   });
 
+});
+
+describe("honua --version against a configured server", () => {
   it("prints both versions when connected, without sending a credential", async () => {
     vi.stubEnv("HONUA_BASE_URL", server);
     vi.stubEnv("HONUA_API_KEY", "caller-private-key");
@@ -107,6 +110,9 @@ describe("honua --version platform report", () => {
     expect(JSON.parse(stdout.join(""))).toMatchObject({ server: "https://honua.example", platformVersion: "2026.1.0" });
   });
 
+});
+
+describe("honua --version when the platform cannot be read", () => {
   it("still succeeds with the CLI version when the server cannot be read", async () => {
     vi.stubEnv("HONUA_BASE_URL", server);
     serve(() => new Response("unavailable", { status: 503 }));
