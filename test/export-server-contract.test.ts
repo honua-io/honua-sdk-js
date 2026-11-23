@@ -8,7 +8,7 @@ import { serveExport } from "./helpers/export-fixture.js";
 import { nodeDriver } from "./helpers/publication-fixture.js";
 
 // An Export as honua-server writes it: flat capture keys in both files, `integer`/`number` table types
-// and the server's `honua:` extension URI. The three files are kept exactly as the server produced them.
+// and the server's `honua:` extension URI.
 const DIRECTORY = fileURLToPath(new URL("./fixtures/export/honua-server-v1/", import.meta.url));
 const EXPORT_ID = "scol2636-x2636-6c79f78d";
 const COLLECTION = JSON.parse(readFileSync(path.join(DIRECTORY, "collection.json"), "utf8")) as Record<string, unknown>;
@@ -50,6 +50,26 @@ describe("an Export written by honua-server", () => {
       ["owner_note", "string"],
     ]);
     await verifyPmtilesArtifact(publication);
+  });
+
+  it("continues to open collections declaring the legacy extension URI", async () => {
+    const { url } = await serve({
+      ...COLLECTION,
+      stac_extensions: [
+        "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json",
+        "https://schemas.honua.io/stac/honua/v1.0.0/schema.json",
+      ],
+    });
+    await expect(openExport(url)).resolves.toMatchObject({ collection: { id: EXPORT_ID } });
+  });
+
+  it("reports an unsupported public attribute type", async () => {
+    const columns = COLLECTION["table:columns"] as ReadonlyArray<{ name: string; type: string }>;
+    const { url } = await serve({
+      ...COLLECTION,
+      "table:columns": columns.map((column) => (column.name === "acres" ? { ...column, type: "unknown" } : column)),
+    });
+    await expect(openExport(url)).rejects.toThrow("unsupported type unknown for public field acres");
   });
 
   it("resolves an identity from its GeoParquet on a host that refuses HEAD", async () => {

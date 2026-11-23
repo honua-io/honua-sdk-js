@@ -5,6 +5,7 @@ import { HonuaPublicationError } from "./errors.js";
 export const PORTOLAN_SCHEMA = "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json";
 /** The `honua:` STAC extension: identity, capture and public-field facts of a Honua Export. */
 export const HONUA_STAC_EXTENSION = "https://honua.io/schemas/stac/honua/v1.0.0/schema.json";
+const LEGACY_HONUA_STAC_EXTENSION = "https://schemas.honua.io/stac/honua/v1.0.0/schema.json";
 
 export const PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet";
 export const PMTILES_MEDIA_TYPE = "application/vnd.pmtiles";
@@ -194,10 +195,16 @@ function tableFields(document: JsonObject, publicNames: ReadonlySet<string> | un
   columns.forEach((column, index) => {
     const path = `table:columns[${index}]`;
     if (!isObject(column)) invalid(path, "must be an object");
-    const type = TABLE_TYPES[text(column, "type", `${path}.type`)];
-    if (!type) return; // geometry and other binary columns are not attribute fields
-    const description = optionalText(column, "description", `${path}.description`);
+    const columnType = text(column, "type", `${path}.type`);
     const name = text(column, "name", `${path}.name`);
+    if (!Object.hasOwn(TABLE_TYPES, columnType)) {
+      if (publicNames?.has(name) && columnType !== "binary") {
+        invalid(`${path}.type`, `unsupported type ${columnType} for public field ${name}`);
+      }
+      return;
+    }
+    const type = TABLE_TYPES[columnType];
+    const description = optionalText(column, "description", `${path}.description`);
     fields.push(
       Object.freeze({
         name,
@@ -214,7 +221,9 @@ function honuaFacts(document: JsonObject): ExportHonuaFacts | undefined {
   const keys = Object.keys(document).filter((key) => key.startsWith("honua:"));
   if (keys.length === 0) return undefined;
   const extensions = document.stac_extensions as readonly unknown[];
-  if (!extensions.includes(HONUA_STAC_EXTENSION)) invalid("stac_extensions", `must declare ${HONUA_STAC_EXTENSION}`);
+  if (!extensions.includes(HONUA_STAC_EXTENSION) && !extensions.includes(LEGACY_HONUA_STAC_EXTENSION)) {
+    invalid("stac_extensions", `must declare ${HONUA_STAC_EXTENSION}`);
+  }
   const identity = document["honua:identity"];
   const geometry = document["honua:geometry"];
   if (!isObject(identity)) invalid("honua:identity", "must be an object");
