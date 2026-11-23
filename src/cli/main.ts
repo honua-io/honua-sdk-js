@@ -27,6 +27,7 @@ import { queryCommand } from "./commands/query.js";
 import { sceneCommand } from "./commands/scene.js";
 import { stacCommand } from "./commands/stac.js";
 import { studioCommand } from "./commands/studio.js";
+import { versionCommand } from "./commands/version.js";
 import { printLine } from "./output.js";
 
 export const CLI_VERSION = "0.4.0"; // x-release-please-version
@@ -289,7 +290,8 @@ GLOBAL OPTIONS
   HONUA_BEARER_TOKEN   Ephemeral bearer credential; replaces saved API/Admin keys
   --json               Machine-readable JSON output
   -h, --help           Show help
-  -V, --version        Show version
+  -V, --version        Show the CLI version and, when a server is configured, its
+                       Honua platform version (--json adds platformVersion)
 
 EXAMPLES
   HONUA_BASE_URL=https://demo.honua.io honua services
@@ -316,12 +318,10 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     printLine(HELP);
     return 0;
   }
-  if (command === "--version" || command === "-V" || command === "version") {
-    printLine(CLI_VERSION);
-    return 0;
-  }
-
-  const handler = COMMANDS[command];
+  const isVersion = command === "--version" || command === "-V" || command === "version";
+  const handler: CommandHandler | undefined = isVersion
+    ? (parsed, ctx) => versionCommand(parsed, ctx, CLI_VERSION)
+    : COMMANDS[command];
   if (!handler) {
     printLine(`Unknown command: ${command}\n`, process.stderr);
     printLine(HELP);
