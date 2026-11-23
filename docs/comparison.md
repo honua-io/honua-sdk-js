@@ -42,7 +42,7 @@ column first, and only compares within a category — or says explicitly when it
 | Product | Package compared | Category |
 | --- | --- | --- |
 | Honua SDK | `@honua/sdk-js` | Headless service clients |
-| MapLibre GL JS | `maplibre-gl` (6.16.0 pinned and measured here; 6.1.0 published) | Renderer engines |
+| MapLibre GL JS | `maplibre-gl` (6.19.0 pinned and measured here; 6.1.0 published) | Renderer engines |
 | ArcGIS Maps SDK for JavaScript | `@arcgis/core` | Vendor-integrated renderer SDKs |
 | ArcGIS REST JS | `@esri/arcgis-rest-request` | Headless service clients |
 | OpenLayers | `ol` | Renderer engines |
@@ -65,7 +65,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-22 at commit `1fc899384`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-23 at commit `090d13fe9`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -79,16 +79,16 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Geocoding client | 34.3 KiB | 9.8 KiB |
 | Routing client | 29.0 KiB | 8.7 KiB |
 
-For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
-this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
+For context, the rendering engine itself — `maplibre-gl` 6.19.0, measured locally from
+this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1618.0 KiB minified / **446.9 KiB gzip**.
 The gzip figure compresses each distributed ESM file independently, as separate HTTP responses, then sums them.
 A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua
 entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 780.3 KiB ≈ **2.31 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 210.4 KiB ≈ **0.63 MB**.
+- **Minified:** engine 1618.0 KiB + Honua root 780.3 KiB ≈ **2.34 MB**.
+- **Gzip:** engine 446.9 KiB + Honua root 210.4 KiB ≈ **0.64 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
