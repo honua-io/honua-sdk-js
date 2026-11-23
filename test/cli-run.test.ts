@@ -27,7 +27,11 @@ describe("run() dispatch", () => {
   });
 
   it("prints version", async () => {
+    // No configured server: the version report must not reach the network.
+    vi.stubEnv("HONUA_BASE_URL", undefined);
+    vi.stubEnv("HONUA_CONFIG_HOME", "/nonexistent/honua-cli-run-test");
     const code = await run(["--version"]);
+    vi.unstubAllEnvs();
     expect(code).toBe(0);
     expect(cap.lines.join("")).toContain(CLI_VERSION);
   });

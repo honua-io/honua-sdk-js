@@ -74,7 +74,7 @@ describe("honua --version without a server", () => {
     expect(await run(["--version"])).toBe(0);
     expect(requests).toHaveLength(0);
     expect(stdout.join("")).toBe(
-      `honua CLI ${CLI_VERSION}\nHonua platform: not connected (pass --base-url or set HONUA_BASE_URL)\n`,
+      `honua CLI ${CLI_VERSION}\nHonua platform: not connected (pass --base-url or --profile, set HONUA_BASE_URL, or run honua login)\n`,
     );
   });
 });
@@ -132,6 +132,29 @@ describe("honua --version when the platform cannot be read", () => {
     serve(() => Response.json(capabilities("2026.1.0")));
     expect(await run(["--version", "--profile", "missing", "--json"])).toBe(0);
     expect(requests).toHaveLength(0);
-    expect(JSON.parse(stdout.join(""))).toMatchObject({ server: null, platformVersion: null });
+    expect(JSON.parse(stdout.join(""))).toMatchObject({
+      server: null,
+      platformVersion: null,
+      platformError: expect.stringContaining('Honua profile "missing" was not found'),
+    });
+  });
+
+  it("reports a network failure instead of failing the version command", async () => {
+    vi.stubEnv("HONUA_BASE_URL", server);
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed");
+    });
+    expect(await run(["--version", "--json"])).toBe(0);
+    expect(JSON.parse(stdout.join(""))).toMatchObject({ version: CLI_VERSION, server, platformVersion: null });
+  });
+
+  it("probes even when the environment holds two conflicting credentials", async () => {
+    vi.stubEnv("HONUA_BASE_URL", server);
+    vi.stubEnv("HONUA_API_KEY", "caller-private-key");
+    vi.stubEnv("HONUA_BEARER_TOKEN", "caller-private-token");
+    serve(() => Response.json(capabilities("2026.1.0")));
+    expect(await run(["--version", "--json"])).toBe(0);
+    expect(JSON.parse(stdout.join(""))).toMatchObject({ platformVersion: "2026.1.0" });
+    expect(stdout.join("")).not.toContain("caller-private");
   });
 });

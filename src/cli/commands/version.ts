@@ -14,7 +14,7 @@ import { HonuaClient } from "../../core/client.js";
 import type { ParsedArgs } from "../args.js";
 import { getBoolean } from "../args.js";
 import type { CommandContext } from "../command.js";
-import { resolveConnection } from "../config.js";
+import { resolveBaseUrl } from "../config.js";
 import { printLine, renderJson } from "../output.js";
 
 const PACKAGE_NAME = "@honua/sdk-js";
@@ -32,20 +32,12 @@ export function platformVersionOf(serverVersion: string): string {
   return serverVersion.split("+", 1)[0]?.trim() ?? "";
 }
 
-function configuredBaseUrl(ctx: CommandContext): string | null {
-  try {
-    return resolveConnection({ baseUrl: ctx.baseUrl, profile: ctx.profile }).baseUrl;
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith("No Honua base URL configured")) return null;
-    throw err;
-  }
-}
-
 /** Read the connected server's platform version; never throws for an unreachable server. */
 export async function probePlatformVersion(ctx: CommandContext): Promise<PlatformVersionReport> {
   let server: string | null;
   try {
-    server = configuredBaseUrl(ctx);
+    // Only the server is resolved: a version check never selects or validates a credential.
+    server = resolveBaseUrl({ baseUrl: ctx.baseUrl, profile: ctx.profile }) ?? null;
   } catch (err) {
     return { server: null, platformVersion: null, platformError: errorText(err) };
   }
@@ -79,6 +71,6 @@ export async function versionCommand(parsed: ParsedArgs, ctx: CommandContext, cl
     const where = report.server ? ` (${report.server})` : "";
     printLine(`Honua platform unknown${where}: ${report.platformError}`);
   } else {
-    printLine("Honua platform: not connected (pass --base-url or set HONUA_BASE_URL)");
+    printLine("Honua platform: not connected (pass --base-url or --profile, set HONUA_BASE_URL, or run honua login)");
   }
 }
