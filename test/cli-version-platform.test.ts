@@ -138,7 +138,9 @@ describe("honua --version when the platform cannot be read", () => {
       platformError: expect.stringContaining('Honua profile "missing" was not found'),
     });
   });
+});
 
+describe("honua --version transport and credential edge cases", () => {
   it("reports a network failure instead of failing the version command", async () => {
     vi.stubEnv("HONUA_BASE_URL", server);
     vi.stubGlobal("fetch", async () => {
