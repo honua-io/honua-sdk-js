@@ -74,6 +74,8 @@ const GEOMETRY_ENCODINGS = new Set<PublicationGeometry["encoding"]>([
 /** STAC table column types (table extension) to SDK field types. */
 const TABLE_TYPES: Readonly<Record<string, PublicationFieldType>> = {
   string: "string",
+  integer: "integer",
+  number: "number",
   int8: "integer",
   int16: "integer",
   int32: "integer",
