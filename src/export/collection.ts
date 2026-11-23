@@ -4,7 +4,7 @@ import { HonuaPublicationError } from "./errors.js";
 /** The Portolan specification version this reader follows (STAC 1.1 profile). */
 export const PORTOLAN_SCHEMA = "https://schemas.portolan-sdi.org/portolan/v0.3.0/schema.json";
 /** The `honua:` STAC extension: identity, capture and public-field facts of a Honua Export. */
-export const HONUA_STAC_EXTENSION = "https://schemas.honua.io/stac/honua/v1.0.0/schema.json";
+export const HONUA_STAC_EXTENSION = "https://honua.io/schemas/stac/honua/v1.0.0/schema.json";
 
 export const PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet";
 export const PMTILES_MEDIA_TYPE = "application/vnd.pmtiles";
