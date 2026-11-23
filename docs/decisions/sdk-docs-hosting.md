@@ -107,9 +107,12 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 
 ## CI
 
-`.github/workflows/docs-site.yml` runs daily and on `workflow_dispatch`,
-including the derived-artifact workflow's dispatch. It does not deploy on a
-trunk push, which raced Release Please's immutable SDK tag. The publication
+`.github/workflows/docs-site.yml` runs only on `workflow_dispatch`: the
+derived-artifact workflow dispatches it on every clean regeneration tip, and
+release automation dispatches it at release time. It does not deploy on a
+trunk push, which raced Release Please's immutable SDK tag, or on a schedule,
+which GitHub fired hours late onto trunk tips inside the derived-artifact
+staleness window, where the strict receipt gate fails. The publication
 gates stay strict: `npm ci` → `docs:llms` → `verify:llms` (freshness gate, REQ-004) →
 `samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →

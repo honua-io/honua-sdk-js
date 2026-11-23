@@ -69,8 +69,11 @@ function assertOrder(source, parts) {
 
 const reporterScript = stepShellBody(reporter);
 
-test("docs site runs daily and on manual dispatch, not on push", () => {
-  assert.match(triggers, /schedule:\n(?:    #[^\n]*\n)?    - cron: "47 9 \* \* \*"/u);
+test("docs site runs only on dispatch from a sealed regeneration tip, not on a schedule or push", () => {
+  // A cron build lands on whatever trunk tip it finds, often inside the accepted
+  // derived-artifact staleness window, and fails the strict receipt gate.
+  assert.equal(triggers.includes("schedule:"), false);
+  assert.equal(triggers.includes("cron:"), false);
   assert.match(triggers, /^  workflow_dispatch:\n$/mu);
   assert.equal(triggers.includes("inputs:"), false);
   assert.equal(triggers.includes("\n  push:"), false);
