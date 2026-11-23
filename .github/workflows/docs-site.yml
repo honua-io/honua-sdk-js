@@ -1,14 +1,15 @@
 name: Docs site
 
 # Build and publish the SDK documentation site (guides + TypeDoc API reference +
-# demo gallery). Scheduled and dispatched publication require fresh derived
-# artifacts and immutable SDK release tags. Release automation dispatches this workflow.
+# demo gallery). Publication requires fresh derived artifacts and immutable SDK
+# release tags. regenerate-derived-artifacts.yml dispatches this workflow on
+# every clean regeneration tip (four times a day), and release automation
+# dispatches it at release time. There is no schedule: GitHub fires crons hours
+# late, so a scheduled build found trunk inside the accepted derived-artifact
+# staleness window and failed the strict receipt gate (honua-sdk-js#2745).
 # Decision record: docs/decisions/sdk-docs-hosting.md.
 
 on:
-  schedule:
-    # After the 07:23 UTC derived-artifact regeneration.
-    - cron: "47 9 * * *"
   workflow_dispatch:
 
 # Pages publish token. Issue writes belong only to the failure reporter.
@@ -33,7 +34,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    # Scheduled and dispatched publication must pass strict freshness checks.
+    # Publication must pass strict freshness checks.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
