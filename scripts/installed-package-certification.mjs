@@ -82,14 +82,15 @@ export async function withInstalledCandidate(candidate, callback, { consumerDepe
     const artifact = releaseArtifactForCoordinate(manifest.included, p.coordinate);
     if (!artifact) throw new Error(`${p.coordinate}: not in the release manifest`);
     const tag = `${artifact.publish.releaseTagPrefix}v${p.version}`;
-    return { id: artifact.id, npmName: p.coordinate, version: p.version, distTag: candidate.releaseInput ? null : "latest", tag,
+    return { id: artifact.id, npmName: p.coordinate, version: p.version, distTag: null, tag,
       commit: p.sourceRevision, expectedRef: p.sourceRef ?? `refs/tags/${tag}`, workflow: artifact.publish.workflow,
       sourceBinding: artifact.sourceBinding };
   });
+  // Even the legacy regression cohort is pinned to immutable package versions.
   const provenance = await verifyPublishedRelease({ targets, sealedTag: `js-sdk-v${candidate.package.version}`,
     sealedCommit: candidate.packages.find((p) => p.coordinate === candidate.package.coordinate).sourceRevision,
     registry: candidate.package.registry, repository: manifest.repository,
-    selection: candidate.releaseInput ? "exact-version" : "release-channel" });
+    selection: "exact-version" });
   if (provenance.status !== "verified") throw new Error(`package provenance failed: ${provenance.failures.join("; ")}`);
   const work = await mkdtemp(path.join(tmpdir(), "honua-sdk-installed-cert-"));
   try {
