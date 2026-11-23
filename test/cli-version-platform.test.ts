@@ -77,7 +77,6 @@ describe("honua --version without a server", () => {
       `honua CLI ${CLI_VERSION}\nHonua platform: not connected (pass --base-url or set HONUA_BASE_URL)\n`,
     );
   });
-
 });
 
 describe("honua --version against a configured server", () => {
@@ -109,7 +108,6 @@ describe("honua --version against a configured server", () => {
     expect(await run(["--version", "--profile", "prod", "--json"])).toBe(0);
     expect(JSON.parse(stdout.join(""))).toMatchObject({ server: "https://honua.example", platformVersion: "2026.1.0" });
   });
-
 });
 
 describe("honua --version when the platform cannot be read", () => {
