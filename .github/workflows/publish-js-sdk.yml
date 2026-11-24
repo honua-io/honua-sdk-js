@@ -95,7 +95,9 @@ jobs:
     # ensure-fresh-evidence is deliberately skipped for tag runs (see above); a
     # skipped dependency would otherwise skip this job too. A genuine failure
     # there still blocks the publish.
-    if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' }}
+    # The release app creates the protected tag while the release is a draft.
+    # Its explicit dispatch follows draft publication and the final tag check.
+    if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' && (github.event_name != 'push' || github.actor != 'honua-io-bot[bot]') }}
     runs-on: ubuntu-24.04
     # Real publishes run in the npm-publish environment, whose deployment rules admit the
     # release tags of the three npm workflows and trunk (this workflow's recovery publish);

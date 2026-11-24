@@ -127,6 +127,11 @@ next_line() {
   echo "$line"
 }
 ARGS="$*"
+if [[ "$ARGS" == *"--method POST"*"git/refs"* ]]; then
+  [[ "$GH_TOKEN" == "protected-tag-app" ]] || exit 96
+else
+  [[ "$GH_TOKEN" == "job-token" ]] || exit 97
+fi
 case "$ARGS" in
   "run list"*)
     entry="$(next_line "${root}/run-list-ids" "${root}/run-list-index")"
@@ -243,6 +248,8 @@ esac
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
+        GH_TOKEN: "job-token",
+        RELEASE_TAG_TOKEN: "protected-tag-app",
         GITHUB_SHA: RELEASE_COMMIT,
         GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
         GITHUB_STEP_SUMMARY: summary,
@@ -294,6 +301,19 @@ test("the release tag is created on the resealed commit and only then is the dra
     "npm-publish-dispatch",
     "smoke-dispatch",
   ]);
+});
+
+test("an empty observation retries the same reseal before publishing", () => {
+  const result = runReleaseStep({ resealConclusions: ["EMPTY", "success"] });
+  assert.equal(result.ok, true, result.output);
+  assert.deepEqual(result.trace, ["reseal-dispatch", "tag-create", "draft-publish", "npm-publish-dispatch", "smoke-dispatch"]);
+});
+
+test("an unconfirmed reseal keeps the draft and tag untouched", () => {
+  const result = runReleaseStep({ resealConclusions: ["EMPTY"] });
+  assert.equal(result.ok, false);
+  assert.match(result.output, /Could not confirm completion of reseal run 101/u);
+  assert.deepEqual(result.trace, ["reseal-dispatch"]);
 });
 
 test("a reseal cancelled by the derived-artifacts concurrency group is followed to its successor", () => {

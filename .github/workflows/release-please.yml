@@ -220,6 +220,7 @@ jobs:
           # Run 37443697644 already used this identity when GitHub rejected it
           # with 401; App expiry is not supported by that run's evidence.
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_TOKEN: ${{ steps.app-token.outputs.token }}
           FINISH_STRANDED_DRAFT: ${{ inputs.finish_stranded_draft }}
           RECOVER_SEALED_SOURCE: ${{ inputs.recover_sealed_source }}
           RECOVERY_VERIFIED_SOURCE: ${{ steps.ancestor.outputs.source }}
@@ -386,9 +387,20 @@ jobs:
             local reseal_conclusion=""
             local reseal_hop
             for reseal_hop in {1..5}; do
-              gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --interval 10 >/dev/null || true
-              reseal_conclusion="$(gh run view "${reseal_run_id}" \
-                --repo "${GITHUB_REPOSITORY}" --json conclusion --jq '.conclusion // empty')"
+              # A transient API error can end watch while the run is still live.
+              # Keep observing the same run until GitHub returns a terminal result.
+              for observation in {1..5}; do
+                gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --interval 10 >/dev/null || true
+                if reseal_conclusion="$(gh run view "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" \
+                  --json status,conclusion --jq 'select(.status == "completed") | .conclusion // empty')" && [[ -n "${reseal_conclusion}" ]]; then
+                  break
+                fi
+                reseal_conclusion=""
+                if (( observation < 5 )); then sleep 10; fi
+              done
+              if [[ -z "${reseal_conclusion}" ]]; then
+                fail "Could not confirm completion of reseal run ${reseal_run_id} for ${tag}. The draft is still unpublished."
+              fi
               if [[ "${reseal_conclusion}" == "success" ]]; then
                 break
               fi
@@ -491,7 +503,7 @@ jobs:
             echo "release commit: ${GITHUB_SHA} (unsealed version bump)"
             echo "resealed tip:   ${trunk_sha}"
             local tag_created="true"
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            GH_TOKEN="${RELEASE_TAG_TOKEN}" gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
               -f ref="refs/tags/${tag}" -f sha="${trunk_sha}" >/dev/null || tag_created="false"
             echo "::endgroup::"
             if [[ "${tag_created}" == "true" ]]; then
@@ -657,7 +669,13 @@ jobs:
               local recovery_existing_tag
               recovery_existing_tag="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"
               if [[ -z "${recovery_existing_tag}" ]]; then
-                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                # Workflow runs on a tag use that commit's publish policy. Preserve
+                # event suppression if the reviewed ancestor has a different policy.
+                local recovery_tag_token="${GH_TOKEN}"
+                if git diff --quiet "${GITHUB_SHA}" "${RECOVER_SEALED_SOURCE}" -- .github/workflows/publish-js-sdk.yml; then
+                  recovery_tag_token="${RELEASE_TAG_TOKEN}"
+                fi
+                GH_TOKEN="${recovery_tag_token}" gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
                   -f ref="refs/tags/${tag}" -f sha="${RECOVER_SEALED_SOURCE}" >/dev/null
               fi
               local recovery_tag_sha
