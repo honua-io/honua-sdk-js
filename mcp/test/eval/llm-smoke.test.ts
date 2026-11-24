@@ -32,9 +32,11 @@ describe("MCP LLM smoke", () => {
   it.each([
     { name: "legacy arguments", pass: true },
     { name: "canonical source", pass: true, source: "geoservices-feature-service:test_service/0" },
+    { name: "equivalent source", pass: true, source: "geoservices-feature-service:test_service/00" },
     { name: "different layer", pass: false, source: "geoservices-feature-service:test_service/1" },
     { name: "missing schema", pass: false, missingSchema: true },
-    { name: "empty final answer", pass: false, emptyAnswer: true },
+    { name: "empty final answer", pass: false, answer: "" },
+    { name: "incorrect final answer", pass: false, answer: "The layer has no objectid field." },
     { name: "driver failure", pass: false, driverError: "stubbed model failure" },
   ])("checks the seeded layer and model answer ($name)", async (fixture) => {
     const outDir = outputDirectory();
@@ -71,7 +73,7 @@ describe("MCP LLM smoke", () => {
               return {
                 ...transcript,
                 modelId: bedrock.id,
-                finalAnswer: fixture.emptyAnswer ? "" : "The objectid field identifies each feature.",
+                finalAnswer: fixture.answer ?? "objectid",
                 driverError: fixture.driverError,
               };
             },

@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { legacyGeoServicesRef } from "../neutral/source-ref.js";
+import { parseSourceRef, toSourceLocator } from "../neutral/source-ref.js";
 import { BedrockDriver, DeterministicDriver } from "./drivers/index.js";
 import { renderMarkdown } from "./report.js";
 import { runEval } from "./runner.js";
@@ -29,12 +29,12 @@ export async function runLlmSmoke(
   };
 
   try {
-    const { HONUA_SERVICE_ID: serviceId, HONUA_LAYER_ID: rawLayerId } = env;
+    const { HONUA_SERVICE_ID: serviceId, HONUA_LAYER_ID: rawLayerId, HONUA_BASE_URL: baseUrl } = env;
     const layerId = Number(rawLayerId);
     if (!serviceId || !rawLayerId || !/^\d+$/.test(rawLayerId) || !Number.isSafeInteger(layerId)) {
       return fail("HONUA_SERVICE_ID and a non-negative integer HONUA_LAYER_ID are required.");
     }
-    if (!env.HONUA_BASE_URL || !env.HONUA_API_KEY) {
+    if (!baseUrl || !env.HONUA_API_KEY) {
       return fail("HONUA_BASE_URL and HONUA_API_KEY are required.");
     }
     if (env.HONUA_EVAL_BEDROCK !== "1") {
@@ -45,8 +45,6 @@ export async function runLlmSmoke(
       model: env.HONUA_EVAL_BEDROCK_MODEL,
       region: env.AWS_REGION,
     });
-    const expectedSource = legacyGeoServicesRef(serviceId, layerId);
-    let modelSummarizedSchema = false;
     const report = await evaluate({
       env,
       drivers: [new DeterministicDriver(), bedrock],
@@ -61,8 +59,13 @@ export async function runLlmSmoke(
           schemaAvailable?: boolean;
           fields?: Array<{ name?: string; type?: string }>;
         } | null;
+        if (typeof result?.source !== "string") return false;
+        const ref = parseSourceRef(result.source);
+        if (ref.protocol !== "geoservices-feature-service") return false;
+        const locator = toSourceLocator(ref, baseUrl);
         return (
-          result?.source === expectedSource &&
+          locator.serviceId === serviceId &&
+          locator.layerId === layerId &&
           result.schemaAvailable === true &&
           Array.isArray(result.fields) &&
           result.fields.some((field) => field?.name?.toLowerCase() === "objectid" && field.type === "esriFieldTypeOID")
@@ -73,19 +76,17 @@ export async function runLlmSmoke(
           id: "describe-seeded-layer",
           title: "Describe the seeded GeoServices layer",
           category: "discovery",
-          prompt: `Describe layer ${layerId} in service ${serviceId}. Use serviceId and layerId to fetch its schema, then summarize the fields. Include the object ID field by its schema name.`,
+          prompt: `Use honua_describe_layer with serviceId ${serviceId} and layerId ${layerId} to fetch the layer schema. Reply with only the schema name of the object ID field.`,
           criteria: {
             requiredTools: [tool],
             failOnToolError: true,
+            modelAnswerMustMatch: ["^\\s*objectid\\s*$"],
           },
           script: [{ tool, args: { serviceId, layerId } }],
         },
       ],
       onTranscript: (transcript) => {
         const modelSelected = transcript.attribution === "MODEL_SELECTED";
-        if (modelSelected) {
-          modelSummarizedSchema = /\bobjectid\b/i.test(transcript.finalAnswer);
-        }
         const filename = modelSelected ? "bedrock.json" : "control.json";
         writeJson(join(transcriptDir, filename), transcript);
       },
@@ -95,7 +96,6 @@ export async function runLlmSmoke(
       report.surface.backend === "live" &&
       report.surface.auth === "api-key" &&
       report.summary.pass &&
-      modelSummarizedSchema &&
       model?.available === true &&
       model.scenarios === 1 &&
       model.pass === 1;

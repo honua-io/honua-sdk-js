@@ -105,7 +105,8 @@ export function grade(scenario: Scenario, transcript: WorkflowTranscript): Scena
       violations.push(`answer contains forbidden content: "${fragment}"`);
     }
   }
-  for (const pattern of criteria.answerMustMatch ?? []) {
+  const modelPatterns = transcript.attribution === "MODEL_SELECTED" ? criteria.modelAnswerMustMatch : undefined;
+  for (const pattern of [...(criteria.answerMustMatch ?? []), ...(modelPatterns ?? [])]) {
     if (!new RegExp(pattern, "i").test(transcript.finalAnswer)) {
       violations.push(`answer did not match required pattern: /${pattern}/i`);
     }
