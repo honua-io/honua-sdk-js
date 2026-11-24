@@ -113,6 +113,9 @@ jobs:
       - name: Validate the complete SDK package denominator before execution
         if: steps.candidate.outputs.mode == 'release-snapshot'
         run: node --input-type=module -e 'import { readInstalledCandidate } from "./scripts/installed-package-certification.mjs"; await readInstalledCandidate();'
+      - name: Fetch the retained legacy First Map source
+        if: steps.candidate.outputs.mode == 'legacy-regression'
+        run: git fetch --no-tags --depth=1 origin c99e71197dd940ed952aecb024c6de273456f2ae
       - name: Installed First Map bundle regression
         id: quickstart
         continue-on-error: true
