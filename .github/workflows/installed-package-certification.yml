@@ -113,13 +113,17 @@ jobs:
       - name: Validate the complete SDK package denominator before execution
         if: steps.candidate.outputs.mode == 'release-snapshot'
         run: node --input-type=module -e 'import { readInstalledCandidate } from "./scripts/installed-package-certification.mjs"; await readInstalledCandidate();'
-      - name: Fetch the retained legacy First Map source
-        if: steps.candidate.outputs.mode == 'legacy-regression'
-        run: git fetch --no-tags --depth=1 origin c99e71197dd940ed952aecb024c6de273456f2ae
       - name: Installed First Map bundle regression
         id: quickstart
         continue-on-error: true
-        run: npm run test:installed-quickstart
+        env:
+          CANDIDATE_MODE: ${{ steps.candidate.outputs.mode }}
+        run: |
+          if [ "$CANDIDATE_MODE" = "legacy-regression" ]; then
+            revision="$(node --input-type=module -e 'import { readInstalledCandidateInput } from "./scripts/installed-candidate-input.mjs"; const candidate = await readInstalledCandidateInput({ env: {} }); console.log(candidate.packages.find((entry) => entry.coordinate === candidate.package.coordinate).sourceRevision)')"
+            git fetch --no-tags --depth=1 origin "$revision"
+          fi
+          npm run test:installed-quickstart
       - name: Authenticate to the public candidate registry
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Pull exact candidate image

@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -32,9 +32,8 @@ await rm(output, { force: true });
 assert.ok(!(localTarball && process.env.HONUA_INSTALLED_CANDIDATE_MODE === "release-snapshot"),
   "release-snapshot cannot be combined with --local-tarball");
 const candidate = await readInstalledCandidateInput();
-// npm gitHead for the retained legacy SDK package.
 const legacyFixtureSha = !localTarball && !candidate.releaseInput
-  ? "c99e71197dd940ed952aecb024c6de273456f2ae"
+  ? candidate.packages.find((entry) => entry.coordinate === candidate.package.coordinate).sourceRevision
   : undefined;
 const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const proveRegression = process.argv.includes("--prove-regression");
@@ -49,6 +48,8 @@ try {
   if (legacyFixtureSha) {
     const fixtureRoot = path.join(work, "legacy-fixture");
     await mkdir(fixtureRoot);
+    // Unaliased imports must still resolve to checkout dependencies in the regression controls.
+    await symlink(path.join(root, "node_modules"), path.join(fixtureRoot, "node_modules"), "junction");
     const archive = path.join(work, "legacy-fixture.tar");
     execFileSync("git", ["archive", "--output", archive, legacyFixtureSha,
       "examples/maplibre-quickstart", "examples/_kit/design", "examples/shared/maplibre-vite-worker.ts", "samples/fixtures/first-map/v2"], { cwd: root });
@@ -56,7 +57,7 @@ try {
     exampleRoot = path.join(fixtureRoot, "examples/maplibre-quickstart");
   }
   const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
-    (await import(pathToFileURL(path.join(exampleRoot, "mock-server.mjs")).href)).FIXTURE_BUILD_ENV
+    (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
   ).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
   let packageIdentity = candidate.package;
   let packageSpec = candidate.package.version;
@@ -216,7 +217,7 @@ try {
     ...(previousLockBytes ? { comparisonLockSha256: sha256(previousLockBytes), comparisonRenderer: { version: previousRenderer.version, integrity: previousRenderer.integrity } } : {}),
     inputDigests: Object.fromEntries(await Promise.all(["package-lock.json", "scripts/installed-quickstart-budget.mjs",
       "scripts/lib/first-map-build-resolution.mjs", "scripts/lib/first-map-execution.mjs", "scripts/lib/first-map-execution-budget.mjs", "config/first-map-execution-budget.v1.json", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]
-      .map(async (file) => [file, sha256(await readFile(file === "examples/maplibre-quickstart/mock-server.mjs" ? path.join(exampleRoot, "mock-server.mjs") : path.join(root, file)))]))),
+      .map(async (file) => [file, sha256(await readFile(path.join(root, file)))]))),
     budget, minifier: corrected.minifier, buildMode: "default public endpoint", measurementScope: "emitted JavaScript chunks, as defined by the canonical First Map budget",
     node: process.version, ...(execution ? { execution } : {}), status: execution?.status === "failed" ? "failed" : corrected.status, ...(baseline ? { baseline, runtimeOnly } : {}), corrected };
   await mkdir(path.dirname(output), { recursive: true });
