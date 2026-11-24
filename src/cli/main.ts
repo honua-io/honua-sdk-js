@@ -30,7 +30,7 @@ import { studioCommand } from "./commands/studio.js";
 import { versionCommand } from "./commands/version.js";
 import { printLine } from "./output.js";
 
-export const CLI_VERSION = "0.4.0"; // x-release-please-version
+export const CLI_VERSION = "0.5.0"; // x-release-please-version
 
 const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
