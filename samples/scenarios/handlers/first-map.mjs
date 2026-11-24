@@ -672,7 +672,7 @@ function applyFixtureEdit(run, body, editableRecordId) {
   return { status: 200, body: receipt };
 }
 
-export function createFirstMapHandler(pack) {
+export function createFirstMapHandler(pack, { basemap } = {}) {
   const capabilities = pack.data[pack.manifest.schema.files.capabilities];
   const layer = pack.data[pack.manifest.schema.files.layer];
   const features = pack.data[pack.manifest.schema.files.features];
@@ -688,7 +688,7 @@ export function createFirstMapHandler(pack) {
   }
   const ogcCollectionRoot = `${OGC_ROOT}/collections/${ogcCollectionId}`;
   const ogcItemsRoot = `${ogcCollectionRoot}/items`;
-  const basemap = {
+  const defaultBasemap = {
     version: 8,
     sources: {},
     layers: [{ id: "background", type: "background", paint: { "background-color": "#efe6d1" } }],
@@ -732,7 +732,7 @@ export function createFirstMapHandler(pack) {
         return true;
       }
       if (req.method === "GET" && url.pathname === "/__honua-quickstart__/basemap-style.json") {
-        sendJson(res, 200, basemap);
+        sendJson(res, 200, basemap ?? defaultBasemap);
         return true;
       }
       if (req.method === "GET" && url.pathname === OGC_ROOT) {

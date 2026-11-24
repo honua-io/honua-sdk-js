@@ -44,9 +44,12 @@ const previousMode = process.env.HONUA_SAMPLE_SDK_MODE;
 const previousDirectory = process.env.HONUA_SAMPLE_SDK_DIR;
 
 try {
-  const legacyBasemap = "/__honua-quickstart__/legacy-basemap-style.json";
+  let legacyBasemap;
   let exampleRoot = path.join(root, "examples/maplibre-quickstart");
   if (legacyFixtureSha) {
+    const source = spawnSync("git", ["cat-file", "-e", `${legacyFixtureSha}^{commit}`], { cwd: root });
+    assert.equal(source.status, 0,
+      `Legacy First Map source is unavailable. Run git fetch --no-tags --depth=1 origin ${legacyFixtureSha} and retry.`);
     const fixtureRoot = path.join(work, "legacy-fixture");
     await mkdir(fixtureRoot);
     // Unaliased imports must still resolve to checkout dependencies in the regression controls.
@@ -57,17 +60,12 @@ try {
     execFileSync("tar", ["-xf", archive], { cwd: fixtureRoot });
     exampleRoot = path.join(fixtureRoot, "examples/maplibre-quickstart");
     if (measureExecution) {
-      // Use a static URL that the checkout fixture server does not intercept.
-      await rename(path.join(exampleRoot, "public/__honua-quickstart__/basemap-style.json"),
-        path.join(exampleRoot, "public", legacyBasemap));
+      legacyBasemap = JSON.parse(await readFile(path.join(exampleRoot, "public/__honua-quickstart__/basemap-style.json"), "utf8"));
     }
   }
   const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
     (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
   ).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
-  if (measureExecution && legacyFixtureSha) {
-    fixtureDefines["import.meta.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE"] = JSON.stringify(legacyBasemap);
-  }
   let packageIdentity = candidate.package;
   let packageSpec = candidate.package.version;
   let prepared;
@@ -202,7 +200,7 @@ try {
       fixture.peerIdentityStatus = "passed";
       Object.assign(fixture, firstMapVerdict(fixture));
       execution = { status: "pending", buildMode: "canonical fixture", bundle: fixture };
-      Object.assign(execution, await measureFirstMapExecution(path.join(work, "execution-fixture")), { status: "measured" });
+      Object.assign(execution, await measureFirstMapExecution(path.join(work, "execution-fixture"), { basemap: legacyBasemap }), { status: "measured" });
       if (enforceExecution) {
         const { firstMapExecutionVerdict } = await import("./lib/first-map-execution-budget.mjs");
         const executionBudget = JSON.parse(await readFile(path.join(root, "config/first-map-execution-budget.v1.json"), "utf8"));

@@ -5,10 +5,10 @@ import { startQuickstartFixtureServer } from "../../examples/maplibre-quickstart
 
 // CPU costs from cold browser contexts through the first usable map frame. These
 // are fixture performance measurements, never live-server certification evidence.
-export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cpuThrottle = 4 } = {}) {
+export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cpuThrottle = 4, basemap } = {}) {
   assert.ok(Number.isSafeInteger(repetitions) && repetitions >= 1 && repetitions <= 5, "execution measurement requires 1–5 runs");
   assert.ok(Number.isFinite(cpuThrottle) && cpuThrottle >= 1 && cpuThrottle <= 6, "CPU throttle must be between 1 and 6");
-  const fixture = await startQuickstartFixtureServer({ build: false, staticRoot });
+  const fixture = await startQuickstartFixtureServer({ build: false, staticRoot, basemap });
   let browser;
   try {
     browser = await chromium.launch();

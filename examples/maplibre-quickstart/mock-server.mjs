@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadFixturePack, startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
+import { createFirstMapHandler } from "../../samples/scenarios/handlers/first-map.mjs";
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
 import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
@@ -59,12 +60,14 @@ export async function startQuickstartFixtureServer({
   build = true,
   buildTimeoutMs = 120_000,
   staticRoot = distRoot,
+  basemap,
 } = {}) {
   if (build) buildDemoIfNeeded(buildTimeoutMs);
   return startSampleFixtureHarness({
     sampleId: "first-map",
     fixturePackVersion: FIRST_MAP_FIXTURE_METADATA.version,
     staticRoot,
+    handlerOverride: basemap && createFirstMapHandler(firstMapFixture, { basemap }),
   });
 }
 
