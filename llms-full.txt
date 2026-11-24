@@ -109,7 +109,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.5.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.5.1`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 29 experimental subpaths may change before 1.0, and
 0 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -1186,7 +1186,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.5.0)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.5.1)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1217,7 +1217,8 @@ To verify the file consumed by the site, run
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.5.0` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.5.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.4.0...js-sdk-v0.5.0) |
+| `0.5.1` | latest-stable | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.5.1/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.5.0...js-sdk-v0.5.1) |
+| `0.5.0` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.5.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.4.0...js-sdk-v0.5.0) |
 | `0.4.0` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.4.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.7...js-sdk-v0.4.0) |
 | `0.3.7` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.7/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.6...js-sdk-v0.3.7) |
 | `0.3.6` | archived | stable | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.3.6/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.3.5...js-sdk-v0.3.6) |
@@ -1483,7 +1484,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.5.0 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.5.1 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -1947,7 +1948,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-24 at commit `40b43df5c`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-24 at commit `0b6b01059`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11998,7 +11999,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-11-24 at commit `40b43df5c`._
+_Generated 2026-11-24 at commit `0b6b01059`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
