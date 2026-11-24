@@ -3,14 +3,14 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createStandaloneFixtureClient } from "../certification/census-fixture-client.js";
 import { createFixtureClient } from "../certification/fixture-client.js";
 import { createOgcFixtureClient } from "../certification/ogc-fixture-client.js";
-import { createServer } from "../index.js";
+import { createClientFromEnv, createServer } from "../index.js";
 import { type SuiteProvenance, readNegotiatedProtocolVersion, resolveSuiteGitSha } from "../provenance.js";
 import { connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { isOgcCorpus, isStandaloneCorpus, resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
-import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext } from "./types.js";
+import type { ModelDriver, Scenario, ToolCallResult, WorkflowContext, WorkflowTranscript } from "./types.js";
 import { annotateTranscript, blockedTranscript, redactTranscript, unavailableProfiles } from "./workflow-corpus.js";
 
 /**
@@ -29,6 +29,10 @@ export interface RunEvalOptions {
   env?: NodeJS.ProcessEnv;
   drivers?: ModelDriver[];
   corpus?: Scenario[];
+  /** Use the standalone MCP tools over the configured Honua backend. */
+  liveStandalone?: boolean;
+  allowedTools?: readonly string[];
+  onTranscript?: (transcript: WorkflowTranscript) => void;
   /** Force the in-memory fixture surface even if HONUA_MCP_REMOTE_URL is set. */
   forceOffline?: boolean;
   /**
@@ -68,9 +72,11 @@ async function connectSurface(
   forceOffline: boolean,
   standalone: boolean,
   ogc: boolean,
+  liveStandalone: boolean,
 ): Promise<SurfaceConnection> {
   const live =
     !forceOffline &&
+    !liveStandalone &&
     !standalone &&
     !ogc &&
     typeof env.HONUA_MCP_REMOTE_URL === "string" &&
@@ -101,25 +107,28 @@ async function connectSurface(
     };
   }
 
-  const fixtureClient = ogc
-    ? createOgcFixtureClient()
-    : standalone
-      ? createStandaloneFixtureClient()
-      : createFixtureClient();
-  const server = createServer(fixtureClient);
+  const backendClient = liveStandalone
+    ? createClientFromEnv(env)
+    : ogc
+      ? createOgcFixtureClient()
+      : standalone
+        ? createStandaloneFixtureClient()
+        : createFixtureClient();
+  const server = createServer(backendClient);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "honua-mcp-eval", version: "1.0.0" });
   await server.connect(serverTransport);
   await client.connect(clientTransport);
   return {
     client,
-    backend: "fixture",
+    backend: liveStandalone ? "live" : "fixture",
+    ...(liveStandalone ? { remoteUrl: env.HONUA_BASE_URL } : {}),
     mcpTransport: ogc
       ? "in-memory (standalone OGC API Features fixture)"
       : standalone
         ? "in-memory (standalone FeatureServer fixture)"
         : "in-memory",
-    auth: "none",
+    auth: liveStandalone ? (env.HONUA_API_KEY ? "api-key" : "anonymous") : "none",
     close: async () => {
       await client.close().catch(() => {});
       await server.close().catch(() => {});
@@ -137,10 +146,17 @@ function flattenToolResult(result: unknown): ToolCallResult {
   return { isError, text };
 }
 
-function buildContext(client: Client, tools: WorkflowContext["tools"]): WorkflowContext {
+function buildContext(
+  client: Client,
+  tools: WorkflowContext["tools"],
+  allowedTools?: readonly string[],
+): WorkflowContext {
   return {
     tools,
     async callTool(name, args) {
+      if (allowedTools && !allowedTools.includes(name)) {
+        return { isError: true, text: "Tool is outside the evaluation catalog." };
+      }
       try {
         const result = await client.callTool({ name, arguments: args });
         return flattenToolResult(result);
@@ -159,15 +175,23 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
   const ogc = options.forceOgcSurface ?? isOgcCorpus(env);
   const forceOffline = options.forceOffline ?? (standalone || ogc);
 
-  const surface = await connectSurface(env, forceOffline, standalone, ogc);
+  const surface = await connectSurface(
+    env,
+    forceOffline,
+    standalone,
+    ogc,
+    !forceOffline && options.liveStandalone === true,
+  );
   try {
     const listed = await surface.client.listTools();
-    const tools: WorkflowContext["tools"] = listed.tools.map((t) => ({
-      name: t.name,
-      description: t.description ?? "",
-      inputSchema: t.inputSchema,
-    }));
-    const ctx = buildContext(surface.client, tools);
+    const tools: WorkflowContext["tools"] = listed.tools
+      .filter((tool) => options.allowedTools?.includes(tool.name) ?? true)
+      .map((t) => ({
+        name: t.name,
+        description: t.description ?? "",
+        inputSchema: t.inputSchema,
+      }));
+    const ctx = buildContext(surface.client, tools, options.allowedTools);
 
     const profilesConfigured = env.HONUA_SERVER_PROFILES !== undefined;
     const activeProfiles = (env.HONUA_SERVER_PROFILES ?? "")
@@ -190,6 +214,7 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
         const transcript = redactTranscript(
           annotateTranscript(raw, scenario, driver.vendor === "deterministic" ? "HARNESS_DRIVEN" : "MODEL_SELECTED"),
         );
+        options.onTranscript?.(transcript);
         graded.push({ grade: grade(scenario, transcript), transcript });
       }
     }
