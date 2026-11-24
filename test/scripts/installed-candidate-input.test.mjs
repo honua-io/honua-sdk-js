@@ -167,7 +167,7 @@ test("dispatch advertises the bare immutable SHA accepted by admission", async (
   }
 });
 
-test("missing First Map receipts fail only after all certification producers can run", async () => {
+test("missing First Map receipts preserve independent certification verdicts", async () => {
   const workflow = parse(await readFile(path.join(root, ".github/workflows/installed-package-certification.yml"), "utf8"));
   const steps = workflow.jobs.certify.steps;
   const upload = steps.findIndex((step) => step.name === "Upload installed First Map measurements");
@@ -175,6 +175,12 @@ test("missing First Map receipts fail only after all certification producers can
   assert.equal(steps[upload].if, "always()");
   assert.equal(steps[upload].with["if-no-files-found"], "error");
   assert.notEqual(steps[upload]["continue-on-error"], true);
+  for (const [name, producer] of [["Enforce certification verdict", "certify"],
+    ["Enforce installed-example verdict", "examples"]]) {
+    const verdict = steps.findIndex((step) => step.name === name);
+    assert.ok(verdict > upload);
+    assert.equal(steps[verdict].if, `always() && steps.${producer}.outcome == 'failure'`);
+  }
 });
 
 

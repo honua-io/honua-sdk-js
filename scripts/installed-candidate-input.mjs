@@ -3,10 +3,16 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
-import { validatePackageSet } from "./installed-certification-identity.mjs";
+import { coordinatesForCandidate, validatePackageSet } from "./installed-certification-identity.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+export async function readLegacyFirstMapSourceRevision(candidate) {
+  const denominator = JSON.parse(await readFile(path.join(root, "config/certification-denominator.v1.json"), "utf8"));
+  const packages = validatePackageSet(candidate, coordinatesForCandidate(denominator.candidatePackages, candidate));
+  return packages.find((entry) => entry.coordinate === candidate.package.coordinate).sourceRevision;
+}
 
 /** Read existing release data after the upstream candidate-input action admits it. */
 export async function readInstalledCandidateInput({ repositoryRoot = root, env = process.env } = {}) {

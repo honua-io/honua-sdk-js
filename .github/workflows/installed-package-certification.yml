@@ -116,7 +116,14 @@ jobs:
       - name: Installed First Map bundle regression
         id: quickstart
         continue-on-error: true
-        run: npm run test:installed-quickstart
+        env:
+          CANDIDATE_MODE: ${{ steps.candidate.outputs.mode }}
+        run: |
+          if [ "$CANDIDATE_MODE" = "legacy-regression" ]; then
+            revision="$(node --input-type=module -e 'import { readInstalledCandidateInput, readLegacyFirstMapSourceRevision } from "./scripts/installed-candidate-input.mjs"; const candidate = await readInstalledCandidateInput({ env: {} }); console.log(await readLegacyFirstMapSourceRevision(candidate))')"
+            git fetch --no-tags --depth=1 origin "$revision"
+          fi
+          npm run test:installed-quickstart
       - name: Authenticate to the public candidate registry
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Pull exact candidate image
@@ -169,12 +176,12 @@ jobs:
           path: test-results/installed-example-certification.json
           if-no-files-found: error
       - name: Enforce certification verdict
-        if: steps.certify.outcome != 'success'
+        if: always() && steps.certify.outcome == 'failure'
         run: |
           jq -r '.operations[] | select(.verdict != "pass") | "\(.id): \(.verdict) blocked-by \(.blockedBy // "n/a")"' test-results/installed-package-certification.json
           exit 1
       - name: Enforce installed-example verdict
-        if: steps.examples.outcome != 'success'
+        if: always() && steps.examples.outcome == 'failure'
         run: |
           jq -r '.admission.diagnostic // empty' test-results/installed-example-certification.json
           jq -r '.verdicts[] | select(.verdict == "fail") | "\(.id): fail issue \(.issue // "unfiled")"' test-results/installed-example-certification.json
