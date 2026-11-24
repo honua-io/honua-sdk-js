@@ -210,7 +210,8 @@ jobs:
       # step is skipped outright on such a run and the job "succeeds" having
       # done nothing at all -- which is exactly how the js-sdk-v0.1.8-beta.0
       # draft became unreachable to every re-run.
-      - name: Dispatch package publish workflows
+      - name: Prepare SDK release publication
+        id: prepare-sdk-publish
         if: >-
           ${{ steps.release.outputs.releases_created == 'true' ||
               (github.event_name == 'workflow_dispatch' &&
@@ -227,13 +228,9 @@ jobs:
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
           # The JS SDK release is cut as a DRAFT (release-please-config.json,
-          # #1350), so these two carry the draft that this step must finish.
+          # #1350), so these two identify the draft to finish.
           JS_SDK_RELEASE_ID: ${{ steps.release.outputs.id || steps.release.outputs['.--id'] }}
           JS_SDK_RELEASE_DRAFT: ${{ steps.release.outputs.draft || steps.release.outputs['.--draft'] }}
-          MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
-          MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
-          CREATE_APP_RELEASE_CREATED: ${{ steps.release.outputs['packages/create-honua-app--release_created'] }}
-          CREATE_APP_TAG_NAME: ${{ steps.release.outputs['packages/create-honua-app--tag_name'] }}
         run: |
           # -E so the ERR trap below is inherited by the shell functions: without
           # it a failing `gh` inside one of them still ends the step with a bare
@@ -248,40 +245,52 @@ jobs:
           # are annotated and written to the job summary so the release log says
           # which tag, which commit, and what did not happen.
           RELEASE_FAILURE_TAG="(none)"
-          fail() {
-            local message="$1"
-            echo "::error title=Release blocked for ${RELEASE_FAILURE_TAG}::${message}"
-            {
-              echo "## Release blocked: \`${RELEASE_FAILURE_TAG}\`"
-              echo
-              echo "${message}"
-              echo
-              echo "Nothing was published for this tag."
-            } >> "${GITHUB_STEP_SUMMARY}"
-            exit 1
-          }
+          RELEASE_FAILURE_FOOTER="Nothing was published for this tag."
+          source ./scripts/report-release-failure.sh
 
           # Backstop for the aborts that are not routed through fail() by hand:
           # a `gh` call in a command substitution that errexit kills. Without
           # this the step can still end in "Process completed with exit code 1".
           trap 'fail "The release step failed at line ${LINENO}: ${BASH_COMMAND}. Nothing was published."' ERR
 
-          dispatch_tag_publish() {
-            local workflow="$1"
-            local tag="$2"
-            if [[ -z "${tag}" ]]; then
-              RELEASE_FAILURE_TAG="${workflow}"
-              fail "Release Please did not expose a tag for ${workflow}; refusing to dispatch a branch publish."
+          prepare_new_sdk_tag() {
+            write_sdk_publish_identity "$1" "$2" "$3"
+            echo "create_tag=true" >> "${GITHUB_OUTPUT}"
+          }
+
+          prepare_existing_sdk_tag() {
+            write_sdk_publish_identity "$1" "$2" "$3"
+            echo "create_tag=false" >> "${GITHUB_OUTPUT}"
+          }
+
+          write_sdk_publish_identity() {
+            local tag="$1"
+            local release_id="$2"
+            local sealed_sha="$3"
+
+            # A tag uses the publisher workflow from its own commit. Require
+            # the same policy as this run before writing anything or dispatching.
+            local publisher_path="repos/${GITHUB_REPOSITORY}/contents/.github/workflows/publish-js-sdk.yml"
+            local trunk_publisher
+            local tag_publisher
+            trunk_publisher="$(gh api "${publisher_path}?ref=${GITHUB_SHA}" --jq .sha)"
+            tag_publisher="$(gh api "${publisher_path}?ref=${sealed_sha}" --jq .sha)"
+            if [[ ! "${trunk_publisher}" =~ ^[0-9a-f]{40}$ || "${tag_publisher}" != "${trunk_publisher}" ]]; then
+              fail "The publisher at sealed commit ${sealed_sha} differs from trunk's publisher. Follow the historical tag recovery in docs/decisions/release-tag-sealing-under-immutable-releases.md with ${tag}, commit ${sealed_sha}, and draft ${release_id}."
             fi
-            RELEASE_FAILURE_TAG="${tag}"
-            gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
+            {
+              echo "tag=${tag}"
+              echo "release_id=${release_id}"
+              echo "release_version=$(release_version_from_tag "${tag}")"
+              echo "sealed_sha=${sealed_sha}"
+            } >> "${GITHUB_OUTPUT}"
           }
 
           # Release ordering (#1350). Release Please cuts the JS SDK release as a
           # DRAFT ("draft": true on the "." package in release-please-config.json),
           # which is the whole fix: GitHub does not create a Git tag for a draft
           # release, and immutability does not attach until it is published. So
-          # this function reseals FIRST, CREATES the tag on the resealed commit,
+          # the workflow reseals FIRST, CREATES the tag on the resealed commit,
           # and only then publishes the draft. Nothing here ever moves a tag or
           # edits a published release, which is what made the previous ordering
           # (publish on the unsealed bump commit, then move the tag) impossible
@@ -298,9 +307,6 @@ jobs:
             if [[ "${tag}" != js-sdk-* ]]; then
               fail "Release Please exposed an invalid JS SDK tag: ${tag}"
             fi
-            local release_version
-            release_version="$(release_version_from_tag "${tag}")"
-
             # Fail before the ~40-minute reseal rather than after it. If the
             # release is not a draft then Release Please already published it on
             # the unsealed version-bump commit and created the tag there, and
@@ -386,9 +392,20 @@ jobs:
             local reseal_conclusion=""
             local reseal_hop
             for reseal_hop in {1..5}; do
-              gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --interval 10 >/dev/null || true
-              reseal_conclusion="$(gh run view "${reseal_run_id}" \
-                --repo "${GITHUB_REPOSITORY}" --json conclusion --jq '.conclusion // empty')"
+              # A transient API error can end watch while the run is still live.
+              # Keep observing the same run until GitHub returns a terminal result.
+              for observation in {1..5}; do
+                gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --interval 10 >/dev/null || true
+                if reseal_conclusion="$(gh run view "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" \
+                  --json status,conclusion --jq 'select(.status == "completed") | .conclusion // empty')" && [[ -n "${reseal_conclusion}" ]]; then
+                  break
+                fi
+                reseal_conclusion=""
+                if (( observation < 5 )); then sleep 10; fi
+              done
+              if [[ -z "${reseal_conclusion}" ]]; then
+                fail "Could not confirm completion of reseal run ${reseal_run_id} for ${tag}. The draft is still unpublished."
+              fi
               if [[ "${reseal_conclusion}" == "success" ]]; then
                 break
               fi
@@ -487,44 +504,7 @@ jobs:
             # every changed path is generated output -- are what make tagging
             # the descendant honest: only regenerated bytes can differ, so the
             # tag still names exactly this release's source.
-            echo "::group::Create ${tag} on the resealed commit"
-            echo "release commit: ${GITHUB_SHA} (unsealed version bump)"
-            echo "resealed tip:   ${trunk_sha}"
-            local tag_created="true"
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-              -f ref="refs/tags/${tag}" -f sha="${trunk_sha}" >/dev/null || tag_created="false"
-            echo "::endgroup::"
-            if [[ "${tag_created}" == "true" ]]; then
-              echo "created refs/tags/${tag} -> ${trunk_sha}"
-            else
-              # The only benign reason a create fails is that this run already
-              # created it (a re-run after a later step failed). Anything else
-              # means the tag exists somewhere it must not, and under immutable
-              # releases it can never be moved.
-              local existing_tag_sha
-              existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha 2>/dev/null || echo "(unresolvable)")"
-              if [[ "${existing_tag_sha}" != "${trunk_sha}" ]]; then
-                fail "Creating ${tag} on the resealed commit ${trunk_sha} failed, and the tag names ${existing_tag_sha} instead. A release tag gets exactly one chance to be created in the right place: immutable releases forbid moving it once its release is published. Nothing was published."
-              fi
-              echo "${tag} already named the resealed commit; treating creation as done"
-            fi
-
-            # Post-condition, asserted every release (#1349). The tag used to be
-            # positioned by a fire-and-forget PATCH whose outcome nothing
-            # checked, which is how three releases shipped tags that could never
-            # pass the seal. Reordering does not make this unreachable: a create
-            # that silently does not land, a tag racing in from elsewhere, or a
-            # resolvable-but-wrong ref all still land here. If the tag does not
-            # name the resealed commit, stop before the release is published --
-            # after publication nothing about it can be corrected.
-            local sealed_tag_sha
-            sealed_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-            if [[ "${sealed_tag_sha}" != "${trunk_sha}" ]]; then
-              fail "Post-condition failed: ${tag} resolves to ${sealed_tag_sha}, not the resealed commit ${trunk_sha}. The release tag is not on a sealed tree and \`node scripts/release-seal.mjs check --tag ${tag}\` would fail. Nothing was published."
-            fi
-            echo "${tag} verified on resealed commit ${sealed_tag_sha}"
-
-            publish_sealed_draft "${tag}" "${release_id}" "${trunk_sha}" "${release_version}"
+            prepare_new_sdk_tag "${tag}" "${release_id}" "${trunk_sha}"
           }
 
           # js-sdk-v1.2.3 -> 1.2.3. One definition so the normal path and the
@@ -535,74 +515,6 @@ jobs:
               version="${version#v}"
             done
             printf '%s' "${version}"
-          }
-
-          # The publish half of a cut, shared by the normal path and the
-          # stranded-draft re-entry. `sealed_sha` is the commit the tag must
-          # name: the resealed trunk tip on a fresh cut, and the tag's own
-          # existing commit when resuming a release whose tag was already
-          # created but whose run died before publication.
-          publish_sealed_draft() {
-            local tag="$1"
-            local release_id="$2"
-            local sealed_sha="$3"
-            local release_version="$4"
-            RELEASE_FAILURE_TAG="${tag}"
-
-            # Publish the draft. Read the release back from GitHub rather than
-            # trusting the action's outputs: this is the last moment anything
-            # about the release can be corrected.
-            local draft_state
-            draft_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --jq '"\(.draft) \(.tag_name)"')"
-            if [[ "${draft_state}" != "true ${tag}" ]]; then
-              fail "Release ${release_id} is '${draft_state}' (draft tag_name), not the unpublished draft for ${tag}. Refusing to publish it. Nothing was published."
-            fi
-            local published_draft
-            if ! published_draft="$(gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=false --jq .draft)"; then
-              fail "Publishing draft release ${release_id} for ${tag} was rejected by GitHub. Unlike the tag move this replaces, that is recoverable: ${tag} already names the sealed commit ${sealed_sha}, so publish the draft and re-dispatch publish-js-sdk.yml against ${tag}. Nothing was published."
-            fi
-            if [[ "${published_draft}" != "false" ]]; then
-              fail "Release ${release_id} for ${tag} is still a draft after being published. Nothing was published."
-            fi
-
-            # Second post-condition, and not a duplicate of the first: GitHub
-            # creates the tag itself, at the release's target_commitish (the
-            # UNSEALED bump commit), when a draft is published while its tag
-            # does not exist. So publication is the one operation that can still
-            # put this release on the wrong commit, and it is re-checked here.
-            local published_tag_sha
-            published_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-            if [[ "${published_tag_sha}" != "${sealed_sha}" ]]; then
-              fail "Post-condition failed: publishing release ${release_id} repointed ${tag} to ${published_tag_sha} instead of the sealed commit ${sealed_sha}. Nothing was published."
-            fi
-            echo "${tag} published on resealed commit ${published_tag_sha}"
-            {
-              echo "## Release tag sealed: \`${tag}\`"
-              echo
-              echo "- release commit: \`${GITHUB_SHA}\`"
-              echo "- resealed commit the tag names: \`${published_tag_sha}\`"
-              echo "- GitHub Release \`${release_id}\` published from that tag"
-            } >> "${GITHUB_STEP_SUMMARY}"
-
-            # Publish from the tag itself rather than as a branch recovery run:
-            # the tag names the sealed commit, so publish-js-sdk's own
-            # tag/version check and its strict release-seal gate both apply to
-            # the exact bytes consumers will fetch.
-            gh workflow run publish-js-sdk.yml \
-              --repo "${GITHUB_REPOSITORY}" \
-              --ref "${tag}" \
-              -f dry_run=false \
-              -f release_version="${release_version}" \
-              -f source_revision="${sealed_sha}"
-
-            # The release smoke is dispatched against the tag rather than
-            # driven by the `release: published` event: that event's payload SHA
-            # is the release's target_commitish -- the unsealed version-bump
-            # commit -- and actions/checkout pins it, so such a run would verify
-            # the stale tree however long it waited.
-            gh workflow run first-map-release-smoke.yml \
-              --repo "${GITHUB_REPOSITORY}" \
-              --ref "${tag}"
           }
 
           # Stranded-draft re-entry (#1337). Everything above runs only when
@@ -657,15 +569,10 @@ jobs:
               local recovery_existing_tag
               recovery_existing_tag="$(gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${tag}" --jq ".[] | select(.ref == \"refs/tags/${tag}\") | .object.sha")"
               if [[ -z "${recovery_existing_tag}" ]]; then
-                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-                  -f ref="refs/tags/${tag}" -f sha="${RECOVER_SEALED_SOURCE}" >/dev/null
+                prepare_new_sdk_tag "${tag}" "${release_id}" "${RECOVER_SEALED_SOURCE}"
+              else
+                prepare_existing_sdk_tag "${tag}" "${release_id}" "${RECOVER_SEALED_SOURCE}"
               fi
-              local recovery_tag_sha
-              recovery_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-              if [[ "${recovery_tag_sha}" != "${RECOVER_SEALED_SOURCE}" ]]; then
-                fail "Recovery tag ${tag} does not name the verified sealed ancestor; immutable tags may never be replaced."
-              fi
-              publish_sealed_draft "${tag}" "${release_id}" "${RECOVER_SEALED_SOURCE}" "${release_version}"
               return 0
             fi
 
@@ -689,9 +596,7 @@ jobs:
             # the tag on a sealed commit and then died before publishing the
             # draft or dispatching the publish workflows. Nothing needs
             # resealing -- the tag already names a sealed commit and moving it
-            # is forbidden -- so resume at publication. This is exactly the
-            # recovery the PATCH failure message above tells operators to
-            # perform by hand.
+            # is forbidden -- so resume at publication.
             # Ask matching-refs, which answers an absent tag with an empty list
             # rather than a 404. gh api writes a 404's error body to stdout, and
             # a nonzero status cannot tell absence from a transient or auth
@@ -702,13 +607,12 @@ jobs:
             if [[ -n "${existing_tag_sha}" ]]; then
               local trunk_head
               trunk_head="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
-              # It must be a commit trunk actually reaches. A tag pointing at
-              # some side branch is not a sealed release commit, and publishing
-              # it would ship bytes trunk never carried.
+              # Compare from the tag to trunk. GitHub reports "ahead" when
+              # the head of the comparison (trunk) descends from the tag.
               local tag_ancestry
               tag_ancestry="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${existing_tag_sha}...${trunk_head}" --jq .status)"
-              if [[ "${tag_ancestry}" != "behind" && "${tag_ancestry}" != "identical" ]]; then
-                fail "Tag ${tag} names ${existing_tag_sha}, which is '${tag_ancestry}' relative to trunk rather than an ancestor of it, so it is not a sealed release commit. Nothing was published."
+              if [[ "${tag_ancestry}" != "ahead" && "${tag_ancestry}" != "identical" ]]; then
+                fail "Tag ${tag} names ${existing_tag_sha}, which trunk cannot reach (compare status '${tag_ancestry}'). Nothing was published."
               fi
               echo "::notice::${tag} already names sealed commit ${existing_tag_sha}; resuming at the draft publication step."
               {
@@ -718,7 +622,7 @@ jobs:
                 echo "- tag already names sealed commit: \`${existing_tag_sha}\`"
                 echo "- resumed at draft publication; no reseal and no tag write"
               } >> "${GITHUB_STEP_SUMMARY}"
-              publish_sealed_draft "${tag}" "${release_id}" "${existing_tag_sha}" "${release_version}"
+              prepare_existing_sdk_tag "${tag}" "${release_id}" "${existing_tag_sha}"
               return 0
             fi
 
@@ -736,13 +640,6 @@ jobs:
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
             dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}" "${JS_SDK_RELEASE_ID}" "${JS_SDK_RELEASE_DRAFT}"
           fi
-          if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
-          fi
-          if [[ "${CREATE_APP_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
-          fi
-
           if [[ -n "${FINISH_STRANDED_DRAFT}" ]]; then
             if [[ "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]]; then
               RELEASE_FAILURE_TAG="${FINISH_STRANDED_DRAFT}"
@@ -763,6 +660,155 @@ jobs:
             fi
           fi
 
+      # Installation access tokens expire after an hour. A reseal can spend
+      # longer than that queued, so mint just before the first protected write.
+      - name: Mint SDK tag creation token
+        id: sdk-tag-token
+        if: steps.prepare-sdk-publish.outputs.create_tag == 'true'
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Dispatch package publish workflows
+        if: steps.prepare-sdk-publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_TOKEN: ${{ steps.sdk-tag-token.outputs.token }}
+          SDK_TAG: ${{ steps.prepare-sdk-publish.outputs.tag }}
+          SDK_RELEASE_ID: ${{ steps.prepare-sdk-publish.outputs.release_id }}
+          SDK_RELEASE_VERSION: ${{ steps.prepare-sdk-publish.outputs.release_version }}
+          SDK_SEALED_SHA: ${{ steps.prepare-sdk-publish.outputs.sealed_sha }}
+          SDK_CREATE_TAG: ${{ steps.prepare-sdk-publish.outputs.create_tag }}
+          MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
+          MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
+          CREATE_APP_RELEASE_CREATED: ${{ steps.release.outputs['packages/create-honua-app--release_created'] }}
+          CREATE_APP_TAG_NAME: ${{ steps.release.outputs['packages/create-honua-app--tag_name'] }}
+        run: |
+          set -Eeuo pipefail
+
+          RELEASE_FAILURE_TAG="${SDK_TAG:-(none)}"
+          RELEASE_FAILURE_FOOTER=""
+          source ./scripts/report-release-failure.sh
+          trap 'fail "The release step failed at line ${LINENO}: ${BASH_COMMAND}."' ERR
+
+          dispatch_tag_publish() {
+            local workflow="$1"
+            local tag="$2"
+            if [[ -z "${tag}" ]]; then
+              RELEASE_FAILURE_TAG="${workflow}"
+              fail "Release Please did not expose a tag for ${workflow}; refusing to dispatch a branch publish."
+            fi
+            RELEASE_FAILURE_TAG="${tag}"
+            gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
+          }
+
+          # The publish half of a cut, shared by the normal path and the
+          # stranded-draft re-entry. `sealed_sha` is the commit the tag must
+          # name: the resealed trunk tip on a fresh cut, and the tag's own
+          # existing commit when resuming a release whose tag was already
+          # created but whose run died before publication.
+          publish_sealed_draft() {
+            local tag="$1"
+            local release_id="$2"
+            local sealed_sha="$3"
+            local release_version="$4"
+            RELEASE_FAILURE_TAG="${tag}"
+
+            # Publish the draft. Read the release back from GitHub rather than
+            # trusting the action's outputs: this is the last moment anything
+            # about the release can be corrected.
+            local draft_state
+            if ! draft_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --jq '"\(.draft) \(.tag_name)"')"; then
+              fail "Could not read draft release ${release_id}. Nothing was published for this tag."
+            fi
+            if [[ "${draft_state}" != "true ${tag}" ]]; then
+              fail "Release ${release_id} is '${draft_state}' (draft tag_name), not the unpublished draft for ${tag}. Refusing to publish it. Nothing was published."
+            fi
+            local published_draft
+            if ! published_draft="$(gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=false --jq .draft)"; then
+              fail "Publishing draft release ${release_id} for ${tag} was not confirmed by GitHub. Tag ${tag} already names the sealed commit ${sealed_sha}. If the release is still a draft, rerun release-please.yml on trunk with finish_stranded_draft=${tag}. If it is public, verify the tag and inspect existing publish runs before dispatching publish-js-sdk.yml."
+            fi
+            if [[ "${published_draft}" != "false" ]]; then
+              fail "Release ${release_id} for ${tag} is still a draft after being published. Nothing was published."
+            fi
+
+            # Second post-condition, and not a duplicate of the first: GitHub
+            # creates the tag itself, at the release's target_commitish (the
+            # UNSEALED bump commit), when a draft is published while its tag
+            # does not exist. So publication is the one operation that can still
+            # put this release on the wrong commit, and it is re-checked here.
+            local published_tag_sha
+            published_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+            if [[ "${published_tag_sha}" != "${sealed_sha}" ]]; then
+              fail "Post-condition failed: publishing release ${release_id} repointed ${tag} to ${published_tag_sha} instead of the sealed commit ${sealed_sha}. Stopped before dispatching npm publication."
+            fi
+            echo "${tag} published on resealed commit ${published_tag_sha}"
+            {
+              echo "## Release tag sealed: \`${tag}\`"
+              echo
+              echo "- release commit: \`${GITHUB_SHA}\`"
+              echo "- resealed commit the tag names: \`${published_tag_sha}\`"
+              echo "- GitHub Release \`${release_id}\` published from that tag"
+            } >> "${GITHUB_STEP_SUMMARY}"
+
+            # Publish from the tag itself rather than as a branch recovery run:
+            # the tag names the sealed commit, so publish-js-sdk's own
+            # tag/version check and its strict release-seal gate both apply to
+            # the exact bytes consumers will fetch.
+            gh workflow run publish-js-sdk.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref "${tag}" \
+              -f dry_run=false \
+              -f release_version="${release_version}" \
+              -f source_revision="${sealed_sha}"
+
+            # The release smoke is dispatched against the tag rather than
+            # driven by the `release: published` event: that event's payload SHA
+            # is the release's target_commitish -- the unsealed version-bump
+            # commit -- and actions/checkout pins it, so such a run would verify
+            # the stale tree however long it waited.
+            gh workflow run first-map-release-smoke.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              --ref "${tag}"
+          }
+
+          if [[ -n "${SDK_TAG}" ]]; then
+            if [[ "${SDK_CREATE_TAG}" == "true" ]]; then
+              if [[ -z "${RELEASE_TAG_TOKEN}" ]]; then
+                fail "The App token needed to create ${SDK_TAG} is missing. Nothing was published."
+              fi
+              # Creation is retryable when the exact tag already exists. The
+              # check below handles both successful creation and lost responses.
+              if GH_TOKEN="${RELEASE_TAG_TOKEN}" gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                -f ref="refs/tags/${SDK_TAG}" -f sha="${SDK_SEALED_SHA}" >/dev/null; then
+                echo "created refs/tags/${SDK_TAG} -> ${SDK_SEALED_SHA}"
+              else
+                existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SDK_TAG}" --jq .sha 2>/dev/null || echo "(unresolvable)")"
+                if [[ "${existing_tag_sha}" != "${SDK_SEALED_SHA}" ]]; then
+                  fail "Creating ${SDK_TAG} on the resealed commit ${SDK_SEALED_SHA} failed, and the tag names ${existing_tag_sha} instead. A release tag gets exactly one chance to be created in the right place: immutable releases forbid moving it once its release is published. Nothing was published for this tag."
+                fi
+                echo "${SDK_TAG} already named the resealed commit; treating creation as done"
+              fi
+            fi
+
+            # Re-resolve immediately before publishing, whether this run
+            # created the tag or is resuming with an existing tag.
+            sealed_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SDK_TAG}" --jq .sha)"
+            if [[ "${sealed_tag_sha}" != "${SDK_SEALED_SHA}" ]]; then
+              fail "Post-condition failed: ${SDK_TAG} resolves to ${sealed_tag_sha}, not the resealed commit ${SDK_SEALED_SHA}. The release tag is not on a sealed tree and \`node scripts/release-seal.mjs check --tag ${SDK_TAG}\` would fail. Nothing was published."
+            fi
+            echo "${SDK_TAG} verified on resealed commit ${sealed_tag_sha}"
+            publish_sealed_draft "${SDK_TAG}" "${SDK_RELEASE_ID}" "${SDK_SEALED_SHA}" "${SDK_RELEASE_VERSION}"
+          fi
+
+          if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
+            dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
+          fi
+          if [[ "${CREATE_APP_RELEASE_CREATED}" == "true" ]]; then
+            dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
+          fi
 
       # A later push can follow a failed cut without creating a new release.
       # Do not let that no-release run enumerate the same tagless draft either.

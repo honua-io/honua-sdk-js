@@ -61,8 +61,9 @@ release into a blocked one.
 
 ### Loudness (#1349)
 
-- The `Dispatch package publish workflows` step runs under `set -Eeuo pipefail`
-  and routes every abort through a `fail()` helper that emits a
+- The `Prepare SDK release publication` and `Dispatch package publish workflows`
+  steps run under `set -Eeuo pipefail` and route each abort through a
+  `fail()` helper that emits a
   `::error title=Release blocked for <tag>::` annotation and writes the reason
   to the job summary, with an `ERR` trap as the backstop for the aborts errexit
   would otherwise report bare. No release path can now end in a bare exit code.
@@ -83,9 +84,10 @@ sealed after the fact:
    and nothing is protected.
 2. The release step dispatches the reseal and waits for its generated-only
    descendant to land on trunk, exactly as before.
-3. It **creates** `refs/tags/js-sdk-<version>` on that resealed commit —
-   `POST /git/refs`, never `PATCH`. Creating a tag is not something immutable
-   releases restrict; moving one is.
+3. After resealing and verifying the selected commit's publisher workflow, it
+   mints a fresh release App token with repository contents write access and
+   creates `refs/tags/js-sdk-<version>` on the resealed commit with
+   `POST /git/refs`. The tag publisher skips pushes from that App.
 4. It re-reads the tag (the #1349 post-condition), and only if the tag names
    the resealed commit does it publish the draft with
    `PATCH /releases/<id> -F draft=false`.
@@ -94,6 +96,7 @@ sealed after the fact:
    the unsealed bump commit — when a draft is published while its tag does not
    exist. Publication is therefore the last operation that can still misplace a
    release.
+6. The Actions job token dispatches the publisher once on the verified tag.
 
 Nothing in the path writes to an existing ref or edits a published release, so
 nothing in it can be rejected by immutable releases. This is also the flow
@@ -140,9 +143,10 @@ makes their failures cheap:
   public release exists, no tag is protected, and the version can simply be
   re-cut. Under the old ordering the same condition left a published release on
   a permanently unsealable tag.
-- If publishing the draft were itself rejected, the tag already names the
-  sealed commit, so the release is completed by publishing the draft and
-  re-dispatching `publish-js-sdk.yml` — the annotation says exactly that.
+- If GitHub does not confirm publication, check the release state. For a draft,
+  rerun `release-please.yml` on trunk with `finish_stranded_draft` set to its
+  tag. For a public release, verify the tag and inspect existing publisher runs
+  before dispatching the publisher.
 - If `"draft": true` is ever removed from the config, Release Please publishes
   on the bump commit again and the tag is frozen there. The step detects this
   from the release's own `draft` output and aborts *before* the ~40-minute
@@ -153,6 +157,34 @@ stubbed `gh` and asserts the whole ordering — including that the trace of
 side effects is exactly reseal → create tag → publish release → publish npm —
 plus every abort above. It runs in `SDK CI`, so the guards cannot be removed
 without failing a check.
+
+### Historical tag recovery
+
+Automated recovery requires the publisher workflow on the selected commit to
+match the one running on trunk. A historical commit can carry a tag-push
+publisher that lacks the release App exclusion. Use the tag, sealed commit,
+and draft release ID from the compatibility error to recover through one
+review-gated tag-push run.
+
+1. Verify that the selected commit's publisher runs on a push of this tag,
+   checks the release seal, and uses the `npm-publish` environment for the npm
+   publish job. Confirm in repository settings that the environment admits
+   this tag and requires a review. Keep the environment approval pending until
+   the draft is published and the tag is verified again.
+2. If the tag is absent, an authorized repository administrator creates it
+   with their authenticated Git connection using
+   `git push origin "${sealed_sha}:refs/tags/${tag}"` from a checkout containing
+   the selected commit. If the tag exists, verify it resolves to the selected
+   commit and inspect its existing runs. In Actions, confirm there is exactly
+   one matching `Publish JS SDK Packages` run created by `push` for that tag
+   and commit, and that it is waiting for review for `npm-publish`. Stop if the
+   run is missing, duplicated, mismatched, or already past the approval gate.
+   Use only the tag-push run for this recovery.
+3. Re-read the release by ID and confirm it is the draft for that exact tag.
+   Publish the existing draft and re-resolve the tag to verify it still names
+   the sealed commit. Approve the waiting run, then verify its package and
+   manifest results. Run `first-map-release-smoke.yml` on that tag once the
+   packages are published.
 
 ### Reseal supersession (#1532)
 

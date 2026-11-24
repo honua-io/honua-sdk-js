@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { it } from "node:test";
+import { runInNewContext } from "node:vm";
 
 import { parse } from "yaml";
 
@@ -16,6 +17,18 @@ const cohort = steps.find((step) => step.name === "Verify packed SDK migration c
 const publish = steps.find((step) => step.name === "Publish split packages").run;
 const summary = steps.find((step) => step.name === "Publish summary").run;
 const packages = ["honua-sdk", "honua-sdk-client-compat", "honua-react", "honua-geometry", "honua-app-platform"];
+
+it("dispatches the app-created tag only after release finalization", () => {
+  const condition = workflow.jobs["publish-js-packages"].if
+    .slice(3, -2).replace("needs.ensure-fresh-evidence.result", "evidence");
+  const admitted = (event_name, actor, evidence = "skipped") =>
+    runInNewContext(condition, { cancelled: () => false, evidence, github: { event_name, actor } });
+  assert.equal(admitted("push", "honua-io-bot[bot]"), false);
+  assert.equal(admitted("workflow_dispatch", "honua-io-bot[bot]"), true);
+  assert.equal(admitted("workflow_dispatch", "github-actions[bot]"), true);
+  assert.equal(admitted("push", "release-manager"), true);
+  assert.equal(admitted("workflow_dispatch", "release-manager", "failure"), false);
+});
 
 // Execute the actual workflow shell with an offline npm double. Model the two
 // destructive operations that caused the regression, and reject missing inputs
