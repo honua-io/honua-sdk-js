@@ -132,7 +132,8 @@ test("workflow rechecks exact-source seal before creating or publishing an ances
   assert.ok(workflow.includes('"${RECOVERY_SEAL_OUTCOME:-}" != "success"'));
   const recovery = workflow.slice(workflow.indexOf('if [[ -n "${RECOVER_SEALED_SOURCE:-}" ]]'), mint);
   const verify = recovery.indexOf("node scripts/verify-sealed-ancestor-recovery.mjs");
-  const plan = recovery.indexOf('prepare_sdk_publish "${tag}"');
-  assert.ok(0 < verify && verify < plan);
+  const newTag = recovery.indexOf('prepare_new_sdk_tag "${tag}"');
+  const existingTag = recovery.indexOf('prepare_existing_sdk_tag "${tag}"');
+  assert.ok(0 < verify && verify < newTag && verify < existingTag);
   assert.ok(!recovery.includes("git push --force"));
 });
