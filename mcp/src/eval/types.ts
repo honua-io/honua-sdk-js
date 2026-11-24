@@ -80,6 +80,8 @@ export interface SuccessCriteria {
   answerMustNotInclude?: string[];
   /** Regular-expression sources the final answer must ALL match (case-insensitive) — exact numeric / value checks. */
   answerMustMatch?: string[];
+  /** Answer patterns required only for model-selected transcripts. */
+  modelAnswerMustMatch?: string[];
   /**
    * The prompt is deliberately ambiguous or unsupported: a correct client asks a
    * clarifying question (or refuses) instead of guessing. When true, a `clarified`
