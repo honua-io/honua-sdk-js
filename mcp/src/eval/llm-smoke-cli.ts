@@ -1,6 +1,7 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { legacyGeoServicesRef } from "../neutral/source-ref.js";
 import { BedrockDriver, DeterministicDriver } from "./drivers/index.js";
 import { renderMarkdown } from "./report.js";
 import { runEval } from "./runner.js";
@@ -14,6 +15,9 @@ export async function runLlmSmoke(
 ): Promise<boolean> {
   const transcriptDir = join(outDir, "llm-smoke-transcripts");
   mkdirSync(transcriptDir, { recursive: true });
+  for (const filename of ["bedrock.json", "control.json"]) {
+    rmSync(join(transcriptDir, filename), { force: true });
+  }
   const writeJson = (path: string, data: unknown) => writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   const jsonPath = join(outDir, "llm-smoke-results.json");
   const markdownPath = join(outDir, "llm-smoke-results.md");
@@ -33,15 +37,16 @@ export async function runLlmSmoke(
     if (!env.HONUA_BASE_URL || !env.HONUA_API_KEY) {
       return fail("HONUA_BASE_URL and HONUA_API_KEY are required.");
     }
+    if (env.HONUA_EVAL_BEDROCK !== "1") {
+      return fail("HONUA_EVAL_BEDROCK must be set to 1 for the live smoke.");
+    }
     const bedrock = new BedrockDriver({
-      enabled: env.HONUA_EVAL_BEDROCK ?? "",
+      enabled: env.HONUA_EVAL_BEDROCK,
       model: env.HONUA_EVAL_BEDROCK_MODEL,
       region: env.AWS_REGION,
     });
-    if (!bedrock.isAvailable()) {
-      return fail("HONUA_EVAL_BEDROCK must be enabled for the live smoke.");
-    }
-    let modelUsedSeed = false;
+    const expectedSource = legacyGeoServicesRef(serviceId, layerId);
+    let modelSummarizedSchema = false;
     const report = await evaluate({
       env,
       drivers: [new DeterministicDriver(), bedrock],
@@ -50,12 +55,25 @@ export async function runLlmSmoke(
       forceStandaloneSurface: false,
       forceOgcSurface: false,
       allowedTools: [tool],
+      validateToolResult: (text) => {
+        const result = JSON.parse(text) as {
+          source?: string;
+          schemaAvailable?: boolean;
+          fields?: Array<{ name?: string; type?: string }>;
+        } | null;
+        return (
+          result?.source === expectedSource &&
+          result.schemaAvailable === true &&
+          Array.isArray(result.fields) &&
+          result.fields.some((field) => field?.name?.toLowerCase() === "objectid" && field.type === "esriFieldTypeOID")
+        );
+      },
       corpus: [
         {
           id: "describe-seeded-layer",
           title: "Describe the seeded GeoServices layer",
           category: "discovery",
-          prompt: `Describe layer ${layerId} in service ${serviceId}. Use serviceId and layerId to fetch its schema, then summarize the fields.`,
+          prompt: `Describe layer ${layerId} in service ${serviceId}. Use serviceId and layerId to fetch its schema, then summarize the fields. Include the object ID field by its schema name.`,
           criteria: {
             requiredTools: [tool],
             failOnToolError: true,
@@ -66,10 +84,7 @@ export async function runLlmSmoke(
       onTranscript: (transcript) => {
         const modelSelected = transcript.attribution === "MODEL_SELECTED";
         if (modelSelected) {
-          modelUsedSeed = transcript.steps.some(
-            (step) =>
-              step.tool === tool && !step.isError && step.args.serviceId === serviceId && step.args.layerId === layerId,
-          );
+          modelSummarizedSchema = /\bobjectid\b/i.test(transcript.finalAnswer);
         }
         const filename = modelSelected ? "bedrock.json" : "control.json";
         writeJson(join(transcriptDir, filename), transcript);
@@ -80,7 +95,7 @@ export async function runLlmSmoke(
       report.surface.backend === "live" &&
       report.surface.auth === "api-key" &&
       report.summary.pass &&
-      modelUsedSeed &&
+      modelSummarizedSchema &&
       model?.available === true &&
       model.scenarios === 1 &&
       model.pass === 1;

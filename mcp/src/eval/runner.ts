@@ -32,6 +32,7 @@ export interface RunEvalOptions {
   /** Use the standalone MCP tools over the configured Honua backend. */
   liveStandalone?: boolean;
   allowedTools?: readonly string[];
+  validateToolResult?: (text: string) => boolean;
   onTranscript?: (transcript: WorkflowTranscript) => void;
   /** Force the in-memory fixture surface even if HONUA_MCP_REMOTE_URL is set. */
   forceOffline?: boolean;
@@ -149,17 +150,21 @@ function flattenToolResult(result: unknown): ToolCallResult {
 function buildContext(
   client: Client,
   tools: WorkflowContext["tools"],
-  allowedTools?: readonly string[],
+  options: Pick<RunEvalOptions, "allowedTools" | "validateToolResult">,
 ): WorkflowContext {
   return {
     tools,
     async callTool(name, args) {
-      if (allowedTools && !allowedTools.includes(name)) {
+      if (options.allowedTools && !options.allowedTools.includes(name)) {
         return { isError: true, text: "Tool is outside the evaluation catalog." };
       }
       try {
         const result = await client.callTool({ name, arguments: args });
-        return flattenToolResult(result);
+        const flattened = flattenToolResult(result);
+        if (!flattened.isError && options.validateToolResult?.(flattened.text) === false) {
+          return { isError: true, text: "Tool result did not match the expected evaluation response." };
+        }
+        return flattened;
       } catch (err) {
         return { isError: true, text: err instanceof Error ? err.message : String(err) };
       }
@@ -191,7 +196,7 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
         description: t.description ?? "",
         inputSchema: t.inputSchema,
       }));
-    const ctx = buildContext(surface.client, tools, options.allowedTools);
+    const ctx = buildContext(surface.client, tools, options);
 
     const profilesConfigured = env.HONUA_SERVER_PROFILES !== undefined;
     const activeProfiles = (env.HONUA_SERVER_PROFILES ?? "")

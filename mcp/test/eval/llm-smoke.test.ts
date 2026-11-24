@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,12 +29,23 @@ describe("MCP LLM smoke", () => {
     }
   });
 
-  it.each([true, false])("requires the Bedrock scenario to pass (%s)", async (modelPass) => {
+  it.each([
+    { name: "legacy arguments", pass: true },
+    { name: "canonical source", pass: true, source: "geoservices-feature-service:test_service/0" },
+    { name: "different layer", pass: false, source: "geoservices-feature-service:test_service/1" },
+    { name: "missing schema", pass: false, missingSchema: true },
+    { name: "empty final answer", pass: false, emptyAnswer: true },
+    { name: "driver failure", pass: false, driverError: "stubbed model failure" },
+  ])("checks the seeded layer and model answer ($name)", async (fixture) => {
     const outDir = outputDirectory();
     const fetch = vi.fn(async (url: URL, init?: RequestInit) => {
-      expect(new URL(url).pathname).toBe("/rest/services/test_service/FeatureServer/0");
+      expect(new URL(url).pathname).toMatch(/^\/rest\/services\/test_service\/FeatureServer\/[01]$/);
       expect(new Headers(init?.headers).get("x-api-key")).toBe(env.HONUA_API_KEY);
-      return Response.json({ id: 0, name: "Seeded layer", fields: [{ name: "objectid", type: "esriFieldTypeOID" }] });
+      return Response.json({
+        id: 0,
+        name: "Seeded layer",
+        fields: fixture.missingSchema ? [] : [{ name: "objectid", type: "esriFieldTypeOID" }],
+      });
     });
     vi.stubGlobal("fetch", fetch);
 
@@ -51,11 +62,17 @@ describe("MCP LLM smoke", () => {
             isAvailable: () => true,
             async runWorkflow(scenario, ctx) {
               expect(ctx.tools.map((tool) => tool.name)).toEqual(["honua_describe_layer"]);
-              const transcript = await control.runWorkflow(scenario, ctx);
+              const transcript = await control.runWorkflow(
+                fixture.source
+                  ? { ...scenario, script: [{ tool: "honua_describe_layer", args: { source: fixture.source } }] }
+                  : scenario,
+                ctx,
+              );
               return {
                 ...transcript,
                 modelId: bedrock.id,
-                ...(modelPass ? {} : { driverError: "stubbed model failure" }),
+                finalAnswer: fixture.emptyAnswer ? "" : "The objectid field identifies each feature.",
+                driverError: fixture.driverError,
               };
             },
           },
@@ -63,20 +80,27 @@ describe("MCP LLM smoke", () => {
       });
     });
 
-    expect(result).toBe(modelPass);
-    expect(fetch).toHaveBeenCalledOnce();
+    expect(result).toBe(fixture.pass);
+    expect(fetch).toHaveBeenCalledTimes(fixture.name === "different layer" ? 2 : 1);
     const report = JSON.parse(readFileSync(join(outDir, "llm-smoke-results.json"), "utf8"));
-    expect(report).toMatchObject({ pass: modelPass, summary: { pass: true } });
-    expect(readFileSync(join(outDir, "llm-smoke-results.md"), "utf8")).toContain(modelPass ? "PASS" : "FAIL");
+    expect(report).toMatchObject({ pass: fixture.pass });
+    expect(readFileSync(join(outDir, "llm-smoke-results.md"), "utf8")).toContain(fixture.pass ? "PASS" : "FAIL");
     expect(readFileSync(join(outDir, "llm-smoke-transcripts", "bedrock.json"), "utf8")).toContain("MODEL_SELECTED");
     expect(readFileSync(join(outDir, "llm-smoke-transcripts", "control.json"), "utf8")).toContain("HARNESS_DRIVEN");
   });
 
   it("fails before evaluating when Bedrock is disabled", async () => {
     const outDir = outputDirectory();
+    const transcriptDir = join(outDir, "llm-smoke-transcripts");
+    mkdirSync(transcriptDir);
+    for (const filename of ["bedrock.json", "control.json"]) {
+      writeFileSync(join(transcriptDir, filename), "{}");
+    }
     const evaluate = vi.fn();
-    expect(await runLlmSmoke({ ...env, HONUA_EVAL_BEDROCK: "0" }, outDir, evaluate)).toBe(false);
+    expect(await runLlmSmoke({ ...env, HONUA_EVAL_BEDROCK: "disabled" }, outDir, evaluate)).toBe(false);
     expect(evaluate).not.toHaveBeenCalled();
+    expect(existsSync(join(transcriptDir, "bedrock.json"))).toBe(false);
+    expect(existsSync(join(transcriptDir, "control.json"))).toBe(false);
     expect(JSON.parse(readFileSync(join(outDir, "llm-smoke-results.json"), "utf8"))).toMatchObject({ pass: false });
   });
 });
