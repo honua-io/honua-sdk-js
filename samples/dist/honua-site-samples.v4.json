@@ -5,7 +5,7 @@
     "format": "honua.sdk.sample-catalog.v2",
     "schemaVersion": 2,
     "package": "@honua/sdk-js",
-    "version": "0.5.0"
+    "version": "0.5.1"
   },
   "contract": {
     "producer": "honua-io/honua-sdk-js#540",
@@ -170,7 +170,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "agent-approval",
@@ -234,7 +234,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "interaction-state",
@@ -290,7 +290,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "cancellation",
@@ -344,7 +344,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "coverage",
@@ -401,7 +401,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "forward-geocode",
@@ -455,7 +455,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "arcgis",
@@ -508,7 +508,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "cog",
@@ -552,7 +552,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-12-25T21:43:35.165Z"
+          "expiresAt": "2026-12-25T22:54:09.870Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -577,7 +577,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "direct-connect",
@@ -615,7 +615,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-12-25T21:41:24.291Z"
+          "expiresAt": "2026-12-25T22:52:17.505Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -640,7 +640,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "codemod",
@@ -671,7 +671,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-12-25T21:43:59.389Z"
+          "expiresAt": "2026-12-25T22:54:32.758Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -695,7 +695,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "agent-approval",
@@ -754,7 +754,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "node",
@@ -807,7 +807,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "authentication",
@@ -862,7 +862,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "offline",
@@ -914,7 +914,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "cancellation",
@@ -971,7 +971,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "offline",
@@ -1026,7 +1026,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "map",
@@ -1080,7 +1080,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "idempotency",
@@ -1144,7 +1144,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "cancellation",
@@ -1188,7 +1188,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-12-25T21:45:12.863Z"
+          "expiresAt": "2026-12-25T22:55:42.070Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -1212,7 +1212,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "camera",
@@ -1270,7 +1270,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "editing",
@@ -1326,7 +1326,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "aggregation",
@@ -1388,7 +1388,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "cancellation",
@@ -1449,7 +1449,7 @@
       },
       "sdk": {
         "package": "@honua/sdk-js",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "capabilities": [
         "map",
