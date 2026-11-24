@@ -56,6 +56,8 @@ export interface SourceProfile {
   readonly columns: readonly string[];
   /** Typed DESCRIBE projection used by vendor-neutral schema discovery. */
   readonly fields?: readonly SourceProfileField[];
+  /** Covering column types retained for explicit queries, excluded from schema discovery. */
+  readonly coveringFields?: readonly SourceProfileField[];
   /** Geometry column plan, or `undefined` for a non-spatial (tabular) file. */
   readonly geometry?: SourceProfileGeometry;
   /** Every geometry column declared by GeoParquet metadata; `geometry` remains the primary runtime plan. */
@@ -426,6 +428,9 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
 
   return {
     columns,
+    coveringFields: describe
+      .filter((field) => bboxColumns.has(field.column_name))
+      .map((field) => ({ name: field.column_name, type: field.column_type })),
     fields: describe
       .filter((field) => !bboxColumns.has(field.column_name))
       .map((field) => ({

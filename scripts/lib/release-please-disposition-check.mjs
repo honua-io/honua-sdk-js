@@ -9,6 +9,24 @@ export const GITHUB_ACTIONS_APP_ID = 15368;
 
 export const RELEASE_PLEASE_BASE = "trunk";
 export const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
+export const RELEASE_PLEASE_MCP_HEAD = `${RELEASE_PLEASE_HEAD}--components--mcp-server`;
+export const RELEASE_PLEASE_HEADS = Object.freeze([
+  RELEASE_PLEASE_HEAD,
+  `${RELEASE_PLEASE_HEAD}--components--js-sdk`,
+  RELEASE_PLEASE_MCP_HEAD,
+  `${RELEASE_PLEASE_HEAD}--components--create-honua-app`,
+]);
+/** Require rediscovery to match the expected authenticated candidate, including its absence. */
+export function assertExpectedReleasePleaseCandidate(current, expectedCandidates, headRefName) {
+  if (expectedCandidates === undefined) return;
+  const matches = expectedCandidates.filter((candidate) => candidate.headRefName === headRefName);
+  const expected = matches[0];
+  if (matches.length !== 1 || (expected.status === "not-found" ? current !== null :
+      !current || current.pullRequestNumber !== expected.pullRequestNumber || current.headSha !== expected.headSha)) {
+    throw new Error("Release Please candidate moved before normalization.");
+  }
+}
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 
@@ -85,20 +103,25 @@ function releasePleaseCandidateFromRest(pullRequest, repository) {
 }
 
 /** Locate the one exact, open, same-repository Release Please pull request. */
-export async function findCurrentReleasePleasePullRequest(repository, request = githubRequest) {
+export async function findCurrentReleasePleasePullRequest(repository, request = githubRequest, headRefName = RELEASE_PLEASE_HEAD) {
   assertRepository(repository);
+  if (!RELEASE_PLEASE_HEADS.includes(headRefName)) {
+    throw new Error("Unsupported exact Release Please candidate branch.");
+  }
   const [owner] = repository.split("/");
   const url = new URL(`${apiRoot()}/repos/${repository}/pulls`);
   url.searchParams.set("state", "open");
   url.searchParams.set("base", RELEASE_PLEASE_BASE);
-  url.searchParams.set("head", `${owner}:${RELEASE_PLEASE_HEAD}`);
+  url.searchParams.set("head", `${owner}:${headRefName}`);
   url.searchParams.set("per_page", "2");
 
   const payload = await request(url.toString());
   if (!Array.isArray(payload)) throw new Error("GitHub returned malformed open pull-request metadata.");
   if (payload.length === 0) return null;
   if (payload.length !== 1) throw new Error("GitHub returned more than one Release Please pull-request candidate.");
-  return releasePleaseCandidateFromRest(payload[0], repository);
+  const candidate = releasePleaseCandidateFromRest(payload[0], repository);
+  if (candidate.headRefName !== headRefName) throw new Error("Release Please candidate branch differs from the requested branch.");
+  return candidate;
 }
 
 export function assertMatchingReleasePleaseSnapshots(rest, graphql) {

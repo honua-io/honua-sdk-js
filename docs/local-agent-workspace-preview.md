@@ -6,6 +6,8 @@ description: Configure explicit Docker preview artifacts and separate human and 
 
 # Local native workspace preview
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The manifest-pinned public server and MCP package do not yet prove the native
 workspace contract. The default installer remains on its published pins. The
 Node installer API accepts an explicit `nativeWorkspace` preview configuration

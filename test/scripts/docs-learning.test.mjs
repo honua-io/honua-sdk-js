@@ -17,7 +17,7 @@ function copyManifest() {
   return structuredClone(manifest);
 }
 
-test("rejects a stale or deprecated SDK subpath", async () => {
+test("rejects an SDK subpath the package does not export", async () => {
   const invalid = copyManifest();
   invalid.paths[0].api[0].specifier = "@honua/sdk-js/app";
   await assert.rejects(
@@ -29,7 +29,25 @@ test("rejects a stale or deprecated SDK subpath", async () => {
       sampleCatalog: undefined,
       checkRuntimeImports: false,
     }),
-    /deprecated SDK subpath @honua\/sdk-js\/app cannot be taught/,
+    /unknown SDK subpath @honua\/sdk-js\/app/,
+  );
+});
+
+test("rejects a deprecated SDK subpath", async () => {
+  const invalid = copyManifest();
+  invalid.paths[0].api[0].specifier = "@honua/sdk-js/legacy";
+  const surfaceWithDeprecated = structuredClone(publicSurface);
+  surfaceWithDeprecated.entrypoints.push({ subpath: "./legacy", tier: "deprecated" });
+  await assert.rejects(
+    validateLearningManifest({
+      manifest: invalid,
+      projectRoot: root,
+      packageJson,
+      publicSurface: surfaceWithDeprecated,
+      sampleCatalog: undefined,
+      checkRuntimeImports: false,
+    }),
+    /deprecated SDK subpath @honua\/sdk-js\/legacy cannot be taught/,
   );
 });
 
@@ -63,11 +81,11 @@ test("derives learning-card metadata from the versioned sample catalog", async (
 
   const markdown = generateLearningMarkdown(manifest, sampleCatalog);
   const edit = manifest.paths.find((learningPath) => learningPath.id === "edit");
-  assert.equal(edit.sampleId, "planning-permitting-workbench");
-  assert.equal(edit.sourceEntry, "examples/planning-permitting-workbench/src/journey.ts");
-  assert.match(markdown, /planning-permitting-workbench[\s\S]*Sample contract: `lab` · `supported` · `active`/);
-  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `rework`/);
-  assert.match(markdown, /storytelling-25d-map[\s\S]*Sample contract: `lab` · `supported` · `merge`/);
+  assert.equal(edit.sampleId, "sketch-editing");
+  assert.equal(edit.sourceEntry, "examples/sketch-editing/src/main.ts");
+  assert.match(markdown, /sketch-editing[\s\S]*Sample contract: `recipe` · `experimental` · `active`/);
+  assert.match(markdown, /spatial-analytics-workbench[\s\S]*Sample contract: `lab` · `experimental` · `active`/);
+  assert.match(markdown, /imagery-cog-quickstart[\s\S]*Sample contract: `golden` · `supported` · `active`/);
   assert.match(markdown, /Data and auth: `hybrid` · `anonymous`/);
   assert.match(
     markdown,

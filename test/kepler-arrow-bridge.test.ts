@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createKeplerWorkspaceBridge,
-  loadKeplerProcessors,
-  projectArrowTableToKeplerDataset,
-} from "../src/kepler/index.js";
+import { createKeplerAppBridge, loadKeplerProcessors, projectArrowTableToKeplerDataset } from "../src/kepler/index.js";
 import type { KeplerPeers, KeplerProcessors } from "../src/kepler/index.js";
 
 const provenance = { sourceId: "arrow-source", planId: "plan-1", authorizationScope: "scope:public" } as const;
@@ -43,7 +39,7 @@ describe("Kepler Arrow processor bridge", () => {
   });
 
   it("keeps Arrow processing optional and fails clearly when not configured", () => {
-    const bridge = createKeplerWorkspaceBridge({ peers });
+    const bridge = createKeplerAppBridge({ peers });
     expect(() => bridge.openArrowTable({ datasetId: "readings", arrowTable: {}, provenance })).toThrowError(
       /@kepler\.gl\/processors/,
     );

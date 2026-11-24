@@ -98,6 +98,78 @@ describe("projectSourceToMapLibre", () => {
     );
   });
 
+  describe("WGS84 coordinate guard", () => {
+    // GeoServices layers are often stored in Web Mercator; a plan without
+    // outSr: 4326 returns metres, which a GeoJSON source would draw nowhere.
+    const mercatorResult: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { OBJECTID: 1 }, geometry: { x: -157.8, y: 21.3 } },
+        {
+          attributes: { OBJECTID: 2 },
+          geometry: {
+            rings: [
+              [
+                [-9805779.6231, 3536997.5778],
+                [-9809992.6218, 3540062.1881],
+                [-9809999.7555, 3538760.4371],
+                [-9805779.6231, 3536997.5778],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+
+    it("refuses projected coordinates with the outSr remedy instead of mounting a blank source", () => {
+      const source = fakeSource([mercatorResult]);
+      expect(() => projectSourceToMapLibre(source, plan, mercatorResult)).toThrowError(
+        expect.objectContaining({
+          code: "unsupported-plan",
+          message: expect.stringMatching(/WGS84.*outSr: 4326/s),
+        }),
+      );
+    });
+
+    it.each([
+      ["latitude", { x: -157.8, y: 91 }],
+      ["longitude", { x: 541, y: 21.3 }],
+    ])("refuses an out-of-range %s", (_axis, geometry) => {
+      const result: Result<Record<string, unknown>> = {
+        exceededTransferLimit: false,
+        features: [{ attributes: { OBJECTID: 1 }, geometry }],
+      };
+      expect(() => projectSourceToMapLibre(fakeSource([result]), plan, result)).toThrowError(
+        expect.objectContaining({ code: "unsupported-plan" }),
+      );
+    });
+
+    it("accepts wrapped longitudes and the WGS84 bounds", () => {
+      const result: Result<Record<string, unknown>> = {
+        exceededTransferLimit: false,
+        features: [
+          { attributes: { OBJECTID: 1 }, geometry: { x: 190, y: -90 } },
+          { attributes: { OBJECTID: 2 }, geometry: { x: -540, y: 90 } },
+        ],
+      };
+      const projection = projectSourceToMapLibre(fakeSource([result]), plan, result);
+      expect((projection.source.data as { features: unknown[] }).features).toHaveLength(2);
+    });
+
+    it("refuses projected coordinates on refresh without replacing the mounted data", async () => {
+      const source = fakeSource([pointResult(1), mercatorResult]);
+      const map = fakeMap();
+      const mounted = await mountSourceToMapLibre(map, source, plan, context);
+      await expect(mounted.refresh()).rejects.toMatchObject({ code: "unsupported-plan" });
+      expect(map.operations.filter((operation) => operation.startsWith("setData"))).toEqual([]);
+      const handle = map.sources.get(mounted.sourceId) as { currentData: { features: unknown[] } };
+      expect(handle.currentData.features).toEqual([
+        expect.objectContaining({ geometry: { type: "Point", coordinates: [-157.8, 21.3] } }),
+      ]);
+      mounted.dispose();
+    });
+  });
+
   it("rejects clustering for non-point geometry", () => {
     const source = fakeSource([mixedResult]);
     expect(() => projectSourceToMapLibre(source, plan, mixedResult, { cluster: true })).toThrowError(

@@ -315,11 +315,10 @@ test("published bundles declare the prerequisites implied by runnability (#656 R
       assert.ok(PUBLISHED_LIVE_SAMPLE_POLICY.has(entry.id), `${entry.id}: live publication must be explicitly allowlisted`);
     }
   }
-  // The five samples whose default lane addresses same-origin fixture routes
-  // the bundle does not contain must never be presented as standalone.
+  // Samples whose default lane addresses same-origin fixture routes the
+  // bundle does not contain must never be presented as standalone.
   const byId = new Map(published.map((entry) => [entry.id, entry]));
   for (const id of [
-    "planning-permitting-workbench",
     "react-quickstart",
   ]) {
     assert.equal(byId.get(id)?.runnability, "requires-host-fixture-service", `${id} must declare its prerequisites`);
@@ -348,7 +347,6 @@ test("the newly published samples audited by #656 are bundled", () => {
   for (const id of [
     "ai-spatial-app-builder",
     "imagery-cog-quickstart",
-    "planning-permitting-workbench",
     "react-quickstart",
     "service-explorer",
   ]) {

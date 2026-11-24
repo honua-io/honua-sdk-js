@@ -5,10 +5,10 @@
  *    / quadruple combinations of `PROTOCOL_DEFAULT_CAPABILITIES`,
  *  - the four canonical mixed-protocol scenarios (GeoServices + OGC +
  *    WMS + STAC; FeatureServer + OData; WMTS basemap + OGC Features
- *    overlay; partial-failure under `loadMapPackage`),
+ *    overlay; partial-failure under `loadMapDocument`),
  *  - per-source `DegradedReason.sourceId` attribution so a fan-out can
  *    point to the failing source instead of parsing `reason` strings,
- *  - `loadMapPackage` partial-failure semantics: one bind failure
+ *  - `loadMapDocument` partial-failure semantics: one bind failure
  *    surfaces `source-error` while remaining sources continue to
  *    render and query.
  *
@@ -30,12 +30,12 @@ import {
   unionCapabilities,
 } from "../../src/contract/index.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   type HonuaRuntimeEvent,
   type HonuaRuntimeTelemetrySpanResult,
   type MaplibreMap,
-  loadMapPackage,
+  loadMapDocument,
 } from "../../src/runtime/index.js";
 
 import {
@@ -473,7 +473,7 @@ describe("contract / composition scenarios", () => {
   });
 });
 
-// ── loadMapPackage partial-failure semantics ─────────────────
+// ── loadMapDocument partial-failure semantics ─────────────────
 
 interface RecordedCall {
   method: string;
@@ -547,10 +547,10 @@ function makeMockMap(): MockMap {
   return map;
 }
 
-function makeMixedPackage(overrides?: { ogcLocatorUrl?: string }): HonuaMapPackage {
+function makeMixedPackage(overrides?: { ogcLocatorUrl?: string }): HonuaMapDocument {
   return {
     mapPackageId: "mixed-pkg",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "parcels",
@@ -593,13 +593,13 @@ function makeMixedPackage(overrides?: { ogcLocatorUrl?: string }): HonuaMapPacka
   };
 }
 
-describe("runtime / loadMapPackage partial-failure", () => {
+describe("runtime / loadMapDocument partial-failure", () => {
   it("loads a 4-source mixed-protocol package and emits source-ready for each", async () => {
     const map = makeMockMap();
     const pkg = makeMixedPackage();
     const events: HonuaRuntimeEvent[] = [];
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -634,7 +634,7 @@ describe("runtime / loadMapPackage partial-failure", () => {
     const events: HonuaRuntimeEvent[] = [];
     const telemetryErrors: HonuaRuntimeTelemetrySpanResult[] = [];
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -694,7 +694,7 @@ describe("runtime / loadMapPackage partial-failure", () => {
     const pkg = makeMixedPackage({ ogcLocatorUrl: "https://example/ogc/features" });
 
     await expect(
-      loadMapPackage(pkg, map, {
+      loadMapDocument(pkg, map, {
         client: makeMockClient({ routes: [] }),
         skipCompatibilityCheck: true,
         applyInitialView: false,
@@ -709,7 +709,7 @@ describe("runtime / loadMapPackage partial-failure", () => {
     const events: HonuaRuntimeEvent[] = [];
     const telemetryErrors: HonuaRuntimeTelemetrySpanResult[] = [];
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       applyInitialView: false,
@@ -745,7 +745,7 @@ describe("runtime / loadMapPackage partial-failure", () => {
     const pkg = makeMixedPackage();
     const events: HonuaRuntimeEvent[] = [];
 
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       applyInitialView: false,

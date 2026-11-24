@@ -5,7 +5,7 @@ import type { HonuaHitTestMap } from "@honua/sdk-js/interactions";
 import type { QueryTileSourceDescriptor, Source } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaMap } from "../src/map/index.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, HonuaMapRuntime, type MaplibreMap } from "../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, HonuaMapRuntime, type MaplibreMap } from "../src/runtime/index.js";
 
 const queryTileDescriptor: QueryTileSourceDescriptor = {
   kind: "query-vector-tile",
@@ -182,7 +182,7 @@ describe("HonuaMapRuntime hitTest", () => {
       packageRef: {
         current: {
           mapPackageId: "pkg-hit-test",
-          format: HONUA_MAP_PACKAGE_FORMAT_V1,
+          format: HONUA_MAP_DOCUMENT_FORMAT_V1,
           sourceBindings: [
             {
               sourceId: "incidents",

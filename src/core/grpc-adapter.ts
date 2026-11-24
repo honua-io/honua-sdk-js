@@ -1,78 +1,42 @@
+import { toProtoGeometry, toProtoSpatialReference } from "./grpc-geometry-input.js";
+import { toSafeNumberOrString } from "./grpc-int64.js";
+export {
+  fromProtoApplyEditsResponse,
+  fromProtoApplyServiceEditsResponse,
+  toProtoApplyEditsRequest,
+  toProtoApplyServiceEditsRequest,
+} from "./grpc-edits.js";
+export { fromProtoRelatedPages, toProtoRelatedRequest } from "./grpc-related.js";
 import { create } from "@bufbuild/protobuf";
 import {
-  type AttributeValue,
-  CoordinateSchema,
-  CoordinateSequenceSchema,
   DistanceUnit,
   type FeaturePage,
-  FieldType,
-  GeometrySchema,
   GeometryType,
-  MultiPointGeometrySchema,
-  PointGeometrySchema,
-  PolygonGeometrySchema,
-  PolylineGeometrySchema,
-  type Feature as ProtoFeature,
-  type FieldDefinition as ProtoFieldDefinition,
+  type QueryFeaturesRequest as ProtoQueryFeaturesRequest,
   QueryFeaturesRequestSchema,
   type QueryFeaturesResponse,
   SpatialFilterSchema,
-  SpatialReferenceSchema,
   SpatialRelationship,
 } from "../gen/geospatial/v1/index.js";
 import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
+import { toWireGlobalId } from "./grpc-edits.js";
+import {
+  GEOMETRY_TYPE_MAP,
+  convertFeature,
+  convertField,
+  convertSpatialReference,
+  splitOutFields,
+  toProtoObjectIds,
+} from "./grpc-feature-conversion.js";
 import type {
   HonuaCountResponse,
   HonuaExtentResponse,
   HonuaFeature,
-  HonuaFieldInfo,
   HonuaObjectIdsResponse,
   HonuaQueryResponse,
-  HonuaSpatialReference,
   QueryFeaturesRequest,
 } from "./types.js";
-
-/**
- * Maps proto FieldType enum values to Esri-style field type strings
- * used in the JSON response shape.
- */
-const FIELD_TYPE_MAP: Record<number, string> = {
-  [FieldType.STRING]: "esriFieldTypeString",
-  [FieldType.INTEGER]: "esriFieldTypeInteger",
-  // BIG_INTEGER must map to esriFieldTypeBigInteger so a 64-bit column reports
-  // the same field type as the PBF fast path (mapPbfFieldTypeToGeoServices maps
-  // PBF type 13 -> esriFieldTypeBigInteger). Mapping it to esriFieldTypeInteger
-  // made a 64-bit column's reported type diverge between the gRPC and PBF
-  // transports for the same dataset.
-  [FieldType.BIG_INTEGER]: "esriFieldTypeBigInteger",
-  [FieldType.DOUBLE]: "esriFieldTypeDouble",
-  [FieldType.FLOAT]: "esriFieldTypeSingle",
-  // Esri/GeoServices has no boolean field type; ArcGIS surfaces booleans as a
-  // small integer, and the PBF schema likewise carries booleans as small
-  // integers, so esriFieldTypeSmallInteger keeps the two transports in parity.
-  [FieldType.BOOLEAN]: "esriFieldTypeSmallInteger",
-  [FieldType.DATE_TIME]: "esriFieldTypeDate",
-  [FieldType.DATE]: "esriFieldTypeDate",
-  [FieldType.TIME]: "esriFieldTypeDate",
-  [FieldType.GEOMETRY]: "esriFieldTypeGeometry",
-  [FieldType.JSON]: "esriFieldTypeString",
-  [FieldType.BINARY]: "esriFieldTypeBlob",
-  [FieldType.UUID]: "esriFieldTypeGUID",
-};
-
-/**
- * Maps proto GeometryType enum values to Esri-style geometry type strings.
- */
-const GEOMETRY_TYPE_MAP: Record<number, string> = {
-  [GeometryType.POINT]: "esriGeometryPoint",
-  [GeometryType.MULTI_POINT]: "esriGeometryMultipoint",
-  [GeometryType.LINE_STRING]: "esriGeometryPolyline",
-  [GeometryType.MULTI_LINE_STRING]: "esriGeometryPolyline",
-  [GeometryType.POLYGON]: "esriGeometryPolygon",
-  [GeometryType.MULTI_POLYGON]: "esriGeometryPolygon",
-  [GeometryType.NONE]: "esriGeometryNull",
-};
 
 const GEOSERVICES_TO_PROTO_SPATIAL_REL_MAP: Record<string, SpatialRelationship> = {
   esriSpatialRelIntersects: SpatialRelationship.INTERSECTS,
@@ -106,23 +70,6 @@ const GEOSERVICES_TO_PROTO_DISTANCE_UNIT_MAP: Record<string, DistanceUnit> = {
   mi: DistanceUnit.MILES,
 };
 
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
-const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
-const MIN_PROTO_INT64 = -(1n << 63n);
-const MAX_PROTO_INT64 = (1n << 63n) - 1n;
-
-function toProtoObjectId(value: string): bigint {
-  const token = value.trim();
-  if (!/^(?:0|-?[1-9][0-9]*)$/.test(token)) {
-    throw new RangeError("string objectIds must contain canonical decimal int64 values");
-  }
-  const parsed = BigInt(token);
-  if (parsed < MIN_PROTO_INT64 || parsed > MAX_PROTO_INT64) {
-    throw new RangeError("string objectIds must remain within the signed int64 range");
-  }
-  return parsed;
-}
-
 function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new RangeError(`${field} must be a non-negative safe integer for the gRPC int64 contract`);
@@ -130,10 +77,24 @@ function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: nu
   return BigInt(value);
 }
 
+/** Validate and normalise UUID selectors; an empty list would silently mean "no selector". */
+function toProtoGlobalIds(request: QueryFeaturesRequest): string[] {
+  if (request.objectIds !== undefined) {
+    throw new Error("objectIds and globalIds cannot be combined in one gRPC query");
+  }
+  if (!request.globalIds?.length) {
+    throw new Error("globalIds must name at least one global ID; omit it to query without a selector");
+  }
+  return request.globalIds.map((id) => toWireGlobalId(id.trim()));
+}
+
 /**
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
 export function toProtoQueryRequest(request: QueryFeaturesRequest) {
+  if (request.extraParams?.time !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("temporalFilter", "grpc", `${request.serviceId}/${request.layerId}`);
+  }
   if (
     request.outStatistics !== undefined ||
     request.groupByFieldsForStatistics !== undefined ||
@@ -157,27 +118,15 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   }
 
   if (request.outFields !== undefined) {
-    const fields =
-      typeof request.outFields === "string"
-        ? request.outFields
-            .split(",")
-            .map((f) => f.trim())
-            .filter(Boolean)
-        : request.outFields;
-    msg.outFields = fields;
+    msg.outFields = splitOutFields(request.outFields);
   }
 
   if (request.objectIds !== undefined) {
-    const ids =
-      typeof request.objectIds === "string"
-        ? request.objectIds.split(",").map(toProtoObjectId)
-        : request.objectIds.map((id) => {
-            if (!Number.isSafeInteger(id)) {
-              throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
-            }
-            return BigInt(id);
-          });
-    msg.objectIds = ids;
+    msg.objectIds = toProtoObjectIds(request.objectIds);
+  }
+
+  if (request.globalIds !== undefined) {
+    msg.globalIds = toProtoGlobalIds(request);
   }
 
   if (request.resultOffset !== undefined) {
@@ -279,7 +228,11 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
  */
 export function fromProtoQueryResponse(
   response: QueryFeaturesResponse,
+  sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): HonuaQueryResponse | HonuaCountResponse | HonuaObjectIdsResponse | HonuaExtentResponse {
+  // Count, id and extent responses carry the field name too. An empty name means
+  // the server did not honour global_ids, including a pre-1.2 server.
+  ensureGlobalIdSelectorHonored(sent, response.globalIdFieldName);
   const hasFeatureMetadata =
     response.fields.length > 0 ||
     response.objectIdFieldName.length > 0 ||
@@ -321,12 +274,14 @@ export function fromProtoQueryResponse(
   }
 
   // Standard feature response
+  const identity = { objectIdFieldName: response.objectIdFieldName, globalIdFieldName: response.globalIdFieldName };
   return {
     objectIdFieldName: response.objectIdFieldName,
+    ...(response.globalIdFieldName ? { globalIdFieldName: response.globalIdFieldName } : {}),
     geometryType: GEOMETRY_TYPE_MAP[response.geometryType] ?? "esriGeometryPoint",
     spatialReference: response.spatialReference ? convertSpatialReference(response.spatialReference) : undefined,
     fields: response.fields.map(convertField),
-    features: response.features.map((feature) => convertFeature(feature, response.objectIdFieldName)),
+    features: response.features.map((feature) => convertFeature(feature, identity)),
     exceededTransferLimit: response.exceededTransferLimit || undefined,
   };
 }
@@ -389,227 +344,6 @@ function parseExtraString(params: Record<string, string | number | boolean>, key
   return String(value);
 }
 
-function toProtoGeometry(geometryValue: string | Record<string, unknown>): {
-  geometry: ReturnType<typeof create<typeof GeometrySchema>>;
-  spatialReference?: ReturnType<typeof create<typeof SpatialReferenceSchema>>;
-} {
-  const source = parseGeometryValue(geometryValue);
-  const geometry = create(GeometrySchema);
-
-  if (isPoint(source)) {
-    const point = create(PointGeometrySchema);
-    point.x = source.x;
-    point.y = source.y;
-    if (typeof source.z === "number" && Number.isFinite(source.z)) {
-      point.z = source.z;
-    }
-    if (typeof source.m === "number" && Number.isFinite(source.m)) {
-      point.m = source.m;
-    }
-    geometry.shape = { case: "point", value: point };
-  } else if (isEnvelope(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = [
-      toCoordinateSequence([
-        [source.xmin, source.ymin],
-        [source.xmax, source.ymin],
-        [source.xmax, source.ymax],
-        [source.xmin, source.ymax],
-        [source.xmin, source.ymin],
-      ]),
-    ];
-    geometry.shape = { case: "polygon", value: polygon };
-  } else if (isMultipoint(source)) {
-    const multipoint = create(MultiPointGeometrySchema);
-    multipoint.points = source.points.map((point, index) => toPointGeometryFromArray(point, `points[${index}]`));
-    geometry.shape = { case: "multiPoint", value: multipoint };
-  } else if (isPolyline(source)) {
-    const polyline = create(PolylineGeometrySchema);
-    polyline.paths = source.paths.map((path, index) => toCoordinateSequence(path, `paths[${index}]`));
-    geometry.shape = { case: "polyline", value: polyline };
-  } else if (isPolygon(source)) {
-    const polygon = create(PolygonGeometrySchema);
-    polygon.rings = source.rings.map((ring, index) => toCoordinateSequence(ring, `rings[${index}]`));
-    geometry.shape = { case: "polygon", value: polygon };
-  } else {
-    throw new Error("Unsupported geometry shape for gRPC transport.");
-  }
-
-  return {
-    geometry,
-    spatialReference: toProtoSpatialReference((source as Record<string, unknown>).spatialReference),
-  };
-}
-
-function parseGeometryValue(value: string | Record<string, unknown>): Record<string, unknown> {
-  if (typeof value === "string") {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      throw new Error("Geometry must be a JSON object for gRPC transport.");
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("Geometry JSON must parse to an object for gRPC transport.");
-    }
-    return parsed as Record<string, unknown>;
-  }
-  return value;
-}
-
-function toProtoSpatialReference(value: unknown): ReturnType<typeof create<typeof SpatialReferenceSchema>> | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkid = value;
-    return spatialReference;
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return undefined;
-    }
-
-    const asNumber = Number(trimmed);
-    if (Number.isFinite(asNumber)) {
-      const spatialReference = create(SpatialReferenceSchema);
-      spatialReference.wkid = asNumber;
-      return spatialReference;
-    }
-
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed) as unknown;
-        return toProtoSpatialReference(parsed);
-      } catch {
-        throw new Error("Invalid outSr JSON for gRPC transport.");
-      }
-    }
-
-    const spatialReference = create(SpatialReferenceSchema);
-    spatialReference.wkt = trimmed;
-    return spatialReference;
-  }
-
-  if (typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
-  }
-
-  const spatialReference = create(SpatialReferenceSchema);
-  const source = value as Record<string, unknown>;
-  const wkid = source.wkid;
-  if (typeof wkid === "number" && Number.isFinite(wkid)) {
-    spatialReference.wkid = wkid;
-  }
-  const latestWkid = source.latestWkid;
-  if (typeof latestWkid === "number" && Number.isFinite(latestWkid)) {
-    spatialReference.latestWkid = latestWkid;
-  }
-  const wkt = source.wkt;
-  if (typeof wkt === "string" && wkt.length > 0) {
-    spatialReference.wkt = wkt;
-  }
-
-  if (spatialReference.wkid === 0 && spatialReference.latestWkid === 0 && !spatialReference.wkt) {
-    return undefined;
-  }
-  return spatialReference;
-}
-
-function toPointGeometryFromArray(
-  value: unknown,
-  context: string,
-): ReturnType<typeof create<typeof PointGeometrySchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate array at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const point = create(PointGeometrySchema);
-  point.x = x;
-  point.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    point.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    point.m = m;
-  }
-  return point;
-}
-
-function toCoordinateSequence(
-  value: unknown,
-  context = "coords",
-): ReturnType<typeof create<typeof CoordinateSequenceSchema>> {
-  if (!Array.isArray(value)) {
-    throw new Error(`Invalid coordinate sequence at ${context}`);
-  }
-  const sequence = create(CoordinateSequenceSchema);
-  sequence.coords = value.map((coord, index) => toCoordinate(coord, `${context}[${index}]`));
-  return sequence;
-}
-
-function toCoordinate(value: unknown, context: string): ReturnType<typeof create<typeof CoordinateSchema>> {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`Invalid coordinate at ${context}`);
-  }
-  const x = Number(value[0]);
-  const y = Number(value[1]);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    throw new Error(`Invalid coordinate values at ${context}`);
-  }
-
-  const coordinate = create(CoordinateSchema);
-  coordinate.x = x;
-  coordinate.y = y;
-  const z = value[2];
-  if (typeof z === "number" && Number.isFinite(z)) {
-    coordinate.z = z;
-  }
-  const m = value[3];
-  if (typeof m === "number" && Number.isFinite(m)) {
-    coordinate.m = m;
-  }
-  return coordinate;
-}
-
-function isPoint(value: Record<string, unknown>): value is { x: number; y: number; z?: number; m?: number } {
-  return typeof value.x === "number" && typeof value.y === "number";
-}
-
-function isEnvelope(
-  value: Record<string, unknown>,
-): value is { xmin: number; ymin: number; xmax: number; ymax: number } {
-  return (
-    typeof value.xmin === "number" &&
-    typeof value.ymin === "number" &&
-    typeof value.xmax === "number" &&
-    typeof value.ymax === "number"
-  );
-}
-
-function isMultipoint(value: Record<string, unknown>): value is { points: unknown[] } {
-  return Array.isArray(value.points);
-}
-
-function isPolyline(value: Record<string, unknown>): value is { paths: unknown[] } {
-  return Array.isArray(value.paths);
-}
-
-function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] } {
-  return Array.isArray(value.rings);
-}
-
 /**
  * Converts a stream of proto FeaturePages into an async generator
  * that yields arrays of JSON-compatible features, matching the
@@ -617,18 +351,20 @@ function isPolygon(value: Record<string, unknown>): value is { rings: unknown[] 
  */
 export async function* streamProtoPages(
   stream: AsyncIterable<FeaturePage>,
+  sent?: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId">,
 ): AsyncGenerator<HonuaFeature[], void, undefined> {
+  let first = true;
   // Metadata is populated on the first page only; later pages reuse it.
-  let objectIdFieldName = "";
+  let identity = { objectIdFieldName: "", globalIdFieldName: "" };
   try {
     for await (const page of stream) {
-      if (page.objectIdFieldName) {
-        objectIdFieldName = page.objectIdFieldName;
-      }
+      ensureGlobalIdSelectorHonored(first ? sent : undefined, page.globalIdFieldName);
+      first = false;
+      identity = pageIdentity(identity, page);
       if (page.features.length === 0 && page.isLastPage) {
         break;
       }
-      const features = page.features.map((feature) => convertFeature(feature, objectIdFieldName));
+      const features = page.features.map((feature) => convertFeature(feature, identity));
       if (features.length > 0) {
         yield features;
       }
@@ -642,10 +378,36 @@ export async function* streamProtoPages(
 }
 
 /**
+ * A server older than geospatial-grpc 1.2 ignores `global_ids` and answers with an unfiltered
+ * page. A 1.2 server always names the layer's global-ID field when it honours the selector, so
+ * a response without one is refused rather than returned as the selected rows.
+ */
+function ensureGlobalIdSelectorHonored(
+  sent: Pick<ProtoQueryFeaturesRequest, "globalIds" | "serviceId" | "layerId"> | undefined,
+  globalIdFieldName: string,
+): void {
+  if (sent && sent.globalIds.length > 0 && globalIdFieldName.length === 0) {
+    throw new HonuaCapabilityNotSupportedError("globalIds", "grpc", `${sent.serviceId}/${sent.layerId}`);
+  }
+}
+
+/** Metadata arrives on the first page; later pages keep the identity fields already seen. */
+function pageIdentity(
+  identity: { objectIdFieldName: string; globalIdFieldName: string },
+  page: FeaturePage,
+): { objectIdFieldName: string; globalIdFieldName: string } {
+  return {
+    objectIdFieldName: page.objectIdFieldName || identity.objectIdFieldName,
+    globalIdFieldName: page.globalIdFieldName || identity.globalIdFieldName,
+  };
+}
+
+/**
  * Wraps a ConnectError (or any error from the gRPC transport) in a
  * HonuaGrpcError for consistent `instanceof` discrimination.
  */
 export function wrapConnectError(error: unknown): Error {
+  if (error instanceof HonuaGrpcError) return error;
   if (error instanceof Error && "code" in error && typeof (error as Record<string, unknown>).code === "number") {
     const candidate = error as Record<string, unknown>;
     return new HonuaGrpcError(
@@ -662,153 +424,4 @@ export function wrapConnectError(error: unknown): Error {
     return error;
   }
   return new Error(String(error));
-}
-
-function convertSpatialReference(sr: { wkid: number; latestWkid: number; wkt: string }): HonuaSpatialReference {
-  const result: HonuaSpatialReference = {};
-  if (sr.wkid !== 0) {
-    result.wkid = sr.wkid;
-  }
-  if (sr.latestWkid !== 0) {
-    result.latestWkid = sr.latestWkid;
-  }
-  if (sr.wkt) {
-    result.wkt = sr.wkt;
-  }
-  return result;
-}
-
-function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
-  return {
-    name: field.name,
-    type: FIELD_TYPE_MAP[field.fieldType] ?? "esriFieldTypeString",
-    alias: field.alias || field.name,
-    length: field.length || undefined,
-    nullable: field.nullable,
-  };
-}
-
-/**
- * geospatial.v1 carries the object ID in `Feature.id` and the server no
- * longer repeats it in `Feature.attributes` (honua-server#5330), so it is
- * restored under the declared `objectIdFieldName` to match `f=json` output.
- * An `id` of 0 means no object ID (for example distinct projections), and an
- * attribute already present under that name in any casing (a legacy server
- * repeating it, or a differing custom public ID) is kept as sent.
- */
-function convertFeature(feature: ProtoFeature, objectIdFieldName: string): HonuaFeature {
-  const attributes: Record<string, unknown> = {};
-  for (const [key, attrValue] of Object.entries(feature.attributes)) {
-    attributes[key] = convertAttributeValue(attrValue);
-  }
-
-  if (objectIdFieldName.length > 0 && feature.id !== 0n && !hasAttributeIgnoreCase(attributes, objectIdFieldName)) {
-    attributes[objectIdFieldName] = toSafeNumberOrString(feature.id);
-  }
-
-  const result: HonuaFeature = { attributes };
-
-  if (feature.geometry) {
-    result.geometry = convertGeometry(feature.geometry);
-  }
-
-  return result;
-}
-
-function hasAttributeIgnoreCase(attributes: Record<string, unknown>, name: string): boolean {
-  const lowered = name.toLowerCase();
-  return Object.keys(attributes).some((key) => key.toLowerCase() === lowered);
-}
-
-function convertAttributeValue(attr: AttributeValue): unknown {
-  switch (attr.value.case) {
-    case "stringValue":
-      return attr.value.value;
-    case "int32Value":
-      return attr.value.value;
-    case "int64Value":
-      return toSafeNumberOrString(attr.value.value);
-    case "doubleValue":
-      return attr.value.value;
-    case "floatValue":
-      return attr.value.value;
-    case "boolValue":
-      return attr.value.value;
-    case "datetimeValue":
-      return toSafeNumberOrString(attr.value.value);
-    case "bytesValue":
-      return attr.value.value;
-    case "nullValue":
-      return null;
-    default:
-      return null;
-  }
-}
-
-function toSafeNumberOrString(value: bigint): number | string {
-  if (value <= MAX_SAFE_INTEGER_BIGINT && value >= MIN_SAFE_INTEGER_BIGINT) {
-    return Number(value);
-  }
-  return value.toString();
-}
-
-/**
- * Builds an Esri-JSON coordinate array from a proto coordinate. Z and M are
- * appended only when present, matching `f=json` / PBF output:
- *   - `[x, y]`        (2D)
- *   - `[x, y, z]`     (Z only)
- *   - `[x, y, m]`     (M only — Esri's M-without-Z convention)
- *   - `[x, y, z, m]`  (Z and M)
- *
- * A `NaN` placeholder is never emitted: `JSON.stringify` would serialize it to
- * `null`, which is invalid Esri-JSON/GeoJSON and diverges from the other
- * transports.
- */
-function coordToArray(x: number, y: number, z: number | undefined, m: number | undefined): number[] {
-  const coords: number[] = [x, y];
-  if (z !== undefined) coords.push(z);
-  if (m !== undefined) coords.push(m);
-  return coords;
-}
-
-function convertGeometry(geometry: NonNullable<ProtoFeature["geometry"]>): Record<string, unknown> | null {
-  switch (geometry.shape.case) {
-    case "point": {
-      const p = geometry.shape.value;
-      const result: Record<string, unknown> = { x: p.x, y: p.y };
-      if (p.z !== undefined) result.z = p.z;
-      if (p.m !== undefined) result.m = p.m;
-      return result;
-    }
-    case "multiPoint": {
-      const mp = geometry.shape.value;
-      return {
-        points: mp.points.map((p) => coordToArray(p.x, p.y, p.z, p.m)),
-      };
-    }
-    case "polyline": {
-      const pl = geometry.shape.value;
-      return {
-        paths: pl.paths.map((path) => path.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
-      };
-    }
-    case "polygon": {
-      const pg = geometry.shape.value;
-      return {
-        rings: pg.rings.map((ring) => ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m))),
-      };
-    }
-    case "multiPolygon": {
-      const mpg = geometry.shape.value;
-      const rings: number[][][] = [];
-      for (const poly of mpg.polygons) {
-        for (const ring of poly.rings) {
-          rings.push(ring.coords.map((c) => coordToArray(c.x, c.y, c.z, c.m)));
-        }
-      }
-      return { rings };
-    }
-    default:
-      return null;
-  }
 }

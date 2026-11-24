@@ -1172,7 +1172,10 @@ function requiredFields<T>(
   maxFields: number,
 ): readonly string[] {
   const pk = primaryKey(source);
-  const requested = presentation.fields ?? source.descriptor.schema?.fields?.map((field) => field.name) ?? [pk];
+  const requested = presentation.fields ??
+    source.descriptor.schema?.fields
+      ?.filter((field) => field.type !== "esriFieldTypeGeometry")
+      .map((field) => field.name) ?? [pk];
   const linkFields = presentation.links?.map((link) => link.hrefField) ?? [];
   return uniqueStrings([
     pk,

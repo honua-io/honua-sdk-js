@@ -7,7 +7,7 @@
  * {@link KeplerRebuildReason} the caller must act on.
  *
  * Reconciliation is a pure function over
- * {@link KeplerWorkspaceDatasetState}: it returns the operations to dispatch
+ * {@link KeplerAppDatasetState}: it returns the operations to dispatch
  * plus the next state, so a caller can drive it from realtime events, a
  * reconnect resume, or a test fixture without owning Kepler's store.
  *
@@ -22,7 +22,7 @@ import type { KeplerBridgeLimits, KeplerDatasetMetadata, KeplerDatasetProjection
 import { HonuaKeplerBridgeError } from "./types.js";
 
 /** Live state the bridge tracks for one open Kepler dataset. */
-export interface KeplerWorkspaceDatasetState {
+export interface KeplerAppDatasetState {
   readonly datasetId: string;
   readonly fields: readonly KeplerField[];
   readonly rows: ReadonlyArray<readonly unknown[]>;
@@ -139,7 +139,7 @@ export interface KeplerReconciliationPlan {
   readonly operations: readonly KeplerReconciliationOperation[];
   readonly diagnostic: KeplerReconciliationDiagnostic;
   /** Next dataset state. Absent when a rebuild is required. */
-  readonly nextState?: KeplerWorkspaceDatasetState;
+  readonly nextState?: KeplerAppDatasetState;
 }
 
 function fieldsEqual(left: readonly KeplerField[], right: readonly KeplerField[]): boolean {
@@ -173,7 +173,7 @@ function rebuild(
 }
 
 /** Build the identity → row-index map for a dataset state. */
-function rowIndexById(state: KeplerWorkspaceDatasetState, identityIndex: number): Map<string, number> {
+function rowIndexById(state: KeplerAppDatasetState, identityIndex: number): Map<string, number> {
   const index = new Map<string, number>();
   for (let rowIndex = 0; rowIndex < state.rows.length; rowIndex += 1) {
     const value = state.rows[rowIndex][identityIndex];
@@ -195,7 +195,7 @@ function rowIndexById(state: KeplerWorkspaceDatasetState, identityIndex: number)
  * disagreement is reported through `identityMismatches`.
  */
 function buildRow(
-  state: KeplerWorkspaceDatasetState,
+  state: KeplerAppDatasetState,
   upsert: KeplerDeltaUpsert,
   identityMismatches: KeplerIdentityMismatch[],
 ): unknown[] {
@@ -258,7 +258,7 @@ export function estimateKeplerRowBytes(rows: ReadonlyArray<readonly unknown[]>):
 export function keplerDatasetStateFromProjection(
   projection: KeplerDatasetProjection,
   cursor?: string,
-): KeplerWorkspaceDatasetState {
+): KeplerAppDatasetState {
   const metadata: KeplerDatasetMetadata = projection.dataset.metadata;
   return Object.freeze({
     datasetId: projection.dataset.info.id,
@@ -286,7 +286,7 @@ export function keplerDatasetStateFromProjection(
  * an explicit reason.
  */
 export function reconcileKeplerDataset(
-  state: KeplerWorkspaceDatasetState,
+  state: KeplerAppDatasetState,
   event: KeplerReconciliationEvent,
   limits: KeplerBridgeLimits = DEFAULT_KEPLER_BRIDGE_LIMITS,
 ): KeplerReconciliationPlan {

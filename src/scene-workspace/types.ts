@@ -14,7 +14,7 @@ import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.
 import type { RealtimeConnectionStatus } from "../realtime/index.js";
 import type { ScenePrimitiveDiagnostic, SceneRuntimePrimitive } from "./primitives.js";
 
-export type SceneWorkspaceSlice =
+export type SceneStoreSlice =
   | "all"
   | "scene"
   | "camera"
@@ -29,7 +29,7 @@ export type SceneWorkspaceSlice =
   | "realtime"
   | "history";
 
-export const SCENE_WORKSPACE_SLICES: readonly SceneWorkspaceSlice[] = [
+export const SCENE_STORE_SLICES: readonly SceneStoreSlice[] = [
   "all",
   "scene",
   "camera",
@@ -67,6 +67,9 @@ export interface SceneBookmark {
   readonly id: string;
   readonly label: string;
   readonly camera: SceneCameraState;
+  readonly projection?: string;
+  readonly verticalDatum?: string;
+  readonly time?: SceneTimelineState;
 }
 
 export interface SceneTimelineState {
@@ -108,7 +111,7 @@ export interface SceneDetailState {
   readonly attributes?: Readonly<Record<string, unknown>>;
 }
 
-export interface SceneWorkspaceState {
+export interface SceneStoreState {
   readonly sceneId?: string;
   readonly title?: string;
   readonly layers: Readonly<Record<string, SceneLayerState>>;
@@ -123,22 +126,22 @@ export interface SceneWorkspaceState {
   readonly timeline: SceneTimelineState;
   readonly evidence: Readonly<Record<string, SceneEvidenceReference>>;
   readonly realtime: SceneRealtimeState;
-  readonly history: ReadonlyArray<SceneWorkspaceHistoryEntry>;
+  readonly history: ReadonlyArray<SceneStoreHistoryEntry>;
 }
 
-export interface SceneWorkspaceHistoryEntry {
+export interface SceneStoreHistoryEntry {
   readonly id: string;
   readonly label: string;
   readonly at: string;
-  readonly intentKind: SceneWorkspaceIntent["kind"];
+  readonly intentKind: SceneStoreIntent["kind"];
 }
 
-export interface SceneWorkspaceSnapshot {
+export interface SceneStoreSnapshot {
   readonly version: 1;
-  readonly state: SceneWorkspaceState;
+  readonly state: SceneStoreState;
 }
 
-export type SceneWorkspaceIntent =
+export type SceneStoreIntent =
   | SetSceneIntent
   | SetSceneLayersIntent
   | SetScenePrimitivesIntent
@@ -253,10 +256,10 @@ export interface SetRealtimeIntent extends IntentBase {
 
 export interface RestoreSceneWorkspaceIntent extends IntentBase {
   readonly kind: "restore";
-  readonly snapshot: SceneWorkspaceSnapshot;
+  readonly snapshot: SceneStoreSnapshot;
 }
 
-export type SceneWorkspaceAdapterEvent =
+export type SceneStoreAdapterEvent =
   | SceneWorkspaceCameraEvent
   | SceneWorkspaceLayerVisibilityEvent
   | SceneWorkspacePrimitiveDiagnosticsEvent
@@ -315,21 +318,21 @@ export interface SceneWorkspaceRealtimeEvent {
   readonly realtime: SceneRealtimeState;
 }
 
-export interface SceneWorkspaceChangeEvent {
-  readonly state: SceneWorkspaceState;
-  readonly previous: SceneWorkspaceState;
-  readonly changedSlices: ReadonlySet<SceneWorkspaceSlice>;
-  readonly intent: SceneWorkspaceIntent;
+export interface SceneStoreChangeEvent {
+  readonly state: SceneStoreState;
+  readonly previous: SceneStoreState;
+  readonly changedSlices: ReadonlySet<SceneStoreSlice>;
+  readonly intent: SceneStoreIntent;
 }
 
-export type SceneWorkspaceListener = (event: SceneWorkspaceChangeEvent) => void;
-export type SceneWorkspaceUnsubscribe = () => void;
+export type SceneStoreListener = (event: SceneStoreChangeEvent) => void;
+export type SceneStoreUnsubscribe = () => void;
 
-export interface SceneWorkspace {
-  readonly state: SceneWorkspaceState;
-  dispatch(intent: SceneWorkspaceIntent): SceneWorkspaceState;
-  subscribe(slice: SceneWorkspaceSlice, listener: SceneWorkspaceListener): SceneWorkspaceUnsubscribe;
-  snapshot(): SceneWorkspaceSnapshot;
-  restore(snapshot: SceneWorkspaceSnapshot): SceneWorkspaceState;
+export interface SceneStore {
+  readonly state: SceneStoreState;
+  dispatch(intent: SceneStoreIntent): SceneStoreState;
+  subscribe(slice: SceneStoreSlice, listener: SceneStoreListener): SceneStoreUnsubscribe;
+  snapshot(): SceneStoreSnapshot;
+  restore(snapshot: SceneStoreSnapshot): SceneStoreState;
   dispose(): void;
 }

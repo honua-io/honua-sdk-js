@@ -1,5 +1,7 @@
 # First Map: endpoint to inspected MapLibre map
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This is the canonical five-minute browser journey for the Honua JavaScript SDK:
 
 ```text
@@ -19,8 +21,7 @@ explicit states; truncated data is never mounted.
 The thin presentation shell runs that workflow directly. It accepts an anonymous GeoServices FeatureServer layer
 or OGC API Features URL, mounts the accepted plan through MapLibre, and adds only presentation concerns: a linked
 table/filter, accessible popup, plan disclosure, copyable call site, runtime budgets, and deterministic teardown. It
-does not adapt source behavior or add a private fallback. The former `standalone-quickstart` and `endpoint-to-map`
-executables now redirect here rather than maintaining duplicate implementations.
+does not adapt source behavior or add a private fallback.
 
 The result is more than a map. The page makes endpoint provenance, source identity and attribution, observation time,
 authorization mode, capabilities, SDK/plan versions, accepted feature count, query fingerprint, pushdown, fidelity,
@@ -52,7 +53,7 @@ query limit and initial selected record to the governed fixture manifest rather 
 Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a 300-second
 ceiling. The browser shell also reports narrower monotonic budgets: 10,000 ms to its first usable fixture frame, 100 ms
 for a synchronous filter/selection update, and 1,000 ms for managed cleanup. See the
-[quickstart timing contract](../../docs/quickstart.md#what-the-five-minute-claim-measures). These are machine budgets,
+[quickstart budget](../../docs/ci-evidence-graph.md#why-the-quickstart-budget-does-not-reuse-the-build). These are machine budgets,
 not claims about a first-time human session or public-network latency.
 
 ## Secret-free live run

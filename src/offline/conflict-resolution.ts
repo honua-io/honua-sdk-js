@@ -6,7 +6,7 @@
  * until now is say *what should happen next*. A replica is registered with a
  * {@link ReplicaConflictPolicy}, and a reviewer closes an individual conflict
  * with a {@link ConflictResolutionChoice}; both vocabularies ship in
- * `@honua/sdk-js/replica-sync`, and neither reached the queue. This module is
+ * `@honua/app-platform/replica-sync`, and neither reached the queue. This module is
  * that reach, under two rules:
  *
  * - **Nothing is downgraded in silence.** A policy whose outcome the SDK cannot

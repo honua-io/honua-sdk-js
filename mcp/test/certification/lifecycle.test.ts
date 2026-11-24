@@ -57,3 +57,39 @@ describe("runDeepContracts skip-with-reason", () => {
     expect(byName("mutating-permission-denied")?.detail).toMatch(/unauthenticated pass/);
   });
 });
+
+// honua-server returns the identifier as lowercase objectid, not the offline mock's OBJECTID;
+// a feature without that attribute is keyed by its id.
+function pagedServerClient(): Client {
+  const pages = [
+    {
+      features: [
+        { id: 1, attributes: { objectid: 1 } },
+        { id: 2, attributes: { objectid: 2 } },
+      ],
+      nextCursor: "2",
+    },
+    { features: [{ id: 3, attributes: { name: "charlie" } }] },
+  ];
+  return {
+    async callTool(request: { arguments?: Record<string, unknown> }) {
+      return { structuredContent: request.arguments?.cursor === "2" ? pages[1] : pages[0] };
+    },
+    async close() {},
+  } as unknown as Client;
+}
+
+describe("runDeepContracts query pagination", () => {
+  it("pages a server that names the identifier objectid", async () => {
+    const contracts = await runDeepContracts({
+      client: pagedServerClient(),
+      layerKey: "serviceLayerIndex",
+      advertisedToolNames: new Set(["honua_query_features"]),
+      isDisposableBackend: false,
+      env: {} as NodeJS.ProcessEnv,
+    });
+    const pagination = contracts.find((c) => c.contract === "query-pagination");
+    expect(pagination?.status).toBe("passed");
+    expect(pagination?.detail).toMatch(/2 pages/);
+  });
+});

@@ -1,5 +1,19 @@
 # Contributing to `@honua/sdk-js`
 
+**This repository does not accept code contributions from outside Honua Geo Inc.**
+Pull requests from outside the organization are closed automatically, regardless
+of the repository's license.
+
+We welcome:
+
+- Bug reports and feature requests through GitHub Issues.
+- Interoperability reports with reproducible requests, responses, and version details.
+- Private security reports to <security@honua.io>, following the
+  [organization security policy](https://github.com/honua-io/.github/blob/main/SECURITY.md).
+  Do not disclose vulnerabilities in public issues.
+
+## Maintainer development guide
+
 ## What a feature PR should contain
 
 A feature PR commits **only**:
@@ -35,6 +49,11 @@ Now:
   from source and packed SDK (`samples:run -- verify --kit --sdk-mode
   source|packed`) all run at PR time. **A PR that genuinely breaks a sample
   still fails.**
+- Playground artifact checks allow exclusion diagnostic text to await trunk
+  regeneration in derived-artifact relaxed mode. Artifact schemas, exclusion identities and
+  categories, SDK pins, qualified projects, catalog links, and README blocks
+  remain checked; strict mode requires byte equality. The scheduled regeneration
+  workflow refreshes only the decision artifact and then runs the strict check.
 - **After merge**, `.github/workflows/regenerate-derived-artifacts.yml`
   (trunk-only, serialized) rebuilds every derived artifact, reseals sample
   evidence **strictly bound to the trunk source digest**, and commits the result
@@ -133,9 +152,11 @@ Reference for the gates `AGENTS.md` lists by name. Read the entry before changin
 code or data it guards.
 
 - **Contract conformance:** `npm run test:conformance` (`vitest.conformance.config.ts`) — round-trips the shared, versioned geospatial-grpc fixtures through the real `HonuaClient` against a pinned `honua-server:nightly` and fails on `Dataset`/`Source`/`Query`/`Result` drift. Double-gated on `HONUA_INTEGRATION_BASE_URL` + `HONUA_CONFORMANCE_FIXTURES_DIR`; explicit no-op otherwise. Pull fixtures with `conformance/fetch-fixtures.sh --version <X.Y.Z>`. See `conformance/README.md`.
+- **Component release lockfiles:** after normal Release Please PR generation, the trusted `normalize-release-please-lockfiles.mjs` hook aligns local SDK lock metadata with each candidate's actual `package.json`. This prevents the workspace plugin's combined release plan from assigning a future SDK version to an MCP-only candidate. It preserves actual MCP release versions and dependency data. Once a policy fix lands on trunk, the next normal trunk push or manual `Release Please` workflow dispatch (without recovery inputs) regenerates and normalizes the bot candidates. Do not edit bot lockfiles or the cross-SDK corpus by hand to hide a version mismatch. Normalization rechecks candidate metadata and head/base refs before updating the branch; the non-force update rejects divergent concurrent branch updates. These checks are not an atomic compare-and-swap. Use a fresh normal workflow run after a concurrency failure.
 - **Generated MCP client pin:** `npm run verify:mcp-pin` proves the `@honua/mcp-server` version written into generated `.mcp.json` / `claude_desktop_config.json` files belongs to this repo's release lineage, never runs ahead of `mcp/package.json`, and declares a `@honua/sdk-js` peer range that npm's default resolver accepts for the SDK version beside it; `HONUA_MCP_PIN_LIVE_ENABLED=true npm run verify:mcp-pin:live` additionally resolves it against the public npm registry and compares the recorded tarball integrity (network lane; never in PR CI). `test/verify-mcp-pin.test.ts` covers both offline.
 - **Pinned client pair co-install:** `npm run verify:client-pair` packs this tree and really installs it beside the pinned `@honua/mcp-server` in a throwaway consumer under **default** peer resolution -- no `--legacy-peer-deps`, no `--force` -- so a cut whose pair only installs with a workaround fails before publish. `npm run verify:client-pair:registry` asks the same question of the two published artifacts (scheduled `mcp-pin-live.yml`). Releases are stable `0.x` versions (from 0.1.12; "beta" is the documented maturity label, not part of the version string), so `@honua/mcp-server`'s caret peer on `@honua/sdk-js` (for example `^0.1.12`) admits later SDK patches and an SDK-only patch co-installs with the MCP release already pinned. The earlier `-beta.N` prereleases could not do that: a caret range over a prerelease admits exactly one `major.minor.patch` tuple (#1529).
 - **Advancing the generated-config MCP pin:** the pin in `src/local-install.ts` must name a version the registry serves *and* declare a peer range that admits this SDK's version -- so it is deliberately not a release-please `extra-files` bump (release-please would advance it before either half is published, and cannot compute the recorded tarball integrity). After the coordinated `@honua/mcp-server` publish, run `npm run sync:mcp-pin` to advance the version and its integrity together. The pin has two homes -- `src/local-install.ts` and the shipped `mcp/release/zero-to-map/configs/*.json`, which `verify:mcp-pin` requires to name the identical pin -- and the sync moves both in one run, so advancing one alone can never leave the tree failing its own gate. `npm run sync:mcp-pin -- --check` reports drift at every one of those sites without writing. Between a release bump and that publish the pin legitimately lags: PR CI stays green and `verify:client-pair` is what refuses to ship it.
+- **Published-release verification and companion gaps:** after an SDK publish, `scripts/verify-published-release.mjs` checks every package recorded at the sealed commit against the registry (version, integrity, publish and provenance attestations, workflow, source commit). `@honua/mcp-server` and `create-honua-app` publish from their own tags, so a companion version can be tagged and never reach the registry (for example when its publish ran before the SDK it needs was public). The receipt reports that as `outcome: "companion-gap"` with a `companionGaps` list. It is kept apart from `outcome: "failed"`, which covers an SDK package problem, a published companion failing any check, or an unreadable registry. The receipt `status` stays `failed` either way, so consumers that need every package still fail closed. In `publish-js-sdk.yml` a gap that persists past the companion grace period ends the step green with a warning, and `scripts/report-companion-gaps.mjs` keeps one open tracking issue per gap. To resolve it: if the tagged version is still the newest release of that package, run its publish workflow again on the same tag once the SDK it needs is public. If a newer version is already published, record the tagged version as skipped and close the issue. Do not publish it, because pre-1.0 publishes take `latest` and an older version would move it backwards.
 - **Scaffold + playgrounds (`packages/create-honua-app`):** `npm run create-app:verify`, `npm run create-app:test`, `npm run create-app:templates:typecheck`, `npm run create-app:verify:package` (packs the scaffold and scaffolds from the tarball), `npm run playgrounds:check` (regenerate the page with `npm run playgrounds:generate`); the registry lane is `HONUA_CREATE_APP_LIVE_ENABLED=true npm run create-app:time-to-map`. See `docs/create-honua-app.md`.
 - **Gallery sample playgrounds (`playgrounds/`):** generated standalone projects for the samples that qualify — `npm run samples:playgrounds:generate` writes them plus the catalog overlay's `playground` links (follow with `npm run samples:migrate:v1`) and the managed `sample-playground` block in each qualifying sample's own `examples/<id>/README.md`, `npm run samples:playgrounds:check` fails on drift in any of the three, `npm run samples:playgrounds:typecheck` compiles them against SDK source, `npm run samples:playgrounds:test` covers the eligibility rules. The scheduled registry lane is `HONUA_PLAYGROUND_LIVE_ENABLED=true npm run samples:playgrounds:smoke` (weekly `sample-playground-live.yml`; never in PR CI): it installs a generated playground from the real npm registry, builds it, serves the production build, and drives it headless. A sample whose data comes from a repository fixture server gets that origin generated too — declare it in `PLAYGROUND_FIXTURE_ORIGINS` (`scripts/sample-playgrounds.mjs`) and the project ships byte-identical copies of the reviewed fixture pack plus a Vite plugin serving the sample's audited same-origin routes. Never edit `playgrounds/` by hand: change the sample under `examples/` and regenerate. See `docs/playgrounds.md`.
 - **Documented executable commands:** `npm run docs:commands:check` proves every `npx` command in a fenced block can actually resolve an executable, by reimplementing npm's own bin derivation against the `bin` maps on disk. `npx` takes a *package*, not a command, so `npx @honua/sdk-js honua <cmd>` cannot run (two bins, neither named `sdk-js`) and `npx honua-js-migrate` 404s (a bin, not a package) unless the same block installed `@honua/honua-migrate` first — both fail only for the reader, never for the author, who already has the bin on PATH (#1596). It reads trailing `#` comments too, so a code-block comment cannot quote a broken command to warn against it; put that warning in the prose. The network lane is `npm run docs:commands:registry` (weekly `documented-packages.yml`; never in PR CI): it installs the pinned candidate from the registry into a throwaway consumer under **default** resolution and runs each documented invocation there, passing only on positive evidence — exit 0 and the resolved executable naming itself — plus a control that the #1596 form is still unresolvable.
@@ -293,3 +314,41 @@ need to be redone — those files are simply overwritten on the next trunk
 regeneration. When rebasing an in-flight PR onto trunk, prefer resolving any
 `samples/evidence`, `samples/dist`, or other derived-artifact conflicts by taking
 trunk's side; you no longer need to reseal to land.
+
+## Mechanical review prevention
+
+Run `npm run lint:review` to reject new signatures with more than three parameters,
+blocks deeper than two levels, and floating promises. This typed ESLint gate runs
+alongside Biome. Generated trees and the existing compiler fixture exclusion stay
+outside the gate. ESLint disable comments cannot suppress these rules.
+
+`scripts/eslint-review-baseline.json` records existing findings by rule, path,
+SHA256 of the diagnostic message, enclosing class/function and trimmed source
+line, with occurrence counts. Hashing preserves the complete identity without
+repeating large callback bodies in the baseline.
+Line shifts within the same function preserve an exemption; moving a finding to
+a new function or increasing its count fails. Do not regenerate this file to make
+a normal change pass. For an explicitly reviewed baseline migration, use
+`node scripts/check-review-baseline.mjs --capture` and review the complete diff.
+`npm run test:review-baseline` exercises actual typed ESLint diagnostics.
+
+### SDK release window
+
+The required `PR Issue Disposition` check also holds source changes while a draft
+`js-sdk-v*` release has no Git tag. Its summary identifies the draft and its age.
+This preserves the generated-only lineage needed to reseal the release after its
+release PR merges. All changed paths, including both sides of a rename, must match
+the generated-artifact allowlist to pass during that window. The same allowlist
+is used by sealed-ancestor verification and checked against the regeneration and
+tag-sealing workflows. Regeneration branch names alone grant no exception;
+authenticated, same-repository Release Please PRs retain their existing exception.
+
+`Refresh release window` revalidates both issue disposition and the release window
+on PR events, after Release Please completes, when a release is published
+or deleted, and every ten minutes. This clears held checks after publication or
+tag creation without requiring a new commit. The manual dispatch accepts an
+optional PR number; leave it blank to refresh all open trunk PRs. The trusted
+refresh job checks out only trunk. Its contents permission makes drafts visible;
+it only writes checks and never merges, approves, or edits a PR.
+
+Release Please refreshes the hold before cutting a draft. Active trunk release runs also hold source PRs so concurrent refreshes cannot reopen the window before draft creation; generated-only PRs stay eligible.

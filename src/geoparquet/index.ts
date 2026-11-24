@@ -628,7 +628,7 @@ function featureOutputFields(
   wantGeometry: boolean,
 ): readonly SourceProfileField[] {
   return projectedLosslessFields(
-    requireLosslessFields(profile),
+    [...requireLosslessFields(profile), ...(profile.coveringFields ?? [])],
     profile.columns,
     profile.geometry,
     request,

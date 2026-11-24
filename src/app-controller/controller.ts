@@ -13,7 +13,7 @@ import type {
   Unsubscribe,
 } from "../exploration/index.js";
 import type {
-  HonuaMapPackage,
+  HonuaMapDocument,
   HonuaRuntimeDiagnostic,
   LegendEntry,
   MaplibreMap,
@@ -368,7 +368,7 @@ export interface HonuaControllerAdapter {
 
 export interface HonuaControllerRuntimeLike {
   readonly map: MaplibreMap;
-  readonly mapPackage: HonuaMapPackage;
+  readonly mapPackage: HonuaMapDocument;
   readonly composedStyle: HonuaStyleSpecification;
   setViewState(view: SetViewStateInput): void;
   setLayerVisibility(layerId: string, visible: boolean): void;
@@ -401,7 +401,7 @@ export type HonuaControllerRuntime = HonuaControllerRuntimeLike | HonuaGenerated
 export interface HonuaLayerSourcePersistencePayload {
   readonly mutations: ReadonlyArray<HonuaLayerSourceMutation>;
   readonly style: HonuaStyleSpecification | undefined;
-  readonly mapPackage: HonuaMapPackage | undefined;
+  readonly mapPackage: HonuaMapDocument | undefined;
   readonly baseVersion?: string;
   readonly concurrencyToken?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
@@ -1075,7 +1075,7 @@ export class HonuaController {
     return {
       mutations: structuredClone(this.#layerSourceMutations) as HonuaLayerSourceMutation[],
       style: cloneStyleValue(this.#currentStyle()) as HonuaStyleSpecification | undefined,
-      mapPackage: cloneStyleValue(this.#runtime?.mapPackage) as HonuaMapPackage | undefined,
+      mapPackage: cloneStyleValue(this.#runtime?.mapPackage) as HonuaMapDocument | undefined,
       baseVersion: options.baseVersion ?? this.#layerSourceVersion,
       concurrencyToken: options.concurrencyToken ?? this.#layerSourceConcurrencyToken,
       metadata: options.metadata,

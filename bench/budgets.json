@@ -243,6 +243,12 @@
         "warning": 800000,
         "failure": 300000
       }
+    },
+    "spatial.analytics.bounded-local": {
+      "totalDurationMs": {
+        "direction": "lower-is-better",
+        "failure": 1000
+      }
     }
   }
 }

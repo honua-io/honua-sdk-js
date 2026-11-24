@@ -1,11 +1,11 @@
-import { HonuaClient } from "@honua/sdk-js";
 import {
   type HonuaCommandReceipt,
   createHonuaCommandRuntime,
   honuaCommandReceiptProjection,
   studioDraftSaveVersionCommand,
-} from "@honua/sdk-js/control-plane";
-import { HonuaStudioLifecycleClient } from "@honua/sdk-js/studio";
+} from "@honua/app-platform/control-plane";
+import { HonuaStudioLifecycleClient } from "@honua/app-platform/studio";
+import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { expect, it } from "vitest";

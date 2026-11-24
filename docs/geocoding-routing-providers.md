@@ -6,6 +6,8 @@ resource: "honua://capability/geocoding.forward"
 ---
 # Provider-pluggable geocoding and routing
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > Status: **experimental** (`@experimental` JSDoc). Shapes may change in any
 > minor release prior to `1.0.0`.
 
@@ -113,7 +115,7 @@ const hints = await pelias.suggest("honol");   // dedicated /v1/autocomplete end
 **Usage policy / attribution**: depends on the datasets your instance is
 built from (OSM, OpenAddresses, Who's On First, geonames, …) and on your
 hosting provider's terms. Override `attribution` / `usagePolicyUrl` to match;
-see <https://github.com/pelias/documentation/blob/master/data-licenses.md>.
+see <https://github.com/pelias/documentation/blob/master/data-sources.md>.
 
 ### Honua facade
 

@@ -1,5 +1,7 @@
 # Installing the Honua JavaScript SDK
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JavaScript SDK ships as a single npm package — **`@honua/sdk-js`** — with multiple
 subpath entrypoints. The core client, the client compatibility layer, the migration helpers,
 and the protocol-neutral contract are all reachable from this one install.
@@ -8,16 +10,16 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 26 experimental,
-and 18 deprecated package entrypoints. Protocol status is independent
+It projects 22 supported (documented below as stable), 29 experimental,
+and 0 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md). The generic
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 46 runtime
-exports and 178 declaration exports. The exact inventory
+The reviewed package-root ceilings are 47 runtime
+exports and 181 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -46,7 +48,7 @@ minor. At 1.0 the stable tier freezes. See
 | `@honua/sdk-js/contract` | Protocol-neutral `Dataset` / `Source` / `Query` / `Result` + `createDataset` |
 | `@honua/sdk-js/client-compat` | Drop-in compatibility classes (`FeatureLayerCompat`, `MapViewCompat`, …) for migrating existing GeoServices web apps |
 | `@honua/sdk-js/migration` | Forwards to `@honua/honua-migrate`. `src/migration/codemod.ts` is the in-repo suite, not the npm program. |
-| `@honua/sdk-js/runtime` | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`) |
+| `@honua/sdk-js/runtime` | MapLibre map document runtime (`loadMapDocument`, `HonuaMapRuntime`) |
 | `@honua/sdk-js/expr` | Honua expression builder |
 | `@honua/sdk-js/webmap` | WebMap JSON load/save helpers |
 | `@honua/sdk-js/geocoding` | Geocoding adapters |
@@ -74,13 +76,16 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 | Subpath | What it gives you |
 |---------|-------------------|
+| `@honua/sdk-js/grpc-web` | Browser-bundleable native `HonuaClient`; install the optional Buf/Connect peers before importing ([native conversion guide](./docs/native-app-conversion.md)). |
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/pmtiles` | Authenticated bounded archive inspection plus experimental Honua archive/publish jobs, status/cancellation, strict public/signed/range-proxy descriptors, and truthful cleanup dispositions ([guide](./docs/pmtiles-lifecycle.md)). |
+| `@honua/sdk-js/export` | Open an Export: a Portolan STAC collection (pinned v0.3.0) of PMTiles + GeoParquet files, with any collection drawn through its `visual` or `data` asset and read without HEAD requests at the recorded `file:size`; on a Honua Export (`honua:` extension), plus the paired publication descriptor v1, identity lookups through a small bundled Parquet reader that prunes row groups by statistics and bloom filters, selection through the stable feature identity, CSV/GeoJSON export and attribute queries of public fields through the DuckDB peer (loaded only when such a query runs), and a lookup budget with live-service fallback. |
 | `@honua/sdk-js/stac` | Experimental dynamic STAC search, bounded pagination, signed asset refresh, and typed handoffs to the canonical COG, PMTiles, columnar, and runtime entrypoints ([walkthrough](./docs/walkthroughs/search-stac-and-open-assets.md)). |
 | `@honua/sdk-js/raster` | Experimental bounded raster sessions across dynamic-STAC/direct COG, ImageServer, OGC API Coverages, and WCS, with explicit band/range semantics and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
 | `@honua/sdk-js/zarr` | Experimental Honua Server `/api/v1` Zarr registration and metadata inspection, a byte-bounded datacube PNG tile handoff, and a bounded direct reader for reviewed static or object-store chunks. The server facade does not read object stores itself ([guide](./docs/zarr.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
+| `@honua/sdk-js/geoparquet/node` | Native Node DuckDB factory for local and HTTP GeoParquet; requires the optional `@duckdb/node-api` peer ([guide](./docs/geoparquet.md#node-quickstart)). |
 | `@honua/sdk-js/columnar-workflow` | Bounded GeoParquet inspection and query planning plus Honua Arrow and Parquet feature-query workflows, with explicit decoder, memory, transfer, and handoff limits ([guide](./docs/columnar-workflow-capability-matrix.md)). |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
@@ -103,33 +108,9 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 ## Deprecated compatibility entrypoints
 
-The application-platform shims were introduced in `0.1.0-beta.0` when
-the application platform moved. They remain available throughout `0.3.x` and
-are removed in `0.4.0`; new code must import the replacement directly. A
-replacement's own support status is independent of the shim: promoting
-`@honua/app-platform/scene-workspace` to `beta` did not move the
-`@honua/sdk-js/scene-workspace` removal window.
-
-| Deprecated subpath | Replacement | Remove in |
-|--------------------|-------------|-----------|
-| `@honua/sdk-js/app` | `@honua/app-platform/app` | `0.4.0` |
-| `@honua/sdk-js/app-controller` | `@honua/app-platform/app-controller` | `0.4.0` |
-| `@honua/sdk-js/app-workspace` | `@honua/app-platform/app-workspace` | `0.4.0` |
-| `@honua/sdk-js/scene-workspace` | `@honua/app-platform/scene-workspace` | `0.4.0` |
-| `@honua/sdk-js/collaboration` | `@honua/app-platform/collaboration` | `0.4.0` |
-| `@honua/sdk-js/control-plane` | `@honua/app-platform/control-plane` | `0.4.0` |
-| `@honua/sdk-js/replica-sync` | `@honua/app-platform/replica-sync` | `0.4.0` |
-| `@honua/sdk-js/share` | `@honua/app-platform/share` | `0.4.0` |
-| `@honua/sdk-js/operate` | `@honua/app-platform/operate` | `0.4.0` |
-| `@honua/sdk-js/generated-app` | `@honua/app-platform/generated-app` | `0.4.0` |
-| `@honua/sdk-js/studio` | `@honua/app-platform/studio` | `0.4.0` |
-| `@honua/sdk-js/operator` | `@honua/app-platform/operator` | `0.4.0` |
-| `@honua/sdk-js/operator/controllers` | `@honua/app-platform/operator/controllers` | `0.4.0` |
-| `@honua/sdk-js/operator/workspace` | `@honua/app-platform/operator/workspace` | `0.4.0` |
-| `@honua/sdk-js/operator/theming` | `@honua/app-platform/operator/theming` | `0.4.0` |
-| `@honua/sdk-js/operator/i18n` | `@honua/app-platform/operator/i18n` | `0.4.0` |
-| `@honua/sdk-js/controls` | `@honua/app-platform/controls` | `0.4.0` |
-| `@honua/sdk-js/web-components` | `@honua/app-platform/web-components` | `0.4.0` |
+None. `0.4.0` removed the eighteen `@honua/sdk-js` application-platform
+forwarders (`/app`, `/app-workspace`, `/control-plane`, `/web-components` and
+the rest); import each surface from `@honua/app-platform/<subpath>`, listed below.
 
 ## Application-platform entrypoints (`@honua/app-platform`)
 
@@ -159,11 +140,31 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/operator/theming` | Operator design-system theme provider + tokens |
 | `@honua/app-platform/operator/i18n` | Operator message catalog + resolution |
 
-During the transition, the deprecated imports listed above keep working through
-`0.3.x`; they are removed in `0.4.0`. Update imports to
-`@honua/app-platform/<subpath>`. The `@honua/sdk-js/console`
-entrypoint was removed outright (its projection helpers are owned by the
-`@honua/console` application) and has no shim.
+`@honua/sdk-js` does not re-export these surfaces. The `@honua/sdk-js/console`
+entrypoint was removed earlier (its projection helpers are owned by the
+`@honua/console` application).
+
+### Pass an `@honua/sdk-js` source to `@honua/app-platform`
+
+Each package ships its own copy of the contract types, so TypeScript rejects a
+source from `@honua/sdk-js` (or `@honua/sdk`) where an app-platform component
+expects a `Source`: the typed `protocol()` and `adapter()` results come from two
+separate adapter maps. Pass the source through `adoptHonuaSdkSource`. It returns
+the same object, and the compiler still checks every other member:
+
+```ts doc-test=skip reason="needs a live endpoint; the packed SDK verifier compiles the same binding"
+import { adoptHonuaSdkSource, createHonuaApplicationContext } from "@honua/app-platform/web-components";
+import { connect } from "@honua/sdk-js/honua";
+
+const connection = await connect({ endpoint, protocol: "geoservices-feature-service", authorizationScopeFingerprint });
+const source = adoptHonuaSdkSource(connection.source());
+createHonuaApplicationContext({ status: "ready", binding: { source, sourceIdentity: source.descriptor.id } });
+```
+
+`createHonuaFeatureTable` takes only the query surface and accepts an SDK
+source directly. Use the helper instead of an `as unknown as` cast. The
+objects `protocol()` and `adapter()` return are still `@honua/sdk-js` adapter
+instances, so do not test them with `instanceof` against app-platform classes.
 
 ## Prerequisites
 
@@ -183,7 +184,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | **6.4.1 or newer within major 6** (`^6.4.1`). Every SDK release since `0.1.12` declares this range and refuses affected 5.x and early 6.x peers; older published SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
+| MapLibre map document runtime (`@honua/sdk-js/runtime`) | **6.4.1 or newer within major 6** (`^6.4.1`). Every SDK release since `0.1.12` declares this range and refuses affected 5.x and early 6.x peers; older published SDK metadata is unchanged. Requires WebGL2; see [runtime support](./docs/maplibre-runtime.md). |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
@@ -259,8 +260,8 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
   escape hatch.
 - [`docs/source-binding-alignment.md`](./docs/source-binding-alignment.md) — round-trip mapping between
   `SourceDescriptor` and the server `SourceBinding` document.
-- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapPackage(...)` and `HonuaMapRuntime`
-  for the MapLibre GL JS-first `MapPackage` runtime.
+- [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapDocument(...)` and `HonuaMapRuntime`
+  for the MapLibre GL JS-first map document runtime.
 
 ## Esri Migration
 

@@ -5,6 +5,8 @@ description: "Managed publication order and bounded peer policy for the SDK mino
 ---
 # MCP compatibility across the Node 22 transition
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The generated installer pins a published MCP package. SDK publication proves
 that its packed SDK installs beside that exact public MCP under npm's default
 peer resolver. MCP publication independently proves that its packed MCP installs
@@ -17,8 +19,8 @@ each publisher waiting for the other. The Node 22 engine-floor change remains a
 breaking change; it must not be disguised as a compatible patch.
 
 `config/mcp-sdk-peer-policy.v1.json` declares the reviewed bridge
-`^0.2.0 || ^0.3.0`. It admits stable releases on 0.2 and 0.3 and excludes 0.1,
-prereleases, and 0.4+. Release Please continues to
+`^0.4.0 || ^0.5.0`. It admits stable releases on 0.4 and 0.5 and excludes 0.3
+and earlier, prereleases, and 0.6+. Release Please continues to
 manage package versions and development dependencies, but its workspace plugin
 preserves this peer range. `verify:mcp-pin` and the unit suite refuse a changed
 package/lockfile range, automatic peer replacement, or a source SDK outside the
@@ -47,7 +49,7 @@ historical steps; use the current published-pin guidance below for new releases.
    recorded peer to the exact pin and integrity; live verification downloads and
    checks those bytes again. An inferred caret based on the independently
    versioned MCP release cannot describe this bridge. The historical Node 20 bridge used published
-   `@honua/mcp-server@0.1.19`. Keep its immutable receipts as transition
+   `@honua/mcp-server@0.1.19`. That immutable release is the transition
    evidence; it is no longer the current generated-client pin.
 3. The approved Node 22 breaking baseline merged, and Release Please computed
    the next minor versions. The public bridge pin was retained until the next
@@ -57,7 +59,7 @@ historical steps; use the current published-pin guidance below for new releases.
 A range declaration proves metadata compatibility only. Source/runtime tests,
 managed updater checks, and real default-resolver installations are separate
 proofs. This policy change alone did not publish or qualify the subsequent 0.2 packages.
-Historical Node 20 receipts and the certified scaffold fallback remain intact.
+The published Node 20 release and the certified scaffold fallback remain intact.
 
 ## Historical bridge recovery and release boundary
 
@@ -76,16 +78,16 @@ transition required SDK **0.2.0** and MCP **0.2.0** through Release Please,
 rather than a 0.1 patch. That release-boundary requirement is historical; no
 version override or manual tag is permitted.
 
-The independent public-byte receipts are retained under
-`docs/evidence/mcp-bridge-2070/`. They prove the historical Node 20 artifact identities; they do not describe
-the current synchronized pin.
+Independent public-byte receipts proved the historical Node 20 artifact
+identities; they do not describe the current synchronized pin.
 
 ## Current published pin
 
-The current generated-client pin is published `@honua/mcp-server@0.2.6`.
-`config/mcp-pinned-peer.v1.json`, `src/local-install.ts`, and all three shipped
-zero-to-map client configurations identify that release and its verified
-registry integrity. That published package still declares `^0.1.17 || ^0.2.0`.
+`config/mcp-pinned-peer.v1.json` records the current generated-client pin: the
+published `@honua/mcp-server` version, its verified registry integrity and the
+`@honua/sdk-js` peer range that package declares. `src/local-install.ts` and all
+three shipped zero-to-map client configurations name the same release, and
+`npm run sync:mcp-pin -- --check` fails when any of them drifts.
 `sync:mcp-pin` records the next published package; the pin is not inferred from
 the reviewed bridge above.
 

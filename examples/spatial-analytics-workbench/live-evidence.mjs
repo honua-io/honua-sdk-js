@@ -38,7 +38,7 @@ if (protocol === "ogc-features") {
     { capabilities, createDataset },
     { HonuaClient },
     { executeQueryPlan, explainQuery },
-    { createKeplerWorkspaceBridge },
+    { createKeplerAppBridge },
   ] = await Promise.all([
     import("../../dist/packages/honua-sdk/contract/index.js"),
     import("../../dist/packages/honua-sdk/index.js"),
@@ -91,7 +91,7 @@ if (protocol === "ogc-features") {
   });
   const totalMs = Math.max(0, performance.now() - started);
   const rows = execution.result.aggregateRows ?? [];
-  const bridge = createKeplerWorkspaceBridge({
+  const bridge = createKeplerAppBridge({
     peers: {
       version: "3.2.6",
       addDataToMap: (payload) => ({ type: "kepler/addDataToMap", payload }),

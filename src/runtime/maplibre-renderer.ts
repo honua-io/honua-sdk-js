@@ -245,6 +245,31 @@ function protocolRegistrar(peer: ResolvedMapLibreRendererPeer): MaplibreProtocol
   };
 }
 
+/**
+ * MapLibre reads a string container as an element id, while the kernel accepts
+ * a selector or an element (`connection.mount("#map", ...)`). In a DOM host,
+ * resolve the string first: MapLibre's id form wins, then a CSS selector. A
+ * host without `document` keeps the string for the injected Map constructor.
+ */
+function resolveContainerTarget(target: string): string | object {
+  const doc = (globalThis as { document?: Pick<Document, "getElementById" | "querySelector"> }).document;
+  if (typeof doc?.getElementById !== "function" || typeof doc.querySelector !== "function") return target;
+  const byId = doc.getElementById(target);
+  if (byId) return byId;
+  let element: Element | null = null;
+  try {
+    element = doc.querySelector(target);
+  } catch {
+    element = null;
+  }
+  if (!element) {
+    throw new TypeError(
+      `The map container "${target}" matches no element; pass an element id, a CSS selector or an element.`,
+    );
+  }
+  return element;
+}
+
 function resolveMapHost<T>(
   peer: ResolvedMapLibreRendererPeer,
   target: RendererTarget,
@@ -274,7 +299,8 @@ function resolveMapHost<T>(
     throw new TypeError("The injected MapLibre peer does not expose a Map constructor.");
   }
   const style = request.style === undefined || request.style === "auto" ? EMPTY_STYLE : request.style;
-  const map = new MapConstructor({ ...options.mapOptions, container: target, style });
+  const container = typeof target === "string" ? resolveContainerTarget(target) : target;
+  const map = new MapConstructor({ ...options.mapOptions, container, style });
   if (!isMapHost(map)) {
     removeHostCandidate(map);
     throw new TypeError("The injected MapLibre Map constructor returned an incompatible host.");

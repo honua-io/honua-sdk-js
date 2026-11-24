@@ -227,7 +227,7 @@ jobs:
           # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
           # a release version bump rewrites those and nothing in CI is able
           # to move this constant (#1357).
-          EXPECTED_LOCKFILE_SHA256: 207069bbf181e4c41ffb1d79b70c8fefeb8cf60b5172b58b43e96e824bc33981
+          EXPECTED_LOCKFILE_SHA256: 9ffb78d95dd3aa3438752c8443fdba1d40e17c5f42fb213da5d32ae240488095
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -257,7 +257,7 @@ jobs:
               "setupNode": "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
               "uploadArtifact": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
               "downloadArtifact": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
-              "createGithubAppToken": "actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510",
+              "createGithubAppToken": "actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc",
               "attestBuildProvenance": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
           }
 
@@ -677,7 +677,7 @@ jobs:
 
       - name: Mint SDK-scoped immutable-policy reader
         id: immutable-policy-reader
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_ID }}
           private-key: ${{ secrets.SAMPLE_BUNDLE_POLICY_APP_PRIVATE_KEY }}

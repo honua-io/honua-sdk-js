@@ -12,9 +12,10 @@ export async function verifyBuiltEntrypoints({
   let importCount = 0;
 
   for (const entrypoint of entrypoints) {
-    const targetMapping = packageJson.exports?.[entrypoint.subpath]?.default;
+    const mapping = packageJson.exports?.[entrypoint.subpath];
+    const targetMapping = mapping?.node ?? mapping?.default;
     if (typeof targetMapping !== "string") {
-      failures.push(`${entrypoint.subpath} package export has no default target`);
+      failures.push(`${entrypoint.subpath} package export has no Node or default target`);
       continue;
     }
 

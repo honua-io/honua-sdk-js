@@ -19,7 +19,7 @@ export const file_geospatial_v1_workspace_artifact_types: GenFile = /*@__PURE__*
  * WorkspaceRef is the canonical handle for a workspace. It carries just
  * enough state to route and detect drift; the full resource comes from
  * WorkspaceService.GetWorkspace.
- * 
+ *
  * scope_token is an opaque tenancy/authorization token owned by the
  * honua-server-733 execution scope model. This contract does not interpret
  * the value; servers evaluate scope against request metadata.

@@ -24,7 +24,7 @@ import {
   isHonuaStudioError,
   isStudioListExhausted,
 } from "../../src/studio/index.js";
-import type { StudioContentItemListResponse, StudioPackageDraftListResponse } from "../../src/studio/index.js";
+import type { StudioContentListResponse, StudioPackageDraftListResponse } from "../../src/studio/index.js";
 
 const fixturesDir = resolve(dirname(fileURLToPath(import.meta.url)), "../fixtures/studio-lifecycle");
 
@@ -96,7 +96,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-page-1.v1.json");
     const { client, requests } = clientFor(contract);
 
-    const page = await client.contentItems.list({ family: "map", state: "published", limit: 2 });
+    const page = await client.content.list({ family: "map", state: "published", limit: 2 });
 
     expect(requests).toHaveLength(1);
     expect(requests[0]?.method).toBe("GET");
@@ -123,7 +123,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-page-1.v1.json");
     const { client, requests } = clientFor(contract);
 
-    await client.contentItems.list({ family: "dashboard", state: "current", ownerId: "actor-alice", search: "ops" });
+    await client.content.list({ family: "dashboard", state: "current", ownerId: "actor-alice", search: "ops" });
 
     expect(queryOf(requests[0] as CapturedRequest)).toEqual({
       family: "dashboard",
@@ -138,8 +138,8 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const second = fixture("content-item-list-page-2.v1.json");
     const { client, requests } = clientForSequence([first, second]);
 
-    const pages: StudioContentItemListResponse[] = [];
-    for await (const page of client.contentItems.listAll({ family: "map", state: "published", limit: 2 })) {
+    const pages: StudioContentListResponse[] = [];
+    for await (const page of client.content.listAll({ family: "map", state: "published", limit: 2 })) {
       pages.push(page);
     }
 
@@ -148,12 +148,10 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     // Page 1 carries no cursor; page 2 replays page 1's `nextCursor` byte for byte.
     expect(queryOf(requests[0] as CapturedRequest).cursor).toBeUndefined();
     expect(queryOf(requests[1] as CapturedRequest)).toEqual(second.request.query);
-    expect(queryOf(requests[1] as CapturedRequest).cursor).toBe(
-      dataOf<StudioContentItemListResponse>(first).nextCursor,
-    );
+    expect(queryOf(requests[1] as CapturedRequest).cursor).toBe(dataOf<StudioContentListResponse>(first).nextCursor);
     // The final page's `nextCursor: null` ends the walk.
     expect(pages[1]?.nextCursor).toBeNull();
-    expect(isStudioListExhausted(pages[1] as StudioContentItemListResponse)).toBe(true);
+    expect(isStudioListExhausted(pages[1] as StudioContentListResponse)).toBe(true);
   });
 
   it("collects every page into one result with the server-side total", async () => {
@@ -162,7 +160,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
       fixture("content-item-list-page-2.v1.json"),
     ]);
 
-    const collected = await client.contentItems.collect({ family: "map", state: "published", limit: 2 });
+    const collected = await client.content.collect({ family: "map", state: "published", limit: 2 });
 
     expect(collected.pages).toBe(2);
     expect(collected.items).toHaveLength(3);
@@ -180,7 +178,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-empty.v1.json");
     const { client, requests } = clientForSequence([contract]);
 
-    const collected = await client.contentItems.collect({ family: "report" });
+    const collected = await client.content.collect({ family: "report" });
 
     expect(requests).toHaveLength(1);
     expect(collected.items).toEqual([]);
@@ -188,7 +186,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     expect(collected.pages).toBe(1);
     expect(collected.truncated).toBe(false);
     // The server omits a null `nextCursor` entirely; absent must read as exhausted.
-    expect(dataOf<StudioContentItemListResponse>(contract)).not.toHaveProperty("nextCursor");
+    expect(dataOf<StudioContentListResponse>(contract)).not.toHaveProperty("nextCursor");
   });
 
   it("stops at the page cap and hands back a resume cursor instead of truncating silently", async () => {
@@ -197,23 +195,20 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     // second and blow up in the harness.
     const { client, requests } = clientForSequence([first]);
 
-    const collected = await client.contentItems.collect(
-      { family: "map", state: "published", limit: 2 },
-      { maxPages: 1 },
-    );
+    const collected = await client.content.collect({ family: "map", state: "published", limit: 2 }, { maxPages: 1 });
 
     expect(requests).toHaveLength(1);
     expect(collected.pages).toBe(1);
     expect(collected.items).toHaveLength(2);
     expect(collected.truncated).toBe(true);
-    expect(collected.nextCursor).toBe(dataOf<StudioContentItemListResponse>(first).nextCursor);
+    expect(collected.nextCursor).toBe(dataOf<StudioContentListResponse>(first).nextCursor);
   });
 
   it("rejects a maxPages that is not a positive integer", async () => {
     const { client } = clientForSequence([]);
 
-    await expect(client.contentItems.collect({}, { maxPages: 0 })).rejects.toThrow(TypeError);
-    await expect(client.contentItems.collect({}, { maxPages: 1.5 })).rejects.toThrow(/maxPages/);
+    await expect(client.content.collect({}, { maxPages: 0 })).rejects.toThrow(TypeError);
+    await expect(client.content.collect({}, { maxPages: 1.5 })).rejects.toThrow(/maxPages/);
   });
 
   it("cancels a walk mid-flight, issuing no further page requests", async () => {
@@ -223,7 +218,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
 
     const walk = async (): Promise<number> => {
       let seen = 0;
-      for await (const _page of client.contentItems.listAll({ limit: 2 }, { signal: controller.signal })) {
+      for await (const _page of client.content.listAll({ limit: 2 }, { signal: controller.signal })) {
         seen += 1;
         // The first page arrived; cancel before the walk asks for the second.
         controller.abort(reason);
@@ -240,7 +235,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const stalled = fixture("content-item-list-stalled-cursor.v1.json");
     const { client, requests } = clientForSequence([first, stalled]);
 
-    const failure = await client.contentItems.collect({ limit: 2 }).then(
+    const failure = await client.content.collect({ limit: 2 }).then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -261,8 +256,8 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
       cursor: contract.request.query?.cursor as string,
     } as const;
 
-    const first = await client.contentItems.list(filters);
-    const second = await client.contentItems.list(filters);
+    const first = await client.content.list(filters);
+    const second = await client.content.list(filters);
 
     expect(second).toEqual(first);
     expect(requests).toHaveLength(2);
@@ -274,7 +269,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-owner-scoped.v1.json");
     const { client, requests } = clientFor(contract);
 
-    const page = await client.contentItems.list({ ownerId: "actor-mallory" });
+    const page = await client.content.list({ ownerId: "actor-mallory" });
 
     // The SDK sends what it is asked to send...
     expect(queryOf(requests[0] as CapturedRequest)).toEqual({ ownerId: "actor-mallory" });
@@ -288,7 +283,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-forbidden.v1.json");
     const { client } = clientFor(contract);
 
-    const failure = await client.contentItems.list().then(
+    const failure = await client.content.list().then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -305,7 +300,7 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
     const contract = fixture("content-item-list-invalid-state.v1.json");
     const { client } = clientFor(contract);
 
-    const failure = await client.contentItems.list({ state: "archived" } as never).then(
+    const failure = await client.content.list({ state: "archived" } as never).then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -318,8 +313,8 @@ describe("Studio content-item enumeration (GET /content-items)", () => {
   it("rejects a limit the server would silently clamp or replace", async () => {
     const { client } = clientForSequence([]);
 
-    await expect(client.contentItems.list({ limit: 0 })).rejects.toThrow(TypeError);
-    await expect(client.contentItems.list({ limit: HONUA_STUDIO_LIST_MAX_LIMIT + 1 })).rejects.toThrow(
+    await expect(client.content.list({ limit: 0 })).rejects.toThrow(TypeError);
+    await expect(client.content.list({ limit: HONUA_STUDIO_LIST_MAX_LIMIT + 1 })).rejects.toThrow(
       new RegExp(String(HONUA_STUDIO_LIST_MAX_LIMIT)),
     );
   });

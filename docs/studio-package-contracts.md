@@ -1,14 +1,16 @@
 ---
 type: reference
-title: "Studio Package Contracts (`@honua/sdk-js/studio`)"
+title: "Studio Package Contracts (`@honua/app-platform/studio`)"
 description: "One browser-safe import path for the Studio package families, the unified validation and preview envelopes, the capability manifest, and the publish, share and embed contracts."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
-# Studio Package Contracts (`@honua/sdk-js/studio`)
+# Studio Package Contracts (`@honua/app-platform/studio`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Status: experimental.
 
-`@honua/sdk-js/studio` is the single, browser-safe import path for the Studio
+`@honua/app-platform/studio` is the single, browser-safe import path for the Studio
 package families, their unified validation/preview envelopes, the capability
 manifest, and the publish/share/embed contracts. It exists so Console browser
 interop, MCP, QGIS, generated apps, and embeds **consume one set of
@@ -22,7 +24,7 @@ import {
   type StudioPackageValidationResponse,
   tagStudioPackage,
   toStudioValidationResponse,
-} from "@honua/sdk-js/studio";
+} from "@honua/app-platform/studio";
 ```
 
 ## MCP / QGIS safety
@@ -30,7 +32,7 @@ import {
 The barrel exports **only types and pure functions** and never imports from
 `operator`, `client-compat`, `web-components`, `interactions`, or `realtime` —
 none of the MapLibre/DOM/Console-coupled modules. MCP servers and QGIS plugins
-can import `@honua/sdk-js/studio` without pulling renderer code or triggering a
+can import `@honua/app-platform/studio` without pulling renderer code or triggering a
 build error from Console/Esri internals.
 
 The established `map` and `app` shapes are re-exported from their leaf modules.
@@ -40,7 +42,7 @@ Console and other renderers consume the validated package read-only.
 The `map` family additionally has a published JSON Schema,
 [`schemas/honua-map-package.v1.json`](../schemas/honua-map-package.v1.json)
 (`https://honua.io/schemas/honua-map-package.v1.json`). It is the canonical
-description of the artifact for JS, the CLI, MCP, and Studio alike, and it is what `validateMapPackage` is built from. `exportMapPackage` / `importMapPackage`
+description of the artifact for JS, the CLI, MCP, and Studio alike, and it is what `validateMapDocument` is built from. `exportMapDocument` / `importMapDocument`
 (`@honua/sdk-js/runtime`) move that artifact between clients without embedded
 credentials or unbounded data.
 
@@ -53,17 +55,17 @@ composition contract and are never minted client-side.
 ## Package families and format constants
 
 Each family is gated by a `format` constant — the canonical version string,
-exactly as on `MapPackage`. A loader refuses any other value.
+exactly as on `HonuaMapDocument`. A loader refuses any other value.
 
 | Family | Format constant | Format string | Projection type | Stability |
 | --- | --- | --- | --- | --- |
 | query | `HONUA_QUERY_PACKAGE_FORMAT_V1` | `honua_query_package.v1` | `HonuaQueryPackage` | experimental (stub) |
 | analysis | `HONUA_ANALYSIS_PACKAGE_FORMAT_V1` | `honua_analysis_package.v1` | `HonuaAnalysisPackage` | experimental (stub) |
-| map | `HONUA_MAP_PACKAGE_FORMAT_V1` | `honua_map_package.v1` | `HonuaMapPackage` | stable family, re-exported |
+| map | `HONUA_MAP_DOCUMENT_FORMAT_V1` | `honua_map_package.v1` | `HonuaMapDocument` | stable family, re-exported |
 | dashboard | `HONUA_DASHBOARD_PACKAGE_FORMAT_V1` | `honua_dashboard_package.v1` | `HonuaDashboardPackage` | experimental, Studio-authored |
 | report | `HONUA_REPORT_PACKAGE_FORMAT_V1` | `honua_report_package.v1` | `HonuaReportPackage` | experimental (stub) |
 | form | `HONUA_FORM_PACKAGE_FORMAT_V1` | `honua_form_package.v1` | `HonuaFormPackage` | experimental (stub) |
-| app | — (uses `HonuaGeneratedAppPackage.version`) | — | `HonuaGeneratedAppPackage` | re-exported |
+| app | — (uses `HonuaGeneratedAppVersion.version`) | — | `HonuaGeneratedAppVersion` | re-exported |
 | workflow | `HONUA_WORKFLOW_PACKAGE_FORMAT_V1` | `honua_workflow_package.v1` | `HonuaWorkflowPackage` | experimental (stub) |
 | gp | `HONUA_GP_PACKAGE_FORMAT_V1` | `honua_gp_package.v1` | `HonuaGPPackage` | experimental (stub) |
 | etl | `HONUA_ETL_PACKAGE_FORMAT_V1` | `honua_etl_package.v1` | `HonuaETLPackage` | experimental (stub) |
@@ -77,7 +79,7 @@ are established shapes; `dashboard` is a dedicated Studio-authored artifact.
 
 Lifecycle status is shared across families via `HonuaStudioPackageStatus`
 (`"Draft" | "Composing" | "Ready" | "Failed" | "Expired"`), the same union as
-`HonuaMapPackageStatus`.
+`HonuaMapDocumentStatus`.
 
 ### The `HonuaStudioPackage` discriminated union
 
@@ -111,15 +113,15 @@ interface StudioPackageValidationResponse<T> {
 }
 ```
 
-The existing map-family `ValidateMapPackageResult` is **not renamed** — it is
+The existing map-family `ValidateMapDocumentResult` is **not renamed** — it is
 structurally bridged:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { validateMapPackage } from "@honua/sdk-js/runtime";
-import { fromMapPackageValidation } from "@honua/sdk-js/studio";
+import { validateMapDocument } from "@honua/sdk-js/runtime";
+import { fromMapDocumentValidation } from "@honua/app-platform/studio";
 
-const response = fromMapPackageValidation(validateMapPackage(rawMapPackage));
-// response: StudioPackageValidationResponse<HonuaMapPackage>
+const response = fromMapDocumentValidation(validateMapDocument(rawMapDocument));
+// response: StudioPackageValidationResponse<HonuaMapDocument>
 ```
 
 For other families, the generic adapter takes the field name holding the
@@ -129,9 +131,9 @@ package:
 toStudioValidationResponse<HonuaQueryPackage>(rawQueryResult, "queryPackage");
 ```
 
-`HonuaMapPackageDiagnostic` is already a structural subtype of
+`HonuaMapDocumentDiagnostic` is already a structural subtype of
 `StudioPackageDiagnostic` (it only adds `packageId?`), so map diagnostics flow
-through unchanged. For convenience, `fromMapPackageValidation` and
+through unchanged. For convenience, `fromMapDocumentValidation` and
 `toStudioValidationResponse` are also re-exported from `@honua/sdk-js/runtime`
 (tagged `@experimental`) so existing map-package consumers can bridge from the
 path they already use.
@@ -146,7 +148,7 @@ diagnostics.
 connected server actually supports:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { hasCapability, getCapability } from "@honua/sdk-js/studio";
+import { hasCapability, getCapability } from "@honua/app-platform/studio";
 
 if (hasCapability(manifest, "package.query")) {
   // advertise the query builder
@@ -167,7 +169,7 @@ coerced to GA; missing governance fields raise
 carry the versioned publication contract for generated artifacts.
 `HonuaShareRequest` / `HonuaShareResponse` are **re-exported from
 `control-plane/types`** (single source of truth — not re-declared) so Console
-and MCP reach the share contract from the one `@honua/sdk-js/studio` path
+and MCP reach the share contract from the one `@honua/app-platform/studio` path
 without taking on the full control-plane client.
 
 `StudioEmbedConfig.token` / `embedUrl` describe an **already-issued** embed
@@ -176,7 +178,7 @@ descriptor; the type does not imply a token-minting call inside the SDK.
 ## Generated apps
 
 Generated apps consume published `map`, `dashboard`, `report`, and `app`
-package projections from `@honua/sdk-js/studio` without importing Console or
+package projections from `@honua/app-platform/studio` without importing Console or
 MapLibre code. `HonuaDashboardPackage` is the authored dashboard artifact;
 `HonuaGeneratedAppManifest` remains a runtime hydration projection rather than
 the dashboard authoring wire format. For the preview runtime, see

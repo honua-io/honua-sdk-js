@@ -1,25 +1,27 @@
 ---
 type: reference
 title: "Mixed-Source Composition"
-description: "Rules for a heterogeneous multi-protocol MapPackage on one MapLibre map: weakest-capability intersection and per-source partial failure."
+description: "Rules for a heterogeneous multi-protocol map document on one MapLibre map: weakest-capability intersection and per-source partial failure."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Mixed-Source Composition
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Composition rides on the existing
 `@honua/sdk-js/contract` (`SourceDescriptor`, `Dataset`, `Capabilities`,
-`Result.degraded[]`) and `@honua/sdk-js/runtime` (`loadMapPackage`)
+`Result.degraded[]`) and `@honua/sdk-js/runtime` (`loadMapDocument`)
 surfaces; this guide collects the rules that make a heterogeneous
-(multi-protocol) `MapPackage` rendered through one MapLibre map honest
+(multi-protocol) `HonuaMapDocument` rendered through one MapLibre map honest
 about what it can and cannot do.
 
 ## Why composition, not a new vocabulary
 
 Operators routinely need a parcels FeatureServer + a WMS basemap + a
-STAC overlay + an OData operational layer in one runtime map. The 13
+STAC overlay + an OData operational layer in one runtime map. The 16
 first-party adapters already work in isolation. What was missing was
 the rule set that lets `createDataset({ sources: [...] })` accept a
-heterogeneous list and `loadMapPackage` project it onto one MapLibre
+heterogeneous list and `loadMapDocument` project it onto one MapLibre
 map without per-protocol app glue, with two non-negotiables:
 
   - **weakest-capability honesty**: the composition supports a capability
@@ -49,7 +51,7 @@ import {
   type SourceDescriptor,
 } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example/api" });
 
@@ -94,7 +96,7 @@ console.log([...weakest]); // ["query"]
 console.log(weakest.has("applyEdits")); // false — WMS and STAC lack it
 
 // Bind to a MapLibre map through the existing runtime path:
-const runtime = await loadMapPackage(mapPackage, map, { client });
+const runtime = await loadMapDocument(mapPackage, map, { client });
 ```
 
 ## The weakest-capability rule
@@ -135,9 +137,10 @@ checks; never use it to gate a single fan-out call.
 ### Per-operation reasoning: partition first, intersect second
 
 `intersectCapabilities` is intentionally *global* across the
-participants you hand it. For a render+overlay stack where the
-basemap is render-only and only the overlay carries query semantics,
-partition first:
+participants you hand it. To query tabular feature overlays separately from
+raster basemaps, partition first. This example excludes WMS from the feature
+subset because its GetFeatureInfo point queries serve a different operation;
+WMS can still advertise `query` on its own source:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 const featureSources = sources.filter(
@@ -149,7 +152,7 @@ const renderSources = sources.filter(
 
 intersectCapabilities(featureSources).has("query"); // true
 intersectCapabilities(renderSources).has("tiles"); // true
-intersectCapabilities([...featureSources, ...renderSources]).size; // 0
+intersectCapabilities([...featureSources, ...renderSources]).size; // 1: query
 ```
 
 The "smarter, per-operation per-source matrix" alternative is exactly
@@ -189,9 +192,9 @@ The OGC Features and OData adapters populate `sourceId` from
 sources see attribution out of the box. Other adapters that begin to
 emit `degraded[]` should follow the same pattern.
 
-### Bind-time failure: `loadMapPackage` `sourceErrorPolicy`
+### Bind-time failure: `loadMapDocument` `sourceErrorPolicy`
 
-`loadMapPackage` accepts an additional option:
+`loadMapDocument` accepts an additional option:
 
 ```ts doc-test=compile
 interface LoadOptions {
@@ -202,7 +205,7 @@ interface LoadOptions {
 | Policy        | Behaviour |
 | ------------- | --------- |
 | `"tolerant"`  | A per-source binding failure (resolver throws, `toHonuaSourceSpec` throws, eager materialization throws) does not abort the load. The failed source is dropped from the composed style along with any layer whose `source` references it; the runtime emits one `source-error` event per failed source after `source-ready` and before `package-loaded`; `HonuaRuntimeTelemetry.error` receives a `source-bind` span. Remaining sources continue to render. |
-| `"fail-fast"` | Any per-source binding failure rejects the load with `HonuaMapPackageError({ stage: "source-bind" })`. The historical (single-source) behaviour. |
+| `"fail-fast"` | Any per-source binding failure rejects the load with `HonuaMapDocumentError({ stage: "source-bind" })`. The historical (single-source) behaviour. |
 
 Configuration-level binding errors (unknown protocol, missing
 `locator.url`, duplicate `sourceId`, deferred `workspace_artifact`)
@@ -210,7 +213,7 @@ raised by `projectSourceBindings` always fail-fast under either policy
 — those are operator errors that must be fixed.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-const runtime = await loadMapPackage(pkg, map, {
+const runtime = await loadMapDocument(pkg, map, {
   client,
   // default tolerant — explicit for documentation:
   sourceErrorPolicy: "tolerant",
@@ -261,7 +264,7 @@ A four-protocol composition mirroring the operator-board archetype.
 const sources: SourceDescriptor[] = [
   /* parcels-fs (geoservices-feature-service)
    * permits-ogc (ogc-features)
-   * basemap-wms (wms — render-only)
+   * basemap-wms (wms — render, tiles, and GetFeatureInfo query)
    * scenes-stac (stac)
    */
 ];
@@ -310,7 +313,7 @@ queryable.has("query"); // true
 The composed style still renders both: the WMTS source provides the
 basemap, the OGC overlay provides the queryable layer.
 
-### 4. Partial failure under `loadMapPackage`
+### 4. Partial failure under `loadMapDocument`
 
 A four-source mixed package where one source's binding throws (in the
 test, an OGC Features descriptor whose URL does not include the
@@ -328,16 +331,18 @@ materialization). Under the default tolerant policy the runtime:
 
 ### First-party protocol combinations
 
-Every pair-and-triple from the 13 first-party adapters is composable
+Every pair-and-triple from the 16 first-party adapters is composable
 through `createDataset` without any additional consumer wiring:
 
 | Adapter family | Adapters |
 | --- | --- |
+| gRPC | `grpc` |
 | GeoServices | `geoservices-feature-service`, `geoservices-map-service`, `geoservices-image-service`, `geoservices-geometry-service`, `geoservices-gp-service` |
-| OGC API | `ogc-features`, `ogc-tiles`, `ogc-maps` |
+| OGC API | `ogc-features`, `ogc-tiles`, `ogc-maps`, `ogc-records` |
 | STAC | `stac` |
 | WFS / WMS / WMTS | `wfs`, `wms`, `wmts` |
 | OData | `odata` |
+| PMTiles | `pmtiles` |
 | MapLibre-native | `maplibre-vector`, `maplibre-raster`, `maplibre-geojson` (rendered via the source bridge, not `Dataset`) |
 
 ### `resolveSource` — first-party with a custom adapter
@@ -346,19 +351,24 @@ Anything outside the first-party set goes through
 `CreateDatasetOptions.resolveSource`. Custom adapters return a
 `Source` that implements the canonical envelope; the composition
 surface treats them identically to first-party sources for
-`intersectCapabilities` and `loadMapPackage`. Examples: an internal
+`intersectCapabilities` and `loadMapDocument`. Examples: an internal
 proprietary REST protocol; an experimental adapter under development;
 a server flavor of an OGC API endpoint that needs a non-default
 content negotiator.
 
 ### Render-only
 
-WMS / WMTS / OGC Tiles / OGC Maps and the MapLibre-native sources are
-*render-only*. They participate in the composition through the
-composed MapLibre style but do not contribute to the canonical
-`Source.query` family. `intersectCapabilities` reports that honestly
-(WMS contributes only `render`/`tiles`/`query`; the others have no
-`query`). For per-operation reasoning, partition before intersecting.
+WMTS, OGC Tiles, OGC Maps, PMTiles, and the MapLibre-native sources are
+*render-only*. They participate through the composed MapLibre style without
+canonical `Source.query` support. MapLibre-native sources use the source
+bridge rather than `Dataset`.
+
+WMS additionally supports point queries through GetFeatureInfo. A WMS source
+bound to a native service advertises `render`, `tiles`, and `query` by default.
+For third-party WMS, `query` requires a reviewed GetFeatureInfo binding and
+must be advertised by the source; materialization removes `query` when that
+binding is absent. Inspect the live source's capabilities before querying.
+For per-operation reasoning, partition before intersecting.
 
 ## Adapter author's checklist
 
@@ -372,13 +382,13 @@ implementation, the composition surface only requires that you:
    you emit a `degraded` entry — fan-out consumers attribute through
    that field.
 4. Make construction side-effect free (no HTTP at `new Adapter(...)`)
-   so eager materialization in `loadMapPackage` stays cheap. Lazy
+   so eager materialization in `loadMapDocument` stays cheap. Lazy
    metadata negotiation (the OData pattern) is the right model when
    you need server-side capability flags.
 
 ## Operational gotchas
 
-- **Default behaviour change**: `loadMapPackage` now defaults to
+- **Default behaviour change**: `loadMapDocument` now defaults to
   `sourceErrorPolicy: "tolerant"`. A single-source app whose only
   source fails sees no behavioural change — one-of-one failing means
   the map is empty either way — but the failure is non-silent
@@ -389,8 +399,9 @@ implementation, the composition surface only requires that you:
   MapLibre does not throw on a missing source. The legend (`buildLegend`)
   iterates the live style and naturally drops orphan entries.
 - **Capability honesty vs. ergonomics**: a 4-source mix containing one
-  render-only adapter (WMS) reports no `query` capability across the
-  whole composition (because WMS lacks the others). That is
+  render-only adapter without `query` (such as WMTS, OGC Tiles, OGC Maps, or
+  PMTiles) reports no `query` capability across the whole composition (because
+  that adapter lacks `query`). That is
   *intentional*; partition the participants for per-operation answers.
 - **OData `$metadata` timing**: pass live `Source` instances to
   `intersectCapabilities` after first call so the negotiated flags
@@ -408,7 +419,7 @@ implementation, the composition surface only requires that you:
   `Dataset` / `Capabilities` vocabulary.
 - `docs/protocol-capability-matrix.md` — per-protocol default
   capability sets.
-- `docs/maplibre-runtime.md` — `loadMapPackage`,
+- `docs/maplibre-runtime.md` — `loadMapDocument`,
   `HonuaRuntimeEvent`, telemetry surface.
 - `docs/source-binding-alignment.md` — server-side `SourceBinding` to
   SDK descriptor projection.

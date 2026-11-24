@@ -10,13 +10,18 @@
  */
 
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
+import { HonuaCapabilityNotSupportedError, HonuaGrpcError } from "./errors.js";
 import { geometryInputSpatialReference } from "./geometry-input-sr.js";
-import { encodeServiceIdPath } from "./path-utils.js";
+import { GRPC_INTERNAL } from "./grpc-status.js";
+import { encodeServiceIdPath, restLayerPath } from "./path-utils.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
+import { assertServiceLayerOrder } from "./service-edit-layers.js";
 import type {
   ApplyEditsRequest,
+  ApplyServiceEditsRequest,
   ExportMapRequest,
   HonuaApplyEditsResponse,
+  HonuaApplyServiceEditsResponse,
   HonuaExportMapResponse,
   HonuaFindResponse,
   HonuaIdentifyResponse,
@@ -55,7 +60,7 @@ export async function getLayerMetadata(
   options: HonuaMetadataRequestOptions = {},
 ): Promise<HonuaLayerMetadata> {
   const query = new URLSearchParams({ f: "json" });
-  const path = `/rest/services/${encodeServiceIdPath(serviceId)}/FeatureServer/${layerId}?${query.toString()}`;
+  const path = `${restLayerPath(serviceId, "FeatureServer", layerId)}?${query.toString()}`;
   return transport.requestCachedMetadataJson<HonuaLayerMetadata>(
     `geoservices-feature:${serviceId}:${layerId}`,
     path,
@@ -98,7 +103,7 @@ export async function getMapLayerMetadata(
   options: HonuaMetadataRequestOptions = {},
 ): Promise<HonuaLayerMetadata> {
   const query = new URLSearchParams({ f: "json" });
-  const path = `/rest/services/${encodeServiceIdPath(serviceId)}/MapServer/${layerId}?${query.toString()}`;
+  const path = `${restLayerPath(serviceId, "MapServer", layerId)}?${query.toString()}`;
   return transport.requestCachedMetadataJson<HonuaLayerMetadata>(
     `geoservices-map:${serviceId}:${layerId}`,
     path,
@@ -144,7 +149,7 @@ export async function queryFeaturesRest(
   serializeQueryParams(params, request);
   appendQueryExtraParams(params, request);
 
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/query`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   const usePbf = preferBinary && method === "GET";
   if (request.method === undefined && method === "POST" && params.get("f") === "pbf") params.set("f", "json");
@@ -189,7 +194,7 @@ export async function queryMapLayer(
   serializeQueryParams(params, request);
   appendQueryExtraParams(params, request);
 
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/MapServer/${request.layerId}/query`;
+  const path = `${restLayerPath(request.serviceId, "MapServer", request.layerId)}/query`;
   const method = queryMethod(request.method, path, params, transport.baseUrl);
   if (method === "GET") {
     return transport.requestJson<HonuaQueryResponse>("GET", `${path}?${params.toString()}`, undefined, request.signal);
@@ -213,7 +218,7 @@ export async function applyEdits(
   transport: HonuaProtocolTransport,
   request: ApplyEditsRequest,
 ): Promise<HonuaApplyEditsResponse> {
-  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/${request.layerId}/applyEdits`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/applyEdits`;
   const params = new URLSearchParams();
   params.set("f", "json");
   params.set("rollbackOnFailure", String(request.rollbackOnFailure ?? true));
@@ -223,8 +228,15 @@ export async function applyEdits(
   if (request.updates !== undefined) {
     params.set("updates", encodeFormValue(request.updates));
   }
+  refuseFeatureGlobalIds(request, request.serviceId);
+  if (request.useGlobalIds === true) {
+    params.set("useGlobalIds", "true");
+  }
   if (request.deletes !== undefined) {
-    params.set("deletes", encodeDeletesValue(request.deletes));
+    params.set(
+      "deletes",
+      request.useGlobalIds === true ? encodeGlobalIdDeletes(request.deletes) : encodeDeletesValue(request.deletes),
+    );
   }
 
   return transport.requestJson<HonuaApplyEditsResponse>(
@@ -238,6 +250,43 @@ export async function applyEdits(
     },
     request.signal,
   );
+}
+
+/** GeoServices service-level applyEdits: several layers in one request. */
+export async function applyServiceEdits(
+  transport: HonuaProtocolTransport,
+  request: ApplyServiceEditsRequest,
+): Promise<HonuaApplyServiceEditsResponse> {
+  const modes = new Set(request.edits.map((layer) => layer.useGlobalIds === true));
+  if (modes.size > 1) {
+    // GeoServices takes one useGlobalIds flag per request.
+    throw new HonuaCapabilityNotSupportedError("mixedGlobalIdModes", "geoservices-feature-service", request.serviceId);
+  }
+  const useGlobalIds = modes.has(true);
+  const edits = request.edits.map((layer) => {
+    refuseFeatureGlobalIds(layer, request.serviceId);
+    return {
+      id: layer.layerId,
+      ...(layer.adds ? { adds: layer.adds } : {}),
+      ...(layer.updates ? { updates: layer.updates } : {}),
+      ...(layer.deletes === undefined
+        ? {}
+        : { deletes: useGlobalIds ? serviceGlobalIdDeletes(layer.deletes) : serviceObjectIdDeletes(layer.deletes) }),
+    };
+  });
+  const params = new URLSearchParams();
+  params.set("f", "json");
+  params.set("rollbackOnFailure", String(request.rollbackOnFailure ?? true));
+  if (useGlobalIds) params.set("useGlobalIds", "true");
+  params.set("edits", JSON.stringify(edits));
+  const path = `/rest/services/${encodeServiceIdPath(request.serviceId)}/FeatureServer/applyEdits`;
+  const response = await transport.requestJson<unknown>(
+    "POST",
+    path,
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() },
+    request.signal,
+  );
+  return serviceEditLayers(request, response);
 }
 
 export async function queryRelatedRecords(
@@ -261,9 +310,7 @@ export async function queryRelatedRecords(
     }
   }
 
-  const path =
-    `/rest/services/${encodeServiceIdPath(request.serviceId)}` +
-    `/FeatureServer/${request.layerId}/queryRelatedRecords`;
+  const path = `${restLayerPath(request.serviceId, "FeatureServer", request.layerId)}/queryRelatedRecords`;
   if (method === "GET") {
     return transport.requestJson<HonuaRelatedRecordsResponse>(
       "GET",
@@ -307,8 +354,7 @@ export async function queryMapRelatedRecords(
     }
   }
 
-  const path =
-    `/rest/services/${encodeServiceIdPath(request.serviceId)}` + `/MapServer/${request.layerId}/queryRelatedRecords`;
+  const path = `${restLayerPath(request.serviceId, "MapServer", request.layerId)}/queryRelatedRecords`;
   if (method === "GET") {
     return transport.requestJson<HonuaRelatedRecordsResponse>(
       "GET",
@@ -580,11 +626,54 @@ function encodeFormValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function encodeDeletesValue(value: ApplyEditsRequest["deletes"]): string {
-  if (Array.isArray(value)) {
-    return value.join(",");
+/** Feature-level `globalId` is gRPC only; REST keeps the GlobalID in the server's attribute. */
+function refuseFeatureGlobalIds(edits: Pick<ApplyEditsRequest, "adds" | "updates">, serviceId: string): void {
+  if ([...(edits.adds ?? []), ...(edits.updates ?? [])].some((feature) => feature.globalId !== undefined)) {
+    throw new HonuaCapabilityNotSupportedError("globalId", "geoservices-feature-service", serviceId);
   }
-  return String(value);
+}
+
+/** Service-level `edits` JSON lists object-ID deletes as numbers where they are safe integers. */
+function serviceObjectIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
+  return deleteTokens(value).map((id) =>
+    typeof id === "string" && CANONICAL_INTEGER.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : id,
+  );
+}
+
+/** Service-level `edits` JSON lists global-ID deletes as GUID strings. */
+function serviceGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): string[] {
+  return deleteTokens(value).map(String);
+}
+
+const CANONICAL_INTEGER = /^(?:0|-?[1-9][0-9]*)$/;
+
+/** Empty tokens (for example `"".split(",")`) are not IDs; never turn them into object ID 0. */
+function deleteTokens(value: NonNullable<ApplyEditsRequest["deletes"]>): Array<number | string> {
+  const tokens = typeof value === "string" ? value.split(",").map((id) => id.trim()) : [...value];
+  return tokens.filter((id) => id !== "");
+}
+
+function encodeDeletesValue(value: NonNullable<ApplyEditsRequest["deletes"]>): string {
+  return typeof value === "string" ? value : value.join(",");
+}
+
+/** GeoServices takes global-ID deletes as a JSON array of GUID strings. */
+function encodeGlobalIdDeletes(value: NonNullable<ApplyEditsRequest["deletes"]>): string {
+  return JSON.stringify(serviceGlobalIdDeletes(value));
+}
+
+/** REST applyEdits must name the same layers, in request order, or the body is not a result list. */
+function serviceEditLayers(request: ApplyServiceEditsRequest, response: unknown): HonuaApplyServiceEditsResponse {
+  if (!Array.isArray(response)) {
+    throw new HonuaGrpcError(GRPC_INTERNAL, "applyEdits returned a body that is not a layer array.");
+  }
+  const layers = response.map((entry) => {
+    const record = entry as HonuaApplyEditsResponse & { id?: number };
+    const { id, ...results } = record;
+    return { layerId: id ?? Number.NaN, ...results };
+  });
+  assertServiceLayerOrder(request.edits, layers);
+  return { layers };
 }
 
 function normalizeBBox(bbox: ExportMapRequest["bbox"]): string {
@@ -625,6 +714,10 @@ function normalizeSearchFields(searchFields: MapFindRequest["searchFields"]): st
 }
 
 function serializeQueryParams(params: URLSearchParams, request: QueryFeaturesRequest | MapLayerQueryRequest): void {
+  if ("globalIds" in request && request.globalIds !== undefined) {
+    // GeoServices queries have no global-ID selector; never return an unfiltered page.
+    throw new HonuaCapabilityNotSupportedError("globalIds", "geoservices-feature-service", request.serviceId);
+  }
   if (request.outSr !== undefined) {
     params.set(
       "outSR",

@@ -39,13 +39,13 @@
  * preserved through the open `[extra: string]: unknown` index signature,
  * no parallel validation logic.
  *
- * `AppPackage` is forward-declared as a stub until the canonical server
+ * `AppVersion` is forward-declared as a stub until the canonical server
  * shape is delivered alongside the `HonuaClient` operator transport.
  *
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 
 // ── Conversation ─────────────────────────────────────────────
 
@@ -162,9 +162,9 @@ export interface ArtifactRef {
 /**
  * Forward-declared stub. The canonical server shape replaces this when
  * the `HonuaClient` operator transport ticket lands. Until then in-repo
- * fixtures drive `BuilderWorkspaceController` and its tests.
+ * fixtures drive `BuilderController` and its tests.
  */
-export interface AppPackage {
+export interface AppVersion {
   readonly id: string;
   readonly version: string;
   readonly assets: ReadonlyArray<ArtifactRef>;
@@ -185,8 +185,8 @@ export type ExecutionResultKind = "analysis" | "publishing" | "builder" | "deplo
 export interface ExecutionResult {
   readonly kind: ExecutionResultKind;
   readonly summary?: string;
-  readonly mapPackage?: HonuaMapPackage;
-  readonly appPackage?: AppPackage;
+  readonly mapPackage?: HonuaMapDocument;
+  readonly appPackage?: AppVersion;
   readonly artifacts?: ReadonlyArray<ArtifactRef>;
   readonly provenance?: ReadonlyArray<ProvenanceRecord>;
   readonly [extra: string]: unknown;

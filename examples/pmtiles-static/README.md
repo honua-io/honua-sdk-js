@@ -1,5 +1,7 @@
 # PMTiles Static Quickstart
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 A complete basemap backend with **no Honua server** — just one immutable
 `.pmtiles` archive on static hosting. The Honua runtime auto-registers the
 MapLibre `pmtiles://` protocol on map attach, so the archive renders with no
@@ -8,8 +10,8 @@ vector layer names) is inspected through the contract's `describe()` surface.
 
 This demonstrates:
 
-- **REQ-002** — `loadMapPackage` auto-registers `pmtiles://` (lazy, idempotent)
-  and projects a `pmtiles` MapPackage source binding onto a MapLibre source.
+- **REQ-002** — `loadMapDocument` auto-registers `pmtiles://` (lazy, idempotent)
+  and projects a `pmtiles` map document source binding onto a MapLibre source.
 - **REQ-003** — `describePmtilesArchive()` returns archive metadata; the PMTiles
   `Source` is tiles-only (the query family throws
   `HonuaCapabilityNotSupportedError`).
@@ -62,5 +64,5 @@ PMTiles works from a plain HTML page with no bundler:
 </script>
 ```
 
-With the Honua SDK bundled instead, `loadMapPackage` does the `addProtocol`
+With the Honua SDK bundled instead, `loadMapDocument` does the `addProtocol`
 step for you — see `src/main.ts`.

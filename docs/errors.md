@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Error reference
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The Honua JS SDK exposes a tagged error envelope from `@honua/sdk-js`. Public
 errors migrated in the table below pass the cross-realm `isHonuaError(error)`
 guard. Use their stable classifications to gate retry, refresh, fallback, and
@@ -96,19 +98,19 @@ try {
 | `HonuaMapLibreRasterStrategyError` | `@honua/sdk-js/map` | Raster strategy capability/metadata/options, identifiers, or renderer mutation fail. | Correct source truth/options or host conflicts; do not silently select a lossy fallback. |
 | `HonuaAutomaticMapLibreIntegrationError` | `@honua/sdk-js/map` | Incremental integration is disposed or receives an invalid target. | Recreate the integration or correct the target. |
 | `HonuaTemporalPlaybackError` | `@honua/sdk-js/map` | Playback options or temporal extent are invalid. | Correct input; do not retry unchanged input. |
-| `HonuaMapPackageError` | `@honua/sdk-js/runtime` | Map-package fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
+| `HonuaMapDocumentError` | `@honua/sdk-js/runtime` | Map-document fetch/load/validation/update/style/source/view/popup/disposal stage fails. | Branch on `.stage`; only fetch and disposal classifications are marked retryable. |
 | `HonuaRuntimeDiagnosticError` | `@honua/sdk-js/runtime` | Runtime style/source/layer validation produces error diagnostics. | Inspect the local `.diagnostics` and correct invalid runtime input. Serialized context carries codes/count only. |
 | `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 | `HonuaRealtimeReconciliationError` | `@honua/sdk-js/realtime`, `@honua/sdk-js/map` | Delta reconciliation (`reconciliation.ts`) or its MapLibre adapter (`realtime-reconciliation-adapter.ts`) receives an invalid option, or a reconciler/cache/adapter already disposed receives another patch. | Branch on `.code` (`"disposed"` / `"invalid-option"`). Recreate the reconciler/cache/adapter instead of reusing a disposed one; correct the option that failed validation. Not retryable. |
 | `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, atomic store work, or an offline read the persisted region cannot answer fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Treat `cache-miss` / `scope-mismatch` / `out-of-region` (`offline.region.miss`) as "download a region for this selection", never as an empty answer. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
-| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.3.x and is removed in 0.4.0) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
+| `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
 | `HonuaPmtilesLifecycleError` | `@honua/sdk-js/pmtiles` | PMTiles archive/publish request validation, bounded response parsing, polling, terminal job state, signed access, or cleanup capability fails. | Branch on `.lifecycleCode`; correct invalid input/response shape, re-publish expired signed access, treat cancellation as terminal, and use server TTL/overwrite policy when managed deletion is unavailable. |
 | `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
 | `HonuaAgentSafetyError` | `@honua/sdk-js/agent-safety` | Agent plan validation, policy evaluation, dry-run, approval, or safety-evidence derivation/verification fails (aborted, invalid input, policy denial, integrity failure, expired approval, context mismatch, or invalid signature). | Branch on `.code`; correct the plan/policy/approval input, re-request approval, or treat cancellation as terminal. Not retryable. |
 | `HonuaAgentExecutionError` | `@honua/sdk-js/agent-safety` | A plan step's authorization, start audit, execution, receipt issuance, or terminal audit fails. Extends `HonuaAgentSafetyError` with `.phase` and, when execution reached that point, the signed `.receipt`. | Branch on `.code` / `.phase`; the caller must consume `.receipt` directly (never serialized). Not retryable. |
-| `HonuaGeneratedAppError` | `@honua/sdk-js/generated-app` (deprecated shim; canonical home `@honua/app-platform/generated-app`) | Generated-app preview/runtime manifest, projection, load, interaction, render, or dispose stage fails. | Branch on `.code` / `.stage`; use `toGeneratedAppDiagnostic(error)` for the legacy `{code, stage, message, detail}` shape. Not retryable. |
+| `HonuaGeneratedAppError` | `@honua/app-platform/generated-app` | Generated-app preview/runtime manifest, projection, load, interaction, render, or dispose stage fails. | Branch on `.code` / `.stage`; use `toGeneratedAppDiagnostic(error)` for the legacy `{code, stage, message, detail}` shape. Not retryable. |
 
 ## Registered code families
 
@@ -143,7 +145,7 @@ human-readable registry summaries remain in the explicit public registry.
 | `HonuaMapLibreRasterStrategyError` | `map.raster-strategy.*` |
 | `HonuaAutomaticMapLibreIntegrationError` | `map.automatic-integration.*` |
 | `HonuaTemporalPlaybackError` | `map.temporal-playback.invalid-option` |
-| `HonuaMapPackageError` | `runtime.map-package.*` (one code per public stage) |
+| `HonuaMapDocumentError` | `runtime.map-package.*` (one code per public stage) |
 | `HonuaRuntimeDiagnosticError` | `runtime.diagnostic` |
 | `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
 | `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
@@ -243,6 +245,11 @@ classification is conservatively non-retryable.
 | `core.coverage.unsupported-format` | `core` | `capability` | no | Coverage format is unsupported |
 | `core.coverage.service-error` | `core` | `protocol` | no | Coverage service rejected the request |
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
+| `core.publication.invalid-descriptor` | `core` | `validation` | no | Publication descriptor is invalid or not validated |
+| `core.publication.artifact-mismatch` | `core` | `protocol` | no | Publication artifact does not match its descriptor |
+| `core.publication.artifact-unavailable` | `core` | `protocol` | no | Publication artifact could not be read from its host |
+| `core.publication.non-public-field` | `core` | `validation` | no | Field is not public in the publication |
+| `core.publication.query-budget-exceeded` | `core` | `capability` | no | Browser query would exceed the publication query budget |
 | `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |
 | `core.zarr.invalid-response` | `core` | `protocol` | no | Zarr response is invalid |
 | `core.zarr.response-too-large` | `core` | `validation` | no | Zarr response exceeds its byte limit |
@@ -373,8 +380,8 @@ classification is conservatively non-retryable.
 | `app.unsupported-widget` | `app` | `capability` | no | Generated app widget kind is not supported |
 | `app.missing-manifest` | `app` | `validation` | no | Generated app manifest or app package is missing |
 | `app.missing-manifest-artifact` | `app` | `validation` | no | Generated app manifest artifact is missing |
-| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a MapPackage |
-| `app.map-package-mismatch` | `app` | `validation` | no | Generated app MapPackage does not match its manifest |
+| `app.missing-map-package` | `app` | `validation` | no | Generated app map widget requires a map document |
+| `app.map-package-mismatch` | `app` | `validation` | no | Generated app map document does not match its manifest |
 | `app.missing-widget` | `app` | `validation` | no | Generated app manifest is missing a required widget |
 | `app.missing-binding` | `app` | `validation` | no | Generated app runtime is missing a required binding |
 | `app.map-load-failed` | `app` | `internal` | no | Generated app map widget failed to load |

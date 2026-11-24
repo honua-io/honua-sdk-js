@@ -20,7 +20,7 @@
  * the shared command inputs have no approval field and every command input
  * schema is closed (`additionalProperties: false`).
  *
- * @experimental Part of the `@honua/sdk-js/control-plane` experimental
+ * @experimental Part of the `@honua/app-platform/control-plane` experimental
  *   entrypoint; not yet covered by the SDK's semver contract.
  * @module
  */

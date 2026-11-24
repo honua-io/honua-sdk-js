@@ -114,34 +114,41 @@ export interface ResolveOptions {
 }
 
 /**
- * Resolve the base URL and one caller credential from options, env, then saved config.
+ * Resolve only the server base URL (flag, env, profile, then saved config), without
+ * selecting a credential. Returns `undefined` when none is configured.
  *
- * @throws {Error} when no base URL can be determined.
+ * @throws {Error} when the named profile does not exist.
  */
-export function resolveConnection(options: ResolveOptions = {}): ResolvedConnection {
+export function resolveBaseUrl(options: ResolveOptions = {}): string | undefined {
+  const { baseUrl } = locateBaseUrl(options);
+  return baseUrl ? stripTrailingSlashes(baseUrl) : undefined;
+}
+
+function locateBaseUrl(options: ResolveOptions) {
   const env = options.env ?? process.env;
   const saved = readConfig(env);
   const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
   if (options.profile && !profile) {
     throw new Error(`Honua profile "${options.profile}" was not found in ${configPath(env)}.`);
   }
+  const candidates: [string | undefined, ResolvedConnection["source"]][] = [
+    [options.baseUrl, "flag"],
+    [env.HONUA_BASE_URL, "env"],
+    [profile?.baseUrl, "config"],
+    [saved.baseUrl, "config"],
+  ];
+  const [baseUrl, source] = candidates.find(([value]) => value && value.trim() !== "") ?? [undefined, "config"];
+  return { saved, profile, baseUrl, source };
+}
 
-  let baseUrl: string | undefined;
-  let source: ResolvedConnection["source"] = "config";
-  if (options.baseUrl && options.baseUrl.trim() !== "") {
-    baseUrl = options.baseUrl;
-    source = "flag";
-  } else if (env.HONUA_BASE_URL && env.HONUA_BASE_URL.trim() !== "") {
-    baseUrl = env.HONUA_BASE_URL;
-    source = "env";
-  } else if (profile?.baseUrl && profile.baseUrl.trim() !== "") {
-    baseUrl = profile.baseUrl;
-    source = "config";
-  } else if (saved.baseUrl && saved.baseUrl.trim() !== "") {
-    baseUrl = saved.baseUrl;
-    source = "config";
-  }
-
+/**
+ * Resolve the base URL and one caller credential from options, env, then saved config.
+ *
+ * @throws {Error} when no base URL can be determined.
+ */
+export function resolveConnection(options: ResolveOptions = {}): ResolvedConnection {
+  const env = options.env ?? process.env;
+  const { saved, profile, baseUrl, source } = locateBaseUrl(options);
   if (!baseUrl) {
     throw new Error(
       "No Honua base URL configured. Pass --base-url, set HONUA_BASE_URL, or run `honua login --base-url <url>`.",

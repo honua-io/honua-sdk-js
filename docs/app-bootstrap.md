@@ -1,9 +1,11 @@
 ---
 type: guide
-title: "Honua App Bootstrap (`@honua/sdk-js/app`)"
+title: "Honua App Bootstrap (`@honua/app-platform/app`)"
 description: "createHonuaApp(), a framework-neutral bootstrap over the client, hosted package fetcher, runtime, controllers and optional package watcher."
 ---
-# Honua App Bootstrap (`@honua/sdk-js/app`)
+# Honua App Bootstrap (`@honua/app-platform/app`)
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Status: experimental.
 
@@ -11,7 +13,7 @@ Status: experimental.
 client, hosted package fetcher, runtime, app controller, web-component
 controller, and optional package watcher. It is exported from a separate
 subpath so low-level consumers can keep importing `@honua/sdk-js/runtime` or
-`@honua/sdk-js/app-controller` directly.
+`@honua/app-platform/app-controller` directly.
 
 The helper does not statically import MapLibre GL JS. To render a map, pass a
 prebuilt `map`, a `mapFactory`, or a prebuilt `runtime`. Applications that do
@@ -23,7 +25,7 @@ controller handles.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaApp } from "@honua/sdk-js/app";
+import { createHonuaApp } from "@honua/app-platform/app";
 
 const app = await createHonuaApp({
   client: new HonuaClient({ baseUrl: "https://honua.example.com" }),
@@ -33,7 +35,8 @@ const app = await createHonuaApp({
     new maplibregl.Map({
       container: container!,
       style: { version: 8, sources: {}, layers: [] },
-      center: mapPackage.initialView?.center ?? [0, 0],
+      // initialView.center is a readonly tuple; MapLibre wants a mutable one.
+      center: mapPackage.initialView?.center ? [...mapPackage.initialView.center] : [0, 0],
       zoom: mapPackage.initialView?.zoom ?? 0,
     }),
   onEvent: (event) => {
@@ -62,15 +65,15 @@ const app = await createHonuaApp({
 ```
 
 Package locators can be `packageId`, `packageUrl`, `src`, `locator`, or an
-inline `mapPackage`. Hosted loads use `fetchMapPackage`, including its
+inline `mapPackage`. Hosted loads use `fetchMapDocument`, including its
 ETag / Last-Modified validator cache. Pass `fetch.cache: false` to bypass the
-SDK cache or a shared `MapPackageFetchCache` to reuse validators across app
+SDK cache or a shared `MapDocumentFetchCache` to reuse validators across app
 instances.
 
 ## Source Descriptor
 
 For quick previews, pass a single contract `SourceDescriptor`. The helper
-synthesizes a minimal `MapPackage` with one layer and then runs the normal
+synthesizes a minimal `HonuaMapDocument` with one layer and then runs the normal
 runtime path.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
@@ -107,15 +110,15 @@ controller, and owned runtime. Caller-provided handles are not disposed.
 
 | Event | Meaning |
 | --- | --- |
-| `status` | App state changed: `loading`, `ready`, `degraded`, `error`, or `disposed`. |
+| `status` | App state changed: `idle`, `loading`, `ready`, `degraded`, `error`, or `disposed`. |
 | `client-ready` | A `HonuaClient` was supplied or constructed. |
 | `package-loading` | A hosted package fetch is starting. |
 | `package-ready` | An inline, fetched, runtime-owned, or synthesized package is available. |
 | `runtime-ready` | The package was loaded onto the caller map. |
 | `controller-ready` | App and web-component controllers are ready. |
 | `degraded` | A non-fatal source bind or watch problem occurred. |
-| `error` | Bootstrap failed. `stage` distinguishes `auth`, `fetch`, `validate`, `source-bind`, `render`, `watch`, and `dispose`. |
-| `watch` | A `watchMapPackage` event was forwarded. |
+| `error` | Bootstrap failed. `stage` distinguishes `initialize`, `auth`, `fetch`, `validate`, `source-bind`, `render`, `watch`, and `dispose`. |
+| `watch` | A `watchMapDocument` event was forwarded. |
 | `disposed` | The handle was disposed. |
 
 Validation failures from hosted packages surface as `stage: "validate"`.

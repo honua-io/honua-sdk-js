@@ -39,6 +39,24 @@ describe("control-plane client", () => {
     expect(HonuaControlPlaneClient).toBeTypeOf("function");
   });
 
+  it("lists folders through the existing server route and capability", async () => {
+    const controlPlane = clientFor(({ url }) => {
+      expect(url.pathname).toBe("/api/v1/admin/workspaces");
+      return new Response(JSON.stringify({ items: [{ id: "folder-1", name: "Operations" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    expect("workspaces" in controlPlane).toBe(false);
+    const result = await controlPlane.folders.list();
+    expect(result.supported).toBe(true);
+    if (result.supported) expect(result.value.items).toEqual([{ id: "folder-1", name: "Operations" }]);
+
+    const unsupported = await clientFor(() => new Response("{}", { status: 404 })).folders.list();
+    expect(unsupported).toMatchObject({ supported: false, capability: "workspaces" });
+  });
+
   it("lists hosted maps with cursor pagination and validators", async () => {
     const contract = fixture("hosted-map-list.v1.json");
     const requests: Array<{ path: string; headers: HeadersInit | undefined }> = [];
@@ -50,7 +68,7 @@ describe("control-plane client", () => {
       });
     });
 
-    const result = await controlPlane.hostedMaps.list({ workspaceId: "workspace-ops", limit: 2 });
+    const result = await controlPlane.maps.list({ workspaceId: "workspace-ops", limit: 2 });
 
     expect(requests[0]?.path).toBe(contract.request.path);
     expect(requests[0]?.headers).toMatchObject({ Accept: "application/json" });
@@ -191,7 +209,7 @@ describe("control-plane client", () => {
       return new Response(JSON.stringify({ items: [], pagination: {} }), { status: 200 });
     });
 
-    const result = await controlPlane.hostedMaps.list({ refresh: true });
+    const result = await controlPlane.maps.list({ refresh: true });
     const requestHeaders = new Headers(headers);
 
     expect(result.supported).toBe(true);
@@ -206,7 +224,7 @@ describe("control-plane client", () => {
       return new Response(null, { status: 304 });
     });
 
-    const result = await controlPlane.hostedMaps.list({
+    const result = await controlPlane.maps.list({
       validator: { etag: '"maps-v1"', lastModified: "Mon, 11 May 2026 10:00:00 GMT" },
     });
     const requestHeaders = new Headers(headers);
@@ -232,7 +250,7 @@ describe("control-plane client", () => {
       return new Response(JSON.stringify(contract.response.body), { status: contract.response.status });
     });
 
-    const result = await controlPlane.packages.publish({
+    const result = await controlPlane.mapDocuments.publish({
       ifMatch: '"map-ops-v2"',
       mapId: "map-ops",
       message: "Publish reviewed operations map",
@@ -257,7 +275,7 @@ describe("control-plane client", () => {
     const contract = fixture("api-token-create.v1.json");
     const controlPlane = clientFor(() => new Response(JSON.stringify(contract.response.body), { status: 201 }));
 
-    const result = await controlPlane.tokens.create({
+    const result = await controlPlane.apiKeys.create({
       name: "CI deploy token",
       workspaceId: "workspace-ops",
       scopes: ["maps:read", "packages:publish"],
@@ -280,7 +298,7 @@ describe("control-plane client", () => {
     const contract = fixture("unsupported-capability.v1.json");
     const controlPlane = clientFor(() => new Response(JSON.stringify(contract.response.body), { status: 404 }));
 
-    const result = await controlPlane.hostedMaps.list();
+    const result = await controlPlane.maps.list();
 
     expect(result).toEqual({
       supported: false,
@@ -304,12 +322,12 @@ describe("control-plane client", () => {
         ),
     );
 
-    const hostedMapPackage = await controlPlane.hostedMaps.getPackageLocator("map-ops");
+    const hostedMapPackage = await controlPlane.maps.getMapDocumentLocator("map-ops");
     expect(hostedMapPackage).toEqual({
       supported: true,
       value: { path: "/api/v1/admin/maps/map-ops/package" },
     });
-    expect(controlPlane.packages.locator("pkg-ops-ready")).toEqual({
+    expect(controlPlane.mapDocuments.locator("pkg-ops-ready")).toEqual({
       path: "/api/v1/admin/packages/pkg-ops-ready",
     });
   });

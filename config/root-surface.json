@@ -36,6 +36,7 @@
       "connect",
       "createDataset",
       "createHonua",
+      "createHonuaClient",
       "envelope",
       "executeQueryPlan",
       "explainQuery",
@@ -113,6 +114,8 @@
       "createDataset",
       "CreateDatasetOptions",
       "createHonua",
+      "createHonuaClient",
+      "CreateHonuaClientOptions",
       "Dataset",
       "DatasetId",
       "DegradedReason",
@@ -178,6 +181,7 @@
       "HonuaTerminalFailureReceipt",
       "HonuaTimeoutError",
       "HonuaTransport",
+      "HonuaTransportPreference",
       "InspectOptions",
       "isHonuaError",
       "isHonuaErrorCode",
@@ -650,6 +654,18 @@
     },
     {
       "symbol": "HonuaTerminalFailureReceipt",
+      "kind": "type"
+    },
+    {
+      "symbol": "createHonuaClient",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "CreateHonuaClientOptions",
+      "kind": "type"
+    },
+    {
+      "symbol": "HonuaTransportPreference",
       "kind": "type"
     }
   ],

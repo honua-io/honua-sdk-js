@@ -47,6 +47,7 @@ async function main() {
     await dispatchReleasePleaseCi({
       repository: requiredEnvironment("GITHUB_REPOSITORY"),
       trustedPolicySha,
+      expectedHeadSha: requiredEnvironment("RELEASE_HEAD_SHA"),
       waitForCompletion: false,
     }),
   );

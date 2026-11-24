@@ -6,6 +6,8 @@ resource: "honua://capability/serve.geoservices-root"
 ---
 # WebMap JSON Compatibility Contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This document defines the compatibility contract for `parseWebMap()` in `@honua/sdk-js/webmap`.
 
 Version target: ArcGIS WebMap JSON `2.x` (current AGOL output).
@@ -24,9 +26,6 @@ Parser behavior:
 - Unsupported or unknown properties are warnings, not throw conditions.
 - Conversion aims to preserve visible map behavior for supported 2D properties.
 - Unsupported 3D and complex Arcade flows are explicitly called out for manual intervention.
-- The exploratory Cesium example under `docs/examples/cesium-route-playback/`
-  consumes `HonuaClient.queryFeatures()` directly and does not expand
-  `parseWebMap()` 3D support.
 
 ## Support Matrix
 

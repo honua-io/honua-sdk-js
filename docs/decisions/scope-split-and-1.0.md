@@ -66,13 +66,13 @@ imports of app-platform directories):
 - **One stable → app-platform back-edge exists and blocks a clean split.** The
   stable `/runtime` entrypoint re-exports Studio symbols:
   `src/runtime/map-package-validation.ts` ends with
-  `export { fromMapPackageValidation, toStudioValidationResponse } from "../studio/validation.js"`
+  `export { fromMapDocumentValidation, toStudioValidationResponse } from "../studio/validation.js"`
   plus three `StudioPackage*` type re-exports. Studio in turn imports *types*
-  from `runtime` (`ValidateMapPackageResult`, `HonuaMapPackage`), so the
+  from `runtime` (`ValidateMapDocumentResult`, `HonuaMapDocument`), so the
   coupling is bidirectional. These re-exports are already annotated
   `@experimental`. **Resolution (execution PR):** delete the Studio re-exports
   from the stable `/runtime` entrypoint; consumers reach them via
-  `@honua/sdk-js/studio` (moving to `@honua/app-platform/studio`). This is the
+  `@honua/app-platform/studio` (moving to `@honua/app-platform/studio`). This is the
   single stable-tier edit the extraction requires and the reason the eviction
   must not be done blindly by moving directories.
 - No other stable directory imports any app-platform directory.
@@ -117,7 +117,7 @@ package's entrypoints by nearly half.
 ### Post-execution inventory
 
 Later adoption work added `/auth` and `/geoparquet` while the split was being
-executed. The resulting package has 40 exports: 20 semver-protected stable
+executed. The package then had 40 exports: 20 semver-protected stable
 entrypoints, 2 subpath-only experimental entrypoints (`/agent-tools` and
 `/geoparquet`), and 18 deprecated app-platform compatibility shims. The stable
 count remains at the accepted ceiling because `/agent-tools` is explicitly
@@ -125,15 +125,11 @@ experimental, while `/auth`, `/browser`, and `/cli` are included in the stable
 API report. `config/public-surface.json` supersedes the historical table below
 as the exact current inventory.
 
-The app-platform shims first shipped in `0.1.0-beta.0` and remain deprecated
-through the `0.3.x` line. Their npm removal deadline is `0.4.0`. CI rejects a
-release whose package version has reached `removeIn` while a shim remains.
-`verify:public-surface` is unchanged.
-
-Honua Studio, the honua-site demos and docs, and this repository's examples
-still import the eighteen forwarders. `0.3.0` ships the esri-compat removal.
-The forwarders stay until those consumers import `@honua/app-platform`.
-[Issue 2317](https://github.com/honua-io/honua-sdk-js/issues/2317) tracks that removal.
+The app-platform shims first shipped in `0.1.0-beta.0` and stayed deprecated
+through the `0.3.x` line. `0.4.0` removed all eighteen
+([issue 2317](https://github.com/honua-io/honua-sdk-js/issues/2317)); this repository's
+examples, tests and the MCP server import `@honua/app-platform`. CI still rejects a
+release whose package version has reached a deprecated entrypoint's `removeIn`.
 
 The reviewed October 2026 release decision retains compatibility for the Node 22
 minimum-version change, which independently requires the managed `0.2.0` minor
@@ -160,7 +156,7 @@ The current Node 22 release is tracked by
 | `./contract` | stable-1.0 | Protocol-neutral `Dataset`/`Source`/`Query`/`Result` — the cross-language contract the whole SDK identity rests on. |
 | `./client-compat` | stable-1.0 | ArcGIS JS-API compatibility layer; a headline adoption driver and already its own split package. |
 | `./migration` | stable-1.0 | Codemod/scanner behind `honua-migrate`; headline adoption driver, own split package. |
-| `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapPackage`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
+| `./runtime` | stable-1.0 | MapLibre `MapPackage` runtime (`loadMapDocument`, `HonuaMapRuntime`). Core render path. (Must shed its Studio re-exports — see Evidence.) |
 | `./expr` | stable-1.0 | Typed expression builder; low-level primitive used across map/style/filter. |
 | `./webmap` | stable-1.0 | Esri WebMap JSON load/save; core interop primitive. |
 | `./geocoding` | stable-1.0 | `HonuaGeocodingClient`; a first-class client capability. |
@@ -338,7 +334,7 @@ overpromising them today:
 > question that decides adoption.
 >
 > **Today (pre-1.0, `0.x`).** The **stable tier** — the subpath entrypoints
-> listed under "Stable subpath entrypoints" in [`INSTALL.md`](./INSTALL.md) — is
+> listed under "Stable subpath entrypoints" in [`INSTALL.md`](../../INSTALL.md) — is
 > where we invest compatibility effort and is guarded in CI by a public-API
 > report (`npm run verify:api-report`): no symbol leaves or changes shape by
 > accident. While we are on `0.x` a minor *may* still change a stable symbol, but

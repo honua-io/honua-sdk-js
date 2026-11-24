@@ -72,6 +72,7 @@ import {
   type HonuaAiMapKit,
   convertHonuaAgentToolDefinitions,
 } from "../agent-tools/index.js";
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type {
   StudioAiCapabilitiesResponse,
   StudioAiCapability,
@@ -131,8 +132,10 @@ export interface StudioAgentSessionOptions {
    * Leave both unset for an interactive end user.
    */
   readonly transcriptVerifier?: StudioAiTranscriptVerifierLike;
-  /** Base of the honua-server API — the session calls `${baseUrl}/v1/studio/ai/*` and `${baseUrl}/mcp`. @default "/api" */
+  /** Base of the honua-server Studio AI proxy — the session calls `${baseUrl}/v1/studio/ai/*`. MCP defaults to {@link mcpBaseUrl} or this base without a trailing `/api`. @default "/api" */
   readonly baseUrl?: string;
+  /** Base of the honua-server MCP endpoint — the default {@link McpClient} calls `${mcpBaseUrl}/mcp`. Defaults to `baseUrl` with any trailing `/api` segment removed (server root `""` for the default `"/api"`). */
+  readonly mcpBaseUrl?: string;
   /** Bearer-token source. The model's own credentials never leave the server. */
   readonly auth?: StudioAiTokenSource;
   /** Override for tests. Defaults to `globalThis.fetch`. */
@@ -1218,15 +1221,30 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
   #ensureMcpClient(): McpClient {
     if (!this.#mcpClient) {
+      const mcpBaseUrl =
+        this.#options.mcpBaseUrl !== undefined
+          ? this.#options.mcpBaseUrl
+          : resolveDefaultMcpBaseUrl(this.#options.baseUrl);
       this.#mcpClient = new McpClient({
         workflowView: this.#options.mcpWorkflowView ?? HONUA_STUDIO_TOOL_SETUP_VIEW,
-        ...(this.#options.baseUrl !== undefined ? { baseUrl: this.#options.baseUrl } : {}),
+        baseUrl: mcpBaseUrl,
         ...(this.#options.auth ? { auth: this.#options.auth } : {}),
         ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
       });
     }
     return this.#mcpClient;
   }
+}
+
+function resolveDefaultMcpBaseUrl(baseUrl: string | undefined): string {
+  const trimmed = trimTrailingSlashes(baseUrl ?? "/api");
+  if (trimmed === "/api") {
+    return "";
+  }
+  if (trimmed.endsWith("/api") && new URL(trimmed, "https://localhost").pathname.endsWith("/api")) {
+    return trimmed.slice(0, -"/api".length);
+  }
+  return trimmed;
 }
 
 interface PendingToolCall {

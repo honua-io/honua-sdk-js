@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "Open GIS SDK for MapLibre — one typed client for GeoServices REST, OGC API, WFS, WMS, STAC, OData, and GeoParquet, plus a migration codemod, geocoding, and routing",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -46,6 +46,10 @@
       "types": "./dist/src/index.d.ts",
       "default": "./dist/browser/honua-sdk.esm.js"
     },
+    "./grpc-web": {
+      "types": "./dist/src/grpc-web.d.ts",
+      "default": "./dist/src/grpc-web.js"
+    },
     "./honua": {
       "types": "./dist/src/honua.d.ts",
       "default": "./dist/src/honua.js"
@@ -77,10 +81,6 @@
     "./routing": {
       "types": "./dist/src/routing/index.d.ts",
       "default": "./dist/src/routing/index.js"
-    },
-    "./controls": {
-      "types": "./dist/src/_deprecated/controls.d.ts",
-      "default": "./dist/src/_deprecated/controls.js"
     },
     "./contract": {
       "types": "./dist/src/contract/index.d.ts",
@@ -130,22 +130,6 @@
       "types": "./dist/src/analytics/adapters/uplot.d.ts",
       "default": "./dist/src/analytics/adapters/uplot.js"
     },
-    "./control-plane": {
-      "types": "./dist/src/_deprecated/control-plane.d.ts",
-      "default": "./dist/src/_deprecated/control-plane.js"
-    },
-    "./collaboration": {
-      "types": "./dist/src/_deprecated/collaboration.d.ts",
-      "default": "./dist/src/_deprecated/collaboration.js"
-    },
-    "./replica-sync": {
-      "types": "./dist/src/_deprecated/replica-sync.d.ts",
-      "default": "./dist/src/_deprecated/replica-sync.js"
-    },
-    "./share": {
-      "types": "./dist/src/_deprecated/share.d.ts",
-      "default": "./dist/src/_deprecated/share.js"
-    },
     "./exploration": {
       "types": "./dist/src/exploration/index.d.ts",
       "default": "./dist/src/exploration/index.js"
@@ -170,14 +154,6 @@
       "types": "./dist/src/offline/index.d.ts",
       "default": "./dist/src/offline/index.js"
     },
-    "./app-controller": {
-      "types": "./dist/src/_deprecated/app-controller.d.ts",
-      "default": "./dist/src/_deprecated/app-controller.js"
-    },
-    "./app-workspace": {
-      "types": "./dist/src/_deprecated/app-workspace.d.ts",
-      "default": "./dist/src/_deprecated/app-workspace.js"
-    },
     "./map": {
       "types": "./dist/src/map/index.d.ts",
       "default": "./dist/src/map/index.js"
@@ -186,33 +162,13 @@
       "types": "./dist/src/style/index.d.ts",
       "default": "./dist/src/style/index.js"
     },
-    "./scene-workspace": {
-      "types": "./dist/src/_deprecated/scene-workspace.d.ts",
-      "default": "./dist/src/_deprecated/scene-workspace.js"
-    },
     "./runtime": {
       "types": "./dist/src/runtime/index.d.ts",
       "default": "./dist/src/runtime/index.js"
     },
-    "./app": {
-      "types": "./dist/src/_deprecated/app.d.ts",
-      "default": "./dist/src/_deprecated/app.js"
-    },
-    "./web-components": {
-      "types": "./dist/src/_deprecated/web-components.d.ts",
-      "default": "./dist/src/_deprecated/web-components.js"
-    },
     "./react": {
       "types": "./dist/src/react/index.d.ts",
       "default": "./dist/src/react/index.js"
-    },
-    "./generated-app": {
-      "types": "./dist/src/_deprecated/generated-app.d.ts",
-      "default": "./dist/src/_deprecated/generated-app.js"
-    },
-    "./studio": {
-      "types": "./dist/src/_deprecated/studio.d.ts",
-      "default": "./dist/src/_deprecated/studio.js"
     },
     "./agent-tools": {
       "types": "./dist/src/agent-tools/index.d.ts",
@@ -229,30 +185,6 @@
     "./studio-agent": {
       "types": "./dist/src/studio-agent/index.d.ts",
       "default": "./dist/src/studio-agent/index.js"
-    },
-    "./operator": {
-      "types": "./dist/src/_deprecated/operator.d.ts",
-      "default": "./dist/src/_deprecated/operator.js"
-    },
-    "./operator/controllers": {
-      "types": "./dist/src/_deprecated/operator/controllers.d.ts",
-      "default": "./dist/src/_deprecated/operator/controllers.js"
-    },
-    "./operator/workspace": {
-      "types": "./dist/src/_deprecated/operator/workspace.d.ts",
-      "default": "./dist/src/_deprecated/operator/workspace.js"
-    },
-    "./operator/theming": {
-      "types": "./dist/src/_deprecated/operator/theming.d.ts",
-      "default": "./dist/src/_deprecated/operator/theming.js"
-    },
-    "./operator/i18n": {
-      "types": "./dist/src/_deprecated/operator/i18n.d.ts",
-      "default": "./dist/src/_deprecated/operator/i18n.js"
-    },
-    "./operate": {
-      "types": "./dist/src/_deprecated/operate.d.ts",
-      "default": "./dist/src/_deprecated/operate.js"
     },
     "./cli": {
       "types": "./dist/src/cli/main.d.ts",
@@ -274,6 +206,10 @@
       "types": "./dist/src/geoparquet/index.d.ts",
       "default": "./dist/src/geoparquet/index.js"
     },
+    "./geoparquet/node": {
+      "types": "./dist/src/geoparquet/node.d.ts",
+      "node": "./dist/src/geoparquet/node.js"
+    },
     "./columnar-workflow": {
       "types": "./dist/src/columnar-workflow/index.d.ts",
       "default": "./dist/src/columnar-workflow/index.js"
@@ -289,6 +225,10 @@
     "./pmtiles": {
       "types": "./dist/src/pmtiles/index.d.ts",
       "default": "./dist/src/pmtiles/index.js"
+    },
+    "./export": {
+      "types": "./dist/src/export/index.d.ts",
+      "default": "./dist/src/export/index.js"
     },
     "./raster": {
       "types": "./dist/src/raster/index.d.ts",
@@ -334,7 +274,7 @@
     "ci:baseline:report": "node scripts/ci-timing-baseline.mjs report",
     "ci:parity:collect": "node scripts/ci-shadow-parity.mjs collect",
     "ci:parity:report": "node scripts/ci-shadow-parity.mjs report",
-    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/reseal-token-lifetime.test.mjs && node scripts/browser-shards.mjs check",
+    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/publish-own-tag-workflows.test.mjs test/scripts/reseal-token-lifetime.test.mjs test/scripts/workflow-oidc-role-variables.test.mjs && node scripts/browser-shards.mjs check",
     "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
     "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
@@ -346,6 +286,8 @@
     "verify:client-pair": "npm run build --silent && node --test test/scripts/verify-client-pair-install.test.mjs test/scripts/sync-mcp-pin.test.mjs test/scripts/mcp-peer-artifact.test.mjs && node scripts/verify-client-pair-install.mjs",
     "verify:client-pair:registry": "npm run build --silent && node scripts/verify-client-pair-install.mjs --sdk-source registry",
     "verify:split-packages:prepared": "npm run build:split-packages:prepared --silent && node scripts/verify-split-packages.mjs",
+    "verify:node-geoparquet": "npm run prepare:test-sdk --silent && node scripts/verify-node-geoparquet.mjs",
+    "verify:node-geoparquet:prepared": "npm run prepare:test-sdk:already --silent && node scripts/verify-node-geoparquet.mjs",
     "security:binary-artifacts": "node scripts/check-binary-artifacts.mjs",
     "security:desktop-client-containment": "node --test test/scripts/desktop-client-containment.test.mjs && node scripts/check-desktop-client-containment.mjs",
     "verify:publish-surface": "node scripts/verify-publish-surface.mjs",
@@ -356,7 +298,7 @@
     "test:installed-quickstart": "node scripts/installed-quickstart-budget.mjs",
     "certify:installed-examples": "node scripts/installed-example-certification.mjs",
     "test:installed-package-certification": "node --test test/scripts/installed-package-certification.test.mjs test/scripts/installed-candidate-input.test.mjs test/scripts/verify-candidate-python-requirements.test.mjs test/scripts/installed-certification-identity.test.mjs test/scripts/installed-example-certification.test.mjs test/scripts/installed-candidate-fixture.test.mjs test/scripts/first-map-budget.test.mjs test/scripts/qualify-ogc-processes-candidate.test.mjs",
-    "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs && node scripts/verify-published-release.mjs",
+    "verify:published-release": "node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs && node scripts/verify-published-release.mjs",
     "verify:packed-sdk": "node --test test/scripts/npm-cli.test.mjs test/scripts/windows-fixture-startup.test.mjs test/scripts/verify-packed-sdk.test.mjs && node scripts/verify-packed-sdk.mjs",
     "verify:public-surface": "node --test test/scripts/verify-public-surface.test.mjs && node scripts/verify-public-surface.mjs",
     "support:generate": "node scripts/support-manifest.mjs write",
@@ -421,7 +363,7 @@
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",
     "docs:site:build": "npm run docs:api && npm run docs:site",
-    "docs:site:gallery:test": "node --test test/scripts/docs-gallery.test.mjs",
+    "docs:site:gallery:test": "node --test test/scripts/docs-gallery.test.mjs test/scripts/repair-api-doc-links.test.mjs",
     "docs:site:linkcheck": "node scripts/check-docs-site-links.mjs",
     "docs:site:versions": "node scripts/check-docs-versions-site.mjs",
     "verify:llms": "node scripts/generate-llms-txt.mjs --check",
@@ -455,7 +397,7 @@
     "samples:list": "node scripts/sample-runner.mjs list",
     "samples:release-matrix:seal": "node scripts/seal-release-matrix-receipt.mjs",
     "samples:release-matrix:record": "node scripts/sample-contract.mjs record-release-matrix-lane",
-    "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs test/scripts/release-matrix-receipt.test.mjs",
+    "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs test/scripts/release-matrix-receipt.test.mjs test/scripts/release-matrix-refresh.test.mjs",
     "release:seal:check": "node scripts/release-seal.mjs check",
     "release:seal:test": "node --test test/scripts/release-seal.test.mjs",
     "release:lockfile-pin:test": "node --test test/scripts/lockfile-pin.test.mjs",
@@ -491,11 +433,6 @@
     "demo:incident:preview": "vite preview --config examples/realtime-incident-dashboard/vite.config.ts --host 127.0.0.1",
     "demo:incident:mock": "node examples/realtime-incident-dashboard/mock-server.mjs",
     "demo:incident:typecheck": "tsc -p examples/realtime-incident-dashboard/tsconfig.json --noEmit",
-    "demo:25d": "vite --config examples/storytelling-25d-map/vite.config.ts",
-    "demo:25d:build": "vite build --config examples/storytelling-25d-map/vite.config.ts",
-    "demo:25d:preview": "vite preview --config examples/storytelling-25d-map/vite.config.ts --host 127.0.0.1",
-    "demo:25d:mock": "node examples/storytelling-25d-map/mock-server.mjs",
-    "demo:25d:typecheck": "tsc -p examples/storytelling-25d-map/tsconfig.json --noEmit",
     "demo:service-explorer": "vite --config examples/service-explorer/vite.config.ts",
     "demo:service-explorer:build": "vite build --config examples/service-explorer/vite.config.ts",
     "demo:service-explorer:live-evidence": "npm run build --silent && node examples/service-explorer/live-evidence.mjs",
@@ -510,10 +447,6 @@
     "demo:migration-workbench:mock": "node examples/migration-workbench/mock-server.mjs",
     "demo:migration-workbench:preview": "vite preview --config examples/migration-workbench/vite.config.ts --host 127.0.0.1",
     "demo:migration-workbench:typecheck": "tsc -p examples/migration-workbench/tsconfig.json --noEmit",
-    "demo:mcp-gis-assistant": "vite --config examples/mcp-gis-assistant/vite.config.ts",
-    "demo:mcp-gis-assistant:build": "vite build --config examples/mcp-gis-assistant/vite.config.ts",
-    "demo:mcp-gis-assistant:preview": "vite preview --config examples/mcp-gis-assistant/vite.config.ts --host 127.0.0.1",
-    "demo:mcp-gis-assistant:typecheck": "tsc -p examples/mcp-gis-assistant/tsconfig.json --noEmit",
     "demo:ai-spatial-builder": "vite --config examples/ai-spatial-app-builder/vite.config.ts",
     "demo:ai-spatial-builder:build": "vite build --config examples/ai-spatial-app-builder/vite.config.ts",
     "demo:ai-spatial-builder:preview": "vite preview --config examples/ai-spatial-app-builder/vite.config.ts --host 127.0.0.1",
@@ -526,11 +459,6 @@
     "demo:spatial-analytics:typecheck": "tsc -p examples/spatial-analytics-workbench/tsconfig.json --noEmit",
     "demo:spatial-analytics:evidence": "node examples/spatial-analytics-workbench/evidence-check.mjs",
     "demo:spatial-analytics:live-evidence": "npm run build:split-packages --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
-    "demo:gp-runner": "vite --config examples/geoprocessing-job-runner/vite.config.ts",
-    "demo:gp-runner:build": "vite build --config examples/geoprocessing-job-runner/vite.config.ts",
-    "demo:gp-runner:preview": "vite preview --config examples/geoprocessing-job-runner/vite.config.ts --host 127.0.0.1",
-    "demo:gp-runner:mock": "node examples/geoprocessing-job-runner/mock-server.mjs",
-    "demo:gp-runner:typecheck": "tsc -p examples/geoprocessing-job-runner/tsconfig.json --noEmit",
     "demo:stac-browser": "vite --config examples/stac-imagery-browser/vite.config.ts",
     "demo:stac-browser:build": "vite build --config examples/stac-imagery-browser/vite.config.ts",
     "demo:stac-browser:preview": "vite preview --config examples/stac-imagery-browser/vite.config.ts --host 127.0.0.1",
@@ -552,7 +480,6 @@
     "demo:imagery-cog:typecheck": "tsc -p examples/imagery-cog-quickstart/tsconfig.json --noEmit",
     "evidence:cog:live": "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
     "evidence:pmtiles:live": "npm run build --silent && node scripts/pmtiles-live-evidence.mjs --output test-results/pmtiles-live-evidence.json --strict",
-    "evidence:planning:live": "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
     "evidence:live-conformance": "npm run build --silent && node scripts/live-conformance-evidence.mjs --output test-results/live-conformance-evidence.json --strict",
     "qualification:ogc-processes:candidate": "node scripts/ogc-processes-candidate-qualification.mjs",
     "qualification:ogc-processes:replay": "node scripts/qualify-ogc-processes-candidate.mjs",
@@ -569,40 +496,15 @@
     "demo:node-backend:build:prepared": "npm run prepare:test-sdk:already --silent && tsc -p examples/node-backend-quickstart/tsconfig.build.json",
     "demo:node-backend:typecheck": "tsc -p examples/node-backend-quickstart/tsconfig.json",
     "demo:node-backend:smoke": "npm run build --silent && tsc -p examples/node-backend-quickstart/tsconfig.build.json && node examples/node-backend-quickstart/dist/smoke.js",
-    "demo:terrain-elevation": "vite --config examples/terrain-rgb-elevation/vite.config.ts",
-    "demo:terrain-elevation:build": "vite build --config examples/terrain-rgb-elevation/vite.config.ts",
-    "demo:terrain-elevation:preview": "vite preview --config examples/terrain-rgb-elevation/vite.config.ts --host 127.0.0.1",
-    "demo:terrain-elevation:mock": "node examples/terrain-rgb-elevation/mock-server.mjs",
-    "demo:terrain-elevation:typecheck": "tsc -p examples/terrain-rgb-elevation/tsconfig.json --noEmit",
-    "demo:edit-workflow": "vite --config examples/edit-workflow-demo/vite.config.ts",
-    "demo:edit-workflow:build": "vite build --config examples/edit-workflow-demo/vite.config.ts",
-    "demo:edit-workflow:preview": "vite preview --config examples/edit-workflow-demo/vite.config.ts --host 127.0.0.1",
-    "demo:edit-workflow:mock": "node examples/edit-workflow-demo/mock-server.mjs",
-    "demo:edit-workflow:typecheck": "tsc -p examples/edit-workflow-demo/tsconfig.json --noEmit",
     "demo:sketch-editing": "vite --config examples/sketch-editing/vite.config.ts",
     "demo:sketch-editing:build": "vite build --config examples/sketch-editing/vite.config.ts",
     "demo:sketch-editing:preview": "vite preview --config examples/sketch-editing/vite.config.ts --host 127.0.0.1",
     "demo:sketch-editing:mock": "node examples/sketch-editing/mock-server.mjs",
     "demo:sketch-editing:typecheck": "tsc -p examples/sketch-editing/tsconfig.json --noEmit",
-    "demo:endpoint-to-map": "npm run demo:quickstart",
-    "demo:endpoint-to-map:build": "npm run demo:quickstart:build",
-    "demo:endpoint-to-map:preview": "npm run demo:quickstart:preview",
-    "demo:endpoint-to-map:mock": "npm run demo:quickstart:mock",
-    "demo:endpoint-to-map:typecheck": "npm run demo:quickstart:typecheck",
     "demo:temporal-playback": "vite --config examples/temporal-playback/vite.config.ts",
     "demo:temporal-playback:build": "vite build --config examples/temporal-playback/vite.config.ts",
     "demo:temporal-playback:preview": "vite preview --config examples/temporal-playback/vite.config.ts --host 127.0.0.1",
     "demo:temporal-playback:typecheck": "tsc -p examples/temporal-playback/tsconfig.json --noEmit",
-    "demo:standalone": "npm run demo:quickstart",
-    "demo:standalone:build": "npm run demo:quickstart:build",
-    "demo:standalone:preview": "npm run demo:quickstart:preview",
-    "demo:standalone:mock": "npm run demo:quickstart:mock",
-    "demo:standalone:typecheck": "npm run demo:quickstart:typecheck",
-    "demo:planning-workbench": "vite --config examples/planning-permitting-workbench/vite.config.ts",
-    "demo:planning-workbench:build": "vite build --config examples/planning-permitting-workbench/vite.config.ts",
-    "demo:planning-workbench:preview": "vite preview --config examples/planning-permitting-workbench/vite.config.ts --host 127.0.0.1",
-    "demo:planning-workbench:mock": "node examples/planning-permitting-workbench/mock-server.mjs",
-    "demo:planning-workbench:typecheck": "tsc -p examples/planning-permitting-workbench/tsconfig.json --noEmit",
     "demo:web-components": "vite --config test/fixtures/web-components-host/vite.config.ts",
     "demo:web-components:build": "vite build --config test/fixtures/web-components-host/vite.config.ts",
     "demo:web-components:preview": "vite preview --config test/fixtures/web-components-host/vite.config.ts --host 127.0.0.1",
@@ -613,11 +515,6 @@
     "demo:oauth-signin:preview": "vite preview --config examples/oauth-signin/vite.config.ts --host 127.0.0.1",
     "demo:oauth-signin:mock": "node examples/oauth-signin/mock-server.mjs",
     "demo:oauth-signin:typecheck": "tsc -p examples/oauth-signin/tsconfig.json --noEmit",
-    "demo:runtime-parity": "vite --config examples/runtime-parity-showcase/vite.config.ts",
-    "demo:runtime-parity:build": "vite build --config examples/runtime-parity-showcase/vite.config.ts",
-    "demo:runtime-parity:preview": "vite preview --config examples/runtime-parity-showcase/vite.config.ts --host 127.0.0.1",
-    "demo:runtime-parity:mock": "node examples/runtime-parity-showcase/mock-server.mjs",
-    "demo:runtime-parity:typecheck": "tsc -p examples/runtime-parity-showcase/tsconfig.json --noEmit",
     "demo:pmtiles-static": "vite --config examples/pmtiles-static/vite.config.ts",
     "demo:pmtiles-static:build": "vite build --config examples/pmtiles-static/vite.config.ts",
     "demo:pmtiles-static:preview": "vite preview --config examples/pmtiles-static/vite.config.ts --host 127.0.0.1",
@@ -635,9 +532,9 @@
     "demo:columnar-query:typecheck": "tsc -p examples/columnar-query-quickstart/tsconfig.json --noEmit",
     "test:playwright:columnar-query": "playwright test test/playwright/columnar-query-quickstart.spec.mjs",
     "demo:primitive-matrix": "node scripts/verify-primitive-demo-matrix.mjs",
-    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:overture:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:sketch-editing:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:runtime-parity:typecheck && npm run demo:nl-map-control:typecheck && npm run demo:columnar-query:typecheck && npm run demo:temporal-playback:typecheck",
-    "demo:examples:build": "npm run prepare:test-sdk --silent && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build",
-    "demo:examples:build:prepared": "npm run prepare:test-sdk:already --silent && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build",
+    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:stac-browser:typecheck && npm run demo:overture:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:sketch-editing:typecheck && npm run demo:web-components:typecheck && npm run demo:nl-map-control:typecheck && npm run demo:columnar-query:typecheck && npm run demo:temporal-playback:typecheck",
+    "demo:examples:build": "npm run prepare:test-sdk --silent && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:sketch-editing:build && npm run demo:web-components:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build",
+    "demo:examples:build:prepared": "npm run prepare:test-sdk:already --silent && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:sketch-editing:build && npm run demo:web-components:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build",
     "pretest": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent",
     "test": "vitest run",
     "pretest:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent",
@@ -645,29 +542,21 @@
     "test:cloud-demo:config": "vitest run test/cloud-demo-services.test.ts test/demo-capability-matrix.test.ts",
     "test:cloud-demo:staging": "vitest run --config vitest.cloud-demo.config.ts",
     "test:playwright:quickstart": "playwright test --config playwright.first-map.config.mjs test/playwright/quickstart-map.spec.mjs",
-    "test:playwright:standalone": "npm run test:playwright:quickstart",
     "test:playwright:react-quickstart": "playwright test test/playwright/react-quickstart.spec.mjs",
     "test:playwright:incident": "playwright test test/playwright/realtime-incident-dashboard.spec.mjs",
     "test:playwright:overture": "node examples/overture-geoparquet/prepare-duckdb-extension.mjs && playwright test test/playwright/overture-geoparquet.spec.mjs",
     "test:playwright:service-explorer": "playwright test test/playwright/service-explorer.spec.mjs",
     "test:playwright:migration-workbench": "playwright test test/playwright/migration-workbench.spec.mjs",
     "test:playwright:migration-installed-driver": "npm run build:split-packages --silent && playwright test test/playwright/migration-browser-installed-package.spec.mjs",
-    "test:playwright:mcp-gis-assistant": "playwright test test/playwright/mcp-gis-assistant.spec.mjs",
     "test:playwright:ai-spatial-builder": "playwright test test/playwright/ai-spatial-app-builder.spec.mjs",
     "test:playwright:spatial-analytics": "playwright test test/playwright/spatial-analytics-workbench.spec.mjs",
-    "test:playwright:gp-runner": "playwright test test/playwright/geoprocessing-job-runner.spec.mjs",
     "test:playwright:stac-browser": "playwright test test/playwright/stac-imagery-browser.spec.mjs",
     "test:playwright:imagery-cog": "playwright test test/playwright/imagery-cog-quickstart.spec.mjs",
     "test:playwright:geocoding": "playwright test test/playwright/geocoding-quickstart.spec.mjs",
-    "test:playwright:terrain-elevation": "playwright test test/playwright/terrain-rgb-elevation.spec.mjs",
     "test:playwright:coverages-wcs": "vite build --config examples/coverages-wcs-basic/vite.config.ts && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
-    "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:sketch-editing": "playwright test test/playwright/sketch-editing.spec.mjs",
-    "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
-    "test:playwright:planning-editing": "playwright test test/playwright/planning-permitting-editing.spec.mjs",
     "test:playwright:web-components": "playwright test test/playwright/web-components-basic.spec.mjs",
     "test:playwright:oauth-signin": "playwright test test/playwright/oauth-signin.spec.mjs",
-    "test:playwright:runtime-parity": "playwright test test/playwright/runtime-parity-showcase.spec.mjs",
     "test:playwright:cesium-scene": "playwright test test/playwright/cesium-scene-adapter-fixtures.spec.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:conformance": "vitest run --config vitest.conformance.config.ts",
@@ -684,7 +573,6 @@
     "test:migration:real-samples:prepared": "vitest run test/migration-real-sample-runtime.test.ts test/migration-feature-table-demo-runtime.test.ts",
     "test:playwright": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent && node examples/overture-geoparquet/prepare-duckdb-extension.mjs && playwright test",
     "test:playwright:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent && node examples/overture-geoparquet/prepare-duckdb-extension.mjs && playwright test",
-    "test:playwright:25d": "playwright test test/playwright/storytelling-25d-map.spec.mjs",
     "test:playwright:migration": "npm run build --silent && playwright test test/playwright/migration-browser-smoke.spec.mjs test/playwright/migration-browser-real-sample.spec.mjs test/playwright/migration-browser-maplibre.spec.mjs",
     "test:maplibre-compat": "npm run build --silent && npm run demo:quickstart:typecheck --silent && npm run demo:react-quickstart:typecheck --silent && npm run test:maplibre-majors && playwright test test/playwright/migration-browser-maplibre.spec.mjs",
     "test:maplibre-compat:prepared": "npm run test:maplibre-majors && playwright test test/playwright/migration-browser-maplibre.spec.mjs",
@@ -710,12 +598,12 @@
     "scan:arcgis:widgets": "node scripts/run-legacy-migration-cli.mjs widgets",
     "migrate:arcgis": "node scripts/run-legacy-migration-cli.mjs codemod",
     "proto:generate": "buf generate --template ../../proto/buf.gen.yaml ../../proto",
-    "lint": "biome lint src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
-    "lint:fix": "biome lint --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
-    "format": "biome format src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
-    "format:fix": "biome format --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
-    "check": "biome check src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
-    "check:fix": "biome check --write src/ test/ bench/ examples/storytelling-25d-map/src/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/mcp-gis-assistant/src/ examples/mcp-gis-assistant/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/geoprocessing-job-runner/src/ examples/geoprocessing-job-runner/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/terrain-rgb-elevation/src/ examples/terrain-rgb-elevation/mock-server.mjs examples/edit-workflow-demo/src/ examples/edit-workflow-demo/mock-server.mjs examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/runtime-parity-showcase/src/ examples/runtime-parity-showcase/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "lint": "biome lint src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "lint:fix": "biome lint --write src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "format": "biome format src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "format:fix": "biome format --write src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "check": "biome check src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
+    "check:fix": "biome check --write src/ test/ bench/ examples/maplibre-quickstart/src/ examples/realtime-incident-dashboard/src/ examples/realtime-incident-dashboard/mock-server.mjs examples/service-explorer/src/ examples/service-explorer/mock-server.mjs examples/migration-workbench/src/ examples/migration-workbench/mock-server.mjs examples/ai-spatial-app-builder/src/ examples/ai-spatial-app-builder/mock-server.mjs examples/spatial-analytics-workbench/src/ examples/spatial-analytics-workbench/mock-server.mjs examples/stac-imagery-browser/src/ examples/stac-imagery-browser/mock-server.mjs examples/imagery-cog-quickstart/src/ examples/imagery-cog-quickstart/mock-server.mjs examples/geocoding-quickstart/src/ examples/geocoding-quickstart/mock-server.mjs examples/node-backend-quickstart/src/ examples/sketch-editing/src/ examples/sketch-editing/mock-server.mjs examples/react-quickstart/src/ examples/react-quickstart/mock-server.mjs examples/pmtiles-static/src/ examples/pmtiles-static/mock-server.mjs examples/overture-geoparquet/src/ examples/overture-geoparquet/mock-server.mjs examples/nl-map-control/ examples/temporal-playback/src/ examples/temporal-playback/vite.config.ts conformance/semantic-query/ packages/create-honua-app/",
     "pretest:coverage": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent",
     "test:coverage": "vitest run --coverage",
     "pretest:coverage:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent",
@@ -732,7 +620,7 @@
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
     "bench:ttfm": "node scripts/benchmark-time-to-first-map.mjs",
     "bench:stream": "npm run build --silent && node dist/bench/run.js",
-    "bench:lab": "npm run build --silent && node --expose-gc dist/bench/lab.js --check --output test-results/benchmark-lab.json",
+    "bench:lab": "npm run build --silent && node --expose-gc --import ./scripts/lib/register-app-platform-source.mjs dist/bench/lab.js --check --output test-results/benchmark-lab.json",
     "bench:references": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-reference-corpus.json",
     "bench:references:refresh-terms": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-terms-refresh.json --refresh-terms",
     "bench:references:source-tree": "npm run build --silent && node dist/bench/cross-sdk/validate.js --print-source-tree",
@@ -750,12 +638,15 @@
     "demo:coverages-wcs:typecheck": "tsc -p examples/coverages-wcs-basic/tsconfig.json --noEmit",
     "verify:runtime-tarball": "node scripts/verify-runtime-tarball.mjs",
     "samples:contract:pack": "node scripts/pack-sample-contract.mjs",
-    "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs"
+    "test:runtime-tarball": "node --test test/scripts/runtime-tarball.test.mjs",
+    "lint:review": "node scripts/check-review-baseline.mjs",
+    "test:review-baseline": "node --test scripts/check-review-baseline.test.mjs"
   },
   "dependencies": {
-    "@honua/honua-migrate": "0.3.0-beta.0",
     "@mapbox/jsonlint-lines-primitives": "2.0.3",
-    "@maplibre/maplibre-gl-style-spec": "^24.7.0"
+    "@maplibre/maplibre-gl-style-spec": "^24.7.0",
+    "fzstd": "~0.1.1",
+    "hyparquet": "~1.33.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -768,6 +659,8 @@
     "@deck.gl/core": "^9.3.6",
     "@deck.gl/layers": "^9.3.6",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@duckdb/node-api": "^2.0.0-r.1",
+    "@honua/honua-migrate": "0.3.0-beta.0",
     "@playwright/test": "^1.58.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -796,6 +689,7 @@
     "apache-arrow": "^17.0.0",
     "cesium": "^1.139.1",
     "esbuild": "^0.28.1",
+    "eslint": "10.15.0",
     "fast-check": "^4.9.0",
     "geotiff": "3.0.5",
     "jsdom": "^25.0.1",
@@ -809,6 +703,7 @@
     "terra-draw": "^1.32.0",
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "typescript": "^5.9.2",
+    "typescript-eslint": "8.73.0",
     "uplot": "^1.6.32",
     "vega-lite": "^6.4.3",
     "vite": "^8.0.16",
@@ -821,6 +716,7 @@
     "!dist/src/migration/**",
     "dist/browser/*.js",
     "dist/browser/honua-sdk.browser-artifacts.v1.json",
+    "dist/config/publication-descriptor.v1.schema.json",
     "dist/config/raster-source-registry.v1.json",
     "scripts/run-legacy-migration-cli.mjs",
     "config/public-surface.json",
@@ -850,6 +746,8 @@
     "@connectrpc/connect-web": "^2.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
+    "@duckdb/node-api": "^2.0.0-r.1",
+    "@honua/honua-migrate": "0.3.0-beta.0",
     "@kepler.gl/actions": "^3.0.0",
     "@kepler.gl/processors": "^3.0.0",
     "@turf/area": "^7.0.0",
@@ -890,6 +788,21 @@
       "optional": true
     },
     "@deck.gl/layers": {
+      "optional": true
+    },
+    "@duckdb/duckdb-wasm": {
+      "optional": true
+    },
+    "@duckdb/node-api": {
+      "optional": true
+    },
+    "@honua/honua-migrate": {
+      "optional": true
+    },
+    "@kepler.gl/actions": {
+      "optional": true
+    },
+    "@kepler.gl/processors": {
       "optional": true
     },
     "@turf/area": {
@@ -937,15 +850,6 @@
     "@turf/union": {
       "optional": true
     },
-    "@duckdb/duckdb-wasm": {
-      "optional": true
-    },
-    "@kepler.gl/actions": {
-      "optional": true
-    },
-    "@kepler.gl/processors": {
-      "optional": true
-    },
     "apache-arrow": {
       "optional": true
     },
@@ -986,19 +890,18 @@
     "./dist/src/client-compat-entry.js",
     "./src/client-compat-entry.ts",
     "./dist/src/web-components/index.js",
-    "./dist/src/_deprecated/web-components.js",
     "./src/web-components/index.ts",
-    "./src/_deprecated/web-components.ts",
     "./dist/src/controls/index.js",
     "./dist/src/controls/basemap-switcher.js",
-    "./dist/src/_deprecated/controls.js",
     "./src/controls/index.ts",
     "./src/controls/basemap-switcher.ts",
-    "./src/_deprecated/controls.ts",
     "./examples/shared/maplibre-vite-worker.ts",
     "./test/fixtures/web-components-host/src/register-controls-legend.ts"
   ],
   "engines": {
     "node": ">=22.12.0"
+  },
+  "overrides": {
+    "minimatch@>=7 <11": "11.0.8"
   }
 }

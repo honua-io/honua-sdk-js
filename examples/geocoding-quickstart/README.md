@@ -1,5 +1,7 @@
 # Address to pin
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 A map-first public example for the stable `@honua/sdk-js/geocoding` entrypoint. It makes one real
 `HonuaGeocodingClient.forwardGeocode()` request, places the selected candidate on MapLibre, and keeps the selected option,
 standardized address, score, locator, coordinates, and pin synchronized.

@@ -169,7 +169,7 @@ import {
   registerHonuaWidgetKit,
 } from "/client-compat-entry.js";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 
 const layer = new FeatureLayerCompat({
   title: "Trees",
@@ -242,7 +242,7 @@ function startServer(root, mainSource, vendors) {
   const html = indexHtml({
     ...vendors.imports,
     "maplibre-gl": "/maplibre/maplibre-gl.mjs",
-    "@honua/sdk-js/web-components": "/_deprecated/web-components.js",
+    "@honua/app-platform/web-components": "/web-components/index.js",
   });
 
   const server = http.createServer((request, response) => {
@@ -362,7 +362,7 @@ import {
   registerHonuaWidgetKit,
 } from "/client-compat-entry.js";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 
 const layer = new FeatureLayerCompat({
   title: "Trees",
@@ -404,7 +404,7 @@ import {
   registerHonuaWidgetKit,
 } from "/client-compat-entry.js";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 
 const layer = new FeatureLayerCompat({
   title: "Trees",
@@ -444,7 +444,7 @@ import {
   registerHonuaWidgetKit,
 } from "/client-compat-entry.js";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 
 const map = new MapCompat({ basemap: "hybrid" });
 const view = new MapViewCompat({
@@ -475,7 +475,7 @@ import {
   registerHonuaWidgetKit,
 } from "/client-compat-entry.js";
 
-registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"));
 
 const basemap = new BasemapCompat({
   id: "hybrid",

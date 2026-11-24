@@ -7,7 +7,7 @@
  * layer's `visibility` layout property (`"visible"` / `"none"`) on the map.
  * The element never imports `maplibre-gl` or the SDK core — it drives any
  * MapLibre `Map` through the duck-typed {@link HonuaLayerListMap} interface,
- * keeping the `@honua/sdk-js/controls` entry independent of the core bundle.
+ * keeping the `@honua/app-platform/controls` entry independent of the core bundle.
  *
  * ## Input modes
  * - **Property** (preferred) — assign the `overlays` property a
@@ -362,7 +362,7 @@ export class HonuaLayerListElement extends HTMLElementBase {
  * layer list register it explicitly:
  *
  * ```ts
- * import { defineHonuaLayerList } from "@honua/sdk-js/controls";
+ * import { defineHonuaLayerList } from "@honua/app-platform/controls";
  * defineHonuaLayerList();
  * ```
  */

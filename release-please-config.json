@@ -7,6 +7,7 @@
     }
   ],
   "separate-pull-requests": true,
+  "always-update": true,
   "packages": {
     ".": {
       "release-type": "node",
@@ -81,6 +82,10 @@
           "type": "json",
           "path": "config/protocol-certification.v1.json",
           "jsonpath": "$.clientVersion"
+        },
+        {
+          "type": "generic",
+          "path": "src/cli/main.ts"
         }
       ],
       "changelog-sections": [

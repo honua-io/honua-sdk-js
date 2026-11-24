@@ -97,6 +97,37 @@ describe("automatic Source to MapLibre strategy", () => {
     }
   });
 
+  it("mounts the discovered OGC item template, never the service origin", async () => {
+    const template = "https://tiles.test/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt";
+    const source = fakeSource(descriptor("ogc-tiles", { url: "https://tiles.test", tileUrlTemplate: template }));
+    const options = { sourceLayer: "parcels" };
+    const plan = explainAutomaticSourceToMapLibre(source, options);
+    expect(plan.selected?.strategy).toBe("vector-tiles");
+    expect(plan.source).toMatchObject({ type: "vector", tiles: [template] });
+    const map = new FakeMap();
+    const mount = await mountAutomaticSourceToMapLibre(map, source, plan, options);
+    expect([...map.sources.values()]).toEqual([expect.objectContaining({ tiles: [template] })]);
+    mount.dispose();
+  });
+
+  it("includes actionable OGC metadata and source-layer diagnostics in mount failures", async () => {
+    const map = new FakeMap();
+    const missingTemplate = fakeSource(descriptor("ogc-tiles", { url: "https://tiles.test" }));
+    const missingTemplatePlan = explainAutomaticSourceToMapLibre(missingTemplate, { sourceLayer: "parcels" });
+    await expect(
+      mountAutomaticSourceToMapLibre(map, missingTemplate, missingTemplatePlan, { sourceLayer: "parcels" }),
+    ).rejects.toThrow("WebMercatorQuad MVT item template");
+    const missingLayer = fakeSource(
+      descriptor("ogc-tiles", {
+        url: "https://tiles.test",
+        tileUrlTemplate: "https://tiles.test/{z}/{y}/{x}.mvt",
+      }),
+    );
+    const missingLayerPlan = explainAutomaticSourceToMapLibre(missingLayer);
+    await expect(mountAutomaticSourceToMapLibre(map, missingLayer, missingLayerPlan)).rejects.toThrow(/sourceLayer/);
+    expect(map.calls).toEqual([]);
+  });
+
   it("selects an accepted dynamic query-tile source ahead of a native tile locator", () => {
     const source = fakeSource(descriptor("maplibre-vector", { url: "https://tiles.test/static/{z}/{x}/{y}.pbf" }));
     const plan = explainAutomaticSourceToMapLibre(source, {

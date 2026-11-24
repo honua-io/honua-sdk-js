@@ -6,7 +6,7 @@ import {
   ADMIN_MCP_PUBLISHED_TOOL_NAMES,
   MCP_DEFAULT_STATIC_TOOL_COUNT,
   MCP_DEFAULT_TOTAL_TOOL_COUNT,
-} from "@honua/sdk-js/control-plane";
+} from "@honua/app-platform/control-plane";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 

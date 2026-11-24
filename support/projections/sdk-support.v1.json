@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.3.3",
+    "version": "0.4.0",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -662,6 +662,24 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "grpc-edit-fixtures",
+      "kind": "fixture",
+      "path": "test/client-grpc-edits.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "grpc-related-fixtures",
+      "kind": "fixture",
+      "path": "test/client-grpc-related.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "grpc-attachment-fixtures",
+      "kind": "fixture",
+      "path": "test/source-grpc-attachments.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "connect-grpc-fixtures",
       "kind": "fixture",
       "path": "test/connect-grpc.test.ts",
@@ -1051,7 +1069,6 @@
             "query",
             "queryExtent",
             "queryObjectIds",
-            "applyEdits",
             "stream"
           ],
           "environment": "honua-facade",
@@ -1060,6 +1077,39 @@
           "evidence": [
             "contract-conformance",
             "grpc-conformance"
+          ]
+        },
+        {
+          "operations": [
+            "applyEdits"
+          ],
+          "environment": "honua-facade",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "grpc-edit-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "queryRelated"
+          ],
+          "environment": "honua-facade",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "grpc-related-fixtures"
+          ]
+        },
+        {
+          "operations": [
+            "attachments"
+          ],
+          "environment": "honua-facade",
+          "executionMode": "native",
+          "status": "supported",
+          "evidence": [
+            "grpc-attachment-fixtures"
           ]
         }
       ],
@@ -2454,7 +2504,7 @@
     },
     {
       "id": "map-package-facade",
-      "label": "Authored MapPackage runtime",
+      "label": "Authored map-document runtime",
       "operations": [
         "render"
       ],
@@ -2464,7 +2514,7 @@
       "backendNeeded": "Honua Server",
       "serverAttach": {
         "disposition": "inherent",
-        "rationale": "A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage."
+        "rationale": "A map document is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no map document."
       },
       "api": "@honua/sdk-js/runtime",
       "notes": "Loads server-authored styles, layer order, and metadata.",
@@ -2517,7 +2567,7 @@
     },
     {
       "id": "collaboration-deprecated",
-      "label": "Collaboration and saved maps compatibility shim",
+      "label": "Collaboration and saved maps (moved to @honua/app-platform)",
       "operations": [
         "collaboration"
       ],
@@ -2527,10 +2577,10 @@
       "backendNeeded": "Honua Server and @honua/app-platform",
       "serverAttach": {
         "disposition": "inherent",
-        "rationale": "Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The SDK entrypoint is a deprecated shim and the surface itself moves to @honua/app-platform."
+        "rationale": "Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The surface lives in @honua/app-platform; @honua/sdk-js no longer exports it."
       },
-      "api": "@honua/sdk-js/collaboration",
-      "notes": "The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration.",
+      "api": "@honua/app-platform/collaboration",
+      "notes": "Removed from @honua/sdk-js in 0.4.0; import @honua/app-platform/collaboration.",
       "evidence": []
     },
     {
@@ -2553,8 +2603,8 @@
   "packageLifecycle": {
     "ceilings": {
       "stableEntrypoints": 22,
-      "rootRuntimeExports": 46,
-      "rootTypeExports": 178,
+      "rootRuntimeExports": 47,
+      "rootTypeExports": 181,
       "rootGzipBytes": 216894
     },
     "downstreamProjection": {
@@ -2567,7 +2617,6 @@
         "surface": "@honua/app-platform/scene-workspace",
         "status": "beta",
         "barrel": "src/scene-workspace/index.ts",
-        "sdkForwarder": "./scene-workspace",
         "claim": "scene-workspace-cesium",
         "commitment": "The renderer-neutral workspace state, the scene primitive contract, and the Cesium primitive adapter keep their shape through `@honua/app-platform` 0.1.x: exports are not renamed or removed, primitive discriminants and diagnostic codes are additive only, and Cesium stays a lazily imported optional peer. Breaking one of those requires a minor bump and a called-out change, not a silent edit.",
         "mayStillChange": [
@@ -2648,9 +2697,9 @@
           "SCENE_REBUILD_BOUNDARIES",
           "SCENE_STATE_SYNC_KIND",
           "SCENE_STATE_SYNC_SLICES",
-          "SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK",
+          "SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK",
           "SCENE_STATE_SYNC_VERSION",
-          "SCENE_WORKSPACE_SLICES",
+          "SCENE_STORE_SLICES",
           "SceneBookmark",
           "SceneCacheMetadata",
           "SceneCameraDegradation",
@@ -2714,16 +2763,16 @@
           "SceneStateSynchronizer",
           "SceneTimeDiagnosticCode",
           "SceneTimelineState",
-          "SceneWorkspace",
-          "SceneWorkspaceAdapterEvent",
-          "SceneWorkspaceChangeEvent",
-          "SceneWorkspaceHistoryEntry",
-          "SceneWorkspaceIntent",
-          "SceneWorkspaceListener",
-          "SceneWorkspaceSlice",
-          "SceneWorkspaceSnapshot",
-          "SceneWorkspaceState",
-          "SceneWorkspaceUnsubscribe",
+          "SceneStore",
+          "SceneStoreAdapterEvent",
+          "SceneStoreChangeEvent",
+          "SceneStoreHistoryEntry",
+          "SceneStoreIntent",
+          "SceneStoreListener",
+          "SceneStoreSlice",
+          "SceneStoreSnapshot",
+          "SceneStoreState",
+          "SceneStoreUnsubscribe",
           "WEB_MERCATOR_MAX_LATITUDE",
           "addCesium3DTileset",
           "addCesiumImageryLayer",
@@ -2748,11 +2797,11 @@
           "createMapLibreStateSyncPort",
           "createSceneRuntimeAdapter",
           "createSceneStateSynchronizer",
-          "createSceneWorkspace",
+          "createSceneStore",
           "defaultSceneStateSyncMappings",
           "diagnoseScenePrimitive",
           "diagnoseScenePrimitives",
-          "emptySceneWorkspaceState",
+          "emptySceneStoreState",
           "fetchHonua3DStyleSpec",
           "honua3DStyleToCesiumStyleOptions",
           "isCesiumClockRuntime",
@@ -2766,7 +2815,7 @@
           "pickCesiumFeatureAttributes",
           "readCesiumClock",
           "readHonua3DStyleDescriptor",
-          "reduceSceneWorkspaceState",
+          "reduceSceneStoreState",
           "resolveCesiumModelScale",
           "resolveHonua3DStyleUri",
           "resolvePickedFeatureAttributes",
@@ -2776,7 +2825,7 @@
           "sceneCameraToMapLibreView",
           "sceneRebuildBoundaryReport",
           "sceneTimelineToCesiumClockPlan",
-          "sceneWorkspaceIntentFromAdapterEvent",
+          "sceneStoreIntentFromAdapterEvent",
           "selectSceneDiagnosticsByStatus",
           "selectSceneEvidenceForFeature",
           "selectScenePrimitivesByKind",
@@ -2805,10 +2854,13 @@
               "SceneAnalysisCesiumModule",
               "SceneAnalysisOverlay",
               "SceneAnalysisPosition",
+              "SceneAnalysisProvenance",
               "SceneAnalysisRequestExecutor",
               "SceneDiscoveryRequestExecutor",
               "SceneExtent3D",
               "SceneMeasurement",
+              "SceneSemanticContentKind",
+              "SceneServingFormat",
               "SceneView",
               "SceneViewEvent",
               "SceneViewEventListener",
@@ -2853,6 +2905,105 @@
           },
           {
             "status": "experimental",
+            "reason": "Protected scene asset sessions, COPC range readers, quantized-mesh terrain decoding, renderer-neutral 3D symbology, normalized picking/bookmarks, and scene-aware edit proposals are newly introduced 3D scene capabilities held experimental while contract and browser evidence mature.",
+            "exports": [
+              "CesiumResourceDescriptor",
+              "CopcByteRange",
+              "CopcHeadResult",
+              "CopcHeaderInfo",
+              "CopcInfo",
+              "CopcRangeClient",
+              "CopcRangeClientOptions",
+              "CopcRangeReadResult",
+              "CreateProtectedSceneAssetSessionOptions",
+              "CreateSceneEditProposalOptions",
+              "DecodedQuantizedMeshTile",
+              "EntityStyleUpdateResult",
+              "EvaluateEntitySymbologyOptions",
+              "EvaluatedEntitySymbology",
+              "HONUA_3D_SYMBOLOGY_KIND",
+              "HONUA_3D_SYMBOLOGY_VERSION",
+              "Honua3DSymbologyV1",
+              "HonuaQuantizedMeshError",
+              "HonuaSceneAccessSessionError",
+              "NormalizeCesiumPickOptions",
+              "NormalizedScenePickResult",
+              "QUANTIZED_MESH_EXTENSION_METADATA",
+              "QUANTIZED_MESH_EXTENSION_OCT_VERTEX_NORMALS",
+              "QUANTIZED_MESH_EXTENSION_WATER_MASK",
+              "QUANTIZED_MESH_MAX_COORD",
+              "QuantizedMeshAvailabilityRect",
+              "QuantizedMeshEdgeIndices",
+              "QuantizedMeshEncodeInput",
+              "QuantizedMeshHeader",
+              "QuantizedMeshLayerManifest",
+              "QuantizedMeshTerrainClient",
+              "QuantizedMeshTerrainClientOptions",
+              "QuantizedMeshTileCoord",
+              "QuantizedMeshValidationResult",
+              "Scene3DClassBreakRule",
+              "Scene3DLabelStyle",
+              "Scene3DScaleRange",
+              "Scene3DSelectionHighlightStyle",
+              "Scene3DSymbolStyle",
+              "Scene3DSymbologyDiagnostic",
+              "Scene3DUniqueValueRule",
+              "Scene3DVisualVariable",
+              "Scene3DVisualVariableStop",
+              "SceneAccessAffordance",
+              "SceneAccessCredentialTransport",
+              "SceneAccessEnvelopePayload",
+              "SceneAccessScope",
+              "SceneAccessSessionErrorCode",
+              "SceneAccessSessionSnapshot",
+              "SceneAccessSessionStatus",
+              "SceneAltitudeReference",
+              "SceneAssetResourceRequest",
+              "SceneEditCapabilityDeclaration",
+              "SceneEditDiagnostic",
+              "SceneEditPlacement",
+              "SceneEditProposalStatus",
+              "SceneEditRealtimeReconciliation",
+              "SceneEditReceipt",
+              "SceneEditVerticalContext",
+              "SceneEditableGeometryKind",
+              "ScenePickDiagnostic",
+              "ScenePickTargetKind",
+              "ScenePlacementEditProposal",
+              "SceneProtectedAssetSession",
+              "SceneRealtimeFeatureEvent",
+              "StyleableCesiumEntityCollection",
+              "applyEntityStyleUpdate",
+              "applySceneEditProposal",
+              "approveSceneEditProposal",
+              "buildSceneCopcUrl",
+              "captureSceneBookmark",
+              "compile3DSymbologyToTilesetStyle",
+              "createCopcRangeClient",
+              "createProtectedSceneAssetSession",
+              "createQuantizedMeshTerrainClient",
+              "createSceneEditProposal",
+              "decodeQuantizedMeshTile",
+              "encodeQuantizedMeshTile",
+              "evaluateEntitySymbology",
+              "isQuantizedMeshTileAvailable",
+              "normalizeCesiumPick",
+              "parseCopcInfoVlr",
+              "parseLas14Header",
+              "parseQuantizedMeshLayerJson",
+              "parseSceneBookmark",
+              "pickNormalizedSceneFeature",
+              "reconcileSceneEditWithRealtime",
+              "resolveQuantizedMeshTileUrl",
+              "sampleQuantizedMeshElevation",
+              "serializeSceneBookmark",
+              "validate3DSymbology",
+              "validate3DSymbologyExpression",
+              "validateQuantizedMeshTile"
+            ]
+          },
+          {
+            "status": "experimental",
             "reason": "The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets. Two of the three named promotion blockers are now cleared: `refresh()` is a real diff (identity is the projected entity id qualified by geometry kind, configuration is an order-independent fingerprint, unfingerprintable means changed), so a byte-identical feature keeps the *same* live `Entity` and a `viewer.selectedEntity` set on it survives — asserted by object identity on a live collection — and `mountCesiumScene` is the single owner that composes the entity mount with the primitive mount so one `dispose()` releases both in a measured order. The slice stays experimental for the life of 0.1.x for the remaining blocker: there is no symbology surface, and adding one means new required shapes rather than purely additive ones. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.",
             "exports": [
               "CESIUM_ENTITY_REBUILD_BOUNDARIES",
@@ -2891,6 +3042,26 @@
           }
         ]
       }
+    ],
+    "appPlatformSubpaths": [
+      "./app",
+      "./app-controller",
+      "./app-workspace",
+      "./scene-workspace",
+      "./collaboration",
+      "./control-plane",
+      "./replica-sync",
+      "./share",
+      "./operate",
+      "./generated-app",
+      "./studio",
+      "./operator",
+      "./operator/controllers",
+      "./operator/workspace",
+      "./operator/theming",
+      "./operator/i18n",
+      "./controls",
+      "./web-components"
     ],
     "entrypoints": [
       {
@@ -2983,11 +3154,19 @@
         "status": "supported"
       },
       {
+        "subpath": "./grpc-web",
+        "status": "experimental"
+      },
+      {
         "subpath": "./cog",
         "status": "experimental"
       },
       {
         "subpath": "./pmtiles",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./export",
         "status": "experimental"
       },
       {
@@ -3008,6 +3187,10 @@
       },
       {
         "subpath": "./geoparquet",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./geoparquet/node",
         "status": "experimental"
       },
       {
@@ -3085,133 +3268,6 @@
       {
         "subpath": "./local-install",
         "status": "experimental"
-      },
-      {
-        "subpath": "./app",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/app",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./app-controller",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/app-controller",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./app-workspace",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/app-workspace",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./scene-workspace",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/scene-workspace",
-        "replacementStatus": "beta",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./collaboration",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/collaboration",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./control-plane",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/control-plane",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./replica-sync",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/replica-sync",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./share",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/share",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operate",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operate",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./generated-app",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/generated-app",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./studio",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/studio",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operator",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operator",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operator/controllers",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operator/controllers",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operator/workspace",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operator/workspace",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operator/theming",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operator/theming",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./operator/i18n",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/operator/i18n",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./controls",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/controls",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
-      },
-      {
-        "subpath": "./web-components",
-        "status": "deprecated",
-        "replacement": "@honua/app-platform/web-components",
-        "introducedIn": "0.1.0-beta.0",
-        "removeIn": "0.4.0"
       }
     ]
   }

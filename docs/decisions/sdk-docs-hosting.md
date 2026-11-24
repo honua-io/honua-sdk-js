@@ -40,12 +40,12 @@ The org's marketing + platform docs hub (`honua-io/honua-site`) is authored in
 **GitBook** (Markdown + `SUMMARY.md` + `.gitbook.yaml`). We considered homing
 the SDK reference there. We chose a **repo-local** site because:
 
-1. **Lock-step with trunk.** The SDK reference (TypeDoc API + `docs/` corpus +
-   `llms.txt`) must never drift from the code it documents. Building from this
-   repo on every trunk merge — and gating the publish on the existing
-   `verify:llms` freshness check (REQ-004) — makes drift structurally
-   impossible. A separately-authored GitBook space would reintroduce the drift
-   the ticket exists to close.
+1. **Built from the same source.** The SDK reference (TypeDoc API + `docs/`
+   corpus + `llms.txt`) is built from a single repository checkout. Daily and
+   dispatched publication gate on `verify:llms` and strict release/sample
+   checks; the hosted site can lag trunk until publication succeeds. A
+   separately authored GitBook space would introduce another source to keep
+   aligned.
 2. **TypeDoc is not a GitBook-native artifact.** The API reference is generated
    HTML; mounting it under `/api/` from the same pipeline that renders the
    guides keeps one build, one deploy, one source of truth.
@@ -89,7 +89,7 @@ PR (#364) — the URL must be proven live first, and the base-URL change touches
 `llms.txt`, `llms-full.txt`, and every doc link, which is its own reviewable
 change.
 
-[`honua-io/honua-site#101`](https://github.com/honua-io/honua-site#101) (serve
+[`honua-io/honua-site#101`](https://github.com/honua-io/honua-site/issues/101) (serve
 `llms.txt` at the docs-domain root) is updated with a comment describing this
 sequencing: the SDK repo owns generation and the GitHub Pages origin; honua-site
 either serves the generated files at the docs domain or links to the Pages
@@ -107,13 +107,21 @@ When a `docs.honua.io` (or `honua.io/sdk-js`) subdomain/subpath is provisioned:
 
 ## CI
 
-`.github/workflows/docs-site.yml` runs on `push` to `trunk` and
-`workflow_dispatch`: `npm ci` → `verify:llms` (freshness gate, REQ-004) →
+`.github/workflows/docs-site.yml` runs only on `workflow_dispatch`: the
+derived-artifact workflow dispatches it on every clean regeneration tip, and
+release automation dispatches it at release time. It does not deploy on a
+trunk push, which raced Release Please's immutable SDK tag, or on a schedule,
+which GitHub fired hours late onto trunk tips inside the derived-artifact
+staleness window, where the strict receipt gate fails. The publication
+gates stay strict: `npm ci` → `docs:llms` → `verify:llms` (freshness gate, REQ-004) →
 `samples:verify` plus the non-empty gallery regression → `docs:api` (TypeDoc) →
 `docs:site` (assemble) → `docs:site:linkcheck` → `upload-pages-artifact` →
-`deploy-pages`. Catalog verification schema-checks the public projection and
-its generated consumer digest before publication. Gallery recipe/lab profile
-gates remain declarations rather than receipt claims; `samples:verify`
+`deploy-pages`. A failed build or deploy opens or updates one tracking issue
+without checking out repository code. Catalog verification schema-checks the
+public projection and its generated consumer digest before publication. Gallery
+recipe/lab profile gates remain declarations rather than receipt claims;
+`samples:verify`
 receipt-validates any qualified golden journey before the docs build may
 publish it. `node_modules` is cached and the full SDK test suite is intentionally
-skipped to hold the ≤ 5 min budget (NFR-001).
+skipped to hold the ≤ 5 min budget (NFR-001). The llms corpus is generated from
+the checked-out documentation so publication does not race trunk artifact regeneration.

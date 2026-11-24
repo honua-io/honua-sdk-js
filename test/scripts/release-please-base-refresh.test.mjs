@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { refreshReleasePleaseBase } from "../../scripts/lib/release-please-base-refresh.mjs";
-import { RELEASE_PLEASE_HEAD } from "../../scripts/lib/release-please-disposition-check.mjs";
+import { RELEASE_PLEASE_HEADS } from "../../scripts/lib/release-please-disposition-check.mjs";
 
 const repository = "honua-io/honua-sdk-js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -61,31 +61,49 @@ function graphqlPayload(snapshot) {
   };
 }
 
-function harness(options = {}) {
-  const stale = { ...fixture, ...(options.snapshot ?? {}) };
-  const refreshed = {
+function pullListReads(calls) {
+  return calls.filter(({ url }) => new URL(url).pathname.endsWith("/pulls")).length;
+}
+
+function refreshedSnapshot(stale) {
+  return {
     ...stale,
     baseSha: trustedPolicySha,
     headSha: refreshedHeadSha,
     updatedAt: "2026-08-09T04:10:00Z",
   };
+}
+
+function ancestorComparison(stale) {
+  return {
+    status: "ahead",
+    ahead_by: 2,
+    behind_by: 0,
+    base_commit: { sha: stale.baseSha },
+    merge_base_commit: { sha: stale.baseSha },
+    commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
+  };
+}
+
+function harness(options = {}) {
+  const stale = { ...fixture, ...(options.snapshot ?? {}) };
+  const refreshed = refreshedSnapshot(stale);
   const calls = [];
   let updateAccepted = false;
+  let closed = false;
   const request = async (url, requestOptions = {}) => {
     calls.push({ url, options: requestOptions });
     const pathname = new URL(url).pathname;
-    const current = updateAccepted && options.confirmRefresh !== false ? refreshed : stale;
-    if (pathname.endsWith("/pulls")) return options.noPullRequest ? [] : [restPull(current)];
+    const settled = pullListReads(calls) > (options.settlesAfterReads ?? Number.POSITIVE_INFINITY);
+    const current = (updateAccepted && options.confirmRefresh !== false) || settled ? refreshed : stale;
+    if (pathname.endsWith("/pulls")) return options.noPullRequest || closed ? [] : [restPull(current)];
     if (pathname.endsWith("/graphql")) return graphqlPayload(current);
     if (pathname.endsWith("/git/ref/heads/trunk")) {
-      return {
-        ref: "refs/heads/trunk",
-        object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha },
-      };
+      return { ref: "refs/heads/trunk", object: { type: "commit", sha: options.trunkHead ?? trustedPolicySha } };
     }
-    if (pathname.endsWith(`/git/ref/heads/${RELEASE_PLEASE_HEAD}`)) {
+    if (pathname.endsWith(`/git/ref/heads/${stale.headRefName}`)) {
       return {
-        ref: `refs/heads/${RELEASE_PLEASE_HEAD}`,
+        ref: `refs/heads/${stale.headRefName}`,
         object: {
           type: "commit",
           sha: options.releaseBranchHead ?? current.headSha,
@@ -93,22 +111,23 @@ function harness(options = {}) {
       };
     }
     if (pathname.includes("/compare/")) {
-      return options.comparison ?? {
-        status: "ahead",
-        ahead_by: 2,
-        behind_by: 0,
-        base_commit: { sha: stale.baseSha },
-        merge_base_commit: { sha: stale.baseSha },
-        commits: [{ sha: "c".repeat(40) }, { sha: trustedPolicySha }],
-      };
+      return options.comparison ?? ancestorComparison(stale);
     }
     if (pathname.endsWith(`/pulls/${stale.pullRequestNumber}/update-branch`)) {
       if (options.writeError) throw new Error("simulated update failure");
+      if (options.updateError) throw options.updateError;
       updateAccepted = true;
       return options.updateResponse ?? {
         message: "Updating pull request branch.",
         url: `https://api.github.com/repos/${repository}/pulls/${stale.pullRequestNumber}`,
       };
+    }
+    if (pathname.endsWith(`/pulls/${stale.pullRequestNumber}`)) {
+      if (requestOptions.method === "PATCH") {
+        closed = true;
+        return options.closeResponse ?? { ...restPull(current), state: "closed" };
+      }
+      return { ...restPull(current), mergeable: options.mergeable, ...(options.detail ?? {}) };
     }
     if (pathname.endsWith(`/git/commits/${refreshedHeadSha}`)) {
       return options.refreshCommit ?? {
@@ -122,6 +141,46 @@ function harness(options = {}) {
 }
 
 describe("trusted Release Please base refresh", () => {
+  it("closes only a revalidated conflicting candidate after HTTP 422", async () => {
+    for (const headRefName of RELEASE_PLEASE_HEADS) {
+      const component = headRefName.split("--components--")[1];
+      const snapshot = { headRefName, ...(component ? { title: `chore(trunk): release ${component} 0.2.1` } : {}) };
+      const h = harness({ snapshot, mergeable: false,
+        updateError: Object.assign(new Error("validation failed"), { status: 422 }) });
+      const result = await refreshReleasePleaseBase({ repository, trustedPolicySha, headRefName,
+        releasePleaseReportedUpdate: false }, h.request);
+      assert.equal(result.status, "not-found");
+      assert.equal(result.closedPullRequestNumber, fixture.pullRequestNumber);
+      const writes = h.calls.filter(({ options }) => options.method === "PATCH");
+      assert.equal(writes.length, 1);
+      assert.deepEqual(JSON.parse(writes[0].options.body), { state: "closed" });
+      assert.ok(pullListReads(h.calls) >= 2);
+    }
+  });
+
+  it("never closes on an unrelated error, unknown mergeability, or changed identity", async () => {
+    for (const options of [
+      { mergeable: true }, { mergeable: null }, {},
+      { mergeable: false, detail: { number: 999 } },
+      { mergeable: false, detail: { head: { sha: "f".repeat(40) } } },
+      { mergeable: false, updateError: Object.assign(new Error("validation failed"), { status: 403 }) },
+    ]) {
+      const h = harness({ updateError: Object.assign(new Error("validation failed"), { status: 422 }), ...options });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /validation failed/u);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PATCH"));
+    }
+  });
+
+  it("fails closed when the candidate races conflict recovery or close is not confirmed", async () => {
+    for (const options of [{ settlesAfterReads: 1 }, { closeResponse: { number: fixture.pullRequestNumber, state: "open" } }]) {
+      const h = harness({ updateError: Object.assign(new Error("conflict"), { status: 422 }), mergeable: false, ...options });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /changed before conflict recovery|did not confirm closing/u);
+      if (options.settlesAfterReads) assert.ok(!h.calls.some(({ options }) => options.method === "PATCH"));
+    }
+  });
+
   it("refreshes only an unchanged exact bot PR from an ancestor base", async () => {
     const testHarness = harness();
     const result = await refreshReleasePleaseBase(
@@ -137,9 +196,54 @@ describe("trusted Release Please base refresh", () => {
     assert.equal(result.status, "refreshed");
     assert.equal(result.previousHeadSha, fixture.headSha);
     assert.equal(result.headSha, refreshedHeadSha);
-    const update = testHarness.calls.find(({ url }) => new URL(url).pathname.endsWith("/update-branch"));
+    const updateIndex = testHarness.calls.findIndex(({ url }) => new URL(url).pathname.endsWith("/update-branch"));
+    const update = testHarness.calls[updateIndex];
     assert.equal(update.options.method, "PUT");
+    assert.equal(pullListReads(testHarness.calls.slice(0, updateIndex)), 1);
     assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: fixture.headSha });
+  });
+
+  it("refreshes each exact component with expected-head and ordered two-parent guards", async () => {
+    for (const headRefName of RELEASE_PLEASE_HEADS.slice(1)) {
+      const component = headRefName.split("--components--")[1];
+      const h = harness({ snapshot: { headRefName, title: `chore(trunk): release ${component} 0.2.1` } });
+      const result = await refreshReleasePleaseBase({ repository, trustedPolicySha, headRefName,
+        releasePleaseReportedUpdate: false, confirmationAttempts: 1, confirmationDelayMs: 0 }, h.request);
+      assert.equal(result.status, "refreshed");
+      const update = h.calls.find(({ url }) => url.endsWith("/update-branch"));
+      assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: fixture.headSha });
+    }
+  });
+
+  it("rejects action identity mismatches, absent reported PRs, and stale final confirmations before writes", async () => {
+    for (const [options, input, message] of [
+      [{}, { reportedPullRequestNumber: fixture.pullRequestNumber + 1 }, /does not match/],
+      [{ noPullRequest: true }, { reportedPullRequestNumber: fixture.pullRequestNumber }, /does not match/],
+      [{}, { requireCurrent: true }, /base moved during normalization/],
+      [{}, { headRefName: "attacker" }, /Unsupported exact/],
+    ]) {
+      const h = harness(options);
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false, ...input }, h.request), message);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PUT"));
+    }
+  });
+
+  it("requires strict ancestry fields and exact ordered refresh parents", async () => {
+    const valid = { status: "ahead", ahead_by: 2, behind_by: 0,
+      base_commit: { sha: fixture.baseSha }, merge_base_commit: { sha: fixture.baseSha },
+      commits: [{ sha: trustedPolicySha }] };
+    for (const change of [{ ahead_by: 0 }, { behind_by: 1 }, { base_commit: { sha: trustedPolicySha } },
+      { merge_base_commit: { sha: trustedPolicySha } }, { commits: [{ sha: fixture.baseSha }] }]) {
+      const h = harness({ comparison: { ...valid, ...change } });
+      await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+        releasePleaseReportedUpdate: false }, h.request), /not a strict ancestor/);
+      assert.ok(!h.calls.some(({ options }) => options.method === "PUT"));
+    }
+    const h = harness({ refreshCommit: { sha: refreshedHeadSha,
+      parents: [{ sha: trustedPolicySha }, { sha: fixture.headSha }] } });
+    await assert.rejects(refreshReleasePleaseBase({ repository, trustedPolicySha,
+      releasePleaseReportedUpdate: false, confirmationAttempts: 1 }, h.request), /two-parent/);
   });
 
   it("does not write when no release PR exists or the exact PR is already current", async () => {
@@ -168,11 +272,24 @@ describe("trusted Release Please base refresh", () => {
     assert.equal(current.calls.some(({ url }) => new URL(url).pathname.endsWith("/update-branch")), false);
   });
 
+  it("waits for a reported Release Please update to settle on trusted trunk", async () => {
+    const testHarness = harness({ settlesAfterReads: 2 });
+    const result = await refreshReleasePleaseBase(
+      { repository, trustedPolicySha, releasePleaseReportedUpdate: true,
+        confirmationAttempts: 3, confirmationDelayMs: 0 },
+      testHarness.request,
+    );
+    assert.equal(result.status, "release-please-updated");
+    assert.equal(result.headSha, refreshedHeadSha);
+    assert.equal(testHarness.calls.some(({ url }) => new URL(url).pathname.endsWith("/update-branch")), false);
+  });
+
   it("fails closed when Release Please claimed an update but its base stayed stale", async () => {
     const testHarness = harness();
     await assert.rejects(
       refreshReleasePleaseBase(
-        { repository, trustedPolicySha, releasePleaseReportedUpdate: true },
+        { repository, trustedPolicySha, releasePleaseReportedUpdate: true,
+          confirmationAttempts: 2, confirmationDelayMs: 0 },
         testHarness.request,
       ),
       /reported an update but left its pull request on a stale trusted base/u,

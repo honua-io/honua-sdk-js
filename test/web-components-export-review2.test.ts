@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import {
   type HonuaExportAdapter,
   HonuaExportSafetyError,
@@ -34,7 +34,7 @@ const SECRETS = {
 } as const;
 
 function attributedState(): HonuaWebComponentState {
-  const mapPackage: HonuaMapPackage = {
+  const mapPackage: HonuaMapDocument = {
     mapPackageId: "incident-response",
     format: "honua_map_package.v1",
     license: "CC-BY 4.0 — Example Data Cooperative",
@@ -46,7 +46,7 @@ function attributedState(): HonuaWebComponentState {
         attribution: "© Example DOT",
       },
     ],
-    mapSpec: { version: 8, sources: {}, layers: [] } as unknown as HonuaMapPackage["mapSpec"],
+    mapSpec: { version: 8, sources: {}, layers: [] } as unknown as HonuaMapDocument["mapSpec"],
   };
   return {
     packageId: "incident-response",

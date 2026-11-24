@@ -6,6 +6,8 @@ resource: "honua://capability/ai.agent-operations"
 ---
 # Honua AI Map Kit
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/agent-tools` exposes a provider-ready AI map kit for bounded
 map assistants. It reuses the existing Honua agent tool schemas and executor,
 then adds:

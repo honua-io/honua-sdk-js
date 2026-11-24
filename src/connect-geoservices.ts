@@ -13,6 +13,7 @@ import { type Capability, PROTOCOL_DEFAULT_CAPABILITIES, type SourceSchema } fro
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import type { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
+import { mapWithConcurrency } from "./core/map-with-concurrency.js";
 import type { HonuaFieldInfo, HonuaLayerMetadata, HonuaServiceMetadata } from "./core/types.js";
 import { parseGeoServicesEndpoint } from "./geoservices-endpoint.js";
 import { type GeoServicesMetadataRequestOptions, getGeoServicesMetadata } from "./geoservices-metadata.js";
@@ -52,7 +53,44 @@ export interface GeoServicesImageSourceDiscoveryResult extends GeoServicesDiscov
   readonly securedStatusCode?: number;
 }
 
-export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint): ConnectTarget {
+function nativeGrpcTarget(endpoint: string, native: { serviceId?: string; layerId?: number }): ConnectTarget {
+  const serviceId = native.serviceId!;
+  if (
+    !serviceId.trim() ||
+    serviceId.trim() !== serviceId ||
+    (native.layerId !== undefined &&
+      (!Number.isInteger(native.layerId) || native.layerId < 0 || native.layerId > 2147483647))
+  ) {
+    throw new HonuaDiscoveryError(
+      "invalid-endpoint",
+      "Native discovery requires a trimmed serviceId and a nonnegative int32 layerId.",
+    );
+  }
+  const url = new URL(endpoint);
+  if (url.search || url.hash || parseGeoServicesEndpoint(endpoint)) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Pass the gRPC transport base URL with an explicit serviceId.");
+  }
+  return {
+    endpoint,
+    clientBaseUrl: endpoint.replace(/\/$/, ""),
+    protocol: "grpc",
+    serviceId: serviceId,
+    ...(native.layerId !== undefined ? { layerId: native.layerId } : {}),
+  };
+}
+
+export function resolveConnectTarget(
+  endpoint: string,
+  hint: ConnectProtocolHint,
+  native: { serviceId?: string; layerId?: number } = {},
+): ConnectTarget {
+  if (hint !== "grpc" && (native.serviceId !== undefined || native.layerId !== undefined)) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "serviceId and layerId require protocol: grpc.");
+  }
+  if (hint === "grpc" && native.serviceId !== undefined) return nativeGrpcTarget(endpoint, native);
+  if (hint === "grpc" && native.layerId !== undefined) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "layerId requires an explicit serviceId.");
+  }
   const rasterService = parseWmsWmtsTarget(endpoint, hint);
   // A path such as `/MapServer/WMS` overlaps the GeoServices grammar. Resolve
   // the stricter raster service shape first so it cannot be interpreted as a
@@ -224,12 +262,7 @@ export function resolveConnectTarget(endpoint: string, hint: ConnectProtocolHint
     return { endpoint, clientBaseUrl: url.origin, protocol: hint, ogcBasePath };
   }
   if (hint === "grpc") {
-    // Honua's gRPC FeatureService facade is a transport-selectable fast path
-    // over the same canonical FeatureServer semantics; `auto` never infers
-    // it (the identical URL is ambiguous between REST and gRPC transport
-    // intent), and MapServer / ImageServer have no gRPC query surface, so
-    // only an explicit "grpc" hint against a canonical FeatureServer URL
-    // resolves here.
+    // Accept legacy URL locators while keeping native service identity independent of URL layout.
     if (!geoservices || geoservices.protocol !== "geoservices-feature-service") {
       throw new HonuaDiscoveryError(
         "invalid-endpoint",
@@ -972,12 +1005,7 @@ function serviceCapabilityEvidence(
   ]);
 }
 
-/**
- * @internal Shared with the Honua gRPC discovery adapter (`connect-grpc.ts`)
- * so a `protocol: "grpc"` descriptor's capability truth is derived through
- * the exact same algorithm as raw GeoServices REST discovery — parity by
- * construction rather than by a second hand-maintained implementation.
- */
+/** Project capabilities advertised by GeoServices metadata. */
 export function capabilitiesFromMetadata(
   protocol: ConnectResolvedProtocol,
   metadata: HonuaLayerMetadata | HonuaServiceMetadata,
@@ -1038,12 +1066,12 @@ export function capabilitiesFromMetadata(
   return [...capabilities];
 }
 
-/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
+/** @internal */
 export function layerUrl(target: ConnectTarget, layerId: number): string {
   return `${target.endpoint.replace(/\/\d+$/, "")}/${layerId}`;
 }
 
-/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
+/** @internal */
 export function provenanceFor(
   source: string,
   retrievedAt: string,
@@ -1051,25 +1079,6 @@ export function provenanceFor(
 ): DiscoveryProvenance {
   const validator = value.cache?.validator?.etag ?? value.cache?.validator?.lastModified;
   return Object.freeze({ source, retrievedAt, ...(validator ? { validator } : {}) });
-}
-
-/** @internal Shared with `connect-grpc.ts`; see {@link capabilitiesFromMetadata}. */
-export async function mapWithConcurrency<T, U>(
-  values: readonly T[],
-  concurrency: number,
-  mapper: (value: T) => Promise<U>,
-): Promise<U[]> {
-  const output = new Array<U>(values.length);
-  let nextIndex = 0;
-  const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (nextIndex < values.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      output[index] = await mapper(values[index] as T);
-    }
-  });
-  await Promise.all(workers);
-  return output;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

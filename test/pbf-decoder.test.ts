@@ -324,6 +324,42 @@ describe("decodePbfQueryResponse", () => {
     ]);
   });
 
+  it.each([
+    { name: "populated", features: [buildFeature([], buildPointGeometry(12, 34))] },
+    { name: "null geometry", features: [buildFeature([])] },
+    { name: "empty", features: [] },
+  ])("restores omitted default Point metadata for $name spatial results", ({ name, features }) => {
+    const featureResult = buildFeatureResult({
+      spatialReference: buildSpatialReference(4326),
+      fields: [],
+      features,
+    });
+    const result = decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult)));
+    expect(result.geometryType).toBe("esriGeometryPoint");
+    expect(result.features).toHaveLength(features.length);
+    if (name === "populated") {
+      expect(result.features).toEqual([{ attributes: {}, geometry: { x: 12, y: 34 } }]);
+    }
+  });
+
+  it.each([undefined, 127, 255])("keeps nonspatial geometry type %s absent", (geometryType) => {
+    const featureResult = buildFeatureResult({ geometryType, fields: [], features: [buildFeature([])] });
+    const result = decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult)));
+    expect(result).not.toHaveProperty("geometryType");
+    expect(result.features).toEqual([{ attributes: {} }]);
+  });
+
+  it("does not replace an explicit Null geometry type when a spatial reference is present", () => {
+    const featureResult = buildFeatureResult({
+      geometryType: 127,
+      spatialReference: buildSpatialReference(4326),
+      fields: [],
+      features: [],
+    });
+    const result = decodePbfQueryResponse(toBuffer(buildFeatureCollectionPBuffer("1.0", featureResult)));
+    expect(result).not.toHaveProperty("geometryType");
+  });
+
   it("decodes empty feature result", () => {
     const featureResult = buildFeatureResult({
       objectIdFieldName: "OBJECTID",

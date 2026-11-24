@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Deterministic query planner
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/query-planner` is the first production slice of the execution
 planner described by the [north-star application-kernel
 decision](./decisions/north-star-sdk-application-kernel.md). It turns the
@@ -548,7 +550,7 @@ with `spatialStrategy: "bbox-envelope"`. That artifact has
 entry whose strategy is `bbox-envelope`; it is never presented as exact.
 
 Honua gRPC artifacts are protobuf-runtime-free canonical descriptions of
-`honua.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
+`geospatial.v1.FeatureService/QueryFeatures`. Projection, filter, sort, group, and
 statistic operands use public `SourceSchemaV2` field names; physical storage
 paths never enter the request. Generated `where` text is limited to the server's
 executable grammar: ASCII public identifiers, simple comparisons or
@@ -817,7 +819,7 @@ geometry column and encoding come from `locator.geoparquet.geometryColumn` /
 never needs a profiling round-trip.
 
 `grpc` sources compile to `honua-grpc-query-features-v1`, a faithful,
-protobuf-free description of the `honua.v1.FeatureService/QueryFeatures` unary
+protobuf-free description of the `geospatial.v1.FeatureService/QueryFeatures` unary
 request. Field names and proto enum *value names* (`SPATIAL_RELATIONSHIP_*`,
 `STATISTIC_TYPE_*`) mirror the generated message, so the plan is a hashable
 pre-image of the wire request without importing the protobuf runtime.

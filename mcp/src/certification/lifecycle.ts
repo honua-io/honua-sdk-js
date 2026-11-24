@@ -38,6 +38,8 @@ const MAX_FEATURE_PAGES = 20;
 
 export interface DeepContractOptions {
   client: Client;
+  /** Layer-index argument name the target advertises (see `advertisedLayerKey`). */
+  layerKey?: "layerId" | "serviceLayerIndex";
   advertisedToolNames: Set<string>;
   /** Whether the backend is the disposable offline mock (auto-allows mutation). */
   isDisposableBackend: boolean;
@@ -92,9 +94,26 @@ async function readJsonResource(client: Client, uri: string): Promise<Record<str
   return typeof text === "string" ? (JSON.parse(text) as Record<string, unknown>) : {};
 }
 
+interface ResultFeature {
+  id?: unknown;
+  attributes?: Record<string, unknown>;
+}
+
+function resultFeatures(result: ToolResult): ResultFeature[] {
+  return (result.structuredContent?.features ?? []) as ResultFeature[];
+}
+
 function featureAttributes(result: ToolResult): Record<string, unknown>[] {
-  const features = (result.structuredContent?.features ?? []) as { attributes?: Record<string, unknown> }[];
-  return features.map((f) => f.attributes ?? {});
+  return resultFeatures(result).map((f) => f.attributes ?? {});
+}
+
+// The offline mock names the identifier OBJECTID; honua-server returns objectid plus a feature id.
+function featureObjectIds(result: ToolResult): unknown[] {
+  return resultFeatures(result).map((feature) => {
+    const attributes = feature.attributes ?? {};
+    const key = Object.keys(attributes).find((name) => name.toLowerCase() === "objectid");
+    return (key === undefined ? undefined : attributes[key]) ?? feature.id;
+  });
 }
 
 // ── Contract 1: mutating-tool insert→verify→update→verify→delete→verify ──────
@@ -131,13 +150,13 @@ async function runMutatingRoundTrip(
 
     const presentAfterInsert =
       objectId !== undefined &&
-      featureAttributes(
+      featureObjectIds(
         await callTool(client, QUERY_TOOL, {
           serviceId: target.serviceId,
-          layerId: target.layerId,
+          [options.layerKey ?? "layerId"]: target.layerId,
           objectIds: [objectId],
         }),
-      ).some((a) => Number(a.OBJECTID) === objectId);
+      ).some((id) => Number(id) === objectId);
 
     if (objectId !== undefined) {
       await callTool(client, EDIT_TOOL, {
@@ -152,7 +171,7 @@ async function runMutatingRoundTrip(
         : featureAttributes(
             await callTool(client, QUERY_TOOL, {
               serviceId: target.serviceId,
-              layerId: target.layerId,
+              [options.layerKey ?? "layerId"]: target.layerId,
               objectIds: [objectId],
             }),
           )[0]?.NAME;
@@ -162,13 +181,13 @@ async function runMutatingRoundTrip(
     }
     const absentAfterDelete =
       objectId !== undefined &&
-      featureAttributes(
+      featureObjectIds(
         await callTool(client, QUERY_TOOL, {
           serviceId: target.serviceId,
-          layerId: target.layerId,
+          [options.layerKey ?? "layerId"]: target.layerId,
           objectIds: [objectId],
         }),
-      ).every((a) => Number(a.OBJECTID) !== objectId);
+      ).every((id) => Number(id) !== objectId);
 
     const outcome = checkFeatureRoundTrip({
       insertedObjectId: objectId,
@@ -360,12 +379,16 @@ async function runQueryPagination(options: DeepContractOptions, target: EditTarg
     const pages: ListPage[] = [];
     let cursor: string | undefined;
     for (let i = 0; i < MAX_FEATURE_PAGES; i++) {
-      const args: Record<string, unknown> = { serviceId: target.serviceId, layerId: target.layerId, limit: PAGE_LIMIT };
+      const args: Record<string, unknown> = {
+        serviceId: target.serviceId,
+        [options.layerKey ?? "layerId"]: target.layerId,
+        limit: PAGE_LIMIT,
+      };
       if (cursor) {
         args.cursor = cursor;
       }
       const result = await callTool(client, QUERY_TOOL, args);
-      const keys = featureAttributes(result).map((a) => String(a.OBJECTID));
+      const keys = featureObjectIds(result).map((id) => String(id));
       const nextCursor = result.structuredContent?.nextCursor;
       pages.push({ keys, nextCursor: typeof nextCursor === "string" ? nextCursor : undefined });
       if (typeof nextCursor !== "string") {

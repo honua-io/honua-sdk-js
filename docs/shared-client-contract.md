@@ -6,9 +6,11 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Shared Client Contract
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The shared contract is the protocol-neutral vocabulary every Honua data
 adapter speaks. It exists so cross-protocol code — exploration views,
-visual builders, and the server `SourceBinding`/`MapPackage` exporters
+visual builders, and the server `SourceBinding`/`HonuaMapDocument` exporters
 — can be written once against `Dataset` / `Source` / `Query` / `Result`
 / `MapBinding` rather than re-litigating the surface per protocol.
 
@@ -24,7 +26,7 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `src/core/surfaces.ts`. Existing callers continue to work; adapter
   tickets opt in to the canonical surface.
 - **Goal:** stable serialization shape that survives a round-trip with
-  the server `SourceBinding` / `MapPackage` documents (see
+  the server `SourceBinding` / `HonuaMapDocument` documents (see
   [`source-binding-alignment.md`](./source-binding-alignment.md)).
 - **Non-goal:** a runtime rewrite. The contract is a typed surface plus
   thin adapter functions — one per built-in protocol
@@ -76,7 +78,7 @@ scenarios.
 | `EditWorkflowSession<T>` | Form/edit session over one `Source`: projects field metadata and domains, exposes relationship / attachment capability states, stages feature and attachment edits, runs optimistic hooks, and returns a normalized `EditWorkflowSubmitResult`. |
 | `RelatedQuery` / `RelatedResult<T>` | Canonical related-records request and response. Adapters that lack relationships (OGC, OData, ImageServer) throw rather than return empty groups. |
 | `AttachmentApi` | Namespace returned by `Source.attachments`. Methods: `query`, `list`, `add`, `update`, `delete`. Adapters that do not advertise `attachments` throw `HonuaCapabilityNotSupportedError` from each method so the namespace property is always present and capability negotiation stays uniform. |
-| `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto `MapPackage.sourceBindings` + `MapPackage.mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `MapPackage` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
+| `MapBinding` | `{ sourceId, layerIds, style?, minzoom?, maxzoom? }`. Maps onto the map document `sourceBindings` + `mapSpec` server-side. The `@honua/sdk-js/runtime` module consumes a full `HonuaMapDocument` on the client — see [`maplibre-runtime.md`](./maplibre-runtime.md). |
 | `QueryTileSourceDescriptor` | Typed dynamic vector/query tile descriptor. It binds a canonical `Source` or source id to tile endpoint metadata, query/projection cache identity, fallback policy, and feature identity hooks. Runtime MapLibre helpers and the canonical `/query-tiles` server contract live in [`dynamic-query-tiles.md`](./dynamic-query-tiles.md). |
 
 ## Dynamic query tile server contract
@@ -166,10 +168,11 @@ compatibility. The experimental typed semantic AST follows separate
 compiler/execution workflows in `@honua/sdk-js/query-planner`; it is not
 accepted by `Source.query()`.
 
-The built-in resolver handles `geoservices-feature-service`,
+The built-in resolver handles `grpc`, `geoservices-feature-service`,
 `geoservices-map-service`, `geoservices-image-service`,
 `geoservices-geometry-service`, `geoservices-gp-service`, `ogc-features`,
-`ogc-tiles`, `ogc-maps`, `stac`, `wfs`, `wms`, `wmts`, and `odata`.
+`ogc-tiles`, `ogc-maps`, `ogc-records`, `stac`, `wfs`, `wms`, `wmts`,
+`odata`, and `pmtiles`.
 MapLibre-native sources register through
 `CreateDatasetOptions.resolveSource`. OGC API
 Processes is a job runner rather than a queryable source — reach it
@@ -177,7 +180,7 @@ through `HonuaClient.ogcProcesses().execute(...)` (returns the canonical
 `IJobRun<T>`) instead of `Dataset.source()`.
 
 The five GeoServices factories cover the surface published in
-`honua-server/docs/gis/geoservices-rest-parity.md`:
+`honua-server/docs/reference/compatibility/geoservices-parity.md`:
 
 - `geoServicesFeatureSource` — FeatureServer (query, edits, related,
   attachments, object ids, replica/calculate/validateSQL/append/bins/estimate
@@ -239,6 +242,53 @@ surface:
   see [`protocol-capability-matrix.md`](./protocol-capability-matrix.md)
   for the precedent and [`decisions/odata-library-selection.md`](./decisions/odata-library-selection.md)
   for the runtime-library posture.
+
+## Native service edit sessions
+
+`createServiceEditSession({ dataset })`, exported from `@honua/sdk-js/contract`,
+submits canonical edits for multiple registered sources through one gRPC-Web
+`ApplyServiceEdits` call. It requires a server implementing geospatial-grpc 1.4.
+Sources must advertise `applyEdits`, use `protocol: "grpc"`, and name distinct
+layers of the same service and endpoint. Invalid source combinations fail before
+metadata or mutation requests; unsupported protocols raise
+`HonuaCapabilityNotSupportedError`.
+
+```ts doc-test=compile
+import { createServiceEditSession, type Dataset } from "@honua/sdk-js/contract";
+
+async function saveInspection(dataset: Dataset, inspectionGlobalId: string) {
+  const session = createServiceEditSession({ dataset });
+  return session.submit({
+    edits: [
+      {
+        sourceId: "inspections",
+        edits: { adds: [{ globalId: inspectionGlobalId, attributes: { fee: "12.10" } }] },
+      },
+      {
+        sourceId: "observations",
+        edits: { adds: [{ attributes: { inspection_global_id: inspectionGlobalId } }] },
+      },
+    ],
+    idempotencyKey: "inspection-save-7",
+  });
+}
+```
+
+The dataset must use a gRPC-Web client; in browsers construct it from
+`@honua/sdk-js/grpc-web`. Keep the session for subsequent submits so each
+source's precise column types and global-ID field are read once from
+`DescribeLayer`. Edits run in submission order, allowing a child to reference a
+parent's client-generated global ID. Supply that ID explicitly rather than
+waiting for a parent response between writes.
+
+Rollback defaults to `true` for the entire transaction. A whole-call failure
+rejects with the original error and diagnostics; it does not report partial
+success. With `rollbackOnFailure: false`, inspect each entry in `result.sources`:
+its canonical `result` contains per-row outcomes, and `error`, when present,
+describes a whole-layer failure. Entries retain the source IDs and order from
+the request. Cancellation and rollback options belong to the submission, not
+individual source envelopes. Writes have no automatic retry or REST fallback;
+reuse an idempotency key only when explicitly retrying the same logical batch.
 
 ## Edit Workflow Sessions
 
@@ -313,8 +363,9 @@ The `AdapterTypeMap` interface uses TypeScript declaration merging so
 adapter tickets can plug in their own kind → instance type mapping
 without touching this file.
 `grpc` is a canonical protocol id for the shared FeatureService transport
-and fixture pack; it is consumed through the client gRPC-Web transport
-rather than a `Source.protocol("grpc")` adapter handle in this package.
+and fixture pack. `Source.protocol("grpc")` returns a `GrpcLayerHandle`
+with `serviceId`, `layerId`, and `describe()` for native layer metadata.
+Browser feature queries and edits use the client gRPC-Web transport.
 Its default capabilities exclude `queryAggregate`, which has no representation
 in the FeatureService wire contract. Aggregate requests fail with
 `HonuaCapabilityNotSupportedError` before transport dispatch.
@@ -327,7 +378,8 @@ declare module "@honua/sdk-js/contract" {
 }
 ```
 
-The shipped map covers `geoservices-feature-service` →
+The shipped map covers `grpc` → `GrpcLayerHandle`,
+`geoservices-feature-service` →
 `HonuaFeatureLayer`, `geoservices-map-service` → `HonuaMapService`,
 `geoservices-map-layer` → `HonuaMapLayer`, `geoservices-image-service`
 → `HonuaImageService`, `geoservices-geometry-service` →

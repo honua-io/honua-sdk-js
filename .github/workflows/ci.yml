@@ -55,10 +55,25 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  review-prevention:
+    name: ESLint review prevention
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix mcp
+      - run: npm run test:review-baseline
+      - run: npm run lint:review
+
   first-map-webkit:
     name: First Map WebKit
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Three bounded Ubuntu dependency attempts take up to 18 minutes.
+    timeout-minutes: 30
     env:
       HONUA_FIRST_MAP_RELEASE_MATRIX: "true"
       PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/first-map-webkit/report.json
@@ -70,7 +85,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps webkit
+      - name: Install Playwright browser
+        run: |
+          scripts/ci/provision-playwright-deps.sh webkit
+          npx playwright install webkit
       # Reuse the release matrix's complete fixture journey and assertions.
       # This source check does not replace the sealed release-tag matrix.
       - name: Exercise the First Map journey in WebKit
@@ -127,7 +145,10 @@ jobs:
         run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
-        run: node --test test/scripts/pr-issue-disposition.test.mjs
+        run: node --test test/scripts/pr-issue-disposition.test.mjs test/scripts/mcp-publication-wait.test.mjs test/scripts/release-window.test.mjs
+
+      - name: Test schema sync pull-request admission
+        run: node --test test/scripts/schema-sync-workflow.test.mjs
 
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
@@ -137,6 +158,9 @@ jobs:
 
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
+
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
 
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
@@ -151,10 +175,13 @@ jobs:
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
       - name: Test authenticated second-review summary admission
-        run: node --test test/scripts/second-review-summary.test.mjs
+        run: node --test test/scripts/second-review-summary.test.mjs test/scripts/second-review-failure.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
+
+      - name: Test docs site deployment policy
+        run: node --test test/scripts/docs-site-workflow.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
@@ -253,6 +280,13 @@ jobs:
     if: vars.HONUA_SDK_VERIFICATION_MODE != 'authoritative' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 80
+    # Job permissions replace the workflow default. contents:read resolves tags
+    # and commits. actions:read is the Actions REST permission for publication
+    # recovery run and job reads; a contents-only installation token returns 403.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     env:
       HONUA_SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       # Derived-artifact decoupling (#677): every gate that binds committed
@@ -317,7 +351,10 @@ jobs:
         run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
-        run: node --test test/scripts/pr-issue-disposition.test.mjs
+        run: node --test test/scripts/pr-issue-disposition.test.mjs test/scripts/mcp-publication-wait.test.mjs test/scripts/release-window.test.mjs
+
+      - name: Test schema sync pull-request admission
+        run: node --test test/scripts/schema-sync-workflow.test.mjs
 
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
@@ -327,6 +364,9 @@ jobs:
 
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
+
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
 
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
@@ -341,10 +381,13 @@ jobs:
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
       - name: Test authenticated second-review summary admission
-        run: node --test test/scripts/second-review-summary.test.mjs
+        run: node --test test/scripts/second-review-summary.test.mjs test/scripts/second-review-failure.test.mjs
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
+
+      - name: Test docs site deployment policy
+        run: node --test test/scripts/docs-site-workflow.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
@@ -428,10 +471,16 @@ jobs:
         run: npm run docs:quickstart:time-to-map:test
 
       - name: Test SDK publication workflow execution
-        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
+        run: node --test test/scripts/publish-js-sdk-workflow.test.mjs test/scripts/publish-own-tag-workflows.test.mjs
+
+      - name: Test derived-artifact publication and superseded-source policy
+        run: node --test test/scripts/automation-pr-cleanup.test.mjs
 
       - name: Test reseal credential lifetime policy
         run: node --test test/scripts/reseal-token-lifetime.test.mjs
+
+      - name: Test workflow OIDC role variable policy
+        run: node --test test/scripts/workflow-oidc-role-variables.test.mjs
 
       - name: Typecheck
         run: npm run typecheck
@@ -494,7 +543,7 @@ jobs:
       - name: Validate release artifact manifest
         run: |
           npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs
+          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs test/scripts/report-companion-gaps.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Regenerates the
       # denominator from config/support-manifest.v1.json,
@@ -553,6 +602,8 @@ jobs:
         run: npm run build
 
       - name: Verify packed SDK migration cohort with default npm resolution
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:prepared
 
       - name: Upload migration cohort receipt and installed lock
@@ -617,6 +668,9 @@ jobs:
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
+
+      - name: Native Node GeoParquet installed consumer
+        run: npm run verify:node-geoparquet:prepared
 
       - name: Split package verification
         run: npm run verify:split-packages:prepared
@@ -697,6 +751,8 @@ jobs:
         run: npm run create-app:verify:package
 
       - name: Gallery sample playgrounds
+        env:
+          HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
         # Generated standalone projects for every qualifying gallery sample
         # (#958): drift against the committed sample source fails here, and both
         # copies must still compile against the SDK source.
@@ -771,16 +827,6 @@ jobs:
       - name: Browser smoke suite
         id: browser_smoke
         run: npm run test:playwright:prepared
-
-      - name: Retain GP response completion and raw browser events
-        if: always() && steps.browser_smoke.outcome != 'skipped'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: gp-response-completion
-          path: .tmp/playwright-output/**/execution-response-*.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 90
 
       # A failed earlier step skips the suite above. Inside an already-red job
       # that skip is easy to miss, so this step fails on its own and names the
@@ -871,6 +917,7 @@ jobs:
         run: |
           npm ci --prefix ..
           npm run build --prefix ..
+          npm run build:split-packages:prepared --prefix ..
 
       - name: Install dependencies
         run: npm ci

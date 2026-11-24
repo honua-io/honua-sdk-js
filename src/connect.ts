@@ -1,3 +1,4 @@
+import type { LayerDescriptor } from "./gen/geospatial/v1/metadata_types_pb.js";
 /**
  * Explicit, fail-closed connection discovery facade.
  *
@@ -5,6 +6,7 @@
  * FeatureServer and MapServer URLs are recognized without trial requests.
  * Ambiguous URLs still require an explicit protocol. No endpoint is probed as
  * a different protocol when discovery fails.
+ * Transport selection for feature services is separate; see `connect-transport.ts`.
  *
  * @experimental
  */
@@ -25,6 +27,7 @@ import {
   stacStaticTraversalPolicyIdentity,
   validateCachedStacStaticInspection,
 } from "./connect-stac-static.js";
+import { isOgcVectorTileTemplate } from "./core/ogc-vector-tile-template.js";
 export type {
   StacAssetCandidate,
   StacAssetCandidateMetadata,
@@ -93,6 +96,7 @@ import {
   mapLibreTileMatrixTemplate,
 } from "./connect-raster-evidence.js";
 import { unavailableSourceSchemaState } from "./connect-schema.js";
+import { assertCachedTransport, defaultFeatureServiceTransport } from "./connect-transport.js";
 import { canonicalizeUrlQuery, isCredentialQueryName } from "./connect-url-safety.js";
 import { discoverWfsSources } from "./connect-wfs.js";
 import { discoverWmsWmtsSources } from "./connect-wms-wmts.js";
@@ -109,6 +113,7 @@ import {
   createDiscoveryCacheIdentity,
   inspectDiscoveredSource,
   resolveDiscoveryCapabilities,
+  resolveTransportDiscoveryCapabilities,
 } from "./contract/discovery.js";
 import type { PmtilesArchiveDescription, PmtilesModuleLike } from "./contract/pmtiles.js";
 import type { SourceSchemaV2Envelope } from "./contract/schema-envelope.js";
@@ -125,6 +130,7 @@ import type {
   SourceResolver,
   SourceSchema,
 } from "./contract/types.js";
+import { PROTOCOL_DEFAULT_CAPABILITIES } from "./contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./core/cache-state.js";
 import { HonuaClient } from "./core/client.js";
 import { HonuaAbortError, HonuaDiscoveryError } from "./core/errors.js";
@@ -139,6 +145,7 @@ import type {
   HonuaOgcCollectionsResponse,
   HonuaOgcLandingResponse,
   HonuaStacLandingResponse,
+  HonuaTransport,
   OgcEndpointLayout,
 } from "./core/types.js";
 import { classifyWmsFeatureInfoFormat, reviewedWmsQueryCrs } from "./core/wms-feature-info.js";
@@ -161,6 +168,10 @@ export interface ConnectSourceSchemaProjectionContext {
 export interface ConnectSourceSchemaProjection {
   readonly cacheIdentity: string;
   parseCached(value: unknown): SourceSchemaV2Envelope;
+  grpc(
+    metadata: LayerDescriptor,
+    context: ConnectSourceSchemaProjectionContext,
+  ): SourceSchemaV2Envelope | Promise<SourceSchemaV2Envelope>;
   stac(context: ConnectSourceSchemaProjectionContext): SourceSchemaV2Envelope;
   geoServices(
     metadata: HonuaLayerMetadata,
@@ -285,11 +296,21 @@ export interface ConnectDiscoverySnapshot {
   readonly sources: readonly ConnectDiscoverySourceSnapshot[];
   /** Present only for a bounded static Catalog/Collection/Item connection. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
+  /**
+   * Transport the default client selected for a GeoServices feature service:
+   * gRPC-Web where the server offers it, REST otherwise. A cache hit replays it
+   * without probing; a snapshot without it replays as REST.
+   */
+  readonly transport?: HonuaTransport;
 }
 
 export interface ConnectOptions {
-  /** OGC API, STAC API, WFS 2.0, WMS/WMTS, or canonical GeoServices URL. */
+  /** Native gRPC-Web base URL, OGC API, STAC API, WFS, WMS/WMTS, or canonical GeoServices URL. */
   readonly endpoint: string | URL;
+  /** Native gRPC service identity, independent of the endpoint URL. */
+  readonly serviceId?: string;
+  /** Restrict native gRPC discovery to one layer. */
+  readonly layerId?: number;
   /** Protocol hint. `auto` recognizes canonical GeoServices URL structure without probing. */
   readonly protocol: ConnectSourceProtocolHint;
   /** Restrict discovery to one collection while retaining the service root URL. */
@@ -371,6 +392,8 @@ export interface HonuaConnectionInspection {
   readonly diagnostics: readonly DiscoveryDiagnostic[];
   readonly cacheIdentity: DiscoveryCacheIdentity;
   readonly cacheStatus: ConnectCacheStatus;
+  /** Transport of the connection's client; on `grpc-web` capabilities resolve to the gRPC FeatureService set. */
+  readonly transport: HonuaTransport;
   /** Static object tree and classified asset candidates, when the endpoint is static STAC. */
   readonly stacStatic?: StacStaticDiscoveryInspection;
 }
@@ -438,7 +461,7 @@ export async function connectWithSourceSchemaProjection(
   throwIfAborted(options.signal);
   const pmtilesAutoEvidence = options.protocol === "auto" && isPmtilesSchemeInput(options.endpoint);
   const endpoint = validateConnectEndpoint(options.endpoint, options.protocol);
-  const target = resolveConnectTarget(endpoint, pmtilesAutoEvidence ? "pmtiles" : options.protocol);
+  const target = resolveConnectTarget(endpoint, pmtilesAutoEvidence ? "pmtiles" : options.protocol, options);
   if (target.protocol !== "stac" && options.stac !== undefined) {
     throw new HonuaDiscoveryError("invalid-endpoint", "stac traversal options are only valid for STAC connections.");
   }
@@ -527,6 +550,7 @@ export async function connectWithSourceSchemaProjection(
     ...(target.layerId !== undefined ? { layerId: target.layerId } : {}),
     ...(assetVariant ? { assetVariant } : {}),
     ...(target.protocol === "pmtiles" ? { profile: pmtilesDiscoveryPolicyIdentity(pmtilesLimits) } : {}),
+    ...(target.protocol === "grpc" ? { profile: "grpc-native-descriptors@1.1" } : {}),
     ...(stacPolicy ? { profile: stacStaticTraversalPolicyIdentity(stacPolicy) } : {}),
   });
   if (options.client) assertClientEndpoint(options.client, target.clientBaseUrl);
@@ -554,7 +578,8 @@ export async function connectWithSourceSchemaProjection(
     }
   }
 
-  const client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: target.clientBaseUrl });
+  const transport = await defaultFeatureServiceTransport(snapshot, options, target);
+  const client = discoveryClient(options, target, transport);
   if (!snapshot) {
     snapshot =
       target.protocol === "grpc"
@@ -582,6 +607,7 @@ export async function connectWithSourceSchemaProjection(
                             : target.protocol === "wms" || target.protocol === "wmts"
                               ? await discoverWmsWmtsSources(client, identity, target, options, sourceSchemaProjection)
                               : await discoverGeoServices(client, identity, target, options, sourceSchemaProjection);
+    if (transport) snapshot = Object.freeze({ ...snapshot, transport });
     if (
       options.cache &&
       (!sourceSchemaProjection ||
@@ -597,13 +623,19 @@ export async function connectWithSourceSchemaProjection(
     cacheStatus = options.refresh === true ? "refreshed" : cacheStatus;
   }
 
+  // A gRPC-Web client serves only the gRPC FeatureService set for feature services.
+  const transportLimit =
+    client.isGrpcWeb && snapshot.protocol === "geoservices-feature-service"
+      ? PROTOCOL_DEFAULT_CAPABILITIES.grpc
+      : undefined;
   const inspections = Object.freeze(
     snapshot.sources.map((source) => {
-      const resolution = resolveDiscoveryCapabilities(
-        snapshot.protocol,
-        source.evidence ?? snapshot.evidence,
-        options.capabilityPolicy,
-      );
+      const resolution = resolveTransportDiscoveryCapabilities({
+        protocol: snapshot.protocol,
+        evidence: source.evidence ?? snapshot.evidence,
+        policy: options.capabilityPolicy,
+        transportLimit,
+      });
       const descriptor: SourceDescriptor = {
         id: source.id,
         protocol: snapshot.protocol,
@@ -683,6 +715,7 @@ export async function connectWithSourceSchemaProjection(
     diagnostics: uniqueDiagnostics(inspections.flatMap((entry) => [...entry.diagnostics])),
     cacheIdentity: identity,
     cacheStatus,
+    transport: client.isGrpcWeb ? "grpc-web" : "rest",
     ...(snapshot.stacStatic ? { stacStatic: snapshot.stacStatic } : {}),
   });
 
@@ -967,6 +1000,25 @@ async function discoverGeoServices(
   });
 }
 
+function discoveryClient(
+  options: ConnectOptions,
+  target: ConnectTarget,
+  transport: HonuaTransport | undefined,
+): HonuaClient {
+  const client =
+    options.client ??
+    new HonuaClient({
+      ...(target.protocol === "grpc" ? { transport: "grpc-web" as const } : {}),
+      ...options.clientOptions,
+      ...(transport ? { transport } : {}),
+      baseUrl: target.clientBaseUrl,
+    });
+  if (target.protocol === "grpc" && !client.isGrpcWeb) {
+    throw new HonuaDiscoveryError("invalid-endpoint", "Native discovery requires transport: grpc-web.");
+  }
+  return client;
+}
+
 async function discoverGrpc(
   client: HonuaClient,
   identity: DiscoveryCacheIdentity,
@@ -974,7 +1026,10 @@ async function discoverGrpc(
   options: ConnectOptions,
   sourceSchemaProjection: ConnectSourceSchemaProjection | undefined,
 ): Promise<ConnectDiscoverySnapshot> {
-  const discovered = await discoverGrpcSources(client, target, options, sourceSchemaProjection);
+  const discovered = await discoverGrpcSources(client, target, {
+    ...options,
+    ...(sourceSchemaProjection ? { sourceSchemaProjection } : {}),
+  });
   return Object.freeze({
     version: HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
     identityKey: identity.key,
@@ -1594,6 +1649,7 @@ async function validateSnapshot(
       expectedIdentityKey: identity.key,
     });
   }
+  assertCachedTransport(owned.transport, target.protocol);
   const sharedEvidence = validateCachedEvidence(target.protocol, owned.evidence, true);
   const sourceIds = new Set<string>();
   const sources = owned.sources.map((source) => {
@@ -1786,9 +1842,6 @@ function sourceSchemaProjectionApplies(protocol: ConnectResolvedProtocol): boole
     protocol === "pmtiles" ||
     protocol === "geoservices-feature-service" ||
     protocol === "geoservices-map-service" ||
-    // gRPC FeatureServer discovery routes through the geoservices projection and emits a
-    // schemaV2 payload; it must be projection-applicable so cache writes and reads agree
-    // (otherwise the first gRPC schema discovery caches an entry every later read rejects).
     protocol === "grpc"
   );
 }
@@ -1922,6 +1975,12 @@ function validateSnapshotLocator(
   }
   if (target.protocol === "ogc-records" || target.protocol === "ogc-tiles" || target.protocol === "ogc-maps") {
     if (
+      locator.tileUrlTemplate !== undefined &&
+      (target.protocol !== "ogc-tiles" || !isOgcVectorTileTemplate(locator.tileUrlTemplate))
+    ) {
+      throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached OGC vector tile template is invalid.");
+    }
+    if (
       locator.url !== target.clientBaseUrl ||
       locator.basePath !== (target.ogcBasePath ?? "") ||
       typeof locator.collectionId !== "string" ||
@@ -1964,7 +2023,7 @@ function validateSnapshotLocator(
   ) {
     throw new HonuaDiscoveryError(
       "invalid-discovery-cache",
-      "Cached GeoServices source locator does not match the service endpoint.",
+      "Cached source locator does not match the service endpoint.",
     );
   }
 }
@@ -2516,7 +2575,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw new HonuaAbortError();
+  if (signal?.aborted) throw new HonuaAbortError(undefined, { cause: signal.reason });
 }
 
 function uniqueDiagnostics(values: readonly DiscoveryDiagnostic[]): readonly DiscoveryDiagnostic[] {

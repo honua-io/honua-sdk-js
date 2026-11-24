@@ -34,6 +34,7 @@
 
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../core/errors.js";
 import { encodeServiceIdPath, trimTrailingSlashes } from "../core/path-utils.js";
+import { assertSecureCredentialedBaseUrl } from "../core/transport-security.js";
 
 // ---------------------------------------------------------------------------
 // Provider-pluggable geocoding (experimental)
@@ -66,6 +67,7 @@ export interface GeocodingClientOptions {
   locatorName?: string;
   apiKey?: string;
   bearerToken?: string;
+  allowInsecureHttp?: boolean;
   fetchFn?: typeof fetch;
   timeoutMs?: number;
 }
@@ -187,6 +189,11 @@ export class HonuaGeocodingClient {
 
   public constructor(options: GeocodingClientOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
+    assertSecureCredentialedBaseUrl(
+      this.baseUrl,
+      [...(options.apiKey ? ["apiKey"] : []), ...(options.bearerToken ? ["bearerToken"] : [])],
+      options.allowInsecureHttp === true,
+    );
     this.locatorName = options.locatorName ?? "World";
     // Bind to `globalThis` at assignment: invoking an unbound `window.fetch`
     // as `this.fetchFn(...)` throws "TypeError: Illegal invocation" in

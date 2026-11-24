@@ -57,6 +57,43 @@ it.each(["-0", "+1", "01", "9223372036854775808", "-9223372036854775809"])(
   (value) => expect(() => exactObjectId(value)).toThrow(),
 );
 
+async function nativeEditRoundtrip(
+  makeGrpcClient: (extra?: Record<string, unknown>) => HonuaClient,
+  target: { serviceId: string; layerId: number },
+) {
+  const grpc = makeGrpcClient({
+    fetchFn: (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toContain("/geospatial.v1.FeatureService/");
+      return fetch(input, init);
+    },
+  });
+  const marker = `grpc-edit-${crypto.randomUUID()}`;
+  const added = await grpc.applyEdits({
+    ...target,
+    adds: [{ attributes: { name: marker }, geometry: { x: 0, y: 0 } }],
+  });
+  const result = added.addResults?.[0];
+  expect(result?.success).toBe(true);
+  if (!result?.success) throw new Error("native edit fixture could not be created");
+  const objectIds = String(result.objectId);
+  try {
+    const query = () => grpc.queryFeatures({ ...target, objectIds, outFields: ["*"], returnGeometry: true });
+    const created = await query();
+    expect(created.features).toHaveLength(1);
+    expect(created.features?.[0]?.attributes.name).toBe(marker);
+    const updated = await grpc.applyEdits({
+      ...target,
+      updates: [{ attributes: { OBJECTID: objectIds, name: `${marker}-updated` } }],
+    });
+    expect(updated.updateResults?.[0]?.success).toBe(true);
+    expect((await query()).features?.[0]?.attributes.name).toBe(`${marker}-updated`);
+  } finally {
+    const deleted = await grpc.applyEdits({ ...target, deletes: objectIds });
+    expect(deleted.deleteResults?.[0]?.success).toBe(true);
+  }
+  expect((await grpc.queryFeatures({ ...target, objectIds })).features).toHaveLength(0);
+}
+
 integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, config }) => {
   // Bounded, replay-safe query: `where=1=1` with a small record cap so the
   // parity/round-trip assertions stay deterministic regardless of seed size.
@@ -79,6 +116,12 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
       ...(config.bearerToken ? { bearerToken: config.bearerToken } : {}),
       ...extra,
     } as ConstructorParameters<typeof HonuaClient>[0]);
+
+  // Opt in only against a disposable writable point layer with a `name` field.
+  it.runIf(process.env.HONUA_GRPC_EDIT_INTEGRATION === "1")(
+    "round-trips native add/update/query/delete without REST",
+    () => nativeEditRoundtrip(makeGrpcClient, { serviceId: config.serviceId, layerId: config.layerId }),
+  );
 
   // Memoized runtime capability probe. `undefined` => transport usable.
   let probe: Promise<CapabilityGap | undefined> | undefined;

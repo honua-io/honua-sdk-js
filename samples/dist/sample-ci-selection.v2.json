@@ -22,7 +22,7 @@
       "id": "planning-permitting",
       "title": "Planning and Permitting",
       "status": "planned",
-      "candidateSampleId": "planning-permitting-workbench"
+      "candidateSampleId": "sketch-editing"
     },
     {
       "id": "incident-operations",
@@ -81,16 +81,11 @@
       },
       "sampleIds": [
         "ai-spatial-app-builder",
-        "cesium-route-playback",
-        "mcp-gis-assistant",
         "nl-map-control",
         "overture-geoparquet",
-        "planning-permitting-workbench",
         "realtime-incident-dashboard",
-        "runtime-parity-showcase",
         "shared-renderer-state",
-        "spatial-analytics-workbench",
-        "storytelling-25d-map"
+        "spatial-analytics-workbench"
       ]
     },
     {
@@ -108,16 +103,13 @@
       "sampleIds": [
         "columnar-query-quickstart",
         "coverages-wcs-basic",
-        "edit-workflow-demo",
         "geocoding-quickstart",
-        "geoprocessing-job-runner",
         "oauth-signin",
         "pmtiles-static",
         "react-quickstart",
         "sketch-editing",
         "stac-imagery-browser",
-        "temporal-playback",
-        "terrain-rgb-elevation"
+        "temporal-playback"
       ]
     },
     {
@@ -261,47 +253,6 @@
       }
     },
     {
-      "id": "cesium-route-playback",
-      "sourcePath": "docs/examples/cesium-route-playback",
-      "track": "lab",
-      "supportTier": "experimental",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-            "npx vitest run test/cesium-route-playback.test.ts"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npx playwright test test/playwright/cesium-route-playback.spec.mjs",
-            "npx vitest run test/cesium-route-playback.test.ts"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
-      }
-    },
-    {
       "id": "columnar-query-quickstart",
       "sourcePath": "examples/columnar-query-quickstart",
       "track": "recipe",
@@ -390,46 +341,6 @@
       }
     },
     {
-      "id": "edit-workflow-demo",
-      "sourcePath": "examples/edit-workflow-demo",
-      "track": "recipe",
-      "supportTier": "supported",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:edit-workflow:typecheck",
-            "npm run demo:edit-workflow:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:edit-workflow:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "demo-live",
-        "status": "planned"
-      }
-    },
-    {
       "id": "geocoding-quickstart",
       "sourcePath": "examples/geocoding-quickstart",
       "track": "recipe",
@@ -469,47 +380,6 @@
       "liveEvidence": {
         "mode": "unavailable",
         "status": "not-applicable"
-      }
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "sourcePath": "examples/geoprocessing-job-runner",
-      "track": "recipe",
-      "supportTier": "supported",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:gp-runner:typecheck",
-            "npx vitest run test/geoprocessing-job-runner.test.ts",
-            "npm run demo:gp-runner:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:gp-runner:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
       }
     },
     {
@@ -599,7 +469,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:25:49.214Z"
+        "expiresAt": "2026-12-25T01:09:30.941Z"
       }
     },
     {
@@ -645,47 +515,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-12-13T01:24:33.180Z"
-      }
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "sourcePath": "examples/mcp-gis-assistant",
-      "track": "lab",
-      "supportTier": "experimental",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:mcp-gis-assistant:typecheck",
-            "npm run demo:mcp-gis-assistant:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:mcp-gis-assistant:build"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "demo-live",
-        "status": "planned"
+        "expiresAt": "2026-12-25T01:07:25.567Z"
       }
     },
     {
@@ -731,7 +561,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:05.668Z"
+        "expiresAt": "2026-12-25T01:09:54.854Z"
       }
     },
     {
@@ -938,50 +768,6 @@
       }
     },
     {
-      "id": "planning-permitting-workbench",
-      "sourcePath": "examples/planning-permitting-workbench",
-      "track": "lab",
-      "journeyId": "planning-permitting",
-      "supportTier": "supported",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:planning-workbench:typecheck",
-            "npm run demo:planning-workbench:build",
-            "npm run test:playwright:planning-workbench"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:planning-workbench:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": [
-            "npm run evidence:planning:live"
-          ]
-        }
-      },
-      "liveEvidence": {
-        "mode": "public-live",
-        "status": "planned"
-      }
-    },
-    {
       "id": "pmtiles-static",
       "sourcePath": "examples/pmtiles-static",
       "track": "recipe",
@@ -1111,46 +897,6 @@
       }
     },
     {
-      "id": "runtime-parity-showcase",
-      "sourcePath": "examples/runtime-parity-showcase",
-      "track": "lab",
-      "supportTier": "experimental",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:runtime-parity:typecheck",
-            "npm run demo:runtime-parity:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:runtime-parity:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
-      }
-    },
-    {
       "id": "service-explorer",
       "sourcePath": "examples/service-explorer",
       "track": "golden",
@@ -1196,7 +942,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-12-13T01:26:54.021Z"
+        "expiresAt": "2026-12-25T01:11:07.501Z"
       }
     },
     {
@@ -1242,6 +988,7 @@
       "id": "sketch-editing",
       "sourcePath": "examples/sketch-editing",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "supportTier": "experimental",
       "validationProfile": "browser-recipe",
       "gates": {
@@ -1371,46 +1118,6 @@
       }
     },
     {
-      "id": "storytelling-25d-map",
-      "sourcePath": "examples/storytelling-25d-map",
-      "track": "lab",
-      "supportTier": "supported",
-      "validationProfile": "browser-lab",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:25d:typecheck",
-            "npm run demo:25d:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:25d:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
-      }
-    },
-    {
       "id": "temporal-playback",
       "sourcePath": "examples/temporal-playback",
       "track": "recipe",
@@ -1448,46 +1155,6 @@
       "liveEvidence": {
         "mode": "unavailable",
         "status": "not-applicable"
-      }
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "track": "recipe",
-      "supportTier": "supported",
-      "validationProfile": "browser-recipe",
-      "gates": {
-        "packedBuild": true,
-        "browser": true,
-        "accessibility": true,
-        "console": true,
-        "responsive": true,
-        "screenshot": false,
-        "performance": false,
-        "liveEvidence": false
-      },
-      "commandPlan": {
-        "validation": {
-          "execution": "automatic",
-          "commands": [
-            "npm run demo:terrain-elevation:typecheck",
-            "npm run demo:terrain-elevation:build"
-          ]
-        },
-        "fixtureEvidence": {
-          "execution": "orchestrated",
-          "commands": [
-            "npm run demo:terrain-elevation:mock"
-          ]
-        },
-        "liveEvidence": {
-          "execution": "scheduled-only",
-          "commands": []
-        }
-      },
-      "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
       }
     }
   ]

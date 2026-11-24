@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   HonuaInMemoryWebComponentController,
   createHonuaWebComponentController,
-  layersFromMapPackage,
+  layersFromMapDocument,
 } from "../src/web-components/index.js";
 import type { HonuaWebComponentRuntimeLike } from "../src/web-components/index.js";
 
@@ -92,9 +92,9 @@ describe("HonuaInMemoryWebComponentController.moveLayer", () => {
   });
 });
 
-describe("layersFromMapPackage opacity extraction", () => {
+describe("layersFromMapDocument opacity extraction", () => {
   it("reads literal numeric paint opacity and ignores expressions", () => {
-    const layers = layersFromMapPackage([
+    const layers = layersFromMapDocument([
       { id: "fill", type: "fill", paint: { "fill-opacity": 0.35 } },
       { id: "line", type: "line", paint: { "line-opacity": ["get", "o"] } },
       { id: "plain", type: "circle" },

@@ -65,7 +65,7 @@ describe("OgcStylesClient", () => {
     const client = makeClient([], async () => jsonResponse({ id: "topo", not: "a style" }));
 
     await expect(new OgcStylesClient({ client }).getStyle("topo")).rejects.toMatchObject({
-      name: "HonuaMapPackageError",
+      name: "HonuaMapDocumentError",
       stage: "style-compose",
     });
   });

@@ -1,5 +1,7 @@
 # Bounded coverage quickstart
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This browser example runs both real coverage clients against a committed, version-pinned transport:
 
 - OGC API Coverages: `collections()` -> `collection()` -> `domainSet()` -> `rangeType()` -> `getCoverage()` with `properties=elevation`.

@@ -31,7 +31,7 @@ import type { HonuaClient } from "./client.js";
 import { HonuaCapabilityNotSupportedError } from "./errors.js";
 import { JobRunLifecycle } from "./job-run-lifecycle.js";
 import type { OgcApiLayoutMode } from "./ogc-endpoint-layout.js";
-import { encodeServiceIdPath } from "./path-utils.js";
+import { encodeServiceIdPath, numericPathSegment, restLayerPath } from "./path-utils.js";
 import type {
   ApplyEditsRequest,
   ExportMapRequest,
@@ -97,6 +97,11 @@ export type HonuaFeatureLayerQueryAllRequest = HonuaFeatureLayerQueryRequest & {
   pageSize?: number;
   /** Maximum number of pages to request. Defaults to 100. */
   maxPages?: number;
+};
+/** A full drain with an optional total row budget; streaming does not take one. */
+export type HonuaFeatureLayerQueryAllBudgetRequest = HonuaFeatureLayerQueryAllRequest & {
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
 };
 export type HonuaFeatureLayerQueryCountRequest = Pick<QueryFeaturesRequest, "where" | "method"> & {
   extraParams?: Record<string, string | number | boolean>;
@@ -180,6 +185,11 @@ export type HonuaMapLayerQueryRequest = Omit<MapLayerQueryRequest, "serviceId" |
 export type HonuaMapLayerQueryAllRequest = HonuaMapLayerQueryRequest & {
   pageSize?: number;
   maxPages?: number;
+};
+/** A full drain with an optional total row budget; streaming does not take one. */
+export type HonuaMapLayerQueryAllBudgetRequest = HonuaMapLayerQueryAllRequest & {
+  /** Maximum total rows to request; the last page asks only for the remainder. */
+  maxRecords?: number;
 };
 export type HonuaMapLayerQueryRelatedRecordsRequest = Omit<MapRelatedRecordsRequest, "serviceId" | "layerId">;
 export type HonuaMapLayerQueryCountRequest = Pick<MapLayerQueryRequest, "where" | "method"> & {
@@ -340,7 +350,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     }) as Promise<HonuaTypedQueryResponse<T>>;
   }
 
-  public async queryFeaturesAll(request: HonuaFeatureLayerQueryAllRequest = {}): Promise<HonuaTypedFeature<T>[]> {
+  public async queryFeaturesAll(request: HonuaFeatureLayerQueryAllBudgetRequest = {}): Promise<HonuaTypedFeature<T>[]> {
     const pageSize =
       typeof request.pageSize === "number" && Number.isFinite(request.pageSize)
         ? Math.max(1, Math.trunc(request.pageSize))
@@ -350,6 +360,8 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         ? Math.max(1, Math.trunc(request.maxPages))
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
+
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
 
     const features: HonuaTypedFeature<T>[] = [];
     let offset = startingOffset;
@@ -362,6 +374,11 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     // page repeat page one for a full/exact-page result set (issue #663).
     let previousPageSignature: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {
+      if (maxRecords !== undefined && features.length >= maxRecords) break;
+      // gRPC-web keeps full pages: a shorter last page would slip past the
+      // identical-page guard below when a facade ignores resultOffset.
+      const requested =
+        maxRecords === undefined || this.client.isGrpcWeb ? pageSize : Math.min(pageSize, maxRecords - features.length);
       const response = await this.queryFeatures({
         ...request,
         // Strip any caller-supplied `extraParams.resultOffset` /
@@ -370,7 +387,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
         // `extraParams` after the top-level fields on the REST transport).
         extraParams: withoutPagingExtraParams(request.extraParams),
         resultOffset: offset,
-        resultRecordCount: pageSize,
+        resultRecordCount: requested,
       });
 
       const pageFeatures = response.features ?? [];
@@ -401,12 +418,12 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
 
-    return features;
+    return maxRecords !== undefined && features.length > maxRecords ? features.slice(0, maxRecords) : features;
   }
 
   public async *queryFeaturesStream(
@@ -529,7 +546,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     assertFeatureServerH3SpatialAggregationRequest(normalizedRequest);
 
     const plan = createFeatureServerH3AggregationPlan(normalizedRequest, request.kRingDistance);
-    const path = `/rest/services/${encodeServiceIdPath(this.serviceId)}/FeatureServer/${this.layerId}/queryH3`;
+    const path = `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/queryH3`;
     const method = request.method ?? "POST";
     const response =
       method === "GET"
@@ -582,8 +599,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     request: HonuaFeatureLayerQueryAttachmentsRequest = {},
   ): Promise<HonuaQueryAttachmentsResponse> {
     const method: QueryMethod = request.method ?? "GET";
-    const path =
-      `/rest/services/${encodeServiceIdPath(this.serviceId)}` + `/FeatureServer/${this.layerId}/queryAttachments`;
+    const path = `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/queryAttachments`;
     const query = {
       ...(request.objectIds === undefined
         ? {}
@@ -622,9 +638,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
   public async listAttachments(request: HonuaFeatureLayerListAttachmentsRequest): Promise<HonuaAttachmentListResponse> {
     return this.client.request({
       method: "GET",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${request.objectId}/attachments`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(request.objectId, "objectId")}/attachments`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       signal: request.signal,
@@ -641,9 +655,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     });
     return this.client.request<HonuaDeleteAttachmentsResponse>({
       method: "POST",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${request.objectId}/deleteAttachments`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(request.objectId, "objectId")}/deleteAttachments`,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
@@ -656,9 +668,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     const form = buildAttachmentFormData(request);
     return this.client.request<HonuaAddAttachmentResponse>({
       method: "POST",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${request.objectId}/addAttachment`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(request.objectId, "objectId")}/addAttachment`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
@@ -673,9 +683,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
     form.set("attachmentId", String(request.attachmentId));
     return this.client.request<HonuaUpdateAttachmentResponse>({
       method: "POST",
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${request.objectId}/updateAttachment`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${numericPathSegment(request.objectId, "objectId")}/updateAttachment`,
       responseFormat: request.responseFormat ?? "json",
       query: request.extraParams,
       body: form,
@@ -686,9 +694,7 @@ export class HonuaFeatureLayer<T = Record<string, unknown>> {
   public async request<T = unknown>(request: HonuaFeatureLayerRequest): Promise<T> {
     return this.client.request<T>({
       ...request,
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/FeatureServer/${this.layerId}/${normalizeLayerPath(request.path)}`,
+      path: `${restLayerPath(this.serviceId, "FeatureServer", this.layerId)}/${normalizeLayerPath(request.path)}`,
     });
   }
 }
@@ -975,7 +981,7 @@ export class HonuaMapLayer {
     return this.queryRelatedRecords(request);
   }
 
-  public async queryFeaturesAll(request: HonuaMapLayerQueryAllRequest = {}): Promise<HonuaFeature[]> {
+  public async queryFeaturesAll(request: HonuaMapLayerQueryAllBudgetRequest = {}): Promise<HonuaFeature[]> {
     const pageSize =
       typeof request.pageSize === "number" && Number.isFinite(request.pageSize)
         ? Math.max(1, Math.trunc(request.pageSize))
@@ -986,15 +992,19 @@ export class HonuaMapLayer {
         : 100;
     const startingOffset = normalizeOffset(request.resultOffset);
 
+    const maxRecords = normalizeMaxRecords(request.maxRecords);
+
     const features: HonuaFeature[] = [];
     let offset = startingOffset;
     for (let page = 0; page < maxPages; page += 1) {
+      if (maxRecords !== undefined && features.length >= maxRecords) break;
+      const requested = maxRecords === undefined ? pageSize : Math.min(pageSize, maxRecords - features.length);
       const response = await this.queryFeatures({
         ...request,
         extraParams: {
           ...(request.extraParams ?? {}),
           resultOffset: offset,
-          resultRecordCount: pageSize,
+          resultRecordCount: requested,
         },
       });
 
@@ -1005,12 +1015,12 @@ export class HonuaMapLayer {
 
       features.push(...pageFeatures);
       offset += pageFeatures.length;
-      if (!responseExceededTransferLimit(response) && pageFeatures.length < pageSize) {
+      if (!responseExceededTransferLimit(response) && pageFeatures.length < requested) {
         break;
       }
     }
 
-    return features;
+    return maxRecords !== undefined && features.length > maxRecords ? features.slice(0, maxRecords) : features;
   }
 
   public async *queryFeaturesStream(
@@ -1094,9 +1104,7 @@ export class HonuaMapLayer {
   public async request<T = unknown>(request: HonuaMapLayerRequest): Promise<T> {
     return this.client.request<T>({
       ...request,
-      path:
-        `/rest/services/${encodeServiceIdPath(this.serviceId)}` +
-        `/MapServer/${this.layerId}/${normalizeLayerPath(request.path)}`,
+      path: `${restLayerPath(this.serviceId, "MapServer", this.layerId)}/${normalizeLayerPath(request.path)}`,
     });
   }
 }
@@ -2538,6 +2546,10 @@ function normalizeMaxPages(maxPages: number | undefined): number {
     return maxPages;
   }
   return 100;
+}
+
+function normalizeMaxRecords(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : undefined;
 }
 
 function normalizeOffset(offset: number | undefined): number {

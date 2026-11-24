@@ -1,13 +1,13 @@
 /**
  * Runtime wiring for persisted offline regions: `offline-region://` protocol
  * auto-registration (idempotent, evidence-driven, injectable), lossless and
- * reversible style tile-template rewriting, and `loadMapPackage` failing closed
+ * reversible style tile-template rewriting, and `loadMapDocument` failing closed
  * when a style addresses a region it has no handler for.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
   type MaplibreMap,
   type MaplibreProtocolRegistrar,
   OFFLINE_REGION_PROTOCOL_SCHEME,
@@ -15,7 +15,7 @@ import {
   ensureOfflineRegionProtocol,
   isOfflineRegionProtocolRegistered,
   isPmtilesProtocolRegistered,
-  loadMapPackage,
+  loadMapDocument,
   resetOfflineRegionProtocol,
   resetPmtilesProtocol,
   revertOfflineRegionStyleRewrite,
@@ -244,9 +244,9 @@ describe("offline region style rewriting", () => {
   });
 });
 
-describe("loadMapPackage offline-region binding", () => {
+describe("loadMapDocument offline-region binding", () => {
   const pkg = {
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     mapPackageId: "offline-region-package",
     sourceBindings: [],
     mapSpec: {
@@ -283,7 +283,7 @@ describe("loadMapPackage offline-region binding", () => {
   it("rewrites the named sources and registers the protocol before setStyle", async () => {
     const { registrar, added } = fakeRegistrar();
     const map = fakeMap();
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       offlineRegion: { tileHandler: TILE_HANDLER, sourceIds: ["incidents"], maplibre: registrar },
@@ -297,7 +297,7 @@ describe("loadMapPackage offline-region binding", () => {
   it("fails the load when a named source cannot be rewritten exactly", async () => {
     const map = fakeMap();
     await expect(
-      loadMapPackage(pkg, map, {
+      loadMapDocument(pkg, map, {
         client: makeMockClient({ routes: [] }),
         skipCompatibilityCheck: true,
         offlineRegion: { tileHandler: TILE_HANDLER, sourceIds: ["incidents", "missing"] },
@@ -317,7 +317,7 @@ describe("loadMapPackage offline-region binding", () => {
       },
     };
     await expect(
-      loadMapPackage(authored, map, { client: makeMockClient({ routes: [] }), skipCompatibilityCheck: true }),
+      loadMapDocument(authored, map, { client: makeMockClient({ routes: [] }), skipCompatibilityCheck: true }),
     ).rejects.toMatchObject({ stage: "style-compose" });
     expect(map.style).toBeUndefined();
     expect(isOfflineRegionProtocolRegistered()).toBe(false);
@@ -333,7 +333,7 @@ describe("loadMapPackage offline-region binding", () => {
         sources: { incidents: { type: "vector" as const, tiles: ["offline-region://default/{z}/{x}/{y}"] } },
       },
     };
-    const runtime = await loadMapPackage(authored, map, {
+    const runtime = await loadMapDocument(authored, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
       offlineRegion: { tileHandler: TILE_HANDLER, maplibre: registrar },
@@ -346,7 +346,7 @@ describe("loadMapPackage offline-region binding", () => {
 
   it("leaves a package that never mentions a region completely alone", async () => {
     const map = fakeMap();
-    const runtime = await loadMapPackage(pkg, map, {
+    const runtime = await loadMapDocument(pkg, map, {
       client: makeMockClient({ routes: [] }),
       skipCompatibilityCheck: true,
     });

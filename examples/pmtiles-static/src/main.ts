@@ -4,10 +4,10 @@ import "../../shared/maplibre-vite-worker.js";
 import { type PmtilesArchiveDescription, type PmtilesModuleLike, describePmtilesArchive } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   isPmtilesProtocolRegistered,
-  loadMapPackage,
+  loadMapDocument,
 } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import { PMTiles } from "pmtiles";
@@ -83,9 +83,9 @@ function renderArchive(info: PmtilesArchiveDescription): void {
   }
 }
 
-function buildPackage(): HonuaMapPackage {
+function buildPackage(): HonuaMapDocument {
   return {
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     mapPackageId: "pmtiles-static",
     // A single PMTiles binding — no protocol-backed sources, so this loads with
     // no Honua server. `sourceType: "raster"` marks the archive as raster tiles.
@@ -114,7 +114,7 @@ function buildPackage(): HonuaMapPackage {
 async function main(): Promise<void> {
   const map = new maplibregl.Map({
     container: "map",
-    // Start from an empty style; `loadMapPackage` composes and applies the real
+    // Start from an empty style; `loadMapDocument` composes and applies the real
     // one (including auto-registering the pmtiles:// protocol).
     style: { version: 8, sources: {}, layers: [] },
     center: [-122.35, 37.6],
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
 
   await new Promise<void>((resolve) => map.on("load", () => resolve()));
 
-  const runtime = await loadMapPackage(buildPackage(), map, {
+  const runtime = await loadMapDocument(buildPackage(), map, {
     client,
     skipCompatibilityCheck: true,
   });

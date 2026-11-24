@@ -193,6 +193,7 @@ try {
       "@honua/react": `file:${packageDirs["@honua/react"]}`,
       react: ROOT_PACKAGE_JSON.devDependencies.react,
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
+      "@types/react": ROOT_PACKAGE_JSON.devDependencies["@types/react"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
       // The web-components entry statically imports maplibre-gl. It is an
@@ -210,7 +211,12 @@ try {
     "utf8",
   );
 
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "dist/test/helpers/grpc-wire.js"),
+    path.join(tempRoot, "grpc-wire.mjs"),
+  );
   const smokeScript = `
+import { wireResponse } from "./grpc-wire.mjs";
 import {
   HonuaClient,
   HonuaGeometryService,
@@ -233,9 +239,11 @@ import {
   HONUA_CONTROL_PLANE_BASE_PATH,
   createHonuaControlPlane,
 } from "@honua/app-platform/control-plane";
+import { createHonuaStudioLifecycleClient } from "@honua/app-platform/studio";
+import { HonuaClient as AppPlatformHonuaClient } from "./node_modules/@honua/app-platform/core/client.js";
 import {
-  createFixtureSavedMapCollaborationTransport,
-  createHonuaSavedMapCollaboration,
+  createFixtureMapCollaborationTransport,
+  createHonuaMapCollaboration,
 } from "@honua/app-platform/collaboration";
 import {
   parseEmbedTokenFromFragment,
@@ -297,8 +305,8 @@ import {
   createHonuaController,
 } from "@honua/app-platform/app-controller";
 import {
-  createHonuaAppWorkspace,
-  selectHonuaAppWorkspaceMetadataCacheModel,
+  createHonuaAppStore,
+  selectHonuaAppStoreMetadataCacheModel,
 } from "@honua/app-platform/app-workspace";
 import {
   CESIUM_SCENE_CAPABILITIES,
@@ -307,10 +315,10 @@ import {
   addCesiumImageryLayer,
   addCesiumModel,
   applyCesiumScenePrimitives,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
   mountScenePrimitivesToCesium,
-  sceneWorkspaceIntentFromAdapterEvent,
+  sceneStoreIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
 import { HONUA_OFFLINE_REGION_VERSION, planOfflineRegionAdmission } from "@honua/sdk/offline";
@@ -325,7 +333,7 @@ import {
 import { DECK_GL_ADAPTER_CONTRACT_VERSION, bindGeoArrowPointBatchToDeckGl } from "@honua/sdk/deckgl";
 import { KEPLER_BRIDGE_CONTRACT_VERSION, projectResultToKeplerDataset } from "@honua/sdk/kepler";
 import { validateHonuaStyle } from "@honua/sdk/style";
-import { loadMapPackage, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
+import { loadMapDocument, validateRuntimeStyleSpec } from "@honua/sdk/runtime";
 import {
   REALTIME_DURABLE_CHECKPOINT_VERSION,
   createResumableRealtimeSubscription,
@@ -349,7 +357,7 @@ import { projectBuildSpecToGeneratedAppManifest } from "@honua/app-platform/gene
 import { HONUA_QUERY_PACKAGE_FORMAT_V1, toStudioValidationResponse } from "@honua/app-platform/studio";
 import { OPERATOR_EXECUTION_OUTPUT_KEY } from "@honua/app-platform/operator";
 import { ChatController } from "@honua/app-platform/operator/controllers";
-import { OperatorWorkspace } from "@honua/app-platform/operator/workspace";
+import { OperatorShell } from "@honua/app-platform/operator/workspace";
 import { DEFAULT_OPERATOR_TOKENS } from "@honua/app-platform/operator/theming";
 import { DEFAULT_MESSAGES } from "@honua/app-platform/operator/i18n";
 import {
@@ -456,22 +464,6 @@ if (typeof connect !== "function") throw new Error("connect export missing from 
   // Exercise the packed SDK's actual lazy Buf + Connect path without relying
   // on an external Honua deployment. The fixture speaks the gRPC-Web framing
   // protocol and returns an empty, successful QueryFeaturesResponse.
-  const frame = (flag, payload) => {
-    const framed = new Uint8Array(5 + payload.byteLength);
-    framed[0] = flag;
-    new DataView(framed.buffer).setUint32(1, payload.byteLength, false);
-    framed.set(payload, 5);
-    return framed;
-  };
-  const concatenate = (...parts) => {
-    const joined = new Uint8Array(parts.reduce((length, part) => length + part.byteLength, 0));
-    let offset = 0;
-    for (const part of parts) {
-      joined.set(part, offset);
-      offset += part.byteLength;
-    }
-    return joined;
-  };
   let observedRequest;
   const grpcClient = new HonuaClient({
     baseUrl: "https://grpc.example.test",
@@ -491,12 +483,7 @@ if (typeof connect !== "function") throw new Error("connect export missing from 
         url: request?.url ?? String(input),
       };
 
-      const message = frame(0, new Uint8Array());
-      const trailers = frame(0x80, new TextEncoder().encode("grpc-status: 0\\r\\n"));
-      return new Response(concatenate(message, trailers), {
-        status: 200,
-        headers: { "content-type": "application/grpc-web+proto" },
-      });
+      return wireResponse(new Uint8Array());
     },
   });
   const result = await grpcClient.queryFeatures({
@@ -693,10 +680,10 @@ if (HONUA_CONTROL_PLANE_BASE_PATH !== "/api/v1/admin")
   throw new Error("HONUA_CONTROL_PLANE_BASE_PATH export missing from @honua/sdk/control-plane");
 if (typeof createHonuaControlPlane !== "function")
   throw new Error("createHonuaControlPlane export missing from @honua/sdk/control-plane");
-if (typeof createHonuaSavedMapCollaboration !== "function")
-  throw new Error("createHonuaSavedMapCollaboration export missing from @honua/sdk/collaboration");
-if (typeof createFixtureSavedMapCollaborationTransport !== "function")
-  throw new Error("createFixtureSavedMapCollaborationTransport export missing from @honua/sdk/collaboration");
+if (typeof createHonuaMapCollaboration !== "function")
+  throw new Error("createHonuaMapCollaboration export missing from @honua/sdk/collaboration");
+if (typeof createFixtureMapCollaborationTransport !== "function")
+  throw new Error("createFixtureMapCollaborationTransport export missing from @honua/sdk/collaboration");
 if (typeof parseEmbedTokenFromFragment !== "function" || typeof toDcatDataset !== "function")
   throw new Error("share contract exports missing from @honua/sdk/share");
 if (parseEmbedTokenFromFragment("https://app.example/embed?embed_token=leaked").ok)
@@ -755,14 +742,14 @@ if (typeof createHonuaController !== "function")
   throw new Error("createHonuaController export missing from @honua/sdk/app-controller");
 if (HONUA_CONTROLLER_SNAPSHOT_VERSION !== 1)
   throw new Error("HONUA_CONTROLLER_SNAPSHOT_VERSION export missing from @honua/sdk/app-controller");
-if (typeof createHonuaAppWorkspace !== "function")
-  throw new Error("createHonuaAppWorkspace export missing from @honua/sdk/app-workspace");
-if (typeof selectHonuaAppWorkspaceMetadataCacheModel !== "function")
-  throw new Error("selectHonuaAppWorkspaceMetadataCacheModel export missing from @honua/sdk/app-workspace");
-if (typeof createSceneWorkspace !== "function")
-  throw new Error("createSceneWorkspace export missing from @honua/sdk/scene-workspace");
-if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
-  throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
+if (typeof createHonuaAppStore !== "function")
+  throw new Error("createHonuaAppStore export missing from @honua/sdk/app-workspace");
+if (typeof selectHonuaAppStoreMetadataCacheModel !== "function")
+  throw new Error("selectHonuaAppStoreMetadataCacheModel export missing from @honua/sdk/app-workspace");
+if (typeof createSceneStore !== "function")
+  throw new Error("createSceneStore export missing from @honua/sdk/scene-workspace");
+if (typeof sceneStoreIntentFromAdapterEvent !== "function")
+  throw new Error("sceneStoreIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
 if (typeof addCesiumImageryLayer !== "function" || !CESIUM_SCENE_CAPABILITIES.imagery?.protocols.includes("wmts"))
   throw new Error("Cesium imagery exports missing from @honua/app-platform/scene-workspace");
 if (
@@ -851,8 +838,8 @@ if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")
   throw new Error("validateHonuaStyle export missing from @honua/sdk/style");
-if (typeof loadMapPackage !== "function")
-  throw new Error("loadMapPackage export missing from @honua/sdk/runtime");
+if (typeof loadMapDocument !== "function")
+  throw new Error("loadMapDocument export missing from @honua/sdk/runtime");
 if (typeof validateRuntimeStyleSpec !== "function")
   throw new Error("validateRuntimeStyleSpec export missing from @honua/sdk/runtime");
 if (typeof createResumableRealtimeSubscription !== "function")
@@ -929,8 +916,8 @@ if (OPERATOR_EXECUTION_OUTPUT_KEY !== "result")
   throw new Error("OPERATOR_EXECUTION_OUTPUT_KEY export missing from @honua/sdk/operator");
 if (typeof ChatController !== "function")
   throw new Error("ChatController export missing from @honua/sdk/operator/controllers");
-if (typeof OperatorWorkspace !== "function")
-  throw new Error("OperatorWorkspace export missing from @honua/sdk/operator/workspace");
+if (typeof OperatorShell !== "function")
+  throw new Error("OperatorShell export missing from @honua/sdk/operator/workspace");
 if (typeof DEFAULT_OPERATOR_TOKENS !== "object" || DEFAULT_OPERATOR_TOKENS === null)
   throw new Error("DEFAULT_OPERATOR_TOKENS export missing from @honua/sdk/operator/theming");
 if (typeof DEFAULT_MESSAGES !== "object" || DEFAULT_MESSAGES === null)
@@ -1166,11 +1153,29 @@ if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buff
     throw new Error("LocatorSearchSourceCompat did not honor the provider suggest capability declaration");
 }
 
+if (AppPlatformHonuaClient !== HonuaClient) {
+  throw new Error("@honua/app-platform must forward HonuaClient to the @honua/sdk peer constructor");
+}
+{
+  const studioLifecycle = createHonuaStudioLifecycleClient({
+    client: new HonuaClient({ baseUrl: "https://example.invalid" }),
+  });
+  if (typeof studioLifecycle.drafts?.list !== "function") {
+    throw new Error("createHonuaStudioLifecycleClient did not accept @honua/sdk HonuaClient");
+  }
+}
+
 console.log("splitPackageSmoke=ok");
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke.mjs"), smokeScript, "utf8");
 
   const declarationSmoke = `
+import { HonuaClient } from "@honua/sdk";
+import { createHonuaApp } from "@honua/app-platform/app";
+import { createHonuaAdminClient, createHonuaControlPlane } from "@honua/app-platform/control-plane";
+import { createHonuaOperate } from "@honua/app-platform/operate";
+import { createHonuaStudioLifecycleClient } from "@honua/app-platform/studio";
+import type { HonuaProviderProps } from "@honua/react";
 import type { SourceDescriptor as ClientSourceDescriptor } from "./node_modules/@honua/sdk-client-compat/contract/index.js";
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
@@ -1194,6 +1199,14 @@ export const acceptsSceneSpatialReference = (
   capabilities: SceneSpatialCapabilities,
   fidelity: SceneSpatialFidelity,
 ): string => \`\${primitive.crs ?? ""}:\${primitive.verticalDatum ?? ""}:\${capabilities.exactHorizontalCrs?.[0] ?? ""}:\${fidelity}\`;
+
+const coreClient = new HonuaClient({ baseUrl: "https://example.invalid" });
+export const studioLifecycleFromCoreClient = createHonuaStudioLifecycleClient({ client: coreClient });
+export const controlPlaneFromCoreClient = createHonuaControlPlane({ client: coreClient });
+export const operateFromCoreClient = createHonuaOperate({ client: coreClient });
+export const adminFromCoreOptions = createHonuaAdminClient({ baseUrl: "https://example.invalid" });
+export const appFromCoreOptions = createHonuaApp({ baseUrl: "https://example.invalid" });
+export const reactProviderCoreClient: HonuaProviderProps["client"] = coreClient;
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke-types.ts"), declarationSmoke, "utf8");
   fs.writeFileSync(
@@ -1201,7 +1214,7 @@ export const acceptsSceneSpatialReference = (
     `${JSON.stringify(
       {
         compilerOptions: {
-          lib: ["ES2022", "DOM", "DOM.Iterable"],
+          lib: ["ES2022", "ESNext.Disposable", "DOM", "DOM.Iterable"],
           module: "NodeNext",
           moduleResolution: "NodeNext",
           noEmit: true,
@@ -1226,6 +1239,21 @@ export const acceptsSceneSpatialReference = (
     [path.join(PROJECT_ROOT, "node_modules", "typescript", "bin", "tsc"), "--project", "tsconfig.json"],
     tempRoot,
   );
+  // Bundle a clean browser consumer: Node import smoke does not validate Vite's
+  // complete static web-components dependency graph (terra-draw and PMTiles).
+  const browserEntry = path.join(tempRoot, "browser-entry.mjs");
+  fs.writeFileSync(browserEntry, `import { createHonuaFeatureTable } from "@honua/app-platform/web-components";
+    globalThis.createHonuaFeatureTable = createHonuaFeatureTable;\n`);
+  runCommand(process.execPath, ["--input-type=module", "--eval", `
+    import { build } from ${JSON.stringify(import.meta.resolve("vite"))};
+    await build(${JSON.stringify({
+      root: tempRoot,
+      configFile: false,
+      logLevel: "error",
+      build: { write: false, lib: { entry: browserEntry, formats: ["es"] } },
+    })});
+  `], tempRoot);
+  process.stdout.write("splitPackageBrowserBundle=ok\n");
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
   fs.copyFileSync(

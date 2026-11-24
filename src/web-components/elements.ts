@@ -1,13 +1,14 @@
+import {
+  type SnapScreenPoint,
+  type SnappingConfig,
+  createSnapIndex,
+  resolveSnapCandidate,
+  resolveSnappingConfig,
+} from "../contract/edit-snapping.js";
 import type { HonuaClient } from "../core/client.js";
 import type { FilterClause } from "../filter-registry/index.js";
-import type { MapPackageLocator } from "../runtime/index.js";
-import {
-  type HistogramStats,
-  type SnapPoint,
-  histogramBins,
-  histogramRangeFilter,
-  snapVertex,
-} from "../widget-capabilities.js";
+import type { MapDocumentLocator } from "../runtime/index.js";
+import { type HistogramStats, histogramBins, histogramRangeFilter } from "../widget-capabilities.js";
 import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { createHonuaWebComponentController } from "./controller.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
@@ -135,6 +136,10 @@ const globalDom = globalThis as typeof globalThis & {
   customElements?: CustomElementRegistry;
 };
 
+/** How far, in CSS pixels, a touch or pen press may travel and still count as a tap on a table row. */
+const FEATURE_TABLE_TAP_SLOP_PX = 10;
+/** How long, after a touch or pen tap, the click the browser synthesises for it is still that tap's click. */
+const FEATURE_TABLE_TAP_CLICK_WINDOW_MS = 500;
 const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);
 
 abstract class HonuaElementBase<T = Record<string, unknown>> extends HTMLElementBase {
@@ -292,7 +297,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     this.#packageLoadError = undefined;
     this.#packageLoading = Boolean(this.#packageUrl);
     this.render();
-    if (this.#packageUrl) void this.loadPackageFromUrl(this.#packageUrl);
+    if (this.#packageUrl) void this.loadMapDocumentFromUrl(this.#packageUrl);
   }
 
   public get mapPackage(): CreateHonuaWebComponentControllerOptions<T>["mapPackage"] {
@@ -356,7 +361,7 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   public connectedCallback(): void {
     super.connectedCallback();
     this.ensureController();
-    if (this.#packageUrl && !this.state?.mapPackage) void this.loadPackageFromUrl(this.#packageUrl);
+    if (this.#packageUrl && !this.state?.mapPackage) void this.loadMapDocumentFromUrl(this.#packageUrl);
     void this.syncRenderer();
   }
 
@@ -475,19 +480,19 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
     await this.#renderer.applyState(state);
   }
 
-  private async loadPackageFromUrl(locator: MapPackageLocator): Promise<void> {
+  private async loadMapDocumentFromUrl(locator: MapDocumentLocator): Promise<void> {
     const token = ++this.#packageLoadToken;
     this.#packageLoading = true;
     this.#packageLoadError = undefined;
     this.render();
     try {
-      const [{ fetchMapPackage }, { HonuaClient }] = await Promise.all([
+      const [{ fetchMapDocument }, { HonuaClient }] = await Promise.all([
         import("../runtime/index.js"),
         import("../core/client.js"),
       ]);
       if (token !== this.#packageLoadToken) return;
       const client = this.#client ?? new HonuaClient({ baseUrl: browserOrigin() });
-      const result = await fetchMapPackage(locator, {
+      const result = await fetchMapDocument(locator, {
         client,
         requireStyleRefResolution: false,
         allowInvalid: false,
@@ -513,8 +518,8 @@ export class HonuaMapElement<T = Record<string, unknown>> extends HonuaElementBa
   private mapStatusText(state: HonuaWebComponentState<T> | undefined): string {
     if (this.#packageLoadError) return this.#packageLoadError;
     if (state?.mapPackage) return "";
-    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map package";
-    return this.#messages.noPackage ?? "No map package";
+    if (this.#packageLoading || this.#packageUrl) return this.#messages.loadingPackage ?? "Loading map document";
+    return this.#messages.noPackage ?? "No map document";
   }
 }
 
@@ -1265,7 +1270,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
       row.addEventListener("keydown", (event) => this.#onRowKeydown(event as KeyboardEvent, row));
     }
     for (const cell of root.querySelectorAll<HTMLTableCellElement>('tbody [role="gridcell"]')) {
-      cell.addEventListener("pointerdown", () => this.#selectCellFromPointer(cell));
+      cell.addEventListener("pointerdown", (event) => this.#onCellPointerdown(event as PointerEvent, cell));
       cell.addEventListener("focus", () => this.#focusCell(cell));
       cell.addEventListener("keydown", (event) => this.#onGridKeydown(event as KeyboardEvent, cell));
     }
@@ -1311,38 +1316,66 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   }
 
   /**
-   * Pointer selection has to happen on pointerdown. Focus publishes a new
+   * Mouse selection has to happen on pointerdown. Focus publishes a new
    * shadow tree before click, so the pressed cell is gone by the time click
    * would have selected it. The click that follows pointerup is the same
    * gesture and must not select a second time.
+   *
+   * Touch and pen presses also start scrolls, so they select only on a
+   * completed tap: the same pointer released within the slop, never cancelled.
    */
-  #selectCellFromPointer(cell: HTMLTableCellElement): void {
+  #onCellPointerdown(event: PointerEvent, cell: HTMLTableCellElement): void {
     const row = cell.closest<HTMLTableRowElement>("tr");
     if (!row) return;
+    const tap = event.pointerType === "touch" || event.pointerType === "pen";
+    if (!tap) this.#selectCell(row, cell);
+    let moved = false;
+    const outsideSlop = (next: PointerEvent) =>
+      Math.hypot(next.clientX - event.clientX, next.clientY - event.clientY) > FEATURE_TABLE_TAP_SLOP_PX;
+    const onMove = (next: Event) => {
+      if ((next as PointerEvent).pointerId === event.pointerId && outsideSlop(next as PointerEvent)) moved = true;
+    };
+    const onUp = (up: PointerEvent) => {
+      if (tap && !moved && !outsideSlop(up)) this.#selectCell(row, cell);
+    };
+    this.#trackPointerGesture(event, onMove, onUp);
+  }
+
+  #selectCell(row: HTMLTableRowElement, cell: HTMLTableCellElement): void {
     const rowKey = row.dataset.rowKey;
     const field = cell.dataset.field;
-    const gesture = ++this.#pointerGesture;
-    this.#ignoreClickSelection = true;
     this.selectRow(row);
     if (this.#table && rowKey && field) {
       this.#table.setFocus({ rowKey, field });
       this.#restoreFocusedCell();
     }
+  }
+
+  #trackPointerGesture(down: PointerEvent, onMove: (event: Event) => void, onUp: (event: PointerEvent) => void): void {
     this.#endPointerGesture?.();
+    const gesture = ++this.#pointerGesture;
+    this.#ignoreClickSelection = true;
     const doc = this.ownerDocument;
-    const release = () => {
+    const tap = down.pointerType === "touch" || down.pointerType === "pen";
+    const clickWindowMs = tap ? FEATURE_TABLE_TAP_CLICK_WINDOW_MS : 0;
+    const release = (event?: Event) => {
+      if (event && (event as PointerEvent).pointerId !== down.pointerId) return;
+      doc.removeEventListener("pointermove", onMove);
       doc.removeEventListener("pointerup", release);
       doc.removeEventListener("pointercancel", release);
       if (this.#endPointerGesture === release) this.#endPointerGesture = undefined;
+      if (event?.type === "pointerup") onUp(event as PointerEvent);
       // The click is dispatched after pointerup listeners return. A held press
       // must not clear the flag before that click, and a press that never
       // produces a click must not swallow a later one. The release can land
-      // outside the host, so the document observes it.
+      // outside the host, so the document observes it. A touch or pen click
+      // comes from a later tap gesture, so its window is longer.
       setTimeout(() => {
         if (this.#pointerGesture === gesture) this.#ignoreClickSelection = false;
-      }, 0);
+      }, clickWindowMs);
     };
     this.#endPointerGesture = release;
+    doc.addEventListener("pointermove", onMove);
     doc.addEventListener("pointerup", release);
     doc.addEventListener("pointercancel", release);
   }
@@ -2491,6 +2524,17 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
 }
 
 /**
+ * Snapping for `<honua-sketch-control>`: the canonical {@link SnappingConfig},
+ * with `distance` accepted as an alias of `tolerance` (pixels). Snapping is
+ * off unless `enabled` is true.
+ */
+type HonuaSketchSnappingOptions = Partial<SnappingConfig> & { distance?: number };
+
+const SKETCH_SNAP_SOURCE_ID = "sketch";
+const SKETCH_SNAP_FEATURE_ID = "vertices";
+const screenSpace = (position: readonly [number, number]): SnapScreenPoint => ({ x: position[0], y: position[1] });
+
+/**
  * `<honua-sketch-control>` renders point/line/polygon drawing modes.
  *
  * Like {@link HonuaMeasureControlElement}, the control is only interactive when
@@ -2498,12 +2542,6 @@ export class HonuaMeasureControlElement<T = Record<string, unknown>> extends Hon
  * {@link CreateHonuaWebComponentControllerOptions}). Without one the modes
  * render disabled with a "configure a provider" affordance.
  */
-type HonuaSketchSnappingOptions = {
-  enabled?: boolean;
-  distance?: number;
-  tolerance?: number;
-};
-
 export class HonuaSketchControlElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
     return ["for", "label"];
@@ -2511,10 +2549,11 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
 
   #mode: HonuaSketchMode = "off";
   #messages: HonuaSketchControlMessages = {};
-  #vertices: SnapPoint[] = [];
-  #snapEnabled = false;
-  #snapTolerance = 1;
+  #vertices: Array<[number, number]> = [];
+  readonly #sketchSnapIndex = createSnapIndex();
   #snappingOptions: HonuaSketchSnappingOptions | undefined;
+  #snappingAssigned = false;
+  #snappingConfig: SnappingConfig = resolveSnappingConfig({ enabled: false });
 
   public get snappingOptions(): HonuaSketchSnappingOptions | undefined {
     return this.#snappingOptions;
@@ -2522,16 +2561,36 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
 
   public set snappingOptions(options: HonuaSketchSnappingOptions | undefined) {
     this.#snappingOptions = options;
-    this.#snapEnabled = options?.enabled === true;
-    const tolerance = options?.tolerance ?? options?.distance;
-    if (typeof tolerance === "number" && Number.isFinite(tolerance)) this.#snapTolerance = tolerance;
+    this.#snappingAssigned = true;
+    const { distance, ...config } = options ?? {};
+    this.#snappingConfig = resolveSnappingConfig({
+      ...config,
+      enabled: options?.enabled === true,
+      ...(config.tolerance === undefined && distance !== undefined ? { tolerance: distance } : {}),
+    });
+    this.#forwardSnapping();
   }
 
-  /** Places a vertex, snapping to an existing one when snapping is on and the pointer is inside the tolerance. */
-  public addVertex(pointer: SnapPoint): SnapPoint {
-    const snapped = snapVertex(pointer, this.#vertices, this.#snapEnabled, this.#snapTolerance);
-    this.#vertices.push({ x: snapped.x, y: snapped.y });
-    return snapped;
+  /**
+   * Places a vertex (screen pixels), snapping it to the vertices and edges
+   * already placed in this sketch through the shared snapping engine.
+   */
+  public addVertex(pointer: SnapScreenPoint): { x: number; y: number } {
+    const position: [number, number] = [pointer.x, pointer.y];
+    const resolution = resolveSnapCandidate(
+      this.#sketchSnapIndex,
+      { point: pointer, position, project: screenSpace },
+      this.#snappingConfig,
+    );
+    const placed: [number, number] = resolution.candidate
+      ? [resolution.candidate.position[0], resolution.candidate.position[1]]
+      : position;
+    this.#vertices.push(placed);
+    this.#sketchSnapIndex.upsertFeature(SKETCH_SNAP_SOURCE_ID, {
+      id: SKETCH_SNAP_FEATURE_ID,
+      geometry: { type: "LineString", coordinates: this.#vertices },
+    });
+    return { x: placed[0], y: placed[1] };
   }
 
   /** Caller-supplied localized status, action, and empty-state messages. */
@@ -2550,7 +2609,13 @@ export class HonuaSketchControlElement<T = Record<string, unknown>> extends Honu
   }
 
   protected controllerChanged(): void {
+    this.#forwardSnapping();
     this.render();
+  }
+
+  #forwardSnapping(): void {
+    if (!this.#snappingAssigned) return;
+    this.controller?.setSketchSnapping?.(this.#snappingConfig);
   }
 
   protected render(): void {
@@ -3042,7 +3107,7 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
 
 /**
  * Registers every custom element this kit owns. Skips tags already defined.
- * Called automatically on import of `./index.js` (`@honua/sdk-js/web-components`)
+ * Called automatically on import of `./index.js` (`@honua/app-platform/web-components`)
  * — NOT on import of this module, which stays side-effect-free (issue #679).
  */
 export function defineHonuaWebComponents(registry = globalDom.customElements): void {
@@ -3074,7 +3139,7 @@ function defineIfMissing(registry: CustomElementRegistry, tagName: string, ctor:
 // this module must stay side-effect-free on import so `../controls/registry.js`
 // can dynamically `import()` it for single-tag registration without that
 // import silently claiming every tag the kit owns. The blanket
-// auto-registration importing `@honua/sdk-js/web-components` triggers lives
+// auto-registration importing `@honua/app-platform/web-components` triggers lives
 // in `./index.js`, which is every existing consumer's actual entry point —
 // see that module for the `defineHonuaWebComponents()` call.
 

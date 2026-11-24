@@ -56,6 +56,7 @@ import {
   runOfflineReloadBenchmark,
   runRealtimeReconnectBenchmark,
 } from "./resilience-bench.js";
+import { runSpatialAnalyticsCycles } from "./spatial-analytics-bench.js";
 import { runStreamBench } from "./stream-bench.js";
 
 type Direction = "lower-is-better" | "higher-is-better";
@@ -117,7 +118,16 @@ interface ColumnarProducerCorpusScenario extends ColumnarProducerBenchmarkOption
   kind: "columnar-producer";
 }
 
+interface SpatialAnalyticsCorpusScenario {
+  id: string;
+  kind: "spatial-analytics";
+  operationCount: number;
+  warmupRuns: number;
+  measurementRuns: number;
+}
+
 type CorpusScenario =
+  | SpatialAnalyticsCorpusScenario
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
   | RealtimeReconnectCorpusScenario
@@ -395,7 +405,7 @@ function validateCorpus(value: unknown): Corpus {
       ) {
         throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
       }
-    } else if (scenario.kind === "query-resource-handle") {
+    } else if (scenario.kind === "query-resource-handle" || scenario.kind === "spatial-analytics") {
       allowedKeys = new Set([...commonKeys, "operationCount"]);
       if (!positive(scenario.operationCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else if (scenario.kind === "columnar-data-plane") {
@@ -790,7 +800,32 @@ function columnarProducerResult(
   };
 }
 
+async function runSpatialAnalyticsScenario(scenario: SpatialAnalyticsCorpusScenario): Promise<ScenarioResult> {
+  for (let run = 0; run < scenario.warmupRuns; run++) await runSpatialAnalyticsCycles(scenario.operationCount);
+  const results = [];
+  for (let run = 0; run < scenario.measurementRuns; run++) {
+    results.push(await runSpatialAnalyticsCycles(scenario.operationCount));
+  }
+  const samples = results.map(({ totalDurationMs }) => ({
+    totalDurationMs,
+    operationsPerSecond: (scenario.operationCount * 1_000) / totalDurationMs,
+  }));
+  const { id, kind, ...parameters } = scenario;
+  return {
+    id,
+    kind,
+    parameters,
+    samples,
+    summary: {
+      totalDurationMs: summarizeSamples(samples.map((sample) => sample.totalDurationMs)),
+      operationsPerSecond: summarizeSamples(samples.map((sample) => sample.operationsPerSecond)),
+    },
+    invariants: { passed: results.every((result) => result.rowsValid && result.fingerprintCount === 1) },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
+  if (scenario.kind === "spatial-analytics") return runSpatialAnalyticsScenario(scenario);
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
   if (scenario.kind === "realtime-reconnect") {

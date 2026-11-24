@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import os from "node:os";
 import { chromium } from "@playwright/test";
-import { startQuickstartFixtureServer } from "../../examples/maplibre-quickstart/mock-server.mjs";
+import { FIXTURE_BUILD_ENV, startQuickstartFixtureServer } from "../../examples/maplibre-quickstart/mock-server.mjs";
 
 // CPU costs from cold browser contexts through the first usable map frame. These
 // are fixture performance measurements, never live-server certification evidence.
-export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cpuThrottle = 4 } = {}) {
+export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cpuThrottle = 4, basemap } = {}) {
   assert.ok(Number.isSafeInteger(repetitions) && repetitions >= 1 && repetitions <= 5, "execution measurement requires 1–5 runs");
   assert.ok(Number.isFinite(cpuThrottle) && cpuThrottle >= 1 && cpuThrottle <= 6, "CPU throttle must be between 1 and 6");
   const fixture = await startQuickstartFixtureServer({ build: false, staticRoot });
+  const basemapUrl = new URL(FIXTURE_BUILD_ENV.VITE_HONUA_QUICKSTART_BASEMAP_STYLE, fixture.url).href;
   let browser;
   try {
     browser = await chromium.launch();
@@ -20,6 +21,9 @@ export async function measureFirstMapExecution(staticRoot, { repetitions = 3, cp
         const failures = [];
         page.on("pageerror", (error) => failures.push(error.message));
         await context.route("**/*", (route) => {
+          if (basemap && route.request().method() === "GET" && route.request().url() === basemapUrl) {
+            return route.fulfill({ json: basemap });
+          }
           const url = new URL(route.request().url());
           return /^https?:$/.test(url.protocol) && url.origin !== new URL(fixture.url).origin ? route.abort("blockedbyclient") : route.continue();
         });

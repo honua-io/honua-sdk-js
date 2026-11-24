@@ -1,5 +1,7 @@
 # Linked Spatial Analysis Workbench
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Flagship explain → accept → execute journey for issue #407. One immutable
 query-plan fingerprint carries the selected AOI, risk filter, map, feature
 table, risk chart, execution evidence, workspace export, and reusable output

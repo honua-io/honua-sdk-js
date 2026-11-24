@@ -29,7 +29,11 @@ export function validateInstalledManifest({ packageRoot, packageJson, entrypoint
 
   for (const entrypoint of entrypoints) {
     const exported = packageJson.exports?.[entrypoint.subpath];
-    for (const condition of ["default", "types"]) {
+    const runtimeCondition = entrypoint.subpath === "./geoparquet/node" ? "node" : "default";
+    if (runtimeCondition === "node" && Object.keys(exported ?? {}).sort().join(",") !== "node,types") {
+      failures.push(`${entrypoint.subpath} installed export must declare exactly node and types`);
+    }
+    for (const condition of [runtimeCondition, "types"]) {
       const target = exportTarget(exported, condition);
       if (typeof target !== "string") {
         failures.push(`${entrypoint.subpath} installed export has no ${condition} target`);
@@ -200,12 +204,15 @@ export function adminJourneyCliArgs(entry) {
  * Probe source that drives each journey operation through the packed `HonuaAdminClient`.
  *
  * The CLI's `--dry-run` returns the operation descriptor before the client interpolates the
- * path, so it cannot see placeholder drift. This runs the real request compiler from the
- * installed package with a capturing `fetchFn`, so the assertion is on the request that would
- * actually be sent. No network: the injected fetch never forwards.
+ * path, so it cannot see placeholder drift. This runs the request compiler the installed
+ * `honua admin` command uses with a capturing `fetchFn`, so the assertion is on the request
+ * that would actually be sent. No network: the injected fetch never forwards. The package does
+ * not export the control-plane surface (it lives in `@honua/app-platform`), so the probe, written
+ * to the consumer root, loads the CLI's own module by its installed file path.
  */
 export function adminRequestProbeSource(packageName, operations) {
-  return `import { HonuaAdminClient } from ${JSON.stringify(`${packageName}/control-plane`)};
+  const adminClientModule = `./node_modules/${packageName}/dist/src/control-plane/admin-client.js`;
+  return `import { HonuaAdminClient } from ${JSON.stringify(adminClientModule)};
 
 const operations = ${JSON.stringify(operations, null, 2)};
 let failures = 0;

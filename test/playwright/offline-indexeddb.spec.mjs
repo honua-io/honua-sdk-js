@@ -2878,7 +2878,7 @@ test("runtime protocol registration renders region tiles with browser networking
       const rewrite = styleRewrite.rewriteStyleTilesForOfflineRegion(authored, { sourceIds: ["incidents"] });
       const reverted = styleRewrite.revertOfflineRegionStyleRewrite(rewrite.style, rewrite);
 
-      // Register exactly the way `loadMapPackage` does, on the evidence of the
+      // Register exactly the way `loadMapDocument` does, on the evidence of the
       // rewritten style, through an injected registrar.
       const registered = [];
       const registrar = {

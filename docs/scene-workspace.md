@@ -6,15 +6,16 @@ resource: "honua://capability/scene.catalog"
 ---
 # Scene Workspace Interop
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for
 apps that combine a 3D scene, 2D map, table, detail panel, timeline, evidence
 tray, and realtime status. It does not import Cesium, MapLibre, or a UI
 framework. Renderers translate their native events into typed workspace intents
 and subscribe to narrow slices or selectors.
 
-The former `@honua/sdk-js/scene-workspace` subpath remains a deprecated forwarder
-through `0.3.x`, with removal scheduled for npm `0.4.0`. New applications should
-install `@honua/app-platform` plus only the optional renderer peers they use.
+`@honua/sdk-js` no longer exports `/scene-workspace` (removed in `0.4.0`). Install
+`@honua/app-platform` plus only the optional renderer peers you use.
 
 ## Support status: beta
 
@@ -49,16 +50,16 @@ adapter imports lazily, and no core or 2D bundle ceiling moved.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createMapLibreSceneAdapter,
-  createSceneWorkspace,
+  createSceneStore,
   diagnoseScenePrimitives,
-  sceneWorkspaceIntentFromAdapterEvent,
+  sceneStoreIntentFromAdapterEvent,
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
   selectSceneVisibleLayers,
 } from "@honua/app-platform/scene-workspace";
 import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 
-const workspace = createSceneWorkspace({
+const workspace = createSceneStore({
   sceneId: "incident-command",
   title: "Incident Command Scene",
   layers: {
@@ -111,7 +112,7 @@ const unsubscribeSelection = workspace.subscribe("selection", ({ state }) => {
 });
 
 cesiumAdapter.onCameraChange((camera) => {
-  workspace.dispatch(sceneWorkspaceIntentFromAdapterEvent({ type: "camera-change", camera }, "scene"));
+  workspace.dispatch(sceneStoreIntentFromAdapterEvent({ type: "camera-change", camera }, "scene"));
 });
 
 mapAdapter.onFeatureClick((sourceId, id) => {
@@ -296,9 +297,9 @@ is a boundary to satisfy, not to relax. On the Cesium side, primitive
 `attribution` now reaches terrain providers, tilesets, and models as well as
 imagery.
 
-`SCENE_STATE_SYNC_SLICES` (7) and `SCENE_WORKSPACE_SLICES` (13) are different
+`SCENE_STATE_SYNC_SLICES` (7) and `SCENE_STORE_SLICES` (13) are different
 sizes because they answer different questions, and
-`SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK` names the relationship. The wire
+`SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK` names the relationship. The wire
 vocabulary is what two renderers must agree on; the store vocabulary is what one
 workspace notifies its own subscribers about. `time` (wire) is `timeline`
 (store) — the only rename. `attribution` maps to `null`: it is derived from what
@@ -391,7 +392,7 @@ const diagnostics = diagnoseScenePrimitives(
 );
 
 workspace.dispatch(
-  sceneWorkspaceIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics }, "scene"),
+  sceneStoreIntentFromAdapterEvent({ type: "primitive-diagnostics", diagnostics }, "scene"),
 );
 ```
 
@@ -465,16 +466,12 @@ Three properties hold by construction:
   or transformed to make a declaration fit, and no fidelity is inferred from an
   identifier the normalizer could not resolve.
 
-This example imports through the deprecated `@honua/sdk-js/scene-workspace`
-forwarder so it stays compile-checked in this repository; the identical symbols
-are exported from `@honua/app-platform/scene-workspace`.
-
 ```ts doc-test=compile
 import {
   CESIUM_SCENE_CAPABILITIES,
   diagnoseScenePrimitives,
   type SceneRuntimePrimitive,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 const primitives: SceneRuntimePrimitive[] = [
   {
@@ -584,7 +581,7 @@ import {
   CESIUM_SCENE_CAPABILITIES,
   diagnoseScenePrimitives,
   type SceneRuntimePrimitive,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 const primitives: SceneRuntimePrimitive[] = [
   {
@@ -741,7 +738,7 @@ import {
   type CesiumSceneRuntimeTarget,
   type SceneRuntimePrimitive,
   mountScenePrimitivesToCesium,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 declare const target: CesiumSceneRuntimeTarget;
 declare const acceptedPlan: readonly SceneRuntimePrimitive[];
@@ -835,9 +832,9 @@ optional fields:
 import {
   type CesiumSceneRuntimeTarget,
   type SceneRuntimePrimitive,
-  type SceneWorkspaceState,
+  type SceneStoreState,
   mountScenePrimitivesToCesium,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 declare const viewer: {
   camera: CesiumSceneRuntimeTarget["camera"];
@@ -845,7 +842,7 @@ declare const viewer: {
   clock: CesiumSceneRuntimeTarget["clock"];
 };
 declare const plan: readonly SceneRuntimePrimitive[];
-declare const state: SceneWorkspaceState;
+declare const state: SceneStoreState;
 
 // Opting in: the adapter drives `viewer.clock` from `state.timeline`.
 const target: CesiumSceneRuntimeTarget = {
@@ -892,7 +889,7 @@ data-to-map bridge `where` clause, a slider view, and a globe at once:
 
 ```ts doc-test=compile
 import { createTemporalPlayback } from "@honua/sdk-js/map";
-import { type CesiumSceneRuntimeTarget, bindTemporalPlaybackToCesium } from "@honua/sdk-js/scene-workspace";
+import { type CesiumSceneRuntimeTarget, bindTemporalPlaybackToCesium } from "@honua/app-platform/scene-workspace";
 
 declare const target: CesiumSceneRuntimeTarget;
 

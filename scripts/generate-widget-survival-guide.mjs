@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { nativeApplicationPathNotice } from "./lib/native-documentation.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT_PATH = "docs/widget-survival-guide.md";
@@ -85,6 +86,8 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("     Regenerate with: npm run docs:widget-guide -->");
   lines.push("");
   lines.push("# Source SDK widget-removal survival guide");
+  lines.push("");
+  lines.push(nativeApplicationPathNotice);
   lines.push("");
   lines.push("The source SDK here is Esri's ArcGIS Maps SDK for JavaScript. Module paths and release numbers identify that product; Honua is independent of Esri.");
   lines.push("");

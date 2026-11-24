@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * must be side-effect-free on import (so `src/controls/registry.ts`'s
  * dynamic `import()` of it, used for single-tag registration, cannot also
  * run the kit's blanket auto-registration as an accidental side effect), while
- * `@honua/sdk-js/web-components` (`./index.js`) — every existing consumer's
+ * `@honua/app-platform/web-components` (`./index.js`) — every existing consumer's
  * actual entry point — must keep auto-registering all 16 tags on import,
  * unchanged.
  *
@@ -29,7 +29,7 @@ describe("web-components auto-registration lives on the public entry, not the el
     expect(typeof elements.defineHonuaWebComponent).toBe("function");
   });
 
-  it("importing @honua/sdk-js/web-components (index.js) auto-registers every tag", async () => {
+  it("importing @honua/app-platform/web-components (index.js) auto-registers every tag", async () => {
     expect(customElements.get("honua-map-status")).toBeUndefined();
     await import("../src/web-components/index.js");
     expect(customElements.get("honua-map-status")).toBeDefined();

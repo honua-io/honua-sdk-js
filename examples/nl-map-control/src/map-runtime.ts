@@ -1,7 +1,7 @@
 import type { HonuaAgentRuntime, HonuaAgentWidgetQueryRequest } from "@honua/sdk-js/agent-tools";
+import type { DuckDbDriver } from "@honua/sdk-js/geoparquet";
 import { HonuaNlMapControlError } from "@honua/sdk-js/nl-map-control";
 import { canonicalStringify, toJsonValue } from "@honua/sdk-js/query-planner";
-import type { DuckDbDriver } from "../../../src/geoparquet/driver.js";
 import { FIXTURE_VERSION, INCIDENTS, ORIGIN, SCHEMA } from "./fixture.js";
 import { type IncidentQuery, type QueryContext, compile } from "./query.js";
 

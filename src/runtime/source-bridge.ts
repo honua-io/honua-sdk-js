@@ -1,5 +1,5 @@
 /**
- * Translates `MapPackage.sourceBindings[]` (server shape) into SDK-side
+ * Translates `HonuaMapDocument.sourceBindings[]` (server shape) into SDK-side
  * `SourceDescriptor[]` consumed by `createDataset`, and keeps a parallel
  * record of MapLibre-native source entries that flow straight into the
  * composed style.
@@ -14,7 +14,7 @@
  *    (raster or vector) since the SDK does not model them as first-party
  *    data protocols.
  *  - `workspace_artifact` is deferred (no adapter); load fails with a
- *    clear `HonuaMapPackageError` stage="source-bind" so callers can
+ *    clear `HonuaMapDocumentError` stage="source-bind" so callers can
  *    detect missing server artifacts.
  *
  * @module
@@ -30,8 +30,12 @@ import {
   buildWmsRasterSourceSpec as buildMapWmsRasterSourceSpec,
   buildWmtsRasterSourceSpec as buildMapWmtsRasterSourceSpec,
 } from "../map/raster-source-spec.js";
-import { HonuaMapPackageError } from "./errors.js";
-import type { HonuaMapPackageLocator, HonuaMapPackageProtocol, HonuaMapPackageSourceBinding } from "./map-package.js";
+import { HonuaMapDocumentError } from "./errors.js";
+import type {
+  HonuaMapDocumentLocator,
+  HonuaMapDocumentProtocol,
+  HonuaMapDocumentSourceBinding,
+} from "./map-package.js";
 
 /** One MapLibre-native source entry derived from a binding. */
 export interface NativeMapLibreSourceEntry {
@@ -55,14 +59,14 @@ export interface SourceBridgeProjection {
 }
 
 /**
- * Project the bindings on a MapPackage into SDK contract descriptors and
- * MapLibre-native source entries. Throws `HonuaMapPackageError` for
+ * Project the bindings on a map document into SDK contract descriptors and
+ * MapLibre-native source entries. Throws `HonuaMapDocumentError` for
  * bindings the runtime cannot route (unknown protocol, missing locator,
  * deferred `workspace_artifact`).
  */
 export function projectSourceBindings(
   packageId: string | undefined,
-  bindings: readonly HonuaMapPackageSourceBinding[],
+  bindings: readonly HonuaMapDocumentSourceBinding[],
 ): SourceBridgeProjection {
   const descriptors: SourceDescriptor[] = [];
   const nativeSources: NativeMapLibreSourceEntry[] = [];
@@ -71,7 +75,7 @@ export function projectSourceBindings(
 
   for (const binding of bindings) {
     if (seen.has(binding.sourceId)) {
-      throw new HonuaMapPackageError(`duplicate sourceBinding id "${binding.sourceId}"`, {
+      throw new HonuaMapDocumentError(`duplicate sourceBinding id "${binding.sourceId}"`, {
         packageId,
         stage: "source-bind",
         detail: { sourceId: binding.sourceId },
@@ -91,7 +95,7 @@ export function projectSourceBindings(
 
     const sdkProtocol = toSdkProtocol(binding.protocol);
     if (!sdkProtocol) {
-      throw new HonuaMapPackageError(
+      throw new HonuaMapDocumentError(
         `unsupported SourceBinding protocol "${binding.protocol}" on source "${binding.sourceId}"`,
         { packageId, stage: "source-bind", detail: { sourceId: binding.sourceId, protocol: binding.protocol } },
       );
@@ -220,7 +224,7 @@ export function buildWmtsRasterSourceSpec(
   return { ...spec, tiles: [...spec.tiles] };
 }
 
-function toSdkProtocol(protocol: HonuaMapPackageProtocol): Protocol | undefined {
+function toSdkProtocol(protocol: HonuaMapDocumentProtocol): Protocol | undefined {
   switch (protocol) {
     case "geoservices_feature_service":
       return "geoservices-feature-service";
@@ -241,7 +245,7 @@ function toSdkProtocol(protocol: HonuaMapPackageProtocol): Protocol | undefined 
   }
 }
 
-function toMapLibreNativeSource(binding: HonuaMapPackageSourceBinding): NativeMapLibreSourceEntry | undefined {
+function toMapLibreNativeSource(binding: HonuaMapDocumentSourceBinding): NativeMapLibreSourceEntry | undefined {
   switch (binding.protocol) {
     case "vector_tile":
     case "ogc_tiles":
@@ -280,7 +284,7 @@ function toMapLibreNativeSource(binding: HonuaMapPackageSourceBinding): NativeMa
  * `locator.sourceType` hint (`"vector"` | `"raster"`), defaulting to vector —
  * the common PMTiles basemap case.
  */
-function toPmtilesNativeSource(binding: HonuaMapPackageSourceBinding): NativeMapLibreSourceEntry | undefined {
+function toPmtilesNativeSource(binding: HonuaMapDocumentSourceBinding): NativeMapLibreSourceEntry | undefined {
   const url = binding.locator.url;
   if (typeof url !== "string" || url.length === 0) return undefined;
   const sourceUrl = url.startsWith("pmtiles://") ? url : `pmtiles://${url}`;
@@ -299,19 +303,19 @@ function toPmtilesNativeSource(binding: HonuaMapPackageSourceBinding): NativeMap
 
 function toSourceLocator(
   packageId: string | undefined,
-  binding: HonuaMapPackageSourceBinding,
+  binding: HonuaMapDocumentSourceBinding,
   sdkProtocol: Protocol,
 ): SourceLocator {
   const loc = binding.locator;
   if (binding.protocol === "workspace_artifact") {
-    throw new HonuaMapPackageError(
+    throw new HonuaMapDocumentError(
       `"workspace_artifact" binding on source "${binding.sourceId}" requires a server-side artifact resolver that is not yet wired`,
       { packageId, stage: "source-bind", detail: { sourceId: binding.sourceId, protocol: binding.protocol } },
     );
   }
 
   if (typeof loc.url !== "string" || loc.url.length === 0) {
-    throw new HonuaMapPackageError(`SourceBinding "${binding.sourceId}" is missing locator.url`, {
+    throw new HonuaMapDocumentError(`SourceBinding "${binding.sourceId}" is missing locator.url`, {
       packageId,
       stage: "source-bind",
       detail: { sourceId: binding.sourceId, protocol: binding.protocol },
@@ -429,7 +433,7 @@ function parseWmsServiceId(url: string): string | undefined {
 function requireLocatorUrl(descriptor: SourceDescriptor): string {
   const url = descriptor.locator.url;
   if (typeof url !== "string" || url.length === 0) {
-    throw new HonuaMapPackageError(`descriptor for "${descriptor.id}" is missing locator.url`, {
+    throw new HonuaMapDocumentError(`descriptor for "${descriptor.id}" is missing locator.url`, {
       stage: "source-bind",
       detail: { sourceId: descriptor.id, protocol: descriptor.protocol },
     });
@@ -438,4 +442,4 @@ function requireLocatorUrl(descriptor: SourceDescriptor): string {
 }
 
 /** Re-export the server-shape locator type so callers do not import a deep path. */
-export type { HonuaMapPackageLocator };
+export type { HonuaMapDocumentLocator };

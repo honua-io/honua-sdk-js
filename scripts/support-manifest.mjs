@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { subpathName } from "./lib/public-surface.mjs";
 
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MANIFEST_PATH = "config/support-manifest.v1.json";
@@ -96,13 +97,23 @@ export function readBarrelExports(relativePath, projectRoot = PROJECT_ROOT) {
   return names;
 }
 
+function validateAppPlatformSubpaths(manifest, { projectRoot, checkSourceFiles, fail }) {
+  const subpaths = manifest.packageLifecycle?.appPlatformSubpaths ?? [];
+  if (!unique(subpaths)) fail("app-platform subpaths must be unique");
+  const sdkSubpaths = new Set((manifest.packageLifecycle?.entrypoints ?? []).map((entrypoint) => entrypoint.subpath));
+  for (const subpath of subpaths) {
+    if (sdkSubpaths.has(subpath)) fail(`${subpath} is an @honua/app-platform subpath and must not be an @honua/sdk-js entrypoint`);
+    const barrel = `src/${subpathName(subpath)}/index.ts`;
+    if (checkSourceFiles && !fs.existsSync(path.join(projectRoot, barrel))) {
+      fail(`app-platform subpath ${subpath} has no barrel at ${barrel}`);
+    }
+  }
+}
+
 function validateSurfaceTiers(manifest, projectRoot, checkSourceFiles, fail) {
   const tiers = manifest.packageLifecycle?.surfaceTiers ?? [];
   if (!unique(tiers.map((tier) => tier.surface))) fail("surface tier names must be unique");
   const claimIds = new Set((manifest.supportClaims ?? []).map((claim) => claim.id));
-  const entrypointBySubpath = new Map(
-    (manifest.packageLifecycle?.entrypoints ?? []).map((entrypoint) => [entrypoint.subpath, entrypoint]),
-  );
   for (const tier of tiers) {
     if (!STATUS_VOCABULARY.includes(tier.status)) {
       fail(`surface tier ${tier.surface} has invalid status ${tier.status ?? "missing"}`);
@@ -113,16 +124,6 @@ function validateSurfaceTiers(manifest, projectRoot, checkSourceFiles, fail) {
       const claim = manifest.supportClaims.find((candidate) => candidate.id === tier.claim);
       if (claim.status !== tier.status) {
         fail(`surface tier ${tier.surface} is ${tier.status} but its claim ${claim.id} is ${claim.status}`);
-      }
-    }
-    if (tier.sdkForwarder !== undefined) {
-      const entrypoint = entrypointBySubpath.get(tier.sdkForwarder);
-      if (!entrypoint) {
-        fail(`surface tier ${tier.surface} names unknown SDK forwarder ${tier.sdkForwarder}`);
-      } else if (entrypoint.replacement !== tier.surface) {
-        fail(`SDK forwarder ${tier.sdkForwarder} does not replace with ${tier.surface}`);
-      } else if (entrypoint.replacementStatus !== tier.status) {
-        fail(`SDK forwarder ${tier.sdkForwarder} must record replacementStatus ${tier.status}`);
       }
     }
     const classified = [...tier.exports, ...(tier.heldBack ?? []).flatMap((group) => group.exports)];
@@ -474,6 +475,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   }
   for (const tier of manifest.packageLifecycle?.surfaceTiers ?? []) usedStatuses.add(tier.status);
   validateSurfaceTiers(manifest, projectRoot, checkEvidencePaths, fail);
+  validateAppPlatformSubpaths(manifest, { projectRoot, checkSourceFiles: checkEvidencePaths, fail });
   const stableCount = entrypoints.filter((entrypoint) => entrypoint.status === "supported").length;
   if (stableCount !== manifest.packageLifecycle?.ceilings?.stableEntrypoints) {
     fail(`supported entrypoint count ${stableCount} disagrees with stableEntrypoints ceiling`);
@@ -576,6 +578,7 @@ export function buildPublicSurface(manifest) {
     ceilings: manifest.packageLifecycle.ceilings,
     downstreamProjection: manifest.packageLifecycle.downstreamProjection,
     surfaceTiers: manifest.packageLifecycle.surfaceTiers ?? [],
+    appPlatformSubpaths: manifest.packageLifecycle.appPlatformSubpaths ?? [],
     entrypoints: manifest.packageLifecycle.entrypoints.map(({ subpath, status, ...entrypoint }) => ({
       subpath,
       tier: tierForStatus(status),
@@ -871,8 +874,7 @@ No package surface splits its entrypoint's lifecycle status today.`;
       heldBackByStatus.size === 0
         ? "None"
         : [...heldBackByStatus].map(([status, count]) => `${count} \`${status}\``).join(", ");
-    const forwarder = tier.sdkForwarder ? `\`@honua/sdk-js${tier.sdkForwarder.slice(1)}\`` : "—";
-    return `| \`${tier.surface}\` | \`${tier.status}\` | ${tier.exports.length} | ${heldBack} | ${forwarder} | ${markdownEvidence(manifest, claim.evidence, "../")} |`;
+    return `| \`${tier.surface}\` | \`${tier.status}\` | ${tier.exports.length} | ${heldBack} | ${markdownEvidence(manifest, claim.evidence, "../")} |`;
   });
   const detail = tiers.flatMap((tier) => [
     "",
@@ -897,8 +899,8 @@ generated [\`config/public-surface.json\`](../config/public-surface.json)
 projection; an unclassified export fails the support gate rather than inheriting
 a tier from the directory it lives in.
 
-| Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
-| --- | --- | :-: | --- | --- | --- |
+| Surface | Status | Tier exports | Held back | Evidence |
+| --- | --- | :-: | --- | --- |
 ${rows.join("\n")}
 ${detail.join("\n")}`;
 }
@@ -939,11 +941,12 @@ ${rows.join("\n")}
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is \`beta\` and fixture-proven.
-Raw OGC API Processes discovery and raw Processes execution are both
-\`experimental\` and both \`standalone\`. They stay deliberately separate claims
-so discovery evidence can never be mistaken for execution support: discovery
-carries a scheduled anonymous live lane, while execution is fixture-proven only
-because no public Processes endpoint permits anonymous execution.`;
+Raw OGC API Processes discovery is \`supported\` and \`standalone\`, while raw
+Processes execution is \`experimental\` and \`standalone\`. They stay deliberately
+separate claims so discovery evidence can never be mistaken for execution
+support: discovery carries a scheduled anonymous live lane, while execution is
+fixture-proven only because no public Processes endpoint permits anonymous
+execution.`;
 }
 
 function lifecycleCounts(manifest) {
@@ -1003,7 +1006,7 @@ discovery (\`${discovery.status}\`, \`${discovery.environment}\`) and
 typed execution (\`${execution.status}\`, \`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-\`MapPackage\`s, realtime, collaboration, compatibility metadata, a richer hosted
+map documents, realtime, collaboration, compatibility metadata, a richer hosted
 \`/mcp\` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.`;

@@ -10,7 +10,7 @@ import {
   ADMIN_PUBLISHED_OPERATION_COUNT,
   MCP_DEFAULT_STATIC_TOOL_COUNT,
   MCP_DEFAULT_TOTAL_TOOL_COUNT,
-} from "@honua/sdk-js/control-plane";
+} from "@honua/app-platform/control-plane";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";

@@ -576,7 +576,10 @@ jobs:
 
       - name: Regenerate sample dist projections
         if: steps.decision.outputs.skip == 'false'
-        run: npm run samples:generate
+        run: |
+          node scripts/sample-playgrounds.mjs write-artifact
+          node scripts/sample-playgrounds.mjs check
+          npm run samples:generate
 
       # samples:generate rewrites docs/generated/sample-catalog.md, which is an
       # input to llms-full.txt. Refresh both deterministic llms outputs only
@@ -734,7 +737,7 @@ jobs:
       - name: Mint release automation token
         id: app-token
         if: steps.creds.outputs.available == 'true'
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -748,13 +751,43 @@ jobs:
           # the push identity is decided here.
           token: ${{ steps.app-token.outputs.token || github.token }}
 
+      # A stale source never publishes or closes anything. It hands off to a
+      # run on current trunk and cancels itself, because release-please.yml
+      # reads `cancelled` as "superseded, follow the next trunk run". A run
+      # already pending in the derived-artifacts group is that next run, and a
+      # new dispatch would evict it (and any receipt it carries), so then only
+      # cancel; if both carry work, stay red. Fail closed if the cancel fails.
       - name: Verify regeneration source is current trunk
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
+          CANCEL_WAIT_SECONDS: "300"
         run: |
           set -euo pipefail
           current_trunk="$(git ls-remote origin refs/heads/trunk | cut -f1)"
           if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then
-            echo "::error::Regeneration source is no longer current trunk; retaining existing pull requests."
+            stale="Regeneration source $GITHUB_SHA is no longer current trunk ($current_trunk); retaining existing pull requests."
+            pending="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow regenerate-derived-artifacts.yml \
+              --branch trunk --limit 20 --json databaseId,status \
+              --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID) | select(.status == \"pending\" or .status == \"queued\" or .status == \"waiting\" or .status == \"requested\")] | length")"
+            if [[ "$pending" != "0" ]]; then
+              if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+                echo "::error::$stale A trunk run is already pending, so release-matrix receipt run $RELEASE_MATRIX_RECEIPT_RUN_ID cannot be handed off without evicting it; re-dispatch it once the queue is clear."
+                exit 1
+              fi
+              echo "::notice::$stale The pending trunk run takes over; cancelling this run."
+            else
+              echo "::notice::$stale Dispatching a run on current trunk and cancelling this run."
+              dispatch=(gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk)
+              if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+                dispatch+=(-f "release_matrix_receipt_run_id=$RELEASE_MATRIX_RECEIPT_RUN_ID")
+              fi
+              "${dispatch[@]}"
+            fi
+            gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+            sleep "$CANCEL_WAIT_SECONDS"
+            echo "::error::$stale The self-cancel of run $GITHUB_RUN_ID did not take effect."
             exit 1
           fi
 
@@ -902,7 +935,10 @@ jobs:
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
-          expected_workflows='["SDK CI","PR issue disposition","Schema sync gate","Security"]'
+          # Schema sync gate is path-filtered on pull requests and a regeneration PR can never
+          # touch the vendored schema tree (see the publish allowlist), so it never attaches here.
+          expected_workflows='["SDK CI","PR issue disposition","Security"]'
+          expected_count="$(jq length <<<"$expected_workflows")"
           for attempt in {1..30}; do
             runs="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
@@ -921,7 +957,7 @@ jobs:
             done < <(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<<"$matching")
             attached="$(jq 'map(.workflowName) | unique | length' <<<"$matching")"
             held="$(jq '[.[] | select(.conclusion == "action_required")] | length' <<<"$matching")"
-            if [[ "$attached" -eq 4 && "$held" -eq 0 ]]; then
+            if [[ "$attached" -eq "$expected_count" && "$held" -eq 0 ]]; then
               break
             fi
             if (( attempt == 30 )); then
@@ -955,39 +991,12 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --exit-status \
             --interval 10
-          # Do not use GitHub CLI's check watcher here. Its stream has left
-          # this step attached after the required-check snapshot was already
-          # entirely green (#1541), until the job's outer timeout killed it.
-          # Poll snapshots instead, so the predicate is explicit: every
-          # currently required context must report `pass`. This does not soften
-          # branch protection; the merge below remains subject to GitHub's
-          # ruleset, and no unreported or non-passing requirement is accepted.
-          for attempt in {1..270}; do
-            required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name,bucket 2>/dev/null || true)"
-            if [[ -z "$required" ]]; then
-              required='[]'
-            fi
-            if jq -e 'length >= 3 and all(.[]; .bucket == "pass")' <<<"$required" >/dev/null; then
-              echo "All required checks passed for regeneration PR #$PR_NUMBER."
-              break
-            fi
-            if jq -e 'any(.[]; .bucket == "fail" or .bucket == "cancel")' <<<"$required" >/dev/null; then
-              echo "A required check failed or was cancelled for regeneration PR #$PR_NUMBER:"
-              jq -c '.[] | select(.bucket == "fail" or .bucket == "cancel")' <<<"$required"
-              exit 1
-            fi
-            if (( attempt == 270 )); then
-              echo "Required checks did not all pass for regeneration PR #$PR_NUMBER after 45 minutes:"
-              jq -c '.[] | select(.bucket != "pass")' <<<"$required"
-              exit 1
-            fi
-            sleep 10
-          done
+          bash scripts/wait-required-checks.sh "$PR_NUMBER"
 
       - name: Refresh release merge identity
         id: merge-token
         if: needs.regenerate.outputs.changed == 'true' && steps.creds.outputs.available == 'true'
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -1008,25 +1017,42 @@ jobs:
           GH_TOKEN: ${{ steps.merge-token.outputs.token || github.token }}
           GENERATED: ${{ steps.publish.outputs.generated }}
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+          RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
         run: |
           set -euo pipefail
           # GENERATED passed the commit-subject and changed-path allowlists before
-          # publication. Rebind the still-open same-repository PR and its remote
-          # branch to that immutable approved commit after the bounded check wait.
+          # publication. Rebind the PR to that immutable approved commit after
+          # the bounded check wait, including a protected merge during validation.
           post_wait_pr="$(gh pr view "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --json state,headRefName,headRefOid,baseRefName,baseRefOid)"
+            --json state,headRefName,headRefOid,baseRefName,baseRefOid,mergeCommit)"
           post_wait_state="$(jq -r '.state' <<<"$post_wait_pr")"
           post_wait_head_ref="$(jq -r '.headRefName' <<<"$post_wait_pr")"
           post_wait_head="$(jq -r '.headRefOid' <<<"$post_wait_pr")"
           post_wait_base_ref="$(jq -r '.baseRefName' <<<"$post_wait_pr")"
           post_wait_base="$(jq -r '.baseRefOid' <<<"$post_wait_pr")"
           expected_head_ref="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          if [[ "$post_wait_state" != "OPEN" || \
-                "$post_wait_head_ref" != "$expected_head_ref" || \
+          if [[ "$post_wait_head_ref" != "$expected_head_ref" || \
                 "$post_wait_head" != "$GENERATED" || \
-                "$post_wait_base_ref" != "trunk" || \
-                "$post_wait_base" != "$GITHUB_SHA" ]]; then
+                "$post_wait_base_ref" != "trunk" ]]; then
+            echo "Regeneration PR #$PR_NUMBER drifted after validation."
+            exit 1
+          fi
+          if [[ "$post_wait_state" == "MERGED" ]]; then
+            merge_commit="$(jq -r '.mergeCommit.oid // empty' <<<"$post_wait_pr")"
+            git fetch origin trunk
+            current_trunk="$(git rev-parse refs/remotes/origin/trunk)"
+            if [[ -z "$merge_commit" ]] || \
+               ! git merge-base --is-ancestor "$GITHUB_SHA" "$GENERATED" || \
+               ! git merge-base --is-ancestor "$GENERATED" "$merge_commit" || \
+               ! git merge-base --is-ancestor "$merge_commit" "$current_trunk"; then
+              echo "Merged regeneration PR #$PR_NUMBER does not preserve the approved generated commit on trunk."
+              exit 1
+            fi
+            gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+            exit 0
+          fi
+          if [[ "$post_wait_state" != "OPEN" || "$post_wait_base" != "$GITHUB_SHA" ]]; then
             echo "Regeneration PR #$PR_NUMBER drifted after validation."
             exit 1
           fi
@@ -1045,6 +1071,26 @@ jobs:
             gh pr close "$PR_NUMBER" \
               --repo "$GITHUB_REPOSITORY" \
               --delete-branch
+            # The new trunk tip still needs its own reseal; without this
+            # re-entry it waits for the next six-hour schedule. Hand over the
+            # release-matrix receipt like the stale-source step above, and do
+            # not evict a run already pending in the derived-artifacts group.
+            pending="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow regenerate-derived-artifacts.yml \
+              --branch trunk --limit 20 --json databaseId,status \
+              --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID) | select(.status == \"pending\" or .status == \"queued\" or .status == \"waiting\" or .status == \"requested\")] | length")"
+            if [[ "$pending" != "0" ]]; then
+              if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+                echo "::error::Trunk moved and a regeneration run is already pending, so release-matrix receipt run $RELEASE_MATRIX_RECEIPT_RUN_ID cannot be handed off without evicting it; re-dispatch it once the queue is clear."
+                exit 1
+              fi
+              echo "::notice::Trunk moved; the pending regeneration run reseals the new tip."
+              exit 0
+            fi
+            dispatch=(gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk)
+            if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
+              dispatch+=(-f "release_matrix_receipt_run_id=$RELEASE_MATRIX_RECEIPT_RUN_ID")
+            fi
+            "${dispatch[@]}"
             exit 0
           fi
           gh pr merge "$PR_NUMBER" \
@@ -1068,3 +1114,19 @@ jobs:
           set -euo pipefail
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref trunk
           gh workflow run docs-site.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+          # The release-matrix receipt lapses seven days after its smoke, and
+          # only first-map-release-smoke.yml renews it (Release Please runs it
+          # at release time). A clean regeneration tip is sealed, which the
+          # smoke's seal gate requires, so renew it here when it is due. The
+          # smoke dispatches this workflow with its receipt; the next clean
+          # pass then finds the receipt current.
+          refresh="$(node scripts/release-matrix-refresh-due.mjs samples/evidence/maplibre-quickstart/release-matrix.v1.json)"
+          if [[ "$refresh" == "due=true" ]]; then
+            active="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow first-map-release-smoke.yml \
+              --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending")] | length')"
+            if [[ "$active" == "0" ]]; then
+              gh workflow run first-map-release-smoke.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+            else
+              echo "A First Map release smoke is already queued or running; not dispatching another."
+            fi
+          fi

@@ -10,7 +10,7 @@
  * matter how many maps attach (MapLibre's protocol registry is process-global,
  * and the `pmtiles.Protocol` instance caches every archive it opens).
  *
- * `loadMapPackage` calls {@link ensurePmtilesProtocol} before `map.setStyle`
+ * `loadMapDocument` calls {@link ensurePmtilesProtocol} before `map.setStyle`
  * whenever the composed style references a `pmtiles://` source, so consumers get
  * PMTiles rendering out-of-the-box with no manual `addProtocol` wiring. Adding a
  * PMTiles source to a live map through `runtime.addSource` is synchronous — call
@@ -101,7 +101,7 @@ export function resetPmtilesProtocol(scheme: string = PMTILES_PROTOCOL_SCHEME): 
 
 /**
  * Whether a composed MapLibre style references at least one `pmtiles://` source.
- * Used by `loadMapPackage` to decide whether the protocol must be registered
+ * Used by `loadMapDocument` to decide whether the protocol must be registered
  * before `map.setStyle`.
  */
 export function styleUsesPmtiles(

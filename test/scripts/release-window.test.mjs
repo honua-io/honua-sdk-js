@@ -1,0 +1,304 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { it } from "node:test";
+
+import { GENERATED_FILES, GENERATED_PREFIXES, isGeneratedReleasePath } from "../../scripts/lib/generated-release-paths.mjs";
+import { refreshPullRequest, refreshReleaseWindows } from "../../scripts/lib/refresh-release-window.mjs";
+import {
+  evaluateReleaseWindow,
+  loadReleaseWindows,
+  readAllPages,
+  releaseWindowRunFails,
+  targetPullRequestNumber,
+} from "../../scripts/lib/release-window.mjs";
+
+const repository = "honua-io/honua-sdk-js";
+const automation = JSON.parse(fs.readFileSync(new URL("../fixtures/pr-issue-disposition/release-please-pr-382.json", import.meta.url)));
+const input = { ...automation, pullRequestNumber: 2533, authorLogin: "mike", authorType: "User",
+  headRefName: "fix/source", title: "fix: source", body: "Refs #2532 (slice; live validation remains)", closingIssueNumbers: [] };
+const draft = { draft: true, tag_name: "js-sdk-v0.4.0", created_at: "2026-11-14T00:00:00Z" };
+const now = Date.parse("2026-11-14T01:00:00Z");
+const missingTag = () => { throw Object.assign(new Error("Not Found"), { status: 404 }); };
+
+function restSnapshot(current, files) {
+  return { state: "open", title: current.title, body: current.body, updated_at: current.updatedAt,
+    head: { sha: current.headSha, repo: { full_name: current.headRepository } }, base: { sha: current.baseSha, ref: "trunk" },
+    changed_files: files.length };
+}
+
+function graphqlSnapshot(current) {
+  return { data: { repository: { nameWithOwner: repository, pullRequest: {
+    number: current.pullRequestNumber, body: current.body, title: current.title, state: "OPEN", updatedAt: current.updatedAt,
+    headRefName: current.headRefName, headRefOid: current.headSha, baseRefName: current.baseRefName, baseRefOid: current.baseSha,
+    headRepository: { nameWithOwner: current.headRepository }, baseRepository: { nameWithOwner: repository },
+    author: { login: current.authorLogin, __typename: current.authorType },
+    closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false } },
+  } } } };
+}
+
+function fakeGitHub({ current = input, files = [{ filename: "src/client.ts", status: "modified" }], releases = [draft], tagged = false,
+  rest = restSnapshot(current, files), releaseError, runs = [], sharing = [], others = [], otherState = "open",
+  otherError } = {}) {
+  const calls = [];
+  const byNumber = new Map([current, ...others].map((pull) => [pull.pullRequestNumber, pull]));
+  const request = async (url, options = {}) => {
+    const endpoint = new URL(url);
+    const body = options.body && JSON.parse(options.body);
+    calls.push({ endpoint, options, body });
+    if (endpoint.pathname.endsWith("/graphql")) {
+      if (body.query.includes("issueOrPullRequest")) {
+        return { data: { repository: { nameWithOwner: repository, issueOrPullRequest: { __typename: "Issue", number: 2532, state: "OPEN" } } } };
+      }
+      const pull = byNumber.get(body.variables.number) ?? current;
+      if (otherError && pull !== current) throw otherError;
+      return graphqlSnapshot(pull);
+    }
+    if (endpoint.pathname.endsWith("/release-please.yml/runs")) return { workflow_runs: runs };
+    if (endpoint.pathname.endsWith("/releases")) { if (releaseError) throw releaseError; return releases; }
+    if (endpoint.pathname.includes("/git/ref/tags/")) return tagged ? { object: { sha: "a".repeat(40) } } : missingTag();
+    if (endpoint.pathname.endsWith("/files")) return files;
+    if (endpoint.pathname.endsWith("/pulls") && endpoint.searchParams.get("state") === "open") {
+      if (sharing instanceof Error) throw sharing;
+      return sharing;
+    }
+    if (endpoint.pathname.endsWith("/check-runs")) return { id: 7 };
+    if (endpoint.pathname.endsWith("/check-runs/7")) return body;
+    const pull = byNumber.get(Number(/\/pulls\/(\d+)$/.exec(endpoint.pathname)?.[1]));
+    if (pull) return pull === current ? rest : { ...restSnapshot(pull, files), state: otherState };
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  return { request, calls };
+}
+
+it("holds source changes, reports draft tag and age, then clears after publication/deletion or tagging", async () => {
+  const active = fakeGitHub();
+  const held = await evaluateReleaseWindow(input, { now }, active.request);
+  assert.equal(held.allowed, false);
+  assert.match(held.summary, /js-sdk-v0.4.0 \(window age 60 minutes\)/);
+  for (const options of [{ releases: [] }, { releases: [{ ...draft, draft: false }] }, { tagged: true }]) {
+    assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub(options).request)).allowed, true);
+  }
+});
+
+it("allows generated paths on any branch, including regeneration, but never trusts a branch name alone", async () => {
+  const generated = [...GENERATED_FILES, ...GENERATED_PREFIXES.map((prefix) => `${prefix}nested/output.json`)];
+  for (const headRefName of ["fix/evidence", "automation/derived-artifacts-123-1"]) {
+    const current = { ...input, headRefName };
+    const files = generated.map((filename) => ({ filename, status: "modified" }));
+    assert.equal((await evaluateReleaseWindow(current, {}, fakeGitHub({ current, files }).request)).allowed, true);
+    assert.equal((await evaluateReleaseWindow(current, {}, fakeGitHub({ current }).request)).allowed, false);
+  }
+});
+
+it("blocks source deletions and source-to-generated renames, accepts generated renames", async () => {
+  for (const file of [{ filename: "src/deleted.ts", status: "removed" },
+    { filename: "api-report/client.md", previous_filename: "src/client.ts", status: "renamed" },
+    { filename: "api-report/client.md", status: "renamed" }]) {
+    assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ files: [file] }).request)).allowed, false);
+  }
+  const files = [{ filename: "api-report/new.md", previous_filename: "api-report/old.md", status: "renamed" }];
+  assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ files }).request)).allowed, true);
+});
+
+it("allows only the existing authenticated same-repository Release Please exception", async () => {
+  assert.equal((await evaluateReleaseWindow(automation, {}, fakeGitHub().request)).allowed, true);
+  for (const override of [{ authorType: "User" }, { headRepository: "attacker/fork" }, { authorLogin: "impostor[bot]" }]) {
+    const current = { ...automation, ...override };
+    assert.equal((await evaluateReleaseWindow(current, {}, fakeGitHub({ current }).request)).allowed, false);
+  }
+});
+
+it("paginates releases and files and fails closed on truncation, movement or API errors", async () => {
+  let pages = 0;
+  const values = await readAllPages("https://api.github.com/example", async (url) => {
+    pages += 1;
+    return new URL(url).searchParams.get("page") === "1" ? Array(100).fill({}) : [draft];
+  });
+  assert.equal(pages, 2);
+  assert.equal(values.length, 101);
+  await assert.rejects(readAllPages("https://api.github.com/example", async () => Array(100).fill({})), /3000/);
+  await assert.rejects(readAllPages("https://api.github.com/example", async () => ({})), /malformed/);
+  for (const rest of [{ ...restSnapshot(input, []), changed_files: 20 },
+    { ...restSnapshot(input, []), head: { sha: "e".repeat(40) } }]) {
+    await assert.rejects(evaluateReleaseWindow(input, {}, fakeGitHub({ files: [], rest }).request), /incomplete|changed/);
+  }
+  await assert.rejects(loadReleaseWindows(repository, fakeGitHub({ releaseError: new Error("rate limited") }).request), /rate limited/);
+  await assert.rejects(loadReleaseWindows(repository, async (url) => {
+    if (url.includes("/releases")) return [draft];
+    throw Object.assign(new Error("Forbidden"), { status: 403 });
+  }), /Forbidden/);
+});
+
+it("ignores non-SDK drafts and validates every active SDK draft", async () => {
+  const windows = await loadReleaseWindows(repository, fakeGitHub({ releases: [
+    { ...draft, tag_name: "mcp-server-v1.0.0" }, draft, { ...draft, tag_name: "js-sdk-v0.5.0-rc.1" },
+  ] }).request);
+  assert.deepEqual(windows.map((release) => release.tag_name), ["js-sdk-v0.4.0", "js-sdk-v0.5.0-rc.1"]);
+});
+
+it("refreshes the exact PR head from held to passed without merging or weakening disposition", async () => {
+  for (const releases of [[draft], []]) {
+    const api = fakeGitHub({ releases });
+    const result = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, api.request);
+    assert.equal(result.allowed, releases.length === 0);
+    const created = api.calls.find((call) => call.options.method === "POST" && call.endpoint.pathname.endsWith("/check-runs"));
+    assert.equal(created.body.head_sha, input.headSha);
+    assert.equal(created.body.name, "PR Issue Disposition");
+    assert.equal(created.body.status, "in_progress");
+    assert.equal(api.calls.at(-1).body.conclusion, releases.length ? "failure" : "success");
+    assert.equal(api.calls.filter((call) => call.options.method && call.endpoint.pathname !== "/graphql" &&
+      !call.endpoint.pathname.includes("/check-runs")).length, 0);
+  }
+  const current = { ...input, body: "missing issue footer" };
+  const invalid = fakeGitHub({ current, releases: [] });
+  const result = await refreshPullRequest({ repository, pullRequestNumber: current.pullRequestNumber }, {}, invalid.request);
+  assert.equal(result.allowed, false);
+  assert.equal(result.infrastructureError, undefined, "a disposition failure belongs to the PR, not the run");
+  assert.equal(invalid.calls.at(-1).body.conclusion, "failure");
+});
+
+const entry = (number, overrides = {}) => ({ number, state: "open", base: { ref: "trunk" },
+  head: { sha: input.headSha, repo: { full_name: repository } }, ...overrides });
+const stale = { ...input, pullRequestNumber: input.pullRequestNumber - 1, body: "missing issue footer" };
+const listing = [entry(input.pullRequestNumber), entry(stale.pullRequestNumber)];
+
+it("publishes one combined verdict for every open trunk PR that shares a head", async () => {
+  // Whichever PR's run writes last, the commit carries the same verdict and names the PR to act on.
+  const fromValid = fakeGitHub({ releases: [], sharing: listing, others: [stale] });
+  const held = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, fromValid.request);
+  assert.equal(held.allowed, false);
+  assert.equal(held.infrastructureError, undefined);
+  assert.match(held.summary, new RegExp(`fix or close it: #${stale.pullRequestNumber} \\(`));
+  assert.equal(fromValid.calls.at(-1).body.conclusion, "failure");
+  const fromStale = fakeGitHub({ current: stale, releases: [], sharing: listing, others: [input] });
+  const own = await refreshPullRequest({ repository, pullRequestNumber: stale.pullRequestNumber }, {}, fromStale.request);
+  assert.equal(own.allowed, false, "a valid sibling never clears a PR's own failure");
+  assert.equal(fromStale.calls.at(-1).body.conclusion, "failure");
+
+  // A fork PR at the same commit shares the check too: its own run, written last, cannot clear the hold.
+  const fork = { ...input, pullRequestNumber: input.pullRequestNumber + 1, headRepository: "outsider/honua-sdk-js" };
+  const forkEntry = entry(fork.pullRequestNumber, { head: { sha: input.headSha, repo: { full_name: fork.headRepository } } });
+  const fromFork = fakeGitHub({ current: fork, releases: [], sharing: [forkEntry, entry(stale.pullRequestNumber)], others: [stale] });
+  const forkRun = await refreshPullRequest({ repository, pullRequestNumber: fork.pullRequestNumber }, {}, fromFork.request);
+  assert.match(forkRun.summary, new RegExp(`fix or close it: #${stale.pullRequestNumber} `));
+  assert.equal(fromFork.calls.at(-1).body.conclusion, "failure");
+});
+
+it("counts only PRs that are still open on the same trunk head", async () => {
+  // Not siblings: a closed PR, another base, another head, and a listed PR that has since closed.
+  const closedSince = { ...stale, pullRequestNumber: input.pullRequestNumber + 5 };
+  const unrelated = [entry(input.pullRequestNumber + 2, { state: "closed" }), entry(input.pullRequestNumber + 3, { base: { ref: "release" } }),
+    entry(input.pullRequestNumber + 4, { head: { sha: "f".repeat(40) } }), entry(closedSince.pullRequestNumber)];
+  const alone = fakeGitHub({ releases: [], sharing: [entry(input.pullRequestNumber), ...unrelated], others: [closedSince],
+    otherState: "closed" });
+  const passed = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, alone.request);
+  assert.equal(passed.allowed, true);
+  assert.equal(alone.calls.at(-1).body.conclusion, "success");
+
+  // A valid PR on the same head holds nothing.
+  const twin = { ...input, pullRequestNumber: input.pullRequestNumber + 6 };
+  const twins = fakeGitHub({ releases: [], sharing: [entry(input.pullRequestNumber), entry(twin.pullRequestNumber)], others: [twin] });
+  assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, twins.request)).allowed, true);
+
+  // A sibling that moved off the head after the listing does not share the check.
+  const moved = fakeGitHub({ releases: [], sharing: listing, others: [{ ...stale, headSha: "e".repeat(40) }] });
+  assert.equal((await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, moved.request)).allowed, true);
+});
+
+it("fails the run on an infrastructure error from a shared head, and lists open PRs once in bulk", async () => {
+  // An infrastructure error while listing or reading siblings replaces a stale green and fails the run.
+  for (const [api, message] of [[fakeGitHub({ releases: [], sharing: new Error("rate limited") }), /rate limited/],
+    [fakeGitHub({ releases: [], sharing: listing, others: [stale], otherError: new Error("bad gateway") }),
+      new RegExp(`#${stale.pullRequestNumber}: bad gateway`)]]) {
+    const failed = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, api.request);
+    assert.equal(failed.infrastructureError, true);
+    assert.match(failed.summary, message);
+    assert.equal(api.calls.at(-1).body.conclusion, "failure");
+  }
+
+  // A bulk refresh lists open PRs once and writes the combined verdict for each.
+  const bulk = fakeGitHub({ releases: [], sharing: listing, others: [stale] });
+  const results = await refreshReleaseWindows({ repository }, bulk.request);
+  assert.deepEqual(results.map(({ number, allowed }) => [number, allowed]),
+    [[input.pullRequestNumber, false], [stale.pullRequestNumber, false]]);
+  assert.equal(bulk.calls.filter((call) => call.endpoint.pathname.endsWith("/pulls")).length, 1);
+});
+
+it("replaces stale green with failure when release reads fail", async () => {
+  const api = fakeGitHub({ releaseError: new Error("rate limited") });
+  const result = await refreshPullRequest({ repository, pullRequestNumber: input.pullRequestNumber }, {}, api.request);
+  assert.equal(result.allowed, false);
+  assert.match(result.summary, /rate limited/);
+  assert.equal(result.infrastructureError, true, "an infrastructure error must still fail a bulk refresh");
+  assert.equal(api.calls.at(-1).body.conclusion, "failure");
+});
+
+it("keeps generated paths identical to the producer and tag sealer shell allowlists", () => {
+  const expected = [...GENERATED_FILES, ...GENERATED_PREFIXES.map((prefix) => `${prefix}*`)].sort();
+  for (const workflow of ["release-please", "regenerate-derived-artifacts"]) {
+    const text = fs.readFileSync(new URL(`../../.github/workflows/${workflow}.yml`, import.meta.url), "utf8");
+    const patterns = text.match(/case "\$\{?changed_path\}?" in\s*([\s\S]+?)\)/)?.[1];
+    assert.ok(patterns);
+    assert.deepEqual(patterns.replaceAll("\\", "").split("|").map((part) => part.trim()).sort(), expected);
+  }
+  assert.equal(isGeneratedReleasePath("src/client.ts"), false);
+  assert.equal(isGeneratedReleasePath("docs/native-app-conversion.md"), false);
+});
+
+
+it("publishes combined checks only from trusted trunk code with draft visibility", () => {
+  const workflow = fs.readFileSync(new URL("../../.github/workflows/release-window-refresh.yml", import.meta.url), "utf8");
+  assert.match(workflow, /pull_request_target:/);
+  assert.match(workflow, /contents: write/);
+  assert.match(workflow, /checks: write/);
+  assert.match(workflow, /ref: trunk/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /pull_request\.head\.(sha|ref)|npm (ci|install)|secrets\./);
+  assert.match(workflow, /node scripts\/check-release-window\.mjs --refresh/);
+  assert.match(workflow, /types: \[published, deleted\]/);
+  assert.match(workflow, /cron: '\*\/10 \* \* \* \*'/);
+});
+
+it("holds old source checks before draft creation while allowing regeneration during the release run", async () => {
+  const runs = [{ id: 42, head_branch: "trunk", event: "push", created_at: draft.created_at }];
+  const active = fakeGitHub({ releases: [], runs });
+  const result = await evaluateReleaseWindow(input, { now }, active.request);
+  assert.equal(result.allowed, false);
+  assert.match(result.summary, /Release Please run 42/);
+  const files = [{ filename: "api-report/client.md", status: "modified" }];
+  assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ releases: [], runs, files }).request)).allowed, true);
+  assert.equal((await evaluateReleaseWindow(input, {}, fakeGitHub({ releases: [] }).request)).allowed, true);
+  const workflow = fs.readFileSync(new URL("../../.github/workflows/release-please.yml", import.meta.url), "utf8");
+  assert.ok(workflow.indexOf("node scripts/check-release-window.mjs --refresh --allow-held") <
+    workflow.indexOf("- uses: googleapis/release-please-action@"));
+});
+
+it("fails a targeted run on a held PR but not a bulk refresh that published every PR check", () => {
+  const held = [{ number: 7, allowed: true }, { number: 8, allowed: false }];
+  // pull_request_target and dispatch with a number: the run belongs to that PR.
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: false, results: held }), true);
+  // schedule, release, Release Please completion: each held PR already carries its own failing check.
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: false, allowHeld: false, results: held }), false);
+  assert.equal(releaseWindowRunFails({ refresh: false, targeted: true, allowHeld: false, results: held }), true);
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: true, results: held }), false);
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: true, allowHeld: false, results: [held[0]] }), false);
+  // Nothing is published without --refresh, so a held result always fails it.
+  assert.equal(releaseWindowRunFails({ refresh: false, targeted: false, allowHeld: false, results: held }), true);
+  // An infrastructure error while checking a PR fails even a bulk refresh.
+  const broken = [{ number: 9, allowed: false, infrastructureError: true }];
+  assert.equal(releaseWindowRunFails({ refresh: true, targeted: false, allowHeld: false, results: broken }), true);
+  const script = fs.readFileSync(new URL("../../scripts/check-release-window.mjs", import.meta.url), "utf8");
+  assert.match(script, /releaseWindowRunFails\(/);
+  assert.match(script, /targetPullRequestNumber\(event\)/);
+});
+
+it("derives the target PR from each refresh trigger", () => {
+  assert.equal(targetPullRequestNumber({ pull_request: { number: 12 } }), 12);
+  assert.equal(targetPullRequestNumber({ inputs: { pull_request_number: "34" } }), 34);
+  for (const input of ["", "0", "abc", "-3", "1.5"]) {
+    assert.equal(targetPullRequestNumber({ inputs: { pull_request_number: input } }), undefined, input);
+  }
+  assert.equal(targetPullRequestNumber({ release: { tag_name: "js-sdk-v0.4.1" } }), undefined);
+  assert.equal(targetPullRequestNumber({ workflow_run: { pull_requests: [{ number: 5 }] } }), undefined);
+  assert.equal(targetPullRequestNumber({ schedule: "*/10 * * * *" }), undefined);
+});

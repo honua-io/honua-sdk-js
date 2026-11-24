@@ -35,14 +35,14 @@
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { StudioContentVersion } from "../../studio/lifecycle-types.js";
 import type {
   HonuaControlPlaneJob,
   HonuaControlPlaneResult,
   HonuaEntityValidators,
   HonuaMapPublicationIntent,
-  HonuaPublishMapPackageResponse,
+  HonuaPublishMapDocumentResponse,
 } from "../types.js";
 import { HonuaCommandError } from "./errors.js";
 import type { HonuaAnyCommand, HonuaCommand, HonuaCommandResourceRef } from "./types.js";
@@ -239,19 +239,19 @@ export const importCreateCommand: HonuaCommand<ImportCreateInput, HonuaControlPl
 // ---------------------------------------------------------------------------
 
 /**
- * Input for {@link mapPackagePublishCommand}.
+ * Input for {@link mapDocumentPublishCommand}.
  *
  * There is no approval field, and the schema is closed: publication approval is
  * a server decision, and no transport may express one. The optimistic-
  * concurrency validator travels on `HonuaCommandInvocation.ifMatch`, not in the
  * input, so it can never become part of the idempotency identity.
  */
-export interface MapPackagePublishInput {
+export interface MapDocumentPublishInput {
   /** Hosted map the package belongs to. */
   readonly mapId?: string;
   readonly workspaceId?: string;
   /** The `honua_map_package.v1` document to publish. */
-  readonly package: HonuaMapPackage;
+  readonly package: HonuaMapDocument;
   /** Requested destination and audience, subject to server approval. */
   readonly intent?: HonuaMapPublicationIntent;
   /** Publication message recorded with the version. */
@@ -259,15 +259,15 @@ export interface MapPackagePublishInput {
 }
 
 /** `POST /packages` — publish a map package version. */
-export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, HonuaPublishMapPackageResponse> = {
+export const mapDocumentPublishCommand: HonuaCommand<MapDocumentPublishInput, HonuaPublishMapDocumentResponse> = {
   id: "map-package.publish",
-  title: "Publish a map package",
-  description: "Publish a map package version. Approval and visibility remain server-side decisions.",
+  title: "Publish a map document",
+  description: "Publish a map document version. Approval and visibility remain server-side decisions.",
   mode: "action",
   resourceKind: "map-package",
   inputSchema: {
     type: "object",
-    description: "The map package to publish and where it belongs.",
+    description: "The map document to publish and where it belongs.",
     properties: {
       mapId: { type: "string", minLength: 1, description: "Hosted map the package version belongs to." },
       workspaceId: { type: "string", minLength: 1, description: "Owning workspace." },
@@ -297,7 +297,7 @@ export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, Honu
     return {
       method: "POST",
       path: "/packages",
-      summary: input.mapId ? `Publish a package version for map ${input.mapId}` : "Publish a map package version",
+      summary: input.mapId ? `Publish a map document version for map ${input.mapId}` : "Publish a map document version",
       resourceRef: {
         type: "map-package",
         ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
@@ -306,7 +306,7 @@ export const mapPackagePublishCommand: HonuaCommand<MapPackagePublishInput, Honu
   },
   async execute(context) {
     const { input } = context;
-    const result = await context.controlPlane.packages.publish(
+    const result = await context.controlPlane.mapDocuments.publish(
       {
         package: input.package,
         ...(input.intent ? { intent: input.intent } : {}),
@@ -469,7 +469,7 @@ export type HonuaCommandId = (typeof HONUA_COMMAND_IDS)[number];
 export const HONUA_COMMANDS = {
   "connection.test": connectionTestCommand,
   "import.create": importCreateCommand,
-  "map-package.publish": mapPackagePublishCommand,
+  "map-package.publish": mapDocumentPublishCommand,
   "studio.draft.saveVersion": studioDraftSaveVersionCommand,
 } as const satisfies Record<HonuaCommandId, HonuaAnyCommand>;
 

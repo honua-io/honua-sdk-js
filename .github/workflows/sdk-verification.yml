@@ -53,6 +53,8 @@ on:
 # Read-only for every job, and this workflow is `pull_request`, never
 # `pull_request_target` (REQ-008): a fork's code therefore never executes with a
 # write token and can never publish evidence anything downstream trusts.
+# verify-package replaces this grant with actions:read for migration-cohort
+# recovery. Other jobs keep contents:read only.
 permissions:
   contents: read
 
@@ -132,7 +134,10 @@ jobs:
         run: node --test test/scripts/verify-migration-cohort.test.mjs
 
       - name: Test pull request issue-disposition policy
-        run: node --test test/scripts/pr-issue-disposition.test.mjs
+        run: node --test test/scripts/pr-issue-disposition.test.mjs test/scripts/mcp-publication-wait.test.mjs
+
+      - name: Test schema sync pull-request admission
+        run: node --test test/scripts/schema-sync-workflow.test.mjs
 
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
@@ -142,6 +147,9 @@ jobs:
 
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
+
+      - name: Test Release Please run summaries
+        run: node --test test/scripts/release-please-run-summary.test.mjs
 
       - name: Test sample-bundle lockfile digest pin policy
         run: node --test test/scripts/lockfile-pin.test.mjs
@@ -160,6 +168,9 @@ jobs:
 
       - name: Test candidate receipt PNG pixel decoder
         run: node --test test/scripts/png-pixels.test.mjs
+
+      - name: Test docs site deployment policy
+        run: node --test test/scripts/docs-site-workflow.test.mjs
 
       - name: Test scheduled/live health policy
         run: npm run test:scheduled-live-health
@@ -199,13 +210,19 @@ jobs:
         run: npm ci
 
       - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/migration-cohort-github-workflow.test.mjs test/scripts/playwright-bootstrap.test.mjs test/scripts/unit-test-shards.test.mjs
 
       - name: Test SDK publication workflow execution
         run: node --test test/scripts/publish-js-sdk-workflow.test.mjs
 
+      - name: Test derived-artifact publication and superseded-source policy
+        run: node --test test/scripts/automation-pr-cleanup.test.mjs
+
       - name: Test reseal credential lifetime policy
         run: node --test test/scripts/reseal-token-lifetime.test.mjs
+
+      - name: Test workflow OIDC role variable policy
+        run: node --test test/scripts/workflow-oidc-role-variables.test.mjs
 
       - name: Verify every unit spec has exactly one shard
         run: npm run unit:shards:check
@@ -220,9 +237,10 @@ jobs:
     needs: admission
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    # Worst-case OS-dependency provisioning (3 x 300 s + backoff) plus the
-    # five-minute clock and setup; see the workflow test that derives it.
-    timeout-minutes: 25
+    # Worst-case OS-dependency provisioning (3 x update 90s + install 210s,
+    # plus kill grace and backoff) plus the five-minute clock and setup; see
+    # the workflow test that derives it.
+    timeout-minutes: 27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -463,7 +481,7 @@ jobs:
       - name: Validate release artifact manifest
         run: |
           npm run verify:release-artifacts
-          node --test test/scripts/verify-published-release.test.mjs
+          node --test test/scripts/verify-published-release.test.mjs test/scripts/verify-published-artifact.test.mjs
 
       # 2026.1 certification denominator freeze (#39, AC1). Like the release
       # artifact gate above it reads config/ and mcp/ rather than dist/, so it
@@ -659,7 +677,15 @@ jobs:
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Worst-case OS-dependency provisioning is about 18 minutes; leave room
+    # for npm ci, the Chromium download and the package checks.
+    timeout-minutes: 25
+    # Job permissions replace the workflow grant. actions:read covers recovery
+    # run and job reads; contents:read stays for tag and commit resolution.
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+    permissions:
+      actions: read
+      contents: read
     env:
       HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
     steps:
@@ -698,6 +724,8 @@ jobs:
           npx playwright install chromium
 
       - name: Verify packed SDK migration cohort with default npm resolution
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify:migration-cohort:prepared
 
       - name: Upload migration cohort receipt and installed lock
@@ -736,6 +764,9 @@ jobs:
 
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
+
+      - name: Native Node GeoParquet installed consumer
+        run: npm run verify:node-geoparquet:prepared
 
       - name: Split package verification
         run: npm run verify:split-packages:prepared
@@ -946,16 +977,6 @@ jobs:
         id: browser_smoke
         run: npm run test:playwright:prepared
 
-      - name: Retain GP response completion and raw browser events
-        if: always() && matrix.shard == 'examples' && steps.browser_smoke.outcome != 'skipped'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: gp-response-completion-graph
-          path: .tmp/playwright-output/**/execution-response-*.json
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 90
-
       # The deterministic rendering benchmark is map evidence.
       - name: Deterministic browser rendering benchmark
         id: browser_benchmark
@@ -1078,6 +1099,10 @@ jobs:
       - name: Admit the SDK build
         working-directory: .
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      - name: Build the @honua/app-platform package the MCP server imports
+        working-directory: .
+        run: npm run build:split-packages:prepared
 
       - name: Install dependencies
         run: npm ci

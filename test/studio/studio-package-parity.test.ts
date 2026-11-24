@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { HonuaGeneratedAppChartWidget } from "../../src/generated-app/manifest.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_DASHBOARD_PACKAGE_FORMAT_V1,
   HONUA_PACKAGE_PROVENANCE_FORMAT_V1,
@@ -56,7 +56,7 @@ describe("cross-surface package fixtures", () => {
 
 describe("validateStudioPackage", () => {
   it("delegates the map family to the structural map validator", () => {
-    const response = validateStudioPackage("map", { format: HONUA_MAP_PACKAGE_FORMAT_V1 });
+    const response = validateStudioPackage("map", { format: HONUA_MAP_DOCUMENT_FORMAT_V1 });
     // Missing id / sourceBindings / mapSpec all surface from the map validator.
     expect(response.valid).toBe(false);
     expect(response.diagnostics.some((d) => d.code === "missing-map-package-id")).toBe(true);

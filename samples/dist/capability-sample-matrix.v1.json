@@ -3,32 +3,32 @@
   "schemaVersion": 1,
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.3.3"
+    "version": "0.4.0"
   },
   "inputs": {
     "supportTruth": {
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "1634013f1121ca8afba6b468d2dff033599be29fd48cec8431d1e61694e594e0"
+      "sha256": "968b3792444f84a77ef53fc7c6b7f5876e27fc38cdecbd798512fbecfca122de"
     },
     "packageExports": {
       "path": "package.json",
       "package": "@honua/sdk-js",
-      "sha256": "51aa8574db97f41d5ef2b86399037fd9789d965d50c34eae59b48bdbedf4d0a5"
+      "sha256": "f937159d07aeaa0d0cbc477f860979166904ab4c1658a3eeeab5b79432bc7008"
     },
     "catalog": {
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "649b9b5cf0ea354fe504f87b2a650ff4a5206dc978f049346af3666c99cccc64"
+      "sha256": "7399ffaa96dc7c518a29e5bf01bf4eaab4a26e2bdf0f3e7d85b43c9699f6ad4e"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
       "format": "honua.sdk.sample-qualification-evidence.v1",
       "schemaVersion": 1,
       "receiptCount": 36,
-      "sha256": "fb0fd065b109d0a0cfa9d1b98c68fc2f2a847ef93537aa7de6d91c9495f880eb"
+      "sha256": "b4fa3357874ec5bbe43eb9f74681a37426788dfbdb014bbe7c2a2c67573fd1d7"
     }
   },
   "statusVocabulary": {
@@ -56,13 +56,10 @@
       "aggregation",
       "analysis",
       "arcgis",
-      "async-jobs",
       "atomic-authorization",
-      "attachments",
       "authentication",
       "bounded-local",
       "camera",
-      "cancel",
       "cancellation",
       "capability-discovery",
       "codemod",
@@ -78,24 +75,19 @@
       "fidelity",
       "filtering",
       "forward-geocode",
-      "geometry",
       "geoparquet",
-      "geoprocessing",
       "idempotency",
       "imagery",
       "interaction-state",
       "large-data",
       "linked-views",
       "map",
-      "mcp",
       "migration",
       "multidimensional-raster",
       "node",
       "oauth",
       "offline",
       "optimistic-concurrency",
-      "optimistic-updates",
-      "planning",
       "pmtiles",
       "profile",
       "progressive-rendering",
@@ -111,8 +103,6 @@
       "receipts",
       "reconciliation",
       "renderer-adapters",
-      "route-playback",
-      "runtime",
       "safe-editing",
       "selection",
       "server",
@@ -121,11 +111,9 @@
       "snapping",
       "sse",
       "stac",
-      "storytelling",
       "strategy-selection",
       "temporal",
       "terrain",
-      "three-dimensional",
       "typed-agent-tools",
       "vector-tiles"
     ],
@@ -134,13 +122,11 @@
       "geoparquet",
       "geoservices",
       "honua",
-      "mcp",
       "oauth",
       "odata",
       "ogc",
       "ogc-coverages",
       "ogc-features",
-      "ogc-processes",
       "pmtiles",
       "s3",
       "sse",
@@ -179,7 +165,6 @@
     "renderers": [
       "arcgis",
       "cesium",
-      "kepler",
       "maplibre",
       "none",
       "svg"
@@ -201,10 +186,7 @@
       "supported"
     ],
     "lifecycleStates": [
-      "active",
-      "merge",
-      "replace",
-      "rework"
+      "active"
     ],
     "packageEntrypoints": [
       ".",
@@ -212,30 +194,25 @@
       "./agent-tools",
       "./analytics",
       "./analytics/uplot",
-      "./app",
-      "./app-controller",
-      "./app-workspace",
       "./auth",
       "./browser",
       "./cli",
       "./client-compat",
       "./cloud-native-discovery",
       "./cog",
-      "./collaboration",
       "./columnar-workflow",
       "./contract",
-      "./control-plane",
-      "./controls",
       "./coverages",
       "./deckgl",
       "./diagnostics",
       "./exploration",
+      "./export",
       "./expr",
       "./filter-registry",
-      "./generated-app",
       "./geocoding",
       "./geometry",
       "./geoparquet",
+      "./grpc-web",
       "./honua",
       "./interactions",
       "./interactions/declarative",
@@ -245,12 +222,6 @@
       "./migration",
       "./nl-map-control",
       "./offline",
-      "./operate",
-      "./operator",
-      "./operator/controllers",
-      "./operator/i18n",
-      "./operator/theming",
-      "./operator/workspace",
       "./plugin",
       "./pmtiles",
       "./pmtiles-protocol-plugin.js",
@@ -258,19 +229,14 @@
       "./raster",
       "./react",
       "./realtime",
-      "./replica-sync",
       "./routing",
       "./runtime",
-      "./scene-workspace",
-      "./share",
       "./source-capabilities",
       "./source-capability-discovery",
       "./source-schema",
       "./stac",
-      "./studio",
       "./studio-agent",
       "./style",
-      "./web-components",
       "./webmap",
       "./zarr"
     ]
@@ -292,7 +258,7 @@
           "maplibre-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:b7e91ad4b0d24bb67d8849dea154a1d08238f352676441aadcb60ebcc4eccdf4"
+          "qualification:9dc07df642fd9f9df2b295c257f432d289f96debcfb02b56267f9c5402ee9558"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -313,7 +279,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -321,18 +287,18 @@
     {
       "id": "planning-permitting",
       "title": "Planning and Permitting",
-      "candidateSampleId": "planning-permitting-workbench",
+      "candidateSampleId": "sketch-editing",
       "catalogStatus": "planned",
-      "supportStatus": "supported",
+      "supportStatus": "experimental",
       "coverage": {
-        "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [
-          "planning-permitting-workbench"
+          "sketch-editing"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "selectedSampleId": "sketch-editing"
       }
     },
     {
@@ -368,7 +334,7 @@
           "imagery-cog-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca"
+          "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
       }
@@ -406,7 +372,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:4e1cdd0837a770b4169dd31db16994fcd9c68e26c870417c28497ddc572429a8"
+          "qualification:00dce633278863f256fd729bd3165ae0817243d6cb53ba8f53192828dd2cd520"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -567,53 +533,6 @@
       }
     },
     {
-      "id": "cesium-route-playback",
-      "title": "Cesium route playback lab",
-      "sourcePath": "docs/examples/cesium-route-playback",
-      "track": "lab",
-      "tasks": [
-        "route-playback",
-        "terrain",
-        "three-dimensional"
-      ],
-      "catalogProtocols": [
-        "geoservices"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service"
-      ],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "cesium"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "experimental",
-      "lifecycleState": "rework",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "columnar-query-quickstart",
       "title": "Map a bounded Arrow result",
       "sourcePath": "examples/columnar-query-quickstart",
@@ -717,67 +636,6 @@
       }
     },
     {
-      "id": "edit-workflow-demo",
-      "title": "Conflict-aware editing workflow",
-      "sourcePath": "examples/edit-workflow-demo",
-      "track": "recipe",
-      "tasks": [
-        "attachments",
-        "editing",
-        "optimistic-updates"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        },
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "replace",
-      "qualification": {
-        "state": "unsupported",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
       "sourcePath": "examples/geocoding-quickstart",
@@ -818,51 +676,6 @@
       "authMode": "none",
       "supportTier": "supported",
       "lifecycleState": "active",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
-      "id": "geoprocessing-job-runner",
-      "title": "Geoprocessing job runner",
-      "sourcePath": "examples/geoprocessing-job-runner",
-      "track": "recipe",
-      "tasks": [
-        "async-jobs",
-        "cancel",
-        "geoprocessing"
-      ],
-      "catalogProtocols": [
-        "ogc-processes"
-      ],
-      "protocolIds": [
-        "ogc-processes"
-      ],
-      "supportClaimIds": [
-        "ogc-processes-discovery-standalone",
-        "ogc-processes-execution-standalone"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "ogc-processes",
-          "protocolIds": [
-            "ogc-processes"
-          ],
-          "supportClaimIds": [
-            "ogc-processes-discovery-standalone",
-            "ogc-processes-execution-standalone"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "svg"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
       "qualification": {
         "state": "partial",
         "catalogStatus": "not-a-golden-journey"
@@ -999,7 +812,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca",
+        "evidenceBindingId": "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1018,9 +831,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "75bbe0e20ee19ca0341b24559105dd991ebe5103"
+            "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe"
           ],
-          "sha256": "63abbe9cc0fc4b6a3bf7997d6d375ce60feb3634a71175602f82b6e16b37e0d2"
+          "sha256": "f5a787f626bacf0c00d274a2125f8b1fe2c9f413958b0d0f947ee4dc86f21087"
         }
       }
     },
@@ -1088,7 +901,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:b7e91ad4b0d24bb67d8849dea154a1d08238f352676441aadcb60ebcc4eccdf4",
+        "evidenceBindingId": "qualification:9dc07df642fd9f9df2b295c257f432d289f96debcfb02b56267f9c5402ee9558",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1107,63 +920,10 @@
             "source"
           ],
           "sourceRevisions": [
-            "75bbe0e20ee19ca0341b24559105dd991ebe5103"
+            "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe"
           ],
-          "sha256": "0d30bcee1a7e5886275a82cabb7b58d163ee82050ebc76c1f0ef9ebf719dc400"
+          "sha256": "7bf45a87ef9b658ee7cba666536bcc63ebe255455d3d469fb33437ae98cad625"
         }
-      }
-    },
-    {
-      "id": "mcp-gis-assistant",
-      "title": "MCP GIS assistant",
-      "sourcePath": "examples/mcp-gis-assistant",
-      "track": "lab",
-      "tasks": [
-        "agent-tools",
-        "mcp",
-        "query"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "mcp"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "agent-tools-facade",
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        },
-        {
-          "catalogProtocol": "mcp",
-          "protocolIds": [],
-          "supportClaimIds": [
-            "agent-tools-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "experimental",
-      "lifecycleState": "rework",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
       }
     },
     {
@@ -1212,7 +972,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:4e1cdd0837a770b4169dd31db16994fcd9c68e26c870417c28497ddc572429a8",
+        "evidenceBindingId": "qualification:00dce633278863f256fd729bd3165ae0817243d6cb53ba8f53192828dd2cd520",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1231,9 +991,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "75bbe0e20ee19ca0341b24559105dd991ebe5103"
+            "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe"
           ],
-          "sha256": "c8fa25a55d307ce60cf0f9e3503e82085286a756e1755325639fc502a573a5fd"
+          "sha256": "88095bbb2cee1165ae495d0f121206cb552b57c6bfb38c8b8a545a9432d41b30"
         }
       }
     },
@@ -1448,73 +1208,6 @@
       }
     },
     {
-      "id": "planning-permitting-workbench",
-      "title": "Planning and Permitting journey",
-      "sourcePath": "examples/planning-permitting-workbench",
-      "track": "lab",
-      "journeyId": "planning-permitting",
-      "tasks": [
-        "attachments",
-        "editing",
-        "forward-geocode",
-        "geometry",
-        "linked-views",
-        "planning",
-        "provenance",
-        "query"
-      ],
-      "catalogProtocols": [
-        "geoservices",
-        "honua"
-      ],
-      "protocolIds": [
-        "geoservices-feature-service",
-        "geoservices-geometry-service",
-        "geoservices-gp-service",
-        "geoservices-image-service",
-        "geoservices-map-service",
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "geoservices",
-          "protocolIds": [
-            "geoservices-feature-service",
-            "geoservices-map-service",
-            "geoservices-image-service",
-            "geoservices-geometry-service",
-            "geoservices-gp-service"
-          ],
-          "supportClaimIds": [],
-          "external": false
-        },
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "none"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "supported",
-      "lifecycleState": "active",
-      "qualification": {
-        "state": "planned",
-        "catalogStatus": "planned"
-      }
-    },
-    {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
       "sourcePath": "examples/pmtiles-static",
@@ -1665,51 +1358,6 @@
       }
     },
     {
-      "id": "runtime-parity-showcase",
-      "title": "Runtime parity showcase",
-      "sourcePath": "examples/runtime-parity-showcase",
-      "track": "lab",
-      "tasks": [
-        "fidelity",
-        "renderer-adapters",
-        "runtime"
-      ],
-      "catalogProtocols": [
-        "honua"
-      ],
-      "protocolIds": [
-        "grpc"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "cesium",
-        "kepler",
-        "maplibre"
-      ],
-      "dataMode": "fixture",
-      "authMode": "none",
-      "supportTier": "experimental",
-      "lifecycleState": "replace",
-      "qualification": {
-        "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "service-explorer",
       "title": "Universal service explorer",
       "sourcePath": "examples/service-explorer",
@@ -1846,7 +1494,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29",
+        "evidenceBindingId": "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1865,9 +1513,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "75bbe0e20ee19ca0341b24559105dd991ebe5103"
+            "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe"
           ],
-          "sha256": "e6b2b65cbde059714819e9239d2c71dddc40f2a84f4a35e3a7ae681ce7d5b92c"
+          "sha256": "f3c3860f8ad0e9d54161aa8afce3f6119f99ad99aed6dccf3b0740d32cc505b9"
         }
       }
     },
@@ -1921,6 +1569,7 @@
       "title": "Interactive sketch editing with terra-draw",
       "sourcePath": "examples/sketch-editing",
       "track": "recipe",
+      "journeyId": "planning-permitting",
       "tasks": [
         "editing",
         "sketch",
@@ -1960,7 +1609,7 @@
       "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
-        "catalogStatus": "not-a-golden-journey"
+        "catalogStatus": "planned"
       }
     },
     {
@@ -2028,7 +1677,7 @@
       "dataMode": "hybrid",
       "authMode": "anonymous",
       "supportTier": "experimental",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "qualification": {
         "state": "experimental",
         "catalogStatus": "planned"
@@ -2097,62 +1746,6 @@
       }
     },
     {
-      "id": "storytelling-25d-map",
-      "title": "2.5D storytelling map",
-      "sourcePath": "examples/storytelling-25d-map",
-      "track": "lab",
-      "tasks": [
-        "storytelling",
-        "terrain",
-        "three-dimensional"
-      ],
-      "catalogProtocols": [
-        "honua",
-        "ogc-features"
-      ],
-      "protocolIds": [
-        "grpc",
-        "ogc-features"
-      ],
-      "supportClaimIds": [
-        "compatibility-gate-facade",
-        "ogc-features-standalone"
-      ],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "honua",
-          "protocolIds": [
-            "grpc"
-          ],
-          "supportClaimIds": [
-            "compatibility-gate-facade"
-          ],
-          "external": false
-        },
-        {
-          "catalogProtocol": "ogc-features",
-          "protocolIds": [
-            "ogc-features"
-          ],
-          "supportClaimIds": [
-            "ogc-features-standalone"
-          ],
-          "external": false
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
-    },
-    {
       "id": "temporal-playback",
       "title": "Temporal playback",
       "sourcePath": "examples/temporal-playback",
@@ -2190,156 +1783,121 @@
         "state": "experimental",
         "catalogStatus": "not-a-golden-journey"
       }
-    },
-    {
-      "id": "terrain-rgb-elevation",
-      "title": "Terrain RGB elevation",
-      "sourcePath": "examples/terrain-rgb-elevation",
-      "track": "recipe",
-      "tasks": [
-        "elevation",
-        "profile",
-        "terrain"
-      ],
-      "catalogProtocols": [
-        "terrain-rgb"
-      ],
-      "protocolIds": [],
-      "supportClaimIds": [],
-      "protocolBindings": [
-        {
-          "catalogProtocol": "terrain-rgb",
-          "protocolIds": [],
-          "supportClaimIds": [],
-          "external": true
-        }
-      ],
-      "renderers": [
-        "maplibre"
-      ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
-      "supportTier": "supported",
-      "lifecycleState": "merge",
-      "qualification": {
-        "state": "partial",
-        "catalogStatus": "not-a-golden-journey"
-      }
     }
   ],
   "evidenceBindings": [
     {
-      "id": "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca",
+      "id": "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e",
       "sampleId": "imagery-cog-quickstart",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/imagery-cog-quickstart",
-        "revision": "75bbe0e20ee19ca0341b24559105dd991ebe5103",
-        "evidenceNeutralSha256": "88bb6dcb2650fba8845b747caf94fb4281c7b350c932dfba133fc582f5657397",
+        "revision": "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe",
+        "evidenceNeutralSha256": "1d617d8deca9851f015fb48c65c699f70210236fcf9771e6cd4238aa0ffe250b",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/accessibility.v1.json",
-            "receiptSha256": "231cacff9fe6a68817d53c52f45524d09fe6eb309b969da13fa568523e30c683",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:27:59.494Z",
-            "expiresAt": "2026-11-19T01:27:59.494Z",
+            "receiptSha256": "218d7519c856048edcda6c8e9030c6d2ec2d9c301fa08f45af557b8d0e784272",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:47.692Z",
+            "expiresAt": "2026-12-01T01:12:47.692Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/accessibility.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/accessibility.json",
             "reportBytes": 11862,
-            "reportSha256": "9fe405bb68fb8a83015bccd96a32d81bcda6e22082ba26fba19b6de35ae08235"
+            "reportSha256": "0b32902457f807bfafe4af35d9fb60e760d18da2351b4837e4611393230b75ee"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/browser.v1.json",
-            "receiptSha256": "e75ebb61ef363d9aece8ed9222cff876db6804c39e392d02e2d1f4c08838c038",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:27:59.690Z",
-            "expiresAt": "2026-11-19T01:27:59.690Z",
+            "receiptSha256": "53092ef8a435530d76df15d44505aefc87c5b1e4647bbb1c9db30b3e08856b31",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:47.960Z",
+            "expiresAt": "2026-12-01T01:12:47.960Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/browser.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/browser.json",
             "reportBytes": 11856,
-            "reportSha256": "e6a584cf620655a47ee60e7eb8106ce55aa6e1891a5601dec548059866466476"
+            "reportSha256": "7b57b05b598cb64c0bf301584a37d33a838dbe549fc1ccaea746805641d78f53"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/console.v1.json",
-            "receiptSha256": "dc3f28a90f07b1219439c192e73e9f01857dca2ec35427591c4a66468167f3ae",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:27:59.881Z",
-            "expiresAt": "2026-11-19T01:27:59.881Z",
+            "receiptSha256": "3286989e32f9acac03803489849698414cb3e8bde144b142eb9ed69e9f014abe",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:48.241Z",
+            "expiresAt": "2026-12-01T01:12:48.241Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/console.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/console.json",
             "reportBytes": 11856,
-            "reportSha256": "b5c45396ad6375464884777eda025a518ee6cbd18c1dc6fbc0695f764029bfb9"
+            "reportSha256": "1abb69555a5acdb5c8a7a9a5ea5c42d63e64b61d54eb5a369893b66e1a0690c3"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/fixture.v1.json",
-            "receiptSha256": "f274fea613de3993ef635f1a5eaacfe33b8bffa5fb90934dc2f9fb008ad52acc",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/072b9cf2-9723-4bd5-bfad-4ab036c589ed",
-            "observedAt": "2026-11-12T01:28:01.767Z",
-            "expiresAt": "2026-11-19T01:28:01.767Z",
+            "receiptSha256": "e0c5eb8e8529fb580c77b9ebd7f5002600f351c36ee81c49a8ed2257e1ff04e8",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/f5ee5fea-b63e-492e-8926-bc7bf33202ef",
+            "observedAt": "2026-11-24T01:12:50.950Z",
+            "expiresAt": "2026-12-01T01:12:50.950Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/072b9cf2-9723-4bd5-bfad-4ab036c589ed/artifacts/fixture.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/f5ee5fea-b63e-492e-8926-bc7bf33202ef/artifacts/fixture.json",
             "reportBytes": 718,
-            "reportSha256": "6c416467fc5b5d0f2b62db28f38b3b6b0dd248290480fa5b187991c2228a3196"
+            "reportSha256": "d7f1d9bcdf7173403c8ebcfd86a489f990f22ba54bdfa268ec3de3095001902c"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/live.v1.json",
-            "receiptSha256": "65e6c8289ea0a89d4f3cb0bca3934600f0c30db0077000e7df2bab78e8f0d0b3",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6c49802d-b139-4059-bf5b-6a227e9ba301",
-            "observedAt": "2026-11-12T01:28:34.922Z",
-            "expiresAt": "2026-11-19T01:28:34.922Z",
+            "receiptSha256": "9edab52d9d645d5339e1f024f3d7dba4025ac6c02caa42d20e4eb8462179afb9",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/b60df65e-006a-49b4-b3fa-ac9097688c03",
+            "observedAt": "2026-11-24T01:13:43.012Z",
+            "expiresAt": "2026-12-01T01:13:43.012Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6c49802d-b139-4059-bf5b-6a227e9ba301/artifacts/live.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/b60df65e-006a-49b4-b3fa-ac9097688c03/artifacts/live.json",
             "reportBytes": 10102,
-            "reportSha256": "167894a7f4efa39390c41e46376cd668fc79b1df16b29f858baba58f0635ccc0"
+            "reportSha256": "940fce3a0d033bd869265e803e573da0a36f6f43b70ccc3cdeeaa33a9b1b7cff"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/performance.v1.json",
-            "receiptSha256": "f59828001be48bf82eb6cd89c3d9c6facbdf893d30ff873fd054c5f476111db1",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:28:00.070Z",
-            "expiresAt": "2026-11-19T01:28:00.070Z",
+            "receiptSha256": "35951c814e86748e21755faecb899371422d6bc885c335bf7b4a076ad9aaf4a0",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:48.501Z",
+            "expiresAt": "2026-12-01T01:12:48.501Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/performance.json",
-            "reportBytes": 1073,
-            "reportSha256": "e5747b6487ba333d9b230b670528c565df9e1209541a412e22f89fb2aa0e0f4b"
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/performance.json",
+            "reportBytes": 1068,
+            "reportSha256": "ff20b3a5858eca048f5854629fa2569fdaf5a7c4136c77286093f39e55e1e720"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/responsive.v1.json",
-            "receiptSha256": "90e853f77269571826906f69eaac26d06aac72a4025aa46c74405d95e0c6e1a5",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:28:00.261Z",
-            "expiresAt": "2026-11-19T01:28:00.261Z",
+            "receiptSha256": "9eadc6d579c907fc370679abc423d3dd3d5369fa805a57f27aae31cfcf15c9ad",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:48.774Z",
+            "expiresAt": "2026-12-01T01:12:48.774Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/responsive.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/responsive.json",
             "reportBytes": 11859,
-            "reportSha256": "d34c0e9e134025f1f5bf70f4287a4a7cda0b74f898a894a8987d80d140799476"
+            "reportSha256": "4d24ec8e53f2cc61f11d46d206cdf156cf78131836adc0fe5f12513fea461d1b"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/screenshot.v1.json",
-            "receiptSha256": "42a8013c696ff2002871a35183f5ab7acf4e8600fdc025d906e2f4fab272340b",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8",
-            "observedAt": "2026-11-12T01:28:00.448Z",
-            "expiresAt": "2026-11-19T01:28:00.448Z",
+            "receiptSha256": "31921998f3b2185de12519df8b0f83e34eed462f734f0808062f57409855e3fb",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4",
+            "observedAt": "2026-11-24T01:12:49.027Z",
+            "expiresAt": "2026-12-01T01:12:49.027Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/9c04a6a8-f952-4e46-9207-7d2cf00be3a8/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/6197b1d5-c276-4fc3-a9c3-e4b02e469bb4/artifacts/screenshot.json",
             "reportBytes": 2548,
-            "reportSha256": "708f3b319abf1f9d6408d01db6de7b0c8aca0839c5099567cca833c19ad2bd1e"
+            "reportSha256": "a253cc8205b5e40f4d39c20e5bf3353f3e1b9414787ecada271cb05385248385"
           }
         ]
       },
@@ -2347,128 +1905,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/packed-build.v1.json",
-        "receiptSha256": "927ea79f2587192e5618467c44d7144fe1f54db5dfafbc3b98bd7819d7eae550",
-        "runRoot": "samples/evidence/imagery-cog-quickstart/runs/c4bb9c38-9205-4ce5-b138-ab6ce819cc5d",
-        "observedAt": "2026-11-12T01:28:38.406Z",
-        "expiresAt": "2026-11-19T01:28:38.406Z",
+        "receiptSha256": "72ee1f40433afad069ccb97f29f354102221beabc2e91d6a5ba227b09bd03bc8",
+        "runRoot": "samples/evidence/imagery-cog-quickstart/runs/3ff8446b-cc81-49cd-9a64-49efdf49f3f0",
+        "observedAt": "2026-11-24T01:13:48.827Z",
+        "expiresAt": "2026-12-01T01:13:48.827Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/imagery-cog-quickstart/runs/c4bb9c38-9205-4ce5-b138-ab6ce819cc5d/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/imagery-cog-quickstart/runs/3ff8446b-cc81-49cd-9a64-49efdf49f3f0/artifacts/packed-build.json",
         "reportBytes": 13836,
-        "reportSha256": "a6e29f129f664c1f03addd62e1db416c40666b77546e422644daf6984940fff5"
+        "reportSha256": "1f1689e221277d283b2180206bbede442d0819b05be5c1b0dd3b97194f87f2b6"
       }
     },
     {
-      "id": "qualification:b7e91ad4b0d24bb67d8849dea154a1d08238f352676441aadcb60ebcc4eccdf4",
+      "id": "qualification:9dc07df642fd9f9df2b295c257f432d289f96debcfb02b56267f9c5402ee9558",
       "sampleId": "maplibre-quickstart",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/maplibre-quickstart",
-        "revision": "75bbe0e20ee19ca0341b24559105dd991ebe5103",
-        "evidenceNeutralSha256": "88bb6dcb2650fba8845b747caf94fb4281c7b350c932dfba133fc582f5657397",
+        "revision": "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe",
+        "evidenceNeutralSha256": "1d617d8deca9851f015fb48c65c699f70210236fcf9771e6cd4238aa0ffe250b",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/accessibility.v1.json",
-            "receiptSha256": "09f4f5eb94c9ed7e891be3bfd703baf8a2eb802e56bd858305cf0633ff698ac6",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.044Z",
-            "expiresAt": "2026-11-19T01:27:11.044Z",
+            "receiptSha256": "c482e75a21ec83fc52007ed706590eb51cafae7a1149eb9cd18ff4f1f3e1e65a",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:31.191Z",
+            "expiresAt": "2026-12-01T01:11:31.191Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/accessibility.json",
-            "reportBytes": 11377,
-            "reportSha256": "064c83015c7b6886d5049831eba07aaa08f9354b8e9874ffeef8e40117501ee9"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/accessibility.json",
+            "reportBytes": 11368,
+            "reportSha256": "44174569acb5f72d98d7650f826be84f65297d3fd1b3d0e10aa8bc0086bcba96"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/browser.v1.json",
-            "receiptSha256": "78bcd548bc6dc750f8a947602768a4833d5b8d87323cac95db19599a57532d3c",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.237Z",
-            "expiresAt": "2026-11-19T01:27:11.237Z",
+            "receiptSha256": "fe4fa120b8097ab7e983fa080cc65391cf18cb77be1897f9c2bc9f657a6a668c",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:31.471Z",
+            "expiresAt": "2026-12-01T01:11:31.471Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/browser.json",
-            "reportBytes": 11371,
-            "reportSha256": "2d17e453ab4a056800429b0896765bfdab3d64176ff757fadca8d3e0d6e0ce74"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/browser.json",
+            "reportBytes": 11362,
+            "reportSha256": "6704242bfa80a0fdc6748e54472ecea9649c2a89e60a17a0cb06ba7ef8811610"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/console.v1.json",
-            "receiptSha256": "26c381636be67bda8ac9c320722b1fa3f8a416bef5cfbd38ba12a04282a11bc1",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.434Z",
-            "expiresAt": "2026-11-19T01:27:11.434Z",
+            "receiptSha256": "d31270e9a7d5dcaaec8ddfbdb0d13e64e8254b776cc32507bccd01d3f549ba23",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:31.739Z",
+            "expiresAt": "2026-12-01T01:11:31.739Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/console.json",
-            "reportBytes": 11371,
-            "reportSha256": "feae7b2b4b9879e5441f11365efa3ecbc1dec13acc99619f1d3b309bfc09e070"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/console.json",
+            "reportBytes": 11362,
+            "reportSha256": "f5d4544c68dbdfa322c041b6126c436ebb11c949fde27c094bda62253d51f71d"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/fixture.v1.json",
-            "receiptSha256": "2d5bdaaa023c1b5d805d6a3310023f8260dae3334e94db79e564cd693dccf429",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/8a1d0eba-92af-4b7b-8b8e-28e1362cc9b3",
-            "observedAt": "2026-11-12T01:27:13.502Z",
-            "expiresAt": "2026-11-19T01:27:13.502Z",
+            "receiptSha256": "a00adb7b5bff967e7c24fcacf127d4d5a575f542a9be3d062eb2a13de23a61dd",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/ddcec408-723a-49c3-995b-b66a4b13420c",
+            "observedAt": "2026-11-24T01:11:34.755Z",
+            "expiresAt": "2026-12-01T01:11:34.755Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/8a1d0eba-92af-4b7b-8b8e-28e1362cc9b3/artifacts/fixture.json",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/ddcec408-723a-49c3-995b-b66a4b13420c/artifacts/fixture.json",
             "reportBytes": 714,
-            "reportSha256": "c63784b76f07ebed7f7775e28dd3a7a5c887479fc1ba7dfbf996ba3573171565"
+            "reportSha256": "6655ce5e7c5b2c82b92eaf9df59ef4e30f0684ad0add036c75096f469aa66524"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/live.v1.json",
-            "receiptSha256": "96e2e4f364a0a53da8b5d9ae63bcb03edcc6c672911e044fe4804a929dce797c",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/cded2cde-93b7-4f38-917b-cb3225a9aaf3",
-            "observedAt": "2026-11-12T01:27:16.548Z",
-            "expiresAt": "2026-11-19T01:27:16.548Z",
+            "receiptSha256": "13dee208026cefc1aca86f335221e8e4c5a947820a20ee3475720c9e303f9c9e",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/b4eca6cb-7812-4431-bc2a-3f39fa6045fc",
+            "observedAt": "2026-11-24T01:11:38.837Z",
+            "expiresAt": "2026-12-01T01:11:38.837Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/cded2cde-93b7-4f38-917b-cb3225a9aaf3/artifacts/live.json",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/b4eca6cb-7812-4431-bc2a-3f39fa6045fc/artifacts/live.json",
             "reportBytes": 2502,
-            "reportSha256": "64211ceec09caedaef15f2b8b57e73f65faafafb4131eaff11e70bf782bb2cd9"
+            "reportSha256": "82866429f5fd74bb0dbb92f97152797cf6e04050eb6dee2a0469608cc43d9eab"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/performance.v1.json",
-            "receiptSha256": "5ea8f699d72212ca698a8b623d48b47e0cab06173ee8f2434cf945ad2795e371",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.633Z",
-            "expiresAt": "2026-11-19T01:27:11.633Z",
+            "receiptSha256": "07d5014f2dde3089d22e623b2e0683190483daac5e03d5fee566d06333bfc0cb",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:32.015Z",
+            "expiresAt": "2026-12-01T01:11:32.015Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/performance.json",
-            "reportBytes": 1100,
-            "reportSha256": "2242262172affc43e4f62fb19b67974b0ba5eb0b0eefa700e6aac7a4ea53b030"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/performance.json",
+            "reportBytes": 1113,
+            "reportSha256": "70db1ab349dd7d967c4b104a3032aefaa9f30d77901db6fb4dc362b07d964ed8"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/responsive.v1.json",
-            "receiptSha256": "a1856287e71bc38d8a0f74337e36301b78d99b68c681b641c8325452987aae8c",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.815Z",
-            "expiresAt": "2026-11-19T01:27:11.815Z",
+            "receiptSha256": "93b43867cb8e98bd108a411feade2e643ebd3780e63ae9128795c8c52d283e72",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:32.291Z",
+            "expiresAt": "2026-12-01T01:11:32.291Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/responsive.json",
-            "reportBytes": 11374,
-            "reportSha256": "7db319a6078a84e33d6ef2cb8825e5dff6ccef46593460b8fa5a596f6580843d"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/responsive.json",
+            "reportBytes": 11365,
+            "reportSha256": "6ccace5b839ed06137ea7ed919d16ca56fea43987b088444be2af54789f1189c"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/screenshot.v1.json",
-            "receiptSha256": "1990ddb0a03b19a2796d9f5c43b63effeb3ceee5c6c45eeab2575a983b1b7180",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90",
-            "observedAt": "2026-11-12T01:27:11.997Z",
-            "expiresAt": "2026-11-19T01:27:11.997Z",
+            "receiptSha256": "da76e3cece6e06a889a2e602ac6c837ad53c229b3ae4f1bc86ff208c4b22c24e",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9",
+            "observedAt": "2026-11-24T01:11:32.545Z",
+            "expiresAt": "2026-12-01T01:11:32.545Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/251b83f0-e458-4e29-8507-d793cf08cb90/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/2af2327b-ade1-479d-9abc-bd03dc5bf8d9/artifacts/screenshot.json",
             "reportBytes": 2532,
-            "reportSha256": "9252adc4454112fde73d0d1d0eb2468272c1bd7a6f17a7b6ed3ecca2fbc38919"
+            "reportSha256": "9f9f6778846113aa818c0862c2b9739683800ba31732f3c7fa0a50dacfb85208"
           }
         ]
       },
@@ -2476,128 +2034,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
-        "receiptSha256": "5ca913c71765d85d7309ca337b8c03fbf1d84aab4fc0192aaaf8e4bc01f59a49",
-        "runRoot": "samples/evidence/maplibre-quickstart/runs/5f8241cf-2681-40c4-b96a-9ac5183333ba",
-        "observedAt": "2026-11-12T01:27:20.150Z",
-        "expiresAt": "2026-11-19T01:27:20.150Z",
+        "receiptSha256": "8ab23cf188a1b644218ee544bc538ea31e91efbece8a929cf227d569e7d55667",
+        "runRoot": "samples/evidence/maplibre-quickstart/runs/fa87f171-86b0-4e60-b990-0339e5ec948a",
+        "observedAt": "2026-11-24T01:11:44.649Z",
+        "expiresAt": "2026-12-01T01:11:44.649Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/maplibre-quickstart/runs/5f8241cf-2681-40c4-b96a-9ac5183333ba/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/maplibre-quickstart/runs/fa87f171-86b0-4e60-b990-0339e5ec948a/artifacts/packed-build.json",
         "reportBytes": 8093,
-        "reportSha256": "daea31e955855d1fc9279634792aeb8df2f2446d6f03f747273b8b6f6f652882"
+        "reportSha256": "ba2b9ef959c0eec936dc626ab678752d32f9c6f379be8bb0cf978fc274762a0b"
       }
     },
     {
-      "id": "qualification:4e1cdd0837a770b4169dd31db16994fcd9c68e26c870417c28497ddc572429a8",
+      "id": "qualification:00dce633278863f256fd729bd3165ae0817243d6cb53ba8f53192828dd2cd520",
       "sampleId": "migration-workbench",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/migration-workbench",
-        "revision": "75bbe0e20ee19ca0341b24559105dd991ebe5103",
-        "evidenceNeutralSha256": "88bb6dcb2650fba8845b747caf94fb4281c7b350c932dfba133fc582f5657397",
+        "revision": "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe",
+        "evidenceNeutralSha256": "1d617d8deca9851f015fb48c65c699f70210236fcf9771e6cd4238aa0ffe250b",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/accessibility.v1.json",
-            "receiptSha256": "136645d4a74110eadf0288c8cf0be76fdd1b93d7917ad44928b70f66913fc1b4",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:45.334Z",
-            "expiresAt": "2026-11-19T01:28:45.334Z",
+            "receiptSha256": "df0a44640d48aedb4221f3d4d97befa3c4ee704a915e34825b491791a074ffca",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:13:59.684Z",
+            "expiresAt": "2026-12-01T01:13:59.684Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/accessibility.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/accessibility.json",
             "reportBytes": 8832,
-            "reportSha256": "98728911241e311242686fdb54c6f60c313e9f3d9a93e77e9b1830bbb19ff5ac"
+            "reportSha256": "3c0e7aade8d202e5f89cb8102cbab68d8b4b591e087a28cec0d12945ac11e02c"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/browser.v1.json",
-            "receiptSha256": "32a4fa5a8cc0e9db420e81ca91ff401f5821f73afbc91af5d6cfbd10380b7cc7",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:45.517Z",
-            "expiresAt": "2026-11-19T01:28:45.517Z",
+            "receiptSha256": "e0f67458fbd2bce46514419d75fa127053685f8594c92c77339d45ec137f5805",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:13:59.950Z",
+            "expiresAt": "2026-12-01T01:13:59.950Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/browser.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/browser.json",
             "reportBytes": 8826,
-            "reportSha256": "fa83746e08d94fb8f05d75b642e1742f524826d2fa83bf07877db0bdd3a7d90e"
+            "reportSha256": "df00b1ec8ba49aad90b6150e2c215d31758dff644f1e41dc2b6b0ba48cac28c7"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/console.v1.json",
-            "receiptSha256": "d74b7256cf128c768a963f4b473826353c11119b914a48d04f1b752043f8192d",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:45.698Z",
-            "expiresAt": "2026-11-19T01:28:45.698Z",
+            "receiptSha256": "2e12624d776b3b7ef3f55227558af5d0755e7dfe3a00353e7739b6731ae81e89",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:14:00.222Z",
+            "expiresAt": "2026-12-01T01:14:00.222Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/console.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/console.json",
             "reportBytes": 8826,
-            "reportSha256": "de518df4aa4795e6b65248e53065f9560976742fed6d75f385572ff036b27bd0"
+            "reportSha256": "dd9c5cbbd55baba5f6b89ba1574b440c4bf2b2785a520d0a971cc9ed0c392d0e"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/fixture.v1.json",
-            "receiptSha256": "3301c6bdf8cf9484d0b542c6bbf9fa65b08189f1fb4dea1c940890d51630ec0d",
-            "runRoot": "samples/evidence/migration-workbench/runs/0048d2e5-3ba0-422a-ac30-0178953835b3",
-            "observedAt": "2026-11-12T01:28:47.464Z",
-            "expiresAt": "2026-11-19T01:28:47.464Z",
+            "receiptSha256": "959e280bedf641110f3e894d3d841c72e4072201b64e6f18e1f21e7850e373b3",
+            "runRoot": "samples/evidence/migration-workbench/runs/d0c29648-60f9-42c4-a31c-b607d7c6e5e9",
+            "observedAt": "2026-11-24T01:14:02.521Z",
+            "expiresAt": "2026-12-01T01:14:02.521Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/0048d2e5-3ba0-422a-ac30-0178953835b3/artifacts/fixture.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/d0c29648-60f9-42c4-a31c-b607d7c6e5e9/artifacts/fixture.json",
             "reportBytes": 723,
-            "reportSha256": "f02ea34cb026ec90e038b6cbd0b72f8e236ed8fffb6c18e2f93f2eeffa4db6e1"
+            "reportSha256": "09678104d3bc811e16bae2100a3c4ce2207fa373d642956da239b4c7d4765358"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "a5c97a58541547de58461626c3f9f5df03364dba866ad48cf1ac0119e322d925",
-            "runRoot": "samples/evidence/migration-workbench/runs/db4bcc1d-fe36-4704-9d9e-81726cd634c5",
-            "observedAt": "2026-11-12T01:28:50.801Z",
-            "expiresAt": "2026-11-19T01:28:50.801Z",
+            "receiptSha256": "e4dc7bb0e921dd247530a934b0f4d1a0d2671f6172cf6b283c8ea06aef6682e4",
+            "runRoot": "samples/evidence/migration-workbench/runs/be631325-8143-4038-97c3-062bf46b0992",
+            "observedAt": "2026-11-24T01:14:07.718Z",
+            "expiresAt": "2026-12-01T01:14:07.718Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/db4bcc1d-fe36-4704-9d9e-81726cd634c5/artifacts/live.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/be631325-8143-4038-97c3-062bf46b0992/artifacts/live.json",
             "reportBytes": 2253,
-            "reportSha256": "584b628b46a3cc8dddde2803d7b6a7aed84ed8f1bb99c0d86820de99dbda86a0"
+            "reportSha256": "e0fe03d841f0b14846c78f98c4ce62ff4c813bfa0827fbc43d7eb87a831b9efe"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/performance.v1.json",
-            "receiptSha256": "8e23609d558bcf94563deee75765cf5fafcc9f04ecac06e8a7ac1bdf180c55b5",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:45.958Z",
-            "expiresAt": "2026-11-19T01:28:45.958Z",
+            "receiptSha256": "e18877d73bedc4c5fdd77ae2f800d4cb0865fbd318bb2ebe13cf7b60f6449a3b",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:14:00.494Z",
+            "expiresAt": "2026-12-01T01:14:00.494Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/performance.json",
-            "reportBytes": 1081,
-            "reportSha256": "c7bfb94263232247b0027567f4dfc24095e943fe2dfc42d5cd594d53edd57d33"
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/performance.json",
+            "reportBytes": 1123,
+            "reportSha256": "c7aa46ea33c535b4a8c68602dc9d88032b73d6fd38c4a99e711951072983b254"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/responsive.v1.json",
-            "receiptSha256": "7a8ac9c8e8a5104c25a9e4f17aeaa01ffdffc1f1cf3c208044e0fe6c13668aa2",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:46.140Z",
-            "expiresAt": "2026-11-19T01:28:46.140Z",
+            "receiptSha256": "4c590d8c9ac518920869575520cfcc7d9e73817f96b7d0bed237f2531f40142f",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:14:00.765Z",
+            "expiresAt": "2026-12-01T01:14:00.765Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/responsive.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/responsive.json",
             "reportBytes": 8829,
-            "reportSha256": "e1d6c8cbba5750a79e00469d8cae05d58eea020c94a24824943ef87dd4f67917"
+            "reportSha256": "d97e889f4e054f2e234880945038db2450d93ef0e164ed9c14cb6232f5c5ddf8"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/screenshot.v1.json",
-            "receiptSha256": "829d2a87b3ec955d5af11a13b7c6ffd5bad4732848bcaf44f17d400469ce35fc",
-            "runRoot": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97",
-            "observedAt": "2026-11-12T01:28:46.354Z",
-            "expiresAt": "2026-11-19T01:28:46.354Z",
+            "receiptSha256": "8605f8725bacfa62cdcde6c3c2d8b677d233f6ed63601915e297221edb9a8298",
+            "runRoot": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f",
+            "observedAt": "2026-11-24T01:14:01.019Z",
+            "expiresAt": "2026-12-01T01:14:01.019Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/cf6e62ae-65e6-4ee6-b713-9824aee8fb97/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/95ee420f-96d9-4598-a491-c843f101d20f/artifacts/screenshot.json",
             "reportBytes": 2541,
-            "reportSha256": "b7381fda20986abab466e2aa6158d007cf91843f479a923fab3cec0252d16881"
+            "reportSha256": "7086e8eba6668ba28b21fee43cd2b23baa0a291d087d70faca6eb0d3c6eef90a"
           }
         ]
       },
@@ -2605,128 +2163,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-        "receiptSha256": "f6b403b278592c84f8c520cc8b8ffeefecc7412bb16afd93c2b2b004a7cccb41",
-        "runRoot": "samples/evidence/migration-workbench/runs/33d8a626-4c31-443e-ab66-a88a5f19bb06",
-        "observedAt": "2026-11-12T01:28:54.193Z",
-        "expiresAt": "2026-11-19T01:28:54.193Z",
+        "receiptSha256": "9ad9fc37a24289076f6f1df0b7a6e89e3f118491522ff19620e9cb459b902381",
+        "runRoot": "samples/evidence/migration-workbench/runs/129e8d20-67df-46c0-ac6d-f8a892e6bc67",
+        "observedAt": "2026-11-24T01:14:13.212Z",
+        "expiresAt": "2026-12-01T01:14:13.212Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/migration-workbench/runs/33d8a626-4c31-443e-ab66-a88a5f19bb06/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/migration-workbench/runs/129e8d20-67df-46c0-ac6d-f8a892e6bc67/artifacts/packed-build.json",
         "reportBytes": 6190,
-        "reportSha256": "6aa498b914de2d3d3504a2f1192aca3e7b5e5eb47bccb2465e95de8befab0ba6"
+        "reportSha256": "70cc9852475466107b5d999ca4770b7f7e8e7e57e83844b9eb3800c32609e59c"
       }
     },
     {
-      "id": "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29",
+      "id": "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc",
       "sampleId": "service-explorer",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/service-explorer",
-        "revision": "75bbe0e20ee19ca0341b24559105dd991ebe5103",
-        "evidenceNeutralSha256": "88bb6dcb2650fba8845b747caf94fb4281c7b350c932dfba133fc582f5657397",
+        "revision": "25beebd0e71354e3e7fc8d523830fa1fffe6bdfe",
+        "evidenceNeutralSha256": "1d617d8deca9851f015fb48c65c699f70210236fcf9771e6cd4238aa0ffe250b",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/accessibility.v1.json",
-            "receiptSha256": "93f8ea2153e3ce37a717721a6eb41707f3e6d0d32d9d8f25af4e4b63f8b62707",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:01.445Z",
-            "expiresAt": "2026-11-19T01:29:01.445Z",
+            "receiptSha256": "a03282122e29294550d90fae59fd88806cc77037c5301336bb97c8af9bcd2813",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:23.721Z",
+            "expiresAt": "2026-12-01T01:14:23.721Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/accessibility.json",
-            "reportBytes": 9167,
-            "reportSha256": "7d8c747930aa6db10455ce182ef6756ccd1437b40c6095072bcb65b122dd002d"
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/accessibility.json",
+            "reportBytes": 9158,
+            "reportSha256": "42b339f5fa59ef74098fa30514ca06b59f3a45320291ce7d0115c4b6405ea617"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/browser.v1.json",
-            "receiptSha256": "22809adddd52b262de4a30c405bfc56432770b1d6581fc5027d25c109c3e2543",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:01.640Z",
-            "expiresAt": "2026-11-19T01:29:01.640Z",
+            "receiptSha256": "db5a40c0c48035d0c0d43a542f8d8cd795b9af8f28c008ae43321636fee6fee2",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:23.986Z",
+            "expiresAt": "2026-12-01T01:14:23.986Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/browser.json",
-            "reportBytes": 9161,
-            "reportSha256": "9c5cd003d71f31376fba67c8e62bf71382aeadc4bb865694933faffd5405e903"
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/browser.json",
+            "reportBytes": 9152,
+            "reportSha256": "302d1ab1b215054fa57484f51211590043b8aa653764d54b6e79b4b5098b2f0b"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/console.v1.json",
-            "receiptSha256": "78d41a062f6962bf0bf22d2962588ae0bc66a2ffd3000b48e8a5f3e3348f1fae",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:01.831Z",
-            "expiresAt": "2026-11-19T01:29:01.831Z",
+            "receiptSha256": "fdc61d690b06931220d6c7cf1637adcc4dc8b5aca449997a6169ff3bbe9010a4",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:24.250Z",
+            "expiresAt": "2026-12-01T01:14:24.250Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/console.json",
-            "reportBytes": 9161,
-            "reportSha256": "3d995948044502b3093a8774d6982c361921168f8bea18e6040b0bbf63dd13bb"
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/console.json",
+            "reportBytes": 9152,
+            "reportSha256": "cc8563ad78d81e16de669c8ff3ae0987109e566e9b07d615d3f8f541cf887776"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/fixture.v1.json",
-            "receiptSha256": "7aa8874831f439beb0741242c5e53a4b1c754981ebfdf99400e793b9fa60af35",
-            "runRoot": "samples/evidence/service-explorer/runs/b14bfb42-d01b-445d-b804-1f6e540e8e69",
-            "observedAt": "2026-11-12T01:29:03.665Z",
-            "expiresAt": "2026-11-19T01:29:03.665Z",
+            "receiptSha256": "07f73be2960b0df64d127e9de9f70e12c1a73a3b834039c620e1db2b66f06dcd",
+            "runRoot": "samples/evidence/service-explorer/runs/8798c5a5-3da6-4465-a138-ffdabf5a48cd",
+            "observedAt": "2026-11-24T01:14:26.857Z",
+            "expiresAt": "2026-12-01T01:14:26.857Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/service-explorer/runs/b14bfb42-d01b-445d-b804-1f6e540e8e69/artifacts/fixture.json",
+            "reportPath": "samples/evidence/service-explorer/runs/8798c5a5-3da6-4465-a138-ffdabf5a48cd/artifacts/fixture.json",
             "reportBytes": 717,
-            "reportSha256": "6d00ec6231cb3eed1575a7b033d6636736021b238ac5497eac2206a25b276394"
+            "reportSha256": "f59ea87df666400057a623c102cdbc543f97a9f11ed64cf5ff67e311d79e58f2"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/live.v1.json",
-            "receiptSha256": "ac4afa897498d5dd3ee359a66a5f770f043ebdbf2501f9ad7fc62fc17f4ae93f",
-            "runRoot": "samples/evidence/service-explorer/runs/eb8b1e82-3cd7-4c49-9e62-d94de70fb6d3",
-            "observedAt": "2026-11-12T01:29:38.017Z",
-            "expiresAt": "2026-11-19T01:29:38.017Z",
+            "receiptSha256": "1cca74758bb7f6a6206575f901c86715ff5f2918f8be30fecfc4dd781f074668",
+            "runRoot": "samples/evidence/service-explorer/runs/d5a1e450-f0ec-41c0-b4b2-09ce110fd7a5",
+            "observedAt": "2026-11-24T01:15:18.098Z",
+            "expiresAt": "2026-12-01T01:15:18.098Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/service-explorer/runs/eb8b1e82-3cd7-4c49-9e62-d94de70fb6d3/artifacts/live.json",
+            "reportPath": "samples/evidence/service-explorer/runs/d5a1e450-f0ec-41c0-b4b2-09ce110fd7a5/artifacts/live.json",
             "reportBytes": 2326,
-            "reportSha256": "828b880e0969a1b71a3da2977803b96b14c9dc725c3f05ee62eaf724dae1f6dd"
+            "reportSha256": "55671c2cecbb9069dab789462b85fa012cf0ca7db9eda2a46fcd50fe63f11b3c"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/performance.v1.json",
-            "receiptSha256": "7d5e77b78c20d7bccc5df4a5b2e270af178fbcb6d077e10f24a956be9299f596",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:02.027Z",
-            "expiresAt": "2026-11-19T01:29:02.027Z",
+            "receiptSha256": "5c749e33f8e63b96c558ca1a81d2ecf4a9fdefeb71757408e6e3e9521eb8324c",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:24.511Z",
+            "expiresAt": "2026-12-01T01:14:24.511Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/performance.json",
-            "reportBytes": 1091,
-            "reportSha256": "9c11bbd116109104fff447d9e607a01e46751066f90e39fee093b2862acc65b3"
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/performance.json",
+            "reportBytes": 1103,
+            "reportSha256": "6bacc71894a17584427b158e61edaca21009f7ef962c307bc8ee250563df2c9d"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/responsive.v1.json",
-            "receiptSha256": "53bd25c1bc5eb8dace352ab5ffab2295f4cf61a8b9fb812844c41a64e9aa5194",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:02.208Z",
-            "expiresAt": "2026-11-19T01:29:02.208Z",
+            "receiptSha256": "d47cc61d6796fbbffb3dd06ced73ac3d725b65b473e5f958effa7c7639eeee99",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:24.785Z",
+            "expiresAt": "2026-12-01T01:14:24.785Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/responsive.json",
-            "reportBytes": 9164,
-            "reportSha256": "a84f437471cd03f016f6eb4b32677a00d5df374d363eb6a4f6de0403ba37fe6b"
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/responsive.json",
+            "reportBytes": 9155,
+            "reportSha256": "fc370d9a62e98a85e524941dfe93b48cd6502993668e47b9db9d89632bbe3585"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/screenshot.v1.json",
-            "receiptSha256": "c7f0871564065440b8874284df8aa867e5cc6c41314f5b1e90217a8694cbe891",
-            "runRoot": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6",
-            "observedAt": "2026-11-12T01:29:02.394Z",
-            "expiresAt": "2026-11-19T01:29:02.394Z",
+            "receiptSha256": "fd1571cf9d106b694ed9780d9d1f9b34497a205a89224cf916b75048fe5eea69",
+            "runRoot": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9",
+            "observedAt": "2026-11-24T01:14:25.050Z",
+            "expiresAt": "2026-12-01T01:14:25.050Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/service-explorer/runs/0c24096a-3d92-4bff-bf8f-0d12cf3492d6/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/service-explorer/runs/2f1c85d6-7233-4365-8c09-a747e7a7c2f9/artifacts/screenshot.json",
             "reportBytes": 2521,
-            "reportSha256": "6d9d315c5d34938736ed2529e2b8587efd1393fdcc2ccb2623c35764ff84d2c5"
+            "reportSha256": "d51145b628d241a8b150bbd7c2ddd231731fd282d6da546f15c632406560c008"
           }
         ]
       },
@@ -2734,14 +2292,14 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/service-explorer/receipts/packed-build.v1.json",
-        "receiptSha256": "6254ddeaf4ca555d7403534b932f02097705c08815a46a2073585c26bce2afcc",
-        "runRoot": "samples/evidence/service-explorer/runs/7a8c25f8-76a2-4ae6-a82d-456e89415965",
-        "observedAt": "2026-11-12T01:29:41.721Z",
-        "expiresAt": "2026-11-19T01:29:41.721Z",
+        "receiptSha256": "05f0c5111d9b9ed50203523ff61b74928bcaa720c9fdf0420be2d1ee7859bb9a",
+        "runRoot": "samples/evidence/service-explorer/runs/967c34cc-5776-43ed-8145-77e7a235aebf",
+        "observedAt": "2026-11-24T01:15:23.830Z",
+        "expiresAt": "2026-12-01T01:15:23.830Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/service-explorer/runs/7a8c25f8-76a2-4ae6-a82d-456e89415965/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/service-explorer/runs/967c34cc-5776-43ed-8145-77e7a235aebf/artifacts/packed-build.json",
         "reportBytes": 4357,
-        "reportSha256": "a05f5cb1434a65829faf1896cee3601ca7869a85c778392f7fc13fd694205ecb"
+        "reportSha256": "badde4085e0d11af478006210edc49279a771bf016cd7557b731656b71577c5c"
       }
     }
   ],
@@ -3064,14 +2622,10 @@
       ],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3085,12 +2639,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3179,7 +2730,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3387,13 +2937,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3410,13 +2956,10 @@
       ],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3497,7 +3040,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3676,13 +3218,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3696,12 +3234,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3788,7 +3323,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -3967,13 +3501,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -3987,12 +3517,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4081,7 +3608,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -4276,13 +3802,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4296,12 +3818,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4387,7 +3906,6 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
-          "planning-permitting-workbench",
           "columnar-query-quickstart"
         ],
         "qualifyingSampleIds": [],
@@ -4587,8 +4105,7 @@
       "environment": "honua-facade",
       "executionMode": "native",
       "truthEvidence": [
-        "contract-conformance",
-        "grpc-conformance"
+        "grpc-edit-fixtures"
       ],
       "coverage": {
         "state": "planned",
@@ -4599,23 +4116,23 @@
       }
     },
     {
-      "id": "grpc:attachments:default",
+      "id": "grpc:attachments:honua-facade:native",
       "protocolId": "grpc",
       "protocolLabel": "gRPC",
       "operation": "attachments",
-      "authority": "default",
-      "supportStatus": "unsupported",
-      "truthEvidence": [],
+      "authority": "claim",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "grpc-attachment-fixtures"
+      ],
       "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench",
-          "edit-workflow-demo"
-        ],
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4629,12 +4146,9 @@
       "coverage": {
         "state": "unsupported",
         "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -4719,9 +4233,7 @@
         "reason": "Executable sample coverage exists without complete current qualification receipts.",
         "candidateSampleIds": [
           "node-backend-quickstart",
-          "react-quickstart",
-          "planning-permitting-workbench",
-          "mcp-gis-assistant"
+          "react-quickstart"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -4787,16 +4299,20 @@
       }
     },
     {
-      "id": "grpc:queryRelated:default",
+      "id": "grpc:queryRelated:honua-facade:native",
       "protocolId": "grpc",
       "protocolLabel": "gRPC",
       "operation": "queryRelated",
-      "authority": "default",
-      "supportStatus": "unsupported",
-      "truthEvidence": [],
+      "authority": "claim",
+      "supportStatus": "supported",
+      "environment": "honua-facade",
+      "executionMode": "native",
+      "truthEvidence": [
+        "grpc-related-fixtures"
+      ],
       "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -5863,7 +5379,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -6439,7 +5955,7 @@
           "maplibre-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:b7e91ad4b0d24bb67d8849dea154a1d08238f352676441aadcb60ebcc4eccdf4"
+          "qualification:9dc07df642fd9f9df2b295c257f432d289f96debcfb02b56267f9c5402ee9558"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -7867,7 +7383,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -8439,7 +7955,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -8734,7 +8250,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -9194,13 +8710,6 @@
       ],
       "candidateEvidence": [
         {
-          "sampleId": "mcp-gis-assistant",
-          "matchedOperations": [
-            "agent-tools"
-          ],
-          "binding": "exact"
-        },
-        {
           "sampleId": "nl-map-control",
           "matchedOperations": [
             "agent-tools"
@@ -9212,12 +8721,11 @@
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
         "candidateSampleIds": [
-          "mcp-gis-assistant",
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "mcp-gis-assistant"
+        "selectedSampleId": "nl-map-control"
       }
     },
     {
@@ -9271,14 +8779,12 @@
     },
     {
       "id": "collaboration-deprecated",
-      "label": "Collaboration and saved maps compatibility shim",
+      "label": "Collaboration and saved maps (moved to @honua/app-platform)",
       "operations": [
         "collaboration"
       ],
-      "api": "@honua/sdk-js/collaboration",
-      "apiEntrypoints": [
-        "./collaboration"
-      ],
+      "api": "@honua/app-platform/collaboration",
+      "apiEntrypoints": [],
       "supportStatus": "deprecated",
       "environment": "honua-facade",
       "executionMode": "facade",
@@ -9417,24 +8923,13 @@
       "truthEvidence": [
         "geometry-fixtures"
       ],
-      "candidateEvidence": [
-        {
-          "sampleId": "planning-permitting-workbench",
-          "matchedOperations": [
-            "geometry"
-          ],
-          "binding": "exact"
-        }
-      ],
+      "candidateEvidence": [],
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -9640,7 +9135,7 @@
     },
     {
       "id": "map-package-facade",
-      "label": "Authored MapPackage runtime",
+      "label": "Authored map-document runtime",
       "operations": [
         "render"
       ],
@@ -9706,7 +9201,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:4e1cdd0837a770b4169dd31db16994fcd9c68e26c870417c28497ddc572429a8"
+          "qualification:00dce633278863f256fd729bd3165ae0817243d6cb53ba8f53192828dd2cd520"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -10368,12 +9863,11 @@
         "state": "experimental",
         "reason": "Only experimental catalog samples map to this supported SDK cell.",
         "candidateSampleIds": [
-          "mcp-gis-assistant",
           "nl-map-control"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
-        "selectedSampleId": "mcp-gis-assistant"
+        "selectedSampleId": "nl-map-control"
       }
     },
     {
@@ -10401,54 +9895,6 @@
       "coverage": {
         "state": "experimental",
         "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./app",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/app",
-      "targets": {
-        "types": "./dist/src/_deprecated/app.d.ts",
-        "default": "./dist/src/_deprecated/app.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./app-controller",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/app-controller",
-      "targets": {
-        "types": "./dist/src/_deprecated/app-controller.d.ts",
-        "default": "./dist/src/_deprecated/app-controller.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./app-workspace",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/app-workspace",
-      "targets": {
-        "types": "./dist/src/_deprecated/app-workspace.d.ts",
-        "default": "./dist/src/_deprecated/app-workspace.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -10547,25 +9993,9 @@
           "imagery-cog-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca"
+          "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
-      }
-    },
-    {
-      "subpath": "./collaboration",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/collaboration",
-      "targets": {
-        "types": "./dist/src/_deprecated/collaboration.d.ts",
-        "default": "./dist/src/_deprecated/collaboration.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
       }
     },
     {
@@ -10593,38 +10023,6 @@
       "coverage": {
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./control-plane",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/control-plane",
-      "targets": {
-        "types": "./dist/src/_deprecated/control-plane.d.ts",
-        "default": "./dist/src/_deprecated/control-plane.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./controls",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/controls",
-      "targets": {
-        "types": "./dist/src/_deprecated/controls.d.ts",
-        "default": "./dist/src/_deprecated/controls.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -10691,6 +10089,21 @@
       }
     },
     {
+      "subpath": "./export",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/export/index.d.ts",
+        "default": "./dist/src/export/index.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "subpath": "./expr",
       "supportStatus": "supported",
       "targets": {
@@ -10721,22 +10134,6 @@
       }
     },
     {
-      "subpath": "./generated-app",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/generated-app",
-      "targets": {
-        "types": "./dist/src/_deprecated/generated-app.d.ts",
-        "default": "./dist/src/_deprecated/generated-app.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
       "subpath": "./geocoding",
       "supportStatus": "supported",
       "targets": {
@@ -10760,13 +10157,10 @@
       },
       "coverage": {
         "state": "planned",
-        "reason": "A catalog candidate is planned but has no complete current qualification receipts.",
-        "candidateSampleIds": [
-          "planning-permitting-workbench"
-        ],
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
+        "candidateSampleIds": [],
         "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "planning-permitting-workbench"
+        "evidenceBindingIds": []
       }
     },
     {
@@ -10790,6 +10184,21 @@
       }
     },
     {
+      "subpath": "./grpc-web",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/grpc-web.d.ts",
+        "default": "./dist/src/grpc-web.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "subpath": "./honua",
       "supportStatus": "supported",
       "targets": {
@@ -10802,14 +10211,9 @@
         "candidateSampleIds": [
           "node-backend-quickstart",
           "react-quickstart",
-          "storytelling-25d-map",
-          "planning-permitting-workbench",
           "ai-spatial-app-builder",
-          "mcp-gis-assistant",
-          "runtime-parity-showcase",
           "shared-renderer-state",
-          "offline-region-reference",
-          "edit-workflow-demo"
+          "offline-region-reference"
         ],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
@@ -10901,8 +10305,8 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:b7e91ad4b0d24bb67d8849dea154a1d08238f352676441aadcb60ebcc4eccdf4",
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:9dc07df642fd9f9df2b295c257f432d289f96debcfb02b56267f9c5402ee9558",
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -10925,7 +10329,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:4e1cdd0837a770b4169dd31db16994fcd9c68e26c870417c28497ddc572429a8"
+          "qualification:00dce633278863f256fd729bd3165ae0817243d6cb53ba8f53192828dd2cd520"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -10962,102 +10366,6 @@
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
         "selectedSampleId": "pmtiles-static"
-      }
-    },
-    {
-      "subpath": "./operate",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operate",
-      "targets": {
-        "types": "./dist/src/_deprecated/operate.d.ts",
-        "default": "./dist/src/_deprecated/operate.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./operator",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operator",
-      "targets": {
-        "types": "./dist/src/_deprecated/operator.d.ts",
-        "default": "./dist/src/_deprecated/operator.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./operator/controllers",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operator/controllers",
-      "targets": {
-        "types": "./dist/src/_deprecated/operator/controllers.d.ts",
-        "default": "./dist/src/_deprecated/operator/controllers.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./operator/i18n",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operator/i18n",
-      "targets": {
-        "types": "./dist/src/_deprecated/operator/i18n.d.ts",
-        "default": "./dist/src/_deprecated/operator/i18n.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./operator/theming",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operator/theming",
-      "targets": {
-        "types": "./dist/src/_deprecated/operator/theming.d.ts",
-        "default": "./dist/src/_deprecated/operator/theming.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./operator/workspace",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/operator/workspace",
-      "targets": {
-        "types": "./dist/src/_deprecated/operator/workspace.d.ts",
-        "default": "./dist/src/_deprecated/operator/workspace.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
       }
     },
     {
@@ -11143,7 +10451,7 @@
           "imagery-cog-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca"
+          "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
       }
@@ -11186,22 +10494,6 @@
       }
     },
     {
-      "subpath": "./replica-sync",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/replica-sync",
-      "targets": {
-        "types": "./dist/src/_deprecated/replica-sync.d.ts",
-        "default": "./dist/src/_deprecated/replica-sync.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
       "subpath": "./routing",
       "supportStatus": "experimental",
       "targets": {
@@ -11224,43 +10516,8 @@
         "default": "./dist/src/runtime/index.js"
       },
       "coverage": {
-        "state": "experimental",
-        "reason": "Only experimental catalog samples map to this supported SDK cell.",
-        "candidateSampleIds": [
-          "runtime-parity-showcase"
-        ],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": [],
-        "selectedSampleId": "runtime-parity-showcase"
-      }
-    },
-    {
-      "subpath": "./scene-workspace",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/scene-workspace",
-      "targets": {
-        "types": "./dist/src/_deprecated/scene-workspace.d.ts",
-        "default": "./dist/src/_deprecated/scene-workspace.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./share",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/share",
-      "targets": {
-        "types": "./dist/src/_deprecated/share.d.ts",
-        "default": "./dist/src/_deprecated/share.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -11331,26 +10588,10 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:dd3ba2ab5f0fe24adfc8f0b9f47cd3c5ed8490d9a193d24d03e8cbb6d8827aca",
-          "qualification:2d70264ec52dd79204f6b1b954d34f577d8c0f577e93c143d152cd372c38de29"
+          "qualification:bdc7c30a15b9d3242f2e7ce727322669ff50325204d770e5bb2022ac0b3fa11e",
+          "qualification:99c024f1c8affdc536f57aae1fbbbe573ed9b51fdf3d0b42eaf94f6b4a944abc"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
-      }
-    },
-    {
-      "subpath": "./studio",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/studio",
-      "targets": {
-        "types": "./dist/src/_deprecated/studio.d.ts",
-        "default": "./dist/src/_deprecated/studio.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
       }
     },
     {
@@ -11378,22 +10619,6 @@
       "coverage": {
         "state": "planned",
         "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
-        "candidateSampleIds": [],
-        "qualifyingSampleIds": [],
-        "evidenceBindingIds": []
-      }
-    },
-    {
-      "subpath": "./web-components",
-      "supportStatus": "deprecated",
-      "replacement": "@honua/app-platform/web-components",
-      "targets": {
-        "types": "./dist/src/_deprecated/web-components.d.ts",
-        "default": "./dist/src/_deprecated/web-components.js"
-      },
-      "coverage": {
-        "state": "unsupported",
-        "reason": "SDK support truth marks this cell unsupported or deprecated.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -11454,12 +10679,12 @@
     {
       "targetType": "golden-journey",
       "targetId": "planning-permitting",
-      "supportStatus": "supported",
-      "coverageState": "planned",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
       "candidateSampleIds": [
-        "planning-permitting-workbench"
+        "sketch-editing"
       ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     },
     {
       "targetType": "package-entrypoint",
@@ -11483,7 +10708,6 @@
       "supportStatus": "supported",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "Only experimental catalog samples map to this supported SDK cell."
@@ -11503,30 +10727,6 @@
       "coverageState": "experimental",
       "candidateSampleIds": [],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./app",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./app-controller",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./app-workspace",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "package-entrypoint",
@@ -11581,14 +10781,6 @@
     },
     {
       "targetType": "package-entrypoint",
-      "targetId": "./collaboration",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
       "targetId": "./columnar-workflow",
       "supportStatus": "experimental",
       "coverageState": "experimental",
@@ -11602,22 +10794,6 @@
       "coverageState": "planned",
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./control-plane",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./controls",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "package-entrypoint",
@@ -11653,6 +10829,14 @@
     },
     {
       "targetType": "package-entrypoint",
+      "targetId": "./export",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "package-entrypoint",
       "targetId": "./expr",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -11669,14 +10853,6 @@
     },
     {
       "targetType": "package-entrypoint",
-      "targetId": "./generated-app",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
       "targetId": "./geocoding",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -11688,10 +10864,8 @@
       "targetId": "./geometry",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "package-entrypoint",
@@ -11707,20 +10881,23 @@
     },
     {
       "targetType": "package-entrypoint",
+      "targetId": "./grpc-web",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "package-entrypoint",
       "targetId": "./honua",
       "supportStatus": "supported",
       "coverageState": "partial",
       "candidateSampleIds": [
         "node-backend-quickstart",
         "react-quickstart",
-        "storytelling-25d-map",
-        "planning-permitting-workbench",
         "ai-spatial-app-builder",
-        "mcp-gis-assistant",
-        "runtime-parity-showcase",
         "shared-renderer-state",
-        "offline-region-reference",
-        "edit-workflow-demo"
+        "offline-region-reference"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -11774,54 +10951,6 @@
         "offline-region-reference"
       ],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operate",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operator",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operator/controllers",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operator/i18n",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operator/theming",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./operator/workspace",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "package-entrypoint",
@@ -11893,14 +11022,6 @@
     },
     {
       "targetType": "package-entrypoint",
-      "targetId": "./replica-sync",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
       "targetId": "./routing",
       "supportStatus": "experimental",
       "coverageState": "experimental",
@@ -11911,27 +11032,9 @@
       "targetType": "package-entrypoint",
       "targetId": "./runtime",
       "supportStatus": "supported",
-      "coverageState": "experimental",
-      "candidateSampleIds": [
-        "runtime-parity-showcase"
-      ],
-      "reason": "Only experimental catalog samples map to this supported SDK cell."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./scene-workspace",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./share",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "package-entrypoint",
@@ -11971,14 +11074,6 @@
     },
     {
       "targetType": "package-entrypoint",
-      "targetId": "./studio",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
-    },
-    {
-      "targetType": "package-entrypoint",
       "targetId": "./studio-agent",
       "supportStatus": "experimental",
       "coverageState": "experimental",
@@ -11992,14 +11087,6 @@
       "coverageState": "planned",
       "candidateSampleIds": [],
       "reason": "SDK support is present, but no catalog sample maps to this exact cell."
-    },
-    {
-      "targetType": "package-entrypoint",
-      "targetId": "./web-components",
-      "supportStatus": "deprecated",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
       "targetType": "package-entrypoint",
@@ -12166,20 +11253,15 @@
       "targetId": "geoservices-feature-service:attachments:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
       "targetId": "geoservices-feature-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12222,7 +11304,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12312,10 +11393,7 @@
       "targetId": "geoservices-geometry-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12323,10 +11401,8 @@
       "targetId": "geoservices-geometry-service:geometry:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
@@ -12368,7 +11444,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12458,10 +11533,7 @@
       "targetId": "geoservices-gp-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12469,9 +11541,7 @@
       "targetId": "geoservices-gp-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12514,7 +11584,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
@@ -12604,10 +11673,7 @@
       "targetId": "geoservices-image-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12615,9 +11681,7 @@
       "targetId": "geoservices-image-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12660,7 +11724,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12750,10 +11813,7 @@
       "targetId": "geoservices-map-service:attachments:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12761,9 +11821,7 @@
       "targetId": "geoservices-map-service:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12806,7 +11864,6 @@
       "candidateSampleIds": [
         "maplibre-quickstart",
         "service-explorer",
-        "planning-permitting-workbench",
         "columnar-query-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
@@ -12893,23 +11950,18 @@
     },
     {
       "targetType": "protocol-operation",
-      "targetId": "grpc:attachments:default",
-      "supportStatus": "unsupported",
-      "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench",
-        "edit-workflow-demo"
-      ],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
+      "targetId": "grpc:attachments:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
       "targetId": "grpc:geometry:default",
       "supportStatus": "unsupported",
       "coverageState": "unsupported",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
+      "candidateSampleIds": [],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
     },
     {
@@ -12951,9 +12003,7 @@
       "coverageState": "partial",
       "candidateSampleIds": [
         "node-backend-quickstart",
-        "react-quickstart",
-        "planning-permitting-workbench",
-        "mcp-gis-assistant"
+        "react-quickstart"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
     },
@@ -12983,11 +12033,11 @@
     },
     {
       "targetType": "protocol-operation",
-      "targetId": "grpc:queryRelated:default",
-      "supportStatus": "unsupported",
-      "coverageState": "unsupported",
+      "targetId": "grpc:queryRelated:honua-facade:native",
+      "supportStatus": "supported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth marks this cell unsupported or deprecated."
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "protocol-operation",
@@ -15045,7 +14095,6 @@
       "supportStatus": "beta",
       "coverageState": "experimental",
       "candidateSampleIds": [
-        "mcp-gis-assistant",
         "nl-map-control"
       ],
       "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
@@ -15111,10 +14160,8 @@
       "targetId": "geometry-client-only",
       "supportStatus": "supported",
       "coverageState": "planned",
-      "candidateSampleIds": [
-        "planning-permitting-workbench"
-      ],
-      "reason": "A catalog candidate is planned but has no complete current qualification receipts."
+      "candidateSampleIds": [],
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "support-claim",

@@ -1,15 +1,15 @@
 import type { HonuaCacheValidator } from "../core/cache-state.js";
 import type { HonuaClient } from "../core/client.js";
-import type { MapPackageLocator } from "./map-package-fetch.js";
-import type { HonuaMapPackage } from "./map-package.js";
+import type { MapDocumentLocator } from "./map-package-fetch.js";
+import type { HonuaMapDocument } from "./map-package.js";
 
-export const MAP_PACKAGE_REALTIME_CHANNEL_V1 = "honua.map-package.watch.v1" as const;
+export const MAP_DOCUMENT_REALTIME_CHANNEL_V1 = "honua.map-package.watch.v1" as const;
 
-export type MapPackageRealtimeChannel = typeof MAP_PACKAGE_REALTIME_CHANNEL_V1;
-export type MapPackageRealtimeTransportKind = "sse" | "websocket" | "custom" | "mock";
-export type MapPackageRealtimeFallbackMode = "polling" | "none";
+export type MapDocumentRealtimeChannel = typeof MAP_DOCUMENT_REALTIME_CHANNEL_V1;
+export type MapDocumentRealtimeTransportKind = "sse" | "websocket" | "custom" | "mock";
+export type MapDocumentRealtimeFallbackMode = "polling" | "none";
 
-export interface MapPackageRealtimeCheckpoint {
+export interface MapDocumentRealtimeCheckpoint {
   readonly eventId?: string;
   readonly sequence?: number;
   readonly fingerprint?: string;
@@ -17,16 +17,16 @@ export interface MapPackageRealtimeCheckpoint {
   readonly validator?: HonuaCacheValidator;
 }
 
-export interface MapPackageRealtimeMessageBase extends MapPackageRealtimeCheckpoint {
-  readonly channel?: MapPackageRealtimeChannel | string;
+export interface MapDocumentRealtimeMessageBase extends MapDocumentRealtimeCheckpoint {
+  readonly channel?: MapDocumentRealtimeChannel | string;
   readonly packageId?: string;
   readonly receivedAt?: string;
 }
 
-export type MapPackageRealtimeUpdate =
+export type MapDocumentRealtimeUpdate =
   | {
       readonly kind: "package";
-      readonly mapPackage: HonuaMapPackage;
+      readonly mapPackage: HonuaMapDocument;
     }
   | {
       readonly kind: "patch";
@@ -39,39 +39,39 @@ export type MapPackageRealtimeUpdate =
       readonly validator?: HonuaCacheValidator;
     };
 
-export interface MapPackageRealtimeReadyMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeReadyMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "ready";
 }
 
-export interface MapPackageRealtimeHeartbeatMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeHeartbeatMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "heartbeat";
 }
 
-export interface MapPackageRealtimeStaleMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeStaleMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "stale";
   readonly reason?: string;
   readonly retryAfterMs?: number;
 }
 
-export interface MapPackageRealtimeUpdatedMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeUpdatedMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "updated";
-  readonly update: MapPackageRealtimeUpdate;
+  readonly update: MapDocumentRealtimeUpdate;
 }
 
-export interface MapPackageRealtimeRefetchRequiredMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeRefetchRequiredMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "refetch-required";
   readonly reason?: string;
   readonly path?: string;
   readonly validator?: HonuaCacheValidator;
 }
 
-export interface MapPackageRealtimeReloadRequiredMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeReloadRequiredMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "reload-required";
   readonly reason: string;
-  readonly update?: MapPackageRealtimeUpdate;
+  readonly update?: MapDocumentRealtimeUpdate;
 }
 
-export interface MapPackageRealtimeErrorMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeErrorMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "error";
   readonly error: unknown;
   readonly code?: string;
@@ -79,63 +79,63 @@ export interface MapPackageRealtimeErrorMessage extends MapPackageRealtimeMessag
   readonly retryAfterMs?: number;
 }
 
-export interface MapPackageRealtimeDisconnectedMessage extends MapPackageRealtimeMessageBase {
+export interface MapDocumentRealtimeDisconnectedMessage extends MapDocumentRealtimeMessageBase {
   readonly type: "disconnected";
   readonly reason?: string;
   readonly retryAfterMs?: number;
 }
 
-export type MapPackageRealtimeMessage =
-  | MapPackageRealtimeReadyMessage
-  | MapPackageRealtimeHeartbeatMessage
-  | MapPackageRealtimeStaleMessage
-  | MapPackageRealtimeUpdatedMessage
-  | MapPackageRealtimeRefetchRequiredMessage
-  | MapPackageRealtimeReloadRequiredMessage
-  | MapPackageRealtimeErrorMessage
-  | MapPackageRealtimeDisconnectedMessage;
+export type MapDocumentRealtimeMessage =
+  | MapDocumentRealtimeReadyMessage
+  | MapDocumentRealtimeHeartbeatMessage
+  | MapDocumentRealtimeStaleMessage
+  | MapDocumentRealtimeUpdatedMessage
+  | MapDocumentRealtimeRefetchRequiredMessage
+  | MapDocumentRealtimeReloadRequiredMessage
+  | MapDocumentRealtimeErrorMessage
+  | MapDocumentRealtimeDisconnectedMessage;
 
-export interface MapPackageRealtimeConnectionInfo {
+export interface MapDocumentRealtimeConnectionInfo {
   readonly channel?: string;
-  readonly transport: MapPackageRealtimeTransportKind;
+  readonly transport: MapDocumentRealtimeTransportKind;
   readonly url?: string;
 }
 
-export interface MapPackageRealtimeDisconnectInfo {
+export interface MapDocumentRealtimeDisconnectInfo {
   readonly reason?: string;
   readonly retryAfterMs?: number;
 }
 
-export interface MapPackageRealtimeObserver {
-  connected(info: MapPackageRealtimeConnectionInfo): void;
-  message(message: MapPackageRealtimeMessage): void;
-  disconnected(info?: MapPackageRealtimeDisconnectInfo): void;
+export interface MapDocumentRealtimeObserver {
+  connected(info: MapDocumentRealtimeConnectionInfo): void;
+  message(message: MapDocumentRealtimeMessage): void;
+  disconnected(info?: MapDocumentRealtimeDisconnectInfo): void;
   error(error: unknown): void;
 }
 
-export interface MapPackageRealtimeSubscribeRequest {
-  readonly locator: MapPackageLocator;
+export interface MapDocumentRealtimeSubscribeRequest {
+  readonly locator: MapDocumentLocator;
   readonly packageId?: string;
   readonly path: string;
   readonly client: HonuaClient;
   readonly headers?: HeadersInit;
   readonly signal: AbortSignal;
-  readonly resumeFrom?: MapPackageRealtimeCheckpoint;
+  readonly resumeFrom?: MapDocumentRealtimeCheckpoint;
 }
 
-export interface MapPackageRealtimeSubscriptionHandle {
+export interface MapDocumentRealtimeSubscriptionHandle {
   close(): void;
 }
 
-export interface MapPackageRealtimeTransport {
-  readonly kind?: MapPackageRealtimeTransportKind;
+export interface MapDocumentRealtimeTransport {
+  readonly kind?: MapDocumentRealtimeTransportKind;
   subscribe(
-    request: MapPackageRealtimeSubscribeRequest,
-    observer: MapPackageRealtimeObserver,
-  ): MapPackageRealtimeSubscriptionHandle;
+    request: MapDocumentRealtimeSubscribeRequest,
+    observer: MapDocumentRealtimeObserver,
+  ): MapDocumentRealtimeSubscriptionHandle;
 }
 
-export interface MapPackageRealtimeReconnectOptions {
+export interface MapDocumentRealtimeReconnectOptions {
   /** Defaults to 3; use `Infinity` for unbounded reconnect attempts. */
   readonly maxAttempts?: number;
   /** Defaults to 1000 ms. */
@@ -146,38 +146,38 @@ export interface MapPackageRealtimeReconnectOptions {
   readonly factor?: number;
 }
 
-export type MapPackageRealtimeAuth =
+export type MapDocumentRealtimeAuth =
   | { readonly kind: "none" }
   | { readonly kind: "cookie"; readonly withCredentials?: boolean }
   | { readonly kind: "query-token"; readonly token: string; readonly parameterName?: string };
 
-export interface MapPackageRealtimeWatchOptions {
-  readonly transport?: MapPackageRealtimeTransport;
+export interface MapDocumentRealtimeWatchOptions {
+  readonly transport?: MapDocumentRealtimeTransport;
   readonly url?: string;
-  readonly eventSourceFactory?: MapPackageRealtimeEventSourceFactory;
+  readonly eventSourceFactory?: MapDocumentRealtimeEventSourceFactory;
   readonly eventTypes?: readonly string[];
   readonly withCredentials?: boolean;
-  readonly auth?: MapPackageRealtimeAuth;
+  readonly auth?: MapDocumentRealtimeAuth;
   readonly advertise?: boolean;
   readonly allowedAdvertisedOrigins?: readonly string[];
-  readonly fallback?: MapPackageRealtimeFallbackMode;
-  readonly reconnect?: false | MapPackageRealtimeReconnectOptions;
+  readonly fallback?: MapDocumentRealtimeFallbackMode;
+  readonly reconnect?: false | MapDocumentRealtimeReconnectOptions;
   readonly staleAfterMs?: number;
   readonly fallbackOnStale?: boolean;
 }
 
-export interface MapPackageRealtimeAdvertisement {
+export interface MapDocumentRealtimeAdvertisement {
   readonly channel?: string;
-  readonly transport?: MapPackageRealtimeTransportKind | string;
+  readonly transport?: MapDocumentRealtimeTransportKind | string;
   readonly href?: string;
   readonly url?: string;
   readonly path?: string;
   readonly withCredentials?: boolean;
-  readonly fallback?: MapPackageRealtimeFallbackMode;
+  readonly fallback?: MapDocumentRealtimeFallbackMode;
   readonly staleAfterMs?: number;
 }
 
-export interface MapPackageRealtimeEventSource {
+export interface MapDocumentRealtimeEventSource {
   readonly readyState?: number;
   onopen: ((event: Event) => void) | null;
   onmessage: ((event: MessageEvent<string>) => void) | null;
@@ -187,17 +187,17 @@ export interface MapPackageRealtimeEventSource {
   removeEventListener?(type: string, listener: (event: MessageEvent<string>) => void): void;
 }
 
-export type MapPackageRealtimeEventSourceFactory = (
+export type MapDocumentRealtimeEventSourceFactory = (
   url: string,
   init?: EventSourceInit,
-) => MapPackageRealtimeEventSource;
+) => MapDocumentRealtimeEventSource;
 
-export interface MapPackageServerSentEventsTransportOptions {
+export interface MapDocumentServerSentEventsTransportOptions {
   readonly url: string;
-  readonly eventSourceFactory?: MapPackageRealtimeEventSourceFactory;
+  readonly eventSourceFactory?: MapDocumentRealtimeEventSourceFactory;
   readonly eventTypes?: readonly string[];
   readonly withCredentials?: boolean;
-  readonly auth?: MapPackageRealtimeAuth;
+  readonly auth?: MapDocumentRealtimeAuth;
 }
 
 const DEFAULT_MAP_PACKAGE_EVENT_TYPES = [
@@ -211,14 +211,14 @@ const DEFAULT_MAP_PACKAGE_EVENT_TYPES = [
   "disconnected",
 ] as const;
 
-export function createMapPackageServerSentEventsTransport(
-  options: MapPackageServerSentEventsTransportOptions,
-): MapPackageRealtimeTransport {
+export function createMapDocumentServerSentEventsTransport(
+  options: MapDocumentServerSentEventsTransportOptions,
+): MapDocumentRealtimeTransport {
   return {
     kind: "sse",
-    subscribe(request, observer): MapPackageRealtimeSubscriptionHandle {
-      const encoded = encodeMapPackageRealtimeUrl(new URL(options.url, request.client.serverBaseUrl), request);
-      applyMapPackageRealtimeAuth(encoded, options.auth);
+    subscribe(request, observer): MapDocumentRealtimeSubscriptionHandle {
+      const encoded = encodeMapDocumentRealtimeUrl(new URL(options.url, request.client.serverBaseUrl), request);
+      applyMapDocumentRealtimeAuth(encoded, options.auth);
       const source = createEventSource(resolveEventSourceUrl(options.url, encoded), options);
       const listeners: Array<readonly [string, (event: MessageEvent<string>) => void]> = [];
       let closed = false;
@@ -226,7 +226,7 @@ export function createMapPackageServerSentEventsTransport(
       const emitPayload = (payload: string): void => {
         if (closed || payload.trim() === "") return;
         try {
-          observer.message(decodeMapPackageRealtimeMessage(JSON.parse(payload)));
+          observer.message(decodeMapDocumentRealtimeMessage(JSON.parse(payload)));
         } catch (error) {
           observer.error(error);
         }
@@ -237,9 +237,9 @@ export function createMapPackageServerSentEventsTransport(
       source.onopen = () => {
         if (!closed) {
           observer.connected({
-            channel: MAP_PACKAGE_REALTIME_CHANNEL_V1,
+            channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1,
             transport: "sse",
-            url: redactMapPackageRealtimeUrl(encoded),
+            url: redactMapDocumentRealtimeUrl(encoded),
           });
         }
       };
@@ -252,7 +252,7 @@ export function createMapPackageServerSentEventsTransport(
         } else {
           observer.message({
             type: "stale",
-            channel: MAP_PACKAGE_REALTIME_CHANNEL_V1,
+            channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1,
             packageId: request.packageId,
             reason: "sse-error",
           });
@@ -288,8 +288,8 @@ export function createMapPackageServerSentEventsTransport(
   };
 }
 
-export function encodeMapPackageRealtimeUrl(url: URL, request: MapPackageRealtimeSubscribeRequest): URL {
-  url.searchParams.set("channel", MAP_PACKAGE_REALTIME_CHANNEL_V1);
+export function encodeMapDocumentRealtimeUrl(url: URL, request: MapDocumentRealtimeSubscribeRequest): URL {
+  url.searchParams.set("channel", MAP_DOCUMENT_REALTIME_CHANNEL_V1);
   url.searchParams.set("path", request.path);
   if (request.packageId) url.searchParams.set("packageId", request.packageId);
   if (request.resumeFrom?.eventId) url.searchParams.set("eventId", request.resumeFrom.eventId);
@@ -303,7 +303,7 @@ export function encodeMapPackageRealtimeUrl(url: URL, request: MapPackageRealtim
   return url;
 }
 
-export function redactMapPackageRealtimeUrl(input: string | URL): string {
+export function redactMapDocumentRealtimeUrl(input: string | URL): string {
   const text = String(input);
   try {
     const url = new URL(text, "https://honua.invalid");
@@ -324,10 +324,10 @@ export function redactMapPackageRealtimeUrl(input: string | URL): string {
   }
 }
 
-export function decodeMapPackageRealtimeMessage(payload: unknown): MapPackageRealtimeMessage {
+export function decodeMapDocumentRealtimeMessage(payload: unknown): MapDocumentRealtimeMessage {
   const event = unwrapRealtimeEnvelope(payload);
   const rawType = typeof event.type === "string" ? event.type : typeof event.kind === "string" ? event.kind : undefined;
-  if (!rawType) throw new Error("MapPackage realtime message is missing type.");
+  if (!rawType) throw new Error("Map document realtime message is missing type.");
 
   const base = realtimeMessageBase(event);
   switch (rawType) {
@@ -358,14 +358,14 @@ export function decodeMapPackageRealtimeMessage(payload: unknown): MapPackageRea
       return {
         ...base,
         type: "reload-required",
-        reason: typeof event.reason === "string" ? event.reason : "MapPackage update requires a full style reload.",
+        reason: typeof event.reason === "string" ? event.reason : "Map document update requires a full style reload.",
         ...(hasRealtimeUpdate(event) ? { update: decodeRealtimeUpdate(event) } : {}),
       };
     case "error":
       return {
         ...base,
         type: "error",
-        error: event.error ?? event.message ?? "MapPackage realtime channel error.",
+        error: event.error ?? event.message ?? "Map document realtime channel error.",
         ...(typeof event.code === "string" ? { code: event.code } : {}),
         ...(typeof event.terminal === "boolean" ? { terminal: event.terminal } : {}),
         ...(typeof event.retryAfterMs === "number" ? { retryAfterMs: event.retryAfterMs } : {}),
@@ -378,13 +378,13 @@ export function decodeMapPackageRealtimeMessage(payload: unknown): MapPackageRea
         ...(typeof event.retryAfterMs === "number" ? { retryAfterMs: event.retryAfterMs } : {}),
       };
     default:
-      throw new Error(`Unsupported MapPackage realtime message type "${rawType}".`);
+      throw new Error(`Unsupported map document realtime message type "${rawType}".`);
   }
 }
 
-export function readMapPackageRealtimeAdvertisement(
-  pkg: HonuaMapPackage | undefined,
-): MapPackageRealtimeAdvertisement | undefined {
+export function readMapDocumentRealtimeAdvertisement(
+  pkg: HonuaMapDocument | undefined,
+): MapDocumentRealtimeAdvertisement | undefined {
   if (!pkg) return undefined;
   const record = pkg as Record<string, unknown>;
   const directCandidates = [
@@ -411,8 +411,8 @@ export function readMapPackageRealtimeAdvertisement(
 
 function createEventSource(
   url: string,
-  options: MapPackageServerSentEventsTransportOptions,
-): MapPackageRealtimeEventSource {
+  options: MapDocumentServerSentEventsTransportOptions,
+): MapDocumentRealtimeEventSource {
   if (options.eventSourceFactory) {
     return options.eventSourceFactory(url, { withCredentials: options.withCredentials });
   }
@@ -421,14 +421,14 @@ function createEventSource(
   // so the default path must construct with `new`.
   const EventSourceCtor = (
     globalThis as unknown as {
-      EventSource?: new (url: string, init?: EventSourceInit) => MapPackageRealtimeEventSource;
+      EventSource?: new (url: string, init?: EventSourceInit) => MapDocumentRealtimeEventSource;
     }
   ).EventSource;
   if (!EventSourceCtor) throw new Error("EventSource is not available; provide eventSourceFactory for this runtime.");
   return new EventSourceCtor(url, { withCredentials: options.withCredentials });
 }
 
-function applyMapPackageRealtimeAuth(url: URL, auth: MapPackageRealtimeAuth | undefined): void {
+function applyMapDocumentRealtimeAuth(url: URL, auth: MapDocumentRealtimeAuth | undefined): void {
   if (!auth || auth.kind !== "query-token") return;
   url.searchParams.set(auth.parameterName ?? "access_token", auth.token);
 }
@@ -438,19 +438,19 @@ function resolveEventSourceUrl(input: string, url: URL): string {
   return `${url.pathname}${url.search}`;
 }
 
-function isEventSourceClosed(source: MapPackageRealtimeEventSource): boolean {
+function isEventSourceClosed(source: MapDocumentRealtimeEventSource): boolean {
   return source.readyState === 2;
 }
 
 function unwrapRealtimeEnvelope(payload: unknown): Record<string, unknown> {
-  if (!isRecord(payload)) throw new Error("MapPackage realtime message must be a JSON object.");
+  if (!isRecord(payload)) throw new Error("Map document realtime message must be a JSON object.");
   if (isRecord(payload.event)) return payload.event;
   if (isRecord(payload.message)) return payload.message;
   if (isRecord(payload.mapPackageWatch)) return payload.mapPackageWatch;
   return payload;
 }
 
-function realtimeMessageBase(event: Record<string, unknown>): MapPackageRealtimeMessageBase {
+function realtimeMessageBase(event: Record<string, unknown>): MapDocumentRealtimeMessageBase {
   return {
     ...(typeof event.channel === "string" ? { channel: event.channel } : {}),
     ...(typeof event.packageId === "string" ? { packageId: event.packageId } : {}),
@@ -467,13 +467,13 @@ function hasRealtimeUpdate(event: Record<string, unknown>): boolean {
   return isRecord(event.update) || isRecord(event.mapPackage) || "patch" in event || event.refetchRequired === true;
 }
 
-function decodeRealtimeUpdate(event: Record<string, unknown>): MapPackageRealtimeUpdate {
+function decodeRealtimeUpdate(event: Record<string, unknown>): MapDocumentRealtimeUpdate {
   const update = isRecord(event.update) ? event.update : undefined;
   const kind =
     typeof update?.kind === "string" ? update.kind : typeof update?.type === "string" ? update.type : undefined;
 
   if (kind === "package" && isRecord(update?.mapPackage)) {
-    return { kind: "package", mapPackage: update.mapPackage as unknown as HonuaMapPackage };
+    return { kind: "package", mapPackage: update.mapPackage as unknown as HonuaMapDocument };
   }
   if (kind === "patch" && update && "patch" in update) {
     return {
@@ -490,7 +490,7 @@ function decodeRealtimeUpdate(event: Record<string, unknown>): MapPackageRealtim
     };
   }
   if (isRecord(event.mapPackage)) {
-    return { kind: "package", mapPackage: event.mapPackage as unknown as HonuaMapPackage };
+    return { kind: "package", mapPackage: event.mapPackage as unknown as HonuaMapDocument };
   }
   if ("patch" in event) {
     return {
@@ -507,10 +507,10 @@ function decodeRealtimeUpdate(event: Record<string, unknown>): MapPackageRealtim
     };
   }
 
-  throw new Error("MapPackage realtime update must include package, patch, or refetch payload.");
+  throw new Error("Map document realtime update must include package, patch, or refetch payload.");
 }
 
-function normalizeAdvertisement(value: unknown): MapPackageRealtimeAdvertisement | undefined {
+function normalizeAdvertisement(value: unknown): MapDocumentRealtimeAdvertisement | undefined {
   if (!isRecord(value)) return undefined;
   const href = stringField(value, "href");
   const url = stringField(value, "url");
@@ -529,7 +529,7 @@ function normalizeAdvertisement(value: unknown): MapPackageRealtimeAdvertisement
   };
 }
 
-function normalizeLinkAdvertisement(value: unknown): MapPackageRealtimeAdvertisement | undefined {
+function normalizeLinkAdvertisement(value: unknown): MapDocumentRealtimeAdvertisement | undefined {
   if (!isRecord(value)) return undefined;
   const rel = stringField(value, "rel");
   if (rel !== "map-package-watch" && rel !== "map-package-realtime-watch" && rel !== "honua:map-package-watch") {

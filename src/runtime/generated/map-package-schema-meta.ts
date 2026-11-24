@@ -5,7 +5,7 @@
 export const HONUA_MAP_PACKAGE_SCHEMA_ID = "https://honua.io/schemas/honua-map-package.v1.json" as const;
 
 /** sha256 of the schema bytes, so a drifted projection is identifiable. */
-export const HONUA_MAP_PACKAGE_SCHEMA_SHA256 = "d25f1ecd7240e71bd606fa10b75ad0b03510afdf6b59a49d77be1e3e048b1465" as const;
+export const HONUA_MAP_PACKAGE_SCHEMA_SHA256 = "7d34a2b27b25135ad09795a66959596ce3b8593298d3a7e28bb5142bea597ec9" as const;
 
 /** Every `SourceBinding.protocol` value the schema admits. */
 export const HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS = ["geoservices_feature_service","geoservices_map_service","ogc_features","ogc_maps","ogc_tiles","wfs","wms","wmts","odata","vector_tile","raster_tile","pmtiles","workspace_artifact"] as const;

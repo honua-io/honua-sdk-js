@@ -9,12 +9,12 @@
  * ```ts
  * import {
  *   createHonuaCommandRuntime,
- *   mapPackagePublishCommand,
- * } from "@honua/sdk-js/control-plane";
+ *   mapDocumentPublishCommand,
+ * } from "@honua/app-platform/control-plane";
  *
  * const runtime = createHonuaCommandRuntime({ client });
  * const receipt = await runtime.execute(
- *   mapPackagePublishCommand,
+ *   mapDocumentPublishCommand,
  *   { mapId: "map-ops", package: mapPackage },
  *   { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
  * );
@@ -22,7 +22,7 @@
  * ```
  *
  * @experimental Reachable from the experimental
- *   `@honua/sdk-js/control-plane` entrypoint; not yet covered by the SDK's
+ *   `@honua/app-platform/control-plane` entrypoint; not yet covered by the SDK's
  *   semver contract.
  * @module
  */
@@ -33,7 +33,7 @@ export {
   connectionTestCommand,
   importCreateCommand,
   isHonuaCommandId,
-  mapPackagePublishCommand,
+  mapDocumentPublishCommand,
   studioDraftSaveVersionCommand,
 } from "./catalog.js";
 export type {
@@ -41,9 +41,25 @@ export type {
   ConnectionTestOutput,
   HonuaCommandId,
   ImportCreateInput,
-  MapPackagePublishInput,
+  MapDocumentPublishInput,
   StudioDraftSaveVersionInput,
 } from "./catalog.js";
+export {
+  HONUA_SCENE_COMMANDS,
+  HONUA_SCENE_COMMAND_IDS,
+  pollSceneJobUntilTerminal,
+  sceneJobStatusCommand,
+  sceneResolveCommand,
+  sceneRetireCommand,
+} from "./scene-catalog.js";
+export type {
+  HonuaSceneCommandId,
+  PollSceneJobOptions,
+  SceneIdCommandInput,
+  SceneJobStatusInput,
+  SceneResolveCommandOutput,
+  SceneRetireOutput,
+} from "./scene-catalog.js";
 export {
   HonuaCommandError,
   classifyCommandStatus,

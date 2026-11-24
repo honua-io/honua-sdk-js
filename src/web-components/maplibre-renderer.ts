@@ -1,6 +1,6 @@
 import type { FeatureId } from "../contract/index.js";
 import type { HonuaClient } from "../core/client.js";
-import type { HonuaMapPackage, HonuaMapRuntime, MaplibreMap } from "../runtime/index.js";
+import type { HonuaMapDocument, HonuaMapRuntime, MaplibreMap } from "../runtime/index.js";
 import { isMapPointerClaimed } from "./map-pointer-claim.js";
 import type {
   HonuaFeatureRecord,
@@ -125,12 +125,12 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
     this.#options.container.replaceChildren();
   }
 
-  async #load(mapPackage: HonuaMapPackage): Promise<void> {
+  async #load(mapPackage: HonuaMapDocument): Promise<void> {
     const token = ++this.#loadToken;
     this.#removeOwnedMap();
 
     try {
-      const [{ loadMapPackage }, maplibregl] = await Promise.all([
+      const [{ loadMapDocument }, maplibregl] = await Promise.all([
         import("../runtime/index.js"),
         import("maplibre-gl") as unknown as Promise<MapLibreNamespace>,
       ]);
@@ -163,7 +163,7 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
       });
       this.#map = map;
 
-      const runtime = await loadMapPackage(mapPackage, map, {
+      const runtime = await loadMapDocument(mapPackage, map, {
         client: this.#options.getClient() ?? (await createDefaultClient()),
         skipCompatibilityCheck: true,
         onEvent: (event) => {
@@ -506,7 +506,7 @@ function emptyStyle(): Record<string, unknown> {
   };
 }
 
-function mapPackageKey(mapPackage: HonuaMapPackage): string {
+function mapPackageKey(mapPackage: HonuaMapDocument): string {
   return `${mapPackage.mapPackageId}:${stableKey({
     sources: Object.keys(mapPackage.mapSpec.sources).sort(),
     layers: mapPackage.mapSpec.layers.map((layer) => [layer.id, layer.type, layer.source]),

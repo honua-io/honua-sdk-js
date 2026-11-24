@@ -9,17 +9,17 @@ on:
         default: true
         type: boolean
       release_version:
-        description: "Existing package version to publish from a branch recovery run"
+        description: "Existing package version to publish from a trunk recovery run"
         required: false
         default: ""
         type: string
       allow_branch_publish:
-        description: "Allow a non-dry-run branch recovery publish when release_version matches package.json"
+        description: "Allow a non-dry-run recovery publish from trunk when release_version matches package.json"
         required: false
         default: false
         type: boolean
       source_revision:
-        description: "Exact commit required for a guarded branch recovery publish"
+        description: "Exact commit required for a guarded trunk recovery publish"
         required: false
         default: ""
         type: string
@@ -38,7 +38,7 @@ jobs:
   # a refresh before the strict samples:verify below. Fast no-op when trunk's
   # tip is already a regeneration merge.
   #
-  # Branch-recovery runs only (#768): a reseal always lands as a NEW commit on
+  # Trunk-recovery runs only (#768): a reseal always lands as a NEW commit on
   # trunk, so it can never freshen the tree a tag already names. Waiting for one
   # on a tag run would burn 10+ minutes and still leave a stale tag stale, so
   # tag runs are gated by the strict release-seal check in the publish job
@@ -97,8 +97,16 @@ jobs:
     # there still blocks the publish.
     if: ${{ !cancelled() && needs.ensure-fresh-evidence.result != 'failure' }}
     runs-on: ubuntu-24.04
+    # Real publishes run in the npm-publish environment, whose deployment rules admit the
+    # release tags of the three npm workflows and trunk (this workflow's recovery publish);
+    # dry runs need no environment.
+    environment: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') && 'npm-publish' || '' }}
     permissions:
       contents: read
+      # Authenticated recovery reads Actions run attempts and jobs. contents:read
+      # does not grant those routes to an installation token.
+      # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+      actions: read
       # Trusted publishing: npm >= 11.5 exchanges the Actions OIDC token for
       # short-lived registry credentials at `npm publish` time (each package's
       # npmjs.com settings name this repo + workflow file as its trusted
@@ -251,14 +259,15 @@ jobs:
               echo "Tag version ($tag_version) does not match package.json version ($package_version)."
               exit 1
             fi
-          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" && -n "${EXPECTED_SOURCE_REVISION}" ]]; then
-            echo "Running guarded branch recovery publish for ${package_version} from ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+          elif [[ "${ALLOW_BRANCH_PUBLISH}" == "true" && -n "${RELEASE_VERSION}" && -n "${EXPECTED_SOURCE_REVISION}" && "${GITHUB_REF}" == "refs/heads/trunk" ]]; then
+            echo "Running guarded trunk recovery publish for ${package_version} from ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
           else
-            echo "Non-dry-run publish must run from a js-sdk-* tag, or set allow_branch_publish with release_version and source_revision for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
+            # A recovery publish from any other branch would ship code no review covered.
+            echo "Non-dry-run publish must run from a js-sdk-* tag, or from trunk with allow_branch_publish, release_version and source_revision for recovery. Current ref: ${GITHUB_REF_TYPE}/${GITHUB_REF_NAME}."
             exit 1
           fi
 
-      - name: Publish split packages
+      - name: Verify publication prerequisites
         run: |
           # Tags must satisfy the same source-tree executable policy as PRs;
           # do not rely only on the scheduled external Scorecard scan.
@@ -274,7 +283,14 @@ jobs:
           # A cut whose pair only installs with --legacy-peer-deps stops here
           # rather than reaching the registry (#1529).
           npm run verify:client-pair
-          npm run verify:migration-cohort:prepared
+
+      - name: Verify packed SDK migration cohort
+        env:
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
+        run: npm run verify:migration-cohort:prepared
+
+      - name: Publish split packages
+        run: |
           npm run build:split-packages:prepared --silent
           # Pack immediately. Later checks pack the root package and remove
           # these directories before the publish calls below.
@@ -512,6 +528,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Same Actions read as the packed cohort step: registry mode still
+      # resolves the tag and may recover the publisher run.
+      # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions
+      actions: read
+    outputs:
+      companion_gap: ${{ steps.verify.outputs.companion_gap }}
     defaults:
       run:
         shell: bash
@@ -531,33 +553,47 @@ jobs:
           node-version: "22.23.3"
 
       - name: Verify registry versions, integrity, provenance, and source SHA
+        id: verify
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('js-sdk-v{0}', github.event.inputs.release_version) }}
           SEALED_COMMIT: ${{ github.sha }}
           # npm provenance records the ref the publish job actually ran from.
-          # A tag run records refs/tags/js-sdk-v*, but the guarded branch
+          # A tag run records refs/tags/js-sdk-v*, but the guarded trunk
           # recovery publish this workflow supports (allow_branch_publish, which
           # already pins release_version and source_revision) records
-          # refs/heads/<branch>. Pass the real ref so a recovered publish is
+          # refs/heads/trunk. Pass the real ref so a recovered publish is
           # verified rather than failed after the packages are already live;
           # the commit check still pins every artifact to SEALED_COMMIT.
           PUBLISH_REF: ${{ github.ref }}
+          # Registry metadata, tarballs and attestations propagate separately.
+          # 0.1.14 took about 17 minutes to become visible.
+          REGISTRY_RETRY_MINUTES: "45"
+          # A companion (MCP server, scaffold) publishes from its own tag and
+          # can trail this run. After this long, a companion that is still
+          # missing while every SDK package verifies is reported as a gap.
+          COMPANION_GAP_GRACE_MINUTES: "10"
         run: |
           set -euo pipefail
-          # Registry metadata, tarballs and attestations propagate separately.
-          # 0.1.14 took about 17 minutes to become visible. Retry the complete
-          # verifier for up to 45 minutes; every integrity/provenance gate still
-          # has to pass on the same attempt and the final receipt stays red.
-          deadline=$((SECONDS + 45 * 60))
+          # Every integrity/provenance gate has to pass on the same attempt and
+          # the final receipt stays red.
+          deadline=$((SECONDS + REGISTRY_RETRY_MINUTES * 60))
+          gap_grace_deadline=$((SECONDS + COMPANION_GAP_GRACE_MINUTES * 60))
           delay=15
           attempt=0
           while true; do
             attempt=$((attempt + 1))
-            if node scripts/verify-published-release.mjs \
+            verifier_exit=0
+            node scripts/verify-published-release.mjs \
               --tag "${RELEASE_TAG}" \
               --commit "${SEALED_COMMIT}" \
               --publish-ref "${PUBLISH_REF}" \
-              --receipt test-results/published-release-verification.v1.json; then
+              --receipt test-results/published-release-verification.v1.json || verifier_exit=$?
+            if (( verifier_exit == 0 )); then
+              exit 0
+            fi
+            if (( verifier_exit == 3 && SECONDS >= gap_grace_deadline )); then
+              echo "companion_gap=true" >> "${GITHUB_OUTPUT}"
+              echo "::warning title=Companion package gap for ${RELEASE_TAG}::Every SDK package verified. A companion package version is tagged but not on the registry; see the receipt and the tracking issue."
               exit 0
             fi
             remaining=$((deadline - SECONDS))
@@ -586,13 +622,17 @@ jobs:
             echo
             RECEIPT="$receipt" node -e '
               const receipt = JSON.parse(require("fs").readFileSync(process.env.RECEIPT, "utf8"));
-              console.log(`- status: \`${receipt.status}\``);
+              console.log(`- status: \`${receipt.status}\` (outcome \`${receipt.outcome}\`)`);
               console.log(`- tag: \`${receipt.sealedTag}\` on \`${receipt.sealedCommit}\``);
               console.log("");
               console.log("| package | version | dist-tag | source commit | status |");
               console.log("| --- | --- | --- | --- | --- |");
               for (const artifact of receipt.artifacts) {
                 console.log(`| \`${artifact.npmName}\` | ${artifact.version} | ${artifact.distTag} | \`${artifact.sourceRevision ?? "unverified"}\` | ${artifact.status} |`);
+              }
+              for (const gap of receipt.companionGaps ?? []) {
+                console.log("");
+                console.log(`- COMPANION GAP: \`${gap.npmName}@${gap.version}\` is tagged \`${gap.tag}\` but not on the registry`);
               }
               for (const failure of receipt.failures) {
                 console.log("");
@@ -604,6 +644,7 @@ jobs:
       - name: Verify installed published migration dependency cohort
         env:
           PUBLISH_REF: ${{ github.ref }}
+          HONUA_MIGRATION_GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-migration-cohort.mjs --sdk-source registry --sdk-publish-ref "${PUBLISH_REF}"
 
       - name: Upload migration cohort receipt and installed lock
@@ -621,3 +662,38 @@ jobs:
           name: published-release-verification
           path: test-results/published-release-verification.v1.json
           if-no-files-found: error
+
+  # One open tracking issue per companion package whose tagged version never
+  # reached the registry. Serialized across runs so two releases cannot both
+  # find no issue and open one each.
+  report-companion-gaps:
+    name: Report companion package gaps
+    needs: verify-published-release
+    if: ${{ !cancelled() && needs.verify-published-release.outputs.companion_gap == 'true' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: companion-gap-tracking-issues
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "22.23.3"
+
+      - name: Download the published-release receipt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: published-release-verification
+          path: test-results
+
+      - name: Open or update the tracking issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/report-companion-gaps.mjs --receipt test-results/published-release-verification.v1.json --run-url "${RUN_URL}"

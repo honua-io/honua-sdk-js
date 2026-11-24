@@ -31,8 +31,7 @@ Four ground rules keep this page honest:
 3. **Categories are never mixed silently.** A renderer, a headless client, and a vendor-integrated
    SDK are different products; the boundary is named below before anything is compared.
 4. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are
-   not competitions we enter; see the
-   [three-lanes strategy](./decisions/market-strategy-2026-three-lanes.md).
+   not competitions we enter.
 
 ## What is being compared
 
@@ -43,7 +42,7 @@ column first, and only compares within a category — or says explicitly when it
 | Product | Package compared | Category |
 | --- | --- | --- |
 | Honua SDK | `@honua/sdk-js` | Headless service clients |
-| MapLibre GL JS | `maplibre-gl` (6.16.0 pinned and measured here; 6.1.0 published) | Renderer engines |
+| MapLibre GL JS | `maplibre-gl` (6.19.0 pinned and measured here; 6.1.0 published) | Renderer engines |
 | ArcGIS Maps SDK for JavaScript | `@arcgis/core` | Vendor-integrated renderer SDKs |
 | ArcGIS REST JS | `@esri/arcgis-rest-request` | Headless service clients |
 | OpenLayers | `ol` | Renderer engines |
@@ -66,30 +65,30 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-12 at commit `78b29c31a`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-24 at commit `90e262f81`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 758.8 KiB | 202.7 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 232.7 KiB | 59.2 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 49.2 KiB | 15.0 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 383.9 KiB | 104.3 KiB |
-| Client compatibility layer (drop-in migration surface) | 1076.8 KiB | 270.7 KiB |
-| Geocoding client | 33.0 KiB | 9.3 KiB |
-| Routing client | 28.7 KiB | 8.6 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 780.3 KiB | 210.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 242.0 KiB | 61.9 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.3 KiB | 15.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.8 KiB | 109.5 KiB |
+| Client compatibility layer (drop-in migration surface) | 1093.6 KiB | 278.0 KiB |
+| Geocoding client | 34.3 KiB | 9.8 KiB |
+| Routing client | 29.0 KiB | 8.7 KiB |
 
-For context, the rendering engine itself — `maplibre-gl` 6.16.0, measured locally from
-this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1589.3 KiB minified / **433.2 KiB gzip**.
+For context, the rendering engine itself — `maplibre-gl` 6.19.0, measured locally from
+this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1618.0 KiB minified / **446.9 KiB gzip**.
 The gzip figure compresses each distributed ESM file independently, as separate HTTP responses, then sums them.
 A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua
 entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1589.3 KiB + Honua root 758.8 KiB ≈ **2.29 MB**.
-- **Gzip:** engine 433.2 KiB + Honua root 202.7 KiB ≈ **0.62 MB**.
+- **Minified:** engine 1618.0 KiB + Honua root 780.3 KiB ≈ **2.34 MB**.
+- **Gzip:** engine 446.9 KiB + Honua root 210.4 KiB ≈ **0.64 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.

@@ -6,8 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Installed-package certification
 
-The scheduled workflow and default manual dispatch select the approved current
-release through `config/installed-candidate-selection.v1.json`. This pointer
+The workflow runs by manual dispatch only. Its default mode selects the approved
+current release through `config/installed-candidate-selection.v1.json`. This pointer
 contains only schema `honua.installed-candidate-selection/v1`,
 `reviewedReleaseSha`, and `candidateRef`: two full lowercase commit SHAs. It does
 not copy package versions or server digests. The existing pinned upstream
@@ -21,6 +21,12 @@ legacy cohort. Commit the pointer only after the actual published package set
 and immutable candidate have been admitted, through a reviewed PR. Advancing it
 requires another approved immutable snapshot. The schema is committed separately
 so preparation does not invent an unpublished current candidate.
+
+The daily schedule was removed on 2026-11-18 (#1994). A snapshot is a honua-release
+commit at `refs/nightly-candidates/<sha>`, minted by the honua-release nightly
+train. Since the release redesign that train mints none (its resolver refuses), so
+no selection pointer can be committed and a scheduled run could only fail closed. Candidate-bound installed SDK proof for a release is honua-release
+`gate-installed-clients.yml` (release-promise row `clients-installed`).
 
 For an explicitly selected snapshot, manual dispatch still accepts
 `candidate_mode=release-snapshot`, `reviewed_release_sha`, and `candidate_ref`.
@@ -80,12 +86,12 @@ claims: only receipts from governed execution drivers may be submitted by the
 release orchestrator. Other protocol, CLI/MCP, browser and lifecycle drivers
 remain outstanding; a declared pass is not a substitute for those drivers.
 
-The scheduled workflow preserves failed receipts and runs the executable fixture
+The workflow preserves failed receipts and runs the executable fixture
 when package identity passes. PR CI runs the bounded identity regressions and the
 denominator drift check. Setup/identity failures emit `install.status: "failed"`
 and attribute the unexecuted rows to this issue, rather than reporting passes.
 
-## Retained September candidate failure
+## September candidate failure
 
 The 2026-09-06 clean installation resolves:
 
@@ -97,9 +103,8 @@ The 2026-09-06 clean installation resolves:
 
 The migration forwarder is published separately, but its nested SDK still
 participates in the installed product. It is outside the pinned `0.1.9-beta.0`
-SDK set. The complete receipt in
-`test-results/installed-package-certification.json` records the served tarball
-URLs/integrities, verified provenance and this mismatch. Verdict: **not-certified,
+SDK set. The receipt recorded the served tarball URLs/integrities, verified
+provenance and this mismatch. Verdict: **not-certified,
 0 passes, 228 blocked operations**. Fixing source or adding an npm override would
 not repair those published bytes; a compatible published package set is required.
 
@@ -107,23 +112,21 @@ The earlier migration dependency repair used the published migration engine
 `@honua/honua-migrate@0.2.0-beta.0`, whose stable SDK dependencies resolve to
 `0.1.15`. Its tarball integrity and signed publisher provenance were verified,
 and the installed canonical and SDK compatibility CLIs produce identical matrix
-output. The [consumer receipt](evidence/migration-1897/published-migrator-consumer.json)
-records that bounded proof. The September receipt above remains unchanged;
-that source update did not qualify a new SDK release or the complete operation
+output. A consumer receipt recorded that bounded proof. The recorded September verdict stands; that
+source update did not qualify a new SDK release or the complete operation
 matrix.
 
 Current source selects `@honua/honua-migrate@0.3.0-beta.0`, which requires the
 SDK/compat 0.2 generation. Its managed SDK publication and registry-only cohort
 proof remain separate obligations; see the
-[migration transition verification](migration-tool-transition.md). The retained
-historical receipts above are unchanged.
+[migration transition verification](migration-tool-transition.md). The
+recorded verdicts above stand.
 
 For a non-certifying check of the fixture oracle while package-set admission is
 blocked, run `node scripts/diagnose-installed-fixture.mjs test-results/fixture-diagnostic.json`.
 This still installs public package bytes and checks the root SDK's pinned integrity,
-but deliberately cannot emit a certification-schema receipt. The retained diagnostic
-at `test-results/installed-fixture-diagnostic.json` records three passing baseline
-proofs and detection of the corrupted ratio. These do not change the certification
+but deliberately cannot emit a certification-schema receipt. The diagnostic
+recorded three passing baseline proofs and detection of the corrupted ratio. These do not change the certification
 verdict or erase the package mismatch.
 
 Issue #39 remains open. Full operation execution, browser/style proof, joined
@@ -143,21 +146,19 @@ npm launcher, preserving the host's npm/build-lock shim. A failed launch retains
 its original error; a nonzero exit without stderr cannot become a pass or a
 misleading `trim` exception. Callers retain control of subprocess timeouts.
 
-To keep the isolated consumer and npm cache inside this Windows lane, run from
-`C:\Users\mike\honua-io\wt-sdk-js-39-candidate-proof` in PowerShell:
+To keep the isolated consumer inside the worktree and reuse the host's npm
+cache, run from the worktree root in PowerShell:
 
 ```powershell
 $env:TEMP = Join-Path (Get-Location) 'test-results'
 $env:TMP = $env:TEMP
-$env:npm_config_cache = 'C:\Users\mike\honua-io\.npm-cache'
+$env:npm_config_cache = '<shared npm cache directory>'
 node scripts/installed-package-certification.mjs --execute-fixture --output test-results/installed-package-certification.windows.json
 ```
 
-The 2026-09-13 pre-fix replay is retained in
-`test-results/installed-package-certification.windows-before.json`: admission
-failed with `Cannot read properties of undefined (reading 'trim')`, before any
-operation executed. The corrected replay is retained separately so neither run
-replaces the earlier candidate evidence.
+The 2026-09-13 pre-fix replay failed admission with
+`Cannot read properties of undefined (reading 'trim')`, before any operation
+executed.
 
 Prior work was fetched from `test/1328-exact-candidate-receipt` (closed #1581)
 and the newer matching `test/39-candidate-proof` / `wip/test/39-candidate-proof`
@@ -172,8 +173,7 @@ The corrected 2026-09-13 clean installation completed on Windows x64 with Node
 24.7.0 and npm 11.5.1. All eight direct package provenance checks passed. Admission
 then rejected `node_modules/@honua/honua-migrate/node_modules/@honua/sdk` at
 `0.1.2-beta.0` (expected `0.1.9-beta.0`). The full dependency resolution, frozen
-identities and provenance are retained in
-`test-results/installed-package-certification.windows.json`, receipt digest
+identities and provenance were recorded with receipt digest
 `sha256:d9a46f099cf9d31bf0cc314cde12e6e8dd919b2d2745d61b5118ef1b34dd9291`.
 It reports **not-certified: 0 pass, 0 fail, 228 blocked** and exits 1. No server
 fixture or supported operation ran after this package-set rejection.

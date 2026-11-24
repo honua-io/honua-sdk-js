@@ -1,0 +1,154 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "service:demo-stac",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -156.7,
+              20.6
+            ],
+            [
+              -156.3,
+              20.6
+            ],
+            [
+              -156.3,
+              20.96
+            ],
+            [
+              -156.7,
+              20.96
+            ],
+            [
+              -156.7,
+              20.6
+            ]
+          ]
+        ]
+      },
+      "bbox": [
+        -156.7,
+        20.6,
+        -156.3,
+        20.96
+      ],
+      "properties": {
+        "title": "Demo STAC Catalog",
+        "description": "Imagery & Terrain Studio STAC catalog for demo.honua.io",
+        "type": "service",
+        "resourceType": "Service",
+        "externalIds": [
+          "demo-stac"
+        ],
+        "layerIds": [
+          "pub-layer-90810",
+          "pub-layer-90820"
+        ]
+      },
+      "links": [
+        {
+          "href": "https://demo.honua.io/ogc/records/collections/honua-catalog/items/service%3Ademo-stac",
+          "rel": "self",
+          "type": "application/geo+json",
+          "title": "demo-stac"
+        }
+      ]
+    },
+    {
+      "type": "Feature",
+      "id": "service:maui-buildings",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -157.296338,
+              20.5090457
+            ],
+            [
+              -155.982862,
+              20.5090457
+            ],
+            [
+              -155.982862,
+              21.2196386
+            ],
+            [
+              -157.296338,
+              21.2196386
+            ],
+            [
+              -157.296338,
+              20.5090457
+            ]
+          ]
+        ]
+      },
+      "bbox": [
+        -157.296338,
+        20.5090457,
+        -155.982862,
+        21.2196386
+      ],
+      "properties": {
+        "title": "maui-buildings",
+        "description": "Honua service 'maui-buildings'",
+        "type": "service",
+        "resourceType": "Service",
+        "externalIds": [
+          "maui-buildings"
+        ],
+        "layerIds": [
+          "pub-layer-13"
+        ]
+      },
+      "links": [
+        {
+          "href": "https://demo.honua.io/ogc/records/collections/honua-catalog/items/service%3Amaui-buildings",
+          "rel": "self",
+          "type": "application/geo+json",
+          "title": "maui-buildings"
+        },
+        {
+          "href": "https://demo.honua.io/rest/services/maui-buildings/FeatureServer",
+          "rel": "alternate",
+          "type": "application/json",
+          "title": "FeatureServer"
+        },
+        {
+          "href": "https://demo.honua.io/rest/services/maui-buildings/MapServer",
+          "rel": "alternate",
+          "type": "application/json",
+          "title": "MapServer"
+        }
+      ]
+    }
+  ],
+  "numberMatched": 27,
+  "numberReturned": 2,
+  "links": [
+    {
+      "href": "https://demo.honua.io/ogc/records/collections/honua-catalog/items?f=json&limit=2",
+      "rel": "self",
+      "type": "application/geo+json",
+      "title": "Records"
+    },
+    {
+      "href": "https://demo.honua.io/ogc/records/collections/honua-catalog",
+      "rel": "collection",
+      "type": "application/json",
+      "title": "Record collection"
+    },
+    {
+      "href": "https://demo.honua.io/ogc/records/collections/honua-catalog/items?f=json&limit=2&offset=2",
+      "rel": "next",
+      "type": "application/geo+json",
+      "title": "Next page"
+    }
+  ]
+}

@@ -21,6 +21,17 @@
  */
 export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "./core/client.js";
 export {
+  createHonuaClient,
+  HONUA_TRANSPORT_PROBE_TIMEOUT_MS,
+  selectHonuaTransport,
+} from "./core/transport-selection.js";
+export type {
+  CreateHonuaClientOptions,
+  HonuaTransportPreference,
+  SelectHonuaTransportOptions,
+} from "./core/transport-selection.js";
+export type { HonuaNativeAttachments } from "./core/native-attachments.js";
+export {
   HONUA_CONNECT_ADAPTER_VERSION,
   HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION,
   HONUA_CONNECT_PROJECTION_VERSION,
@@ -159,7 +170,7 @@ export type {
   NormalizedHonuaMetadataRequestOptions,
 } from "./core/cache-state.js";
 // Experimental collaboration surface is subpath-only:
-//   import { HonuaSavedMapCollaborationClient } from "@honua/sdk-js/collaboration";
+//   import { HonuaMapCollaborationClient } from "@honua/app-platform/collaboration";
 export { parseWebMap } from "./webmap/index.js";
 export type { ParseWebMapOptions, ParseWebMapResult } from "./webmap/index.js";
 export {
@@ -327,7 +338,7 @@ export type {
   ShareableInteractionQueryState,
 } from "./interactions/index.js";
 // Experimental scene-workspace surface is subpath-only:
-//   import { createSceneWorkspace } from "@honua/sdk-js/scene-workspace";
+//   import { createSceneStore } from "@honua/app-platform/scene-workspace";
 export { HonuaMap } from "./map/index.js";
 export type {
   HonuaMapOptions,
@@ -452,6 +463,16 @@ export type {
   HonuaOgcCollectionMapOptions,
   HonuaOgcMapsOptions,
 } from "./core/ogc-maps.js";
+export type {
+  HonuaCatalogExtentGeometry,
+  HonuaCatalogItem,
+  HonuaCatalogItemProperties,
+  HonuaCatalogItemType,
+  HonuaCatalogPage,
+  HonuaCatalogQuery,
+  HonuaCatalogRequestOptions,
+  HonuaCatalogResourceType,
+} from "./core/catalog.js";
 export {
   createHonuaOgcRecords,
   HonuaOgcRecordCollection,
@@ -788,6 +809,7 @@ export type {
   HonuaFeatureLayerDeleteAttachmentsRequest,
   HonuaFeatureLayerListAttachmentsRequest,
   HonuaFeatureLayerOptions,
+  HonuaFeatureLayerQueryAllBudgetRequest,
   HonuaFeatureLayerQueryAllRequest,
   HonuaFeatureLayerQueryAttachmentsRequest,
   HonuaFeatureLayerQueryCountRequest,
@@ -824,6 +846,7 @@ export type {
   HonuaMapServiceLegendRequest,
   HonuaMapServiceRequest,
   HonuaMapLayerOptions,
+  HonuaMapLayerQueryAllBudgetRequest,
   HonuaMapLayerQueryAllRequest,
   HonuaMapLayerQueryCountRequest,
   HonuaMapLayerQueryExtentRequest,
@@ -1018,6 +1041,7 @@ export type {
   AttachmentEditOutcome,
   AttachmentGroup,
   AttachmentInfo,
+  AttachmentDownloadUrl,
   AttachmentQuery,
   AttachmentUpdate,
   CanonicalFeature,
@@ -1322,7 +1346,7 @@ export type {
 
 // Experimental app-controller / app-workspace / agent-tools / control-plane
 // surfaces are subpath-only — import them from their named subpaths:
-//   import { HonuaController } from "@honua/sdk-js/app-controller";
-//   import { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+//   import { HonuaController } from "@honua/app-platform/app-controller";
+//   import { HonuaAppStore } from "@honua/app-platform/app-workspace";
 //   import { HONUA_AGENT_TOOL_DEFINITIONS } from "@honua/sdk-js/agent-tools";
-//   import { HonuaControlPlaneClient } from "@honua/sdk-js/control-plane";
+//   import { HonuaControlPlaneClient } from "@honua/app-platform/control-plane";

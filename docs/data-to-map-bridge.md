@@ -6,11 +6,13 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Data-to-map bridge (`mountSource`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > Status: `@experimental` — the surface ships on the stable `/map` entrypoint
 > but the option and diagnostics shapes may still change in minor releases.
 
 `mountSource(map, source, options)` from `@honua/sdk-js/map` turns any
-contract `Source` into a live, styled MapLibre layer set — no MapPackage, no
+contract `Source` into a live, styled MapLibre layer set — no map document, no
 Honua server, no app-platform import. It is the standalone slice of the kernel
 ADR's `connection.mount(target)` contract
 ([`docs/decisions/north-star-sdk-application-kernel.md`](./decisions/north-star-sdk-application-kernel.md)):
@@ -30,12 +32,13 @@ test doubles used by the SDK's own suites.
 
 ```ts doc-test=skip reason="requires a browser MapLibre host"
 import * as maplibregl from "maplibre-gl";
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
 const map = new maplibregl.Map({ container: "map", style: BASEMAP_STYLE_URL, center: [-98, 39], zoom: 3 });
 await map.once("load");
-const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+await using honua = createHonua();
+const data = await honua.connect(FEATURE_LAYER_URL);
 const mounted = await mountSource(map, data.source(), {
   popup: { factory: () => new maplibregl.Popup(), fields: ["NAME"] },
   hover: true,
@@ -43,10 +46,8 @@ const mounted = await mountSource(map, data.source(), {
 });
 ```
 
-This page is the focused lower-level API recipe. The duplicate `endpoint-to-map` app was retired; its
-[`examples/endpoint-to-map/`](../examples/endpoint-to-map/README.md) route is documentation-only and redirects readers
-to the canonical [First Map](../examples/maplibre-quickstart/README.md) executable. Do not rebuild a second sample app
-around this excerpt.
+This page is the focused lower-level API recipe. The runnable application for this workflow is
+[First Map](../examples/maplibre-quickstart/README.md).
 
 ## Strategy selection
 
@@ -187,8 +188,8 @@ are serialized: concurrent calls run in order, never interleaved.
 ```ts doc-test=skip reason="requires a mounted handle"
 import { envelope } from "@honua/sdk-js";
 
-await mounted.setFilter({ spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7) });
-await mounted.refresh();
+await mounted.setFilter({ spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7) }); // fetches the filtered rows
+await mounted.refresh();              // later, e.g. after an edit: re-run the same filter
 await mounted.setFilter(undefined);   // clear
 ```
 

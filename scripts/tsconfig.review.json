@@ -1,0 +1,230 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@honua/sdk-js": [
+        "../src/index.ts"
+      ],
+      "@honua/sdk-js/browser": [
+        "../src/index.ts"
+      ],
+      "@honua/sdk-js/honua": [
+        "../src/honua.ts"
+      ],
+      "@honua/sdk-js/auth": [
+        "../src/core/auth/index.ts"
+      ],
+      "@honua/sdk-js/client-compat": [
+        "../src/client-compat-entry.ts"
+      ],
+      "@honua/sdk-js/migration": [
+        "../src/migration-entry.ts"
+      ],
+      "@honua/sdk-js/expr": [
+        "../src/expr/index.ts"
+      ],
+      "@honua/sdk-js/webmap": [
+        "../src/webmap/index.ts"
+      ],
+      "@honua/sdk-js/geocoding": [
+        "../src/geocoding/index.ts"
+      ],
+      "@honua/sdk-js/routing": [
+        "../src/routing/index.ts"
+      ],
+      "@honua/app-platform/controls": [
+        "../src/controls/index.ts"
+      ],
+      "@honua/sdk-js/contract": [
+        "../src/contract/index.ts"
+      ],
+      "@honua/sdk-js/source-schema": [
+        "../src/source-schema.ts"
+      ],
+      "@honua/sdk-js/source-capabilities": [
+        "../src/source-capabilities.ts"
+      ],
+      "@honua/sdk-js/source-capability-discovery": [
+        "../src/source-capability-discovery.ts"
+      ],
+      "@honua/sdk-js/cloud-native-discovery": [
+        "../src/cloud-native-discovery/index.ts"
+      ],
+      "@honua/sdk-js/query-planner": [
+        "../src/query-planner/index.ts"
+      ],
+      "@honua/sdk-js/plugin": [
+        "../src/plugin/index.ts"
+      ],
+      "@honua/sdk-js/pmtiles-protocol-plugin.js": [
+        "../src/plugin/pmtiles-protocol-plugin.ts"
+      ],
+      "@honua/sdk-js/deckgl": [
+        "../src/deckgl/index.ts"
+      ],
+      "@honua/sdk-js/kepler": [
+        "../src/kepler/index.ts"
+      ],
+      "@honua/sdk-js/analytics": [
+        "../src/analytics/index.ts"
+      ],
+      "@honua/sdk-js/analytics/uplot": [
+        "../src/analytics/adapters/uplot.ts"
+      ],
+      "@honua/app-platform/control-plane": [
+        "../src/control-plane/index.ts"
+      ],
+      "@honua/app-platform/collaboration": [
+        "../src/collaboration/index.ts"
+      ],
+      "@honua/app-platform/replica-sync": [
+        "../src/replica-sync/index.ts"
+      ],
+      "@honua/app-platform/share": [
+        "../src/share/index.ts"
+      ],
+      "@honua/sdk-js/exploration": [
+        "../src/exploration/index.ts"
+      ],
+      "@honua/sdk-js/interactions": [
+        "../src/interactions/index.ts"
+      ],
+      "@honua/sdk-js/interactions/declarative": [
+        "../src/interactions/declarative.ts"
+      ],
+      "@honua/sdk-js/filter-registry": [
+        "../src/filter-registry/index.ts"
+      ],
+      "@honua/sdk-js/realtime": [
+        "../src/realtime/index.ts"
+      ],
+      "@honua/sdk-js/offline": [
+        "../src/offline/index.ts"
+      ],
+      "@honua/app-platform/app-controller": [
+        "../src/app-controller/index.ts"
+      ],
+      "@honua/app-platform/app-workspace": [
+        "../src/app-workspace/index.ts"
+      ],
+      "@honua/sdk-js/map": [
+        "../src/map/index.ts"
+      ],
+      "@honua/sdk-js/style": [
+        "../src/style/index.ts"
+      ],
+      "@honua/app-platform/scene-workspace": [
+        "../src/scene-workspace/index.ts"
+      ],
+      "@honua/sdk-js/runtime": [
+        "../src/runtime/index.ts"
+      ],
+      "@honua/app-platform/app": [
+        "../src/app/index.ts"
+      ],
+      "@honua/app-platform/web-components": [
+        "../src/web-components/index.ts"
+      ],
+      "@honua/sdk-js/react": [
+        "../src/react/index.ts"
+      ],
+      "@honua/app-platform/generated-app": [
+        "../src/generated-app/index.ts"
+      ],
+      "@honua/app-platform/studio": [
+        "../src/studio/index.ts"
+      ],
+      "@honua/sdk-js/agent-tools": [
+        "../src/agent-tools/index.ts"
+      ],
+      "@honua/sdk-js/agent-safety": [
+        "../src/agent-safety/index.ts"
+      ],
+      "@honua/sdk-js/nl-map-control": [
+        "../src/nl-map-control/index.ts"
+      ],
+      "@honua/sdk-js/studio-agent": [
+        "../src/studio-agent/index.ts"
+      ],
+      "@honua/app-platform/operator": [
+        "../src/operator/index.ts"
+      ],
+      "@honua/app-platform/operator/controllers": [
+        "../src/operator/controllers/index.ts"
+      ],
+      "@honua/app-platform/operator/workspace": [
+        "../src/operator/workspace/index.ts"
+      ],
+      "@honua/app-platform/operator/theming": [
+        "../src/operator/theming/index.ts"
+      ],
+      "@honua/app-platform/operator/i18n": [
+        "../src/operator/i18n/index.ts"
+      ],
+      "@honua/app-platform/operate": [
+        "../src/operate/index.ts"
+      ],
+      "@honua/sdk-js/cli": [
+        "../src/cli/main.ts"
+      ],
+      "@honua/sdk-js/local-install": [
+        "../src/local-install.ts"
+      ],
+      "@honua/sdk-js/diagnostics": [
+        "../src/diagnostics/index.ts"
+      ],
+      "@honua/sdk-js/geometry": [
+        "../src/geometry/index.ts"
+      ],
+      "@honua/sdk-js/geoparquet": [
+        "../src/geoparquet/index.ts"
+      ],
+      "@honua/sdk-js/geoparquet/node": [
+        "../src/geoparquet/node.ts"
+      ],
+      "@honua/sdk-js/columnar-workflow": [
+        "../src/columnar-workflow/index.ts"
+      ],
+      "@honua/sdk-js/stac": [
+        "../src/stac/index.ts"
+      ],
+      "@honua/sdk-js/cog": [
+        "../src/cog/index.ts"
+      ],
+      "@honua/sdk-js/pmtiles": [
+        "../src/pmtiles/index.ts"
+      ],
+      "@honua/sdk-js/export": [
+        "../src/export/index.ts"
+      ],
+      "@honua/sdk-js/raster": [
+        "../src/raster/index.ts"
+      ],
+      "@honua/sdk-js/coverages": [
+        "../src/coverages/index.ts"
+      ],
+      "@honua/sdk-js/zarr": [
+        "../src/zarr/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "../**/*.ts",
+    "../**/*.tsx"
+  ],
+  "exclude": [
+    "../**/node_modules/**",
+    "../**/dist/**",
+    "../**/artifacts/**",
+    "../playgrounds/**",
+    "../src/gen/**",
+    "../test/fixtures/**",
+    "../**/coverage/**",
+    "../**/test-results/**",
+    "../src/contract/generated/**",
+    "../src/control-plane/generated/**",
+    "../src/studio/generated/**",
+    "../src/runtime/generated/**"
+  ]
+}

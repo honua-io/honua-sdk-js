@@ -7,6 +7,7 @@
  * @packageDocumentation
  */
 
+import { geoServicesGeometryToGeoJSON } from "../../core/geoservices-geojson.js";
 import type { HonuaFeatureLayerQueryRequest } from "../../core/surfaces.js";
 import type { HonuaTypedFeature } from "../../core/types.js";
 import type { ParsedArgs } from "../args.js";
@@ -32,20 +33,11 @@ function bboxToEnvelope(bbox: [number, number, number, number]): {
 
 /** Convert an Esri-style typed feature into a GeoJSON Feature. */
 function toGeoJsonFeature(feature: HonuaTypedFeature<Record<string, unknown>>): Record<string, unknown> {
-  const geom = feature.geometry as Record<string, unknown> | null | undefined;
-  let geometry: Record<string, unknown> | null = null;
-  if (geom) {
-    if (typeof geom.x === "number" && typeof geom.y === "number") {
-      geometry = { type: "Point", coordinates: [geom.x, geom.y] };
-    } else if (Array.isArray(geom.rings)) {
-      geometry = { type: "Polygon", coordinates: geom.rings };
-    } else if (Array.isArray(geom.paths)) {
-      geometry = { type: "MultiLineString", coordinates: geom.paths };
-    } else if (Array.isArray(geom.points)) {
-      geometry = { type: "MultiPoint", coordinates: geom.points };
-    }
-  }
-  return { type: "Feature", geometry, properties: feature.attributes };
+  return {
+    type: "Feature",
+    geometry: geoServicesGeometryToGeoJSON(feature.geometry),
+    properties: feature.attributes,
+  };
 }
 
 export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -62,6 +54,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const format = (getString(parsed, "format") ?? "table").toLowerCase();
   const asJson = getBoolean(parsed, "json") || format === "json";
   const asGeoJson = format === "geojson";
+  const spatialFilter = bboxRaw ? bboxToEnvelope(parseBbox(bboxRaw)) : {};
 
   // --count: short-circuit to a fast count. We issue the query directly with
   // `returnCountOnly` (rather than the SDK's `queryFeatureCount`, which pins
@@ -72,6 +65,7 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
       where: where ?? "1=1",
       outFields: "*",
       returnGeometry: false,
+      ...spatialFilter,
       extraParams: { returnCountOnly: true },
     })) as { count?: number; features?: unknown[] };
     const count = typeof countResponse.count === "number" ? countResponse.count : (countResponse.features?.length ?? 0);
@@ -90,15 +84,10 @@ export async function queryCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     where: where ?? "1=1",
     outFields: outFields.length > 0 ? outFields : "*",
     returnGeometry: asGeoJson,
+    ...(asGeoJson ? { outSr: 4326 } : {}),
     resultRecordCount: limit,
+    ...spatialFilter,
   };
-  if (bboxRaw) {
-    const env = bboxToEnvelope(parseBbox(bboxRaw));
-    request.geometry = env.geometry;
-    request.geometryType = env.geometryType;
-    request.spatialRel = env.spatialRel;
-    request.returnGeometry = asGeoJson;
-  }
 
   const response = await featureLayer.queryFeatures(request);
   const features = (response.features ?? []) as HonuaTypedFeature<Record<string, unknown>>[];

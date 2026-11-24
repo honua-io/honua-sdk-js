@@ -44,13 +44,13 @@ import {
   isHonuaCommandError,
 } from "../../src/control-plane/index.js";
 import { HonuaClient } from "../../src/index.js";
-import type { HonuaMapPackage } from "../../src/runtime/index.js";
+import type { HonuaMapDocument } from "../../src/runtime/index.js";
 import { PLANTED, recorder, wireBytes } from "./harness.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const BASE_URL = "https://control.example.test";
 const SCOPED_KEY = "scoped-caller-key-9f2a";
-const MAP_PACKAGE = { id: "pkg-eval", version: "1.0.0", layers: [] } as unknown as HonuaMapPackage;
+const MAP_PACKAGE = { id: "pkg-eval", version: "1.0.0", layers: [] } as unknown as HonuaMapDocument;
 
 const VALID_INPUT: Readonly<Record<string, Record<string, unknown>>> = {
   "connection.test": { connectionId: "conn-1" },

@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Linked analytics and chart presentation (experimental)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/analytics` is the versioned seam between accepted analytics
 results and whatever draws them. It is experimental.
 
@@ -259,7 +261,7 @@ the root, `/honua`, or browser entrypoints.
 
 ## Scatter points and rectangle brushing
 
-The experimental `@honua/app-platform/analytics` entrypoint exports
+The experimental `@honua/sdk-js/analytics` entrypoint exports
 `acceptScatterArtifact()`. Set `dimension` to the horizontal numeric field and
 `yDimension` to a distinct vertical numeric field. Each mark has a stable `key`,
 `label`, finite horizontal `x`, and finite vertical `value`; `measure` formats
@@ -268,7 +270,7 @@ selection to the map and table. Missing coordinates must be excluded by the
 producer and declared through the artifact's null policy, never coerced to zero.
 
 ```ts doc-test=skip reason="requires an accepted scatter artifact and an exploration view"
-import { bindAnalyticsToExploration } from "@honua/app-platform/analytics";
+import { bindAnalyticsToExploration } from "@honua/sdk-js/analytics";
 
 const binding = bindAnalyticsToExploration(view, scatterArtifact);
 const commit = binding.apply({

@@ -40,7 +40,7 @@ import {
 
 There is **no Console-specific copy** of these protocol types: Console imports
 the SDK projection directly, and the SDK reuses the runtime
-(`@honua/sdk-js/runtime`) and generated-app (`@honua/sdk-js/generated-app`) wire
+(`@honua/sdk-js/runtime`) and generated-app (`@honua/app-platform/generated-app`) wire
 types rather than redefining them.
 
 ## Contract ownership
@@ -55,8 +55,8 @@ state derived from a projection.
 | Metadata v2 wire shape | **server-owned** | `honua-server` (`honua_metadata.v2`) |
 | Content item wire shape | **server-owned** | `honua-server` |
 | Sharing / embed / provenance wire shapes | **server-owned** | `honua-server`, RBAC API (`#1162`) |
-| MapPackage (`honua_map_package.v1`) | **server-owned** | `honua-server`; typed in SDK `@honua/sdk-js/runtime` (`HonuaMapPackage`) |
-| Generated AppPackage + manifest artifact | **server-owned** | `honua-server` builder; typed in `@honua/sdk-js/generated-app` |
+| Map document (`honua_map_package.v1`) | **server-owned** | `honua-server`; typed in SDK `@honua/sdk-js/runtime` (`HonuaMapDocument`) |
+| Generated AppVersion + manifest artifact | **server-owned** | `honua-server` builder; typed in `@honua/app-platform/generated-app` |
 | Dashboard / report package wire shape | **server-owned** | `honua-server` |
 | `HonuaConsoleContentItem` / `HonuaConsoleMetadata` / `HonuaConsoleSharing` / `HonuaConsoleEmbed` / `HonuaConsoleProvenance` | **SDK-projected** | `src/console/content.ts` |
 | `HonuaVegaLiteSpec` subset + `assert`/`is`/`normalize` | **SDK-projected** | `src/console/vega-lite.ts` |
@@ -84,9 +84,9 @@ The package projections in `src/console/packages.ts` are deliberately **slim
 catalog summaries** for content-browser and detail surfaces — they do not
 replace the runtimes:
 
-- To actually render a map, use `loadMapPackage` from `@honua/sdk-js/runtime`.
+- To actually render a map, use `loadMapDocument` from `@honua/sdk-js/runtime`.
 - To actually run a generated app, use `loadGeneratedAppRuntime` from
-  `@honua/sdk-js/generated-app`.
+  `@honua/app-platform/generated-app`.
 - To list / inspect a package in the Console catalog (identity, status, source
   and layer counts, widget and chart-kind inventory, sharing, provenance), use
   `projectMapPackage` / `projectAppPackage`. Both gate on the package `format`

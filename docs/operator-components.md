@@ -6,16 +6,18 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Operator Components
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The operator module exposes framework-neutral controllers and a workspace
-orchestrator under `@honua/sdk-js/operator`. Hosts can render the surfaces in
+orchestrator under `@honua/app-platform/operator`. Hosts can render the surfaces in
 React, Web Components, plain DOM, or native shells while reusing the same state
 and transport contract.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { OperatorWorkspace } from "@honua/sdk-js/operator";
+import { OperatorShell } from "@honua/app-platform/operator";
 import { HonuaClient } from "@honua/sdk-js";
 
-const workspace = new OperatorWorkspace({
+const workspace = new OperatorShell({
   client: operatorClient,
   mapFactory: () => ({ map }),
   mapLoadOptions: {
@@ -42,14 +44,14 @@ workspace.on((event) => {
 });
 ```
 
-The workspace composes six controller surfaces:
+The workspace composes seven controller surfaces:
 
 - `ChatController` streams a freeform user request into a drafted operator intent.
 - `ClarificationController` submits typed clarification answers back through the shared client.
 - `PlanReviewController` loads, revises, and accepts server-produced plans without mutating steps locally.
 - `ExecutionController` adapts the shared `IJobRun` contract and emits every progress and terminal transition.
-- `MapWorkspaceController` loads result `MapPackage` objects through the runtime instead of owning MapLibre source/style logic.
-- `BuilderWorkspaceController` exposes app package preview handles for host-owned sandbox rendering.
+- `MapController` loads result `HonuaMapDocument` objects through the runtime instead of owning MapLibre source/style logic.
+- `BuilderController` exposes app package preview handles for host-owned sandbox rendering.
 - `ApprovalController` surfaces server-rendered policy decisions and never upgrades deferred or denied outcomes locally.
 
 The public extension points are controller subscriptions, workspace events,

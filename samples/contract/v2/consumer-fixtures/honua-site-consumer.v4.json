@@ -13,17 +13,17 @@
     "schemaPath": "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v2",
     "schemaVersion": 2,
-    "bytes": 378464,
-    "sha256": "d01f136b75701e8959ce3c7932ea98da532a588a1344772421aca9afa06757d7",
+    "bytes": 337186,
+    "sha256": "ec6eab48b7801c0f80ec4c2e481c41bff64322ed09ac55871ba0841070905a9d",
     "schemaBytes": 28315,
     "schemaSha256": "e53b35b45608b02ce8991454e800139d3aa21bae18c70bf651a8ca8a6e54d5ef"
   },
   "assertions": {
-    "cardCount": 28,
+    "cardCount": 20,
     "qualifiedJourneyCount": 4,
-    "canonicalRouteCount": 28,
-    "legacyRouteCount": 20,
-    "gapCount": 471,
+    "canonicalRouteCount": 20,
+    "legacyRouteCount": 18,
+    "gapCount": 455,
     "everyQualifiedTrackHandedOff": true,
     "honestZeroQualificationAllowed": true,
     "allLegacyRoutesResolved": true,
@@ -40,33 +40,25 @@
       "filters": {},
       "expectedSampleIds": [
         "ai-spatial-app-builder",
-        "cesium-route-playback",
         "columnar-query-quickstart",
         "coverages-wcs-basic",
-        "edit-workflow-demo",
         "geocoding-quickstart",
-        "geoprocessing-job-runner",
         "imagery-cog-quickstart",
         "maplibre-quickstart",
-        "mcp-gis-assistant",
         "migration-workbench",
         "nl-map-control",
         "node-backend-quickstart",
         "oauth-signin",
         "overture-geoparquet",
-        "planning-permitting-workbench",
         "pmtiles-static",
         "react-quickstart",
         "realtime-incident-dashboard",
-        "runtime-parity-showcase",
         "service-explorer",
         "shared-renderer-state",
         "sketch-editing",
         "spatial-analytics-workbench",
         "stac-imagery-browser",
-        "storytelling-25d-map",
-        "temporal-playback",
-        "terrain-rgb-elevation"
+        "temporal-playback"
       ]
     },
     {
@@ -82,10 +74,13 @@
     {
       "id": "capability",
       "filters": {
-        "capability": "agent-tools-facade"
+        "capability": "compatibility-gate-facade"
       },
       "expectedSampleIds": [
-        "mcp-gis-assistant"
+        "ai-spatial-app-builder",
+        "node-backend-quickstart",
+        "react-quickstart",
+        "shared-renderer-state"
       ]
     },
     {

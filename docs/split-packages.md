@@ -6,11 +6,17 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Advanced: split-package build target
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 For nearly all consumers the canonical install is the single `@honua/sdk-js`
 package described in [`INSTALL.md`](../INSTALL.md). The repository also carries
 an opt-in build target that produces five focused npm packages from the
 same source tree, for downstream packagers and organizations that only want a
 subset of the surface.
+
+The experimental `@honua/sdk-js/geoparquet/node` factory ships only in the
+canonical SDK. Its `node` export condition excludes browser resolution; the
+optional `@duckdb/node-api` peer is absent from all five split packages.
 
 ## Runtime tarball ownership and limits
 
@@ -43,8 +49,7 @@ tarball reduction does not imply a faster endpoint-to-map journey.
 The clean packed-development measurement at source `5aac8654325f20845dc37a386f0f8999d683bb83`
 was 4,039,866 packed bytes and 19,606,974 unpacked bytes across 2,074 files: a
 67.9% packed and 49.9% unpacked reduction from the audited registry baseline.
-[The receipt](./evidence/distribution-1413/2026-10-11-runtime-tarball.json) records
-owner inventory, integrity and toolchain identity. Ceilings leave approximately
+The receipt recorded owner inventory, integrity and toolchain identity. Ceilings leave approximately
 11–12% headroom over this measured result.
 
 ## Packages produced by the split build
@@ -59,9 +64,10 @@ owner inventory, integrity and toolchain identity. Ceilings leave approximately
 
 Companion packages that carry a copy of the contract declare the exact
 `@honua/sdk` version as a required peer. Their local contract forwards
-capability-profile recognition to that peer, so an immutable profile created by
-the core SDK remains valid across React, app-platform, geometry, and client-compat
-boundaries without exposing the profile-registration authority.
+capability-profile recognition and `HonuaClient` to that peer, so an immutable
+profile or `HonuaClient` instance created by the core SDK remains valid across
+React, app-platform, geometry, and client-compat boundaries without exposing
+the profile-registration authority or duplicating the client class declaration.
 
 ### Compatibility package import update
 
@@ -89,7 +95,7 @@ in this repository is the in-repo suite, not the npm program. See the
 
 ## Renamed exports in 0.3.0
 
-These exports were renamed in 0.3.0. Third-party module names and GeoServices REST wire values are unchanged. `@honua/honua-migrate` 0.3.0-beta.0 still imports `esriConfig`, `esriRequest`, `resetEsriConfig` and `getEsriConfigHonuaInterceptors`, so those four stay on `@honua/sdk-js/client-compat` as deprecated aliases through 0.3.x and are removed in 0.4.0. Every other former name has no alias.
+These exports were renamed in 0.3.0. Third-party module names and GeoServices REST wire values are unchanged. `@honua/honua-migrate` 0.3.0-beta.0 still imports `esriConfig`, `esriRequest`, `resetEsriConfig` and `getEsriConfigHonuaInterceptors`, so those four stay on `@honua/sdk-js/client-compat` as deprecated aliases in 0.4.0. Migrate to the new names below; no removal version is committed here. Every other former name has no alias.
 
 | Entry point | Former name | New name |
 | --- | --- | --- |
@@ -145,9 +151,15 @@ gRPC adapter is loaded only after `transport: "grpc-web"` is selected, through
 a non-literal dynamic import, so Vite can build a REST client when the peers
 are absent. Node resolves those peers when they are installed and
 `transport: "grpc-web"` is selected. A browser bundler does not add the same
-specifiers to the bundle, because they are not static literals. A missing peer
-throws `HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC
-failures are not relabeled as a missing install. The connect facade's PMTiles
+specifiers to the bundle, because they are not static literals. Native browser
+applications instead import `HonuaClient` from `@honua/sdk/grpc-web` (or
+`@honua/sdk-js/grpc-web`). That opt-in entrypoint statically binds the runtime
+and adapters and always selects gRPC-Web. Pass that client to `connect` or
+`createDataset` to keep discovery, queries and editing on the native path.
+When using the default entrypoint in Node, a missing peer throws
+`HonuaOptionalGrpcPeerError` from the gRPC call; Connect and RPC failures are
+not relabeled as a missing install. The browser entrypoint requires those
+peers at build time. The connect facade's PMTiles
 reader uses the same non-literal import, so a REST production build does not
 resolve the optional `pmtiles` package either. Node still loads it when an
 archive is described. `@honua/sdk-client-compat` declares `maplibre-gl` as an
@@ -157,9 +169,7 @@ omit that renderer; installing it still includes it in the bundle.
 `config/installed-package-certification.v1.json` still lists
 `@bufbuild/protobuf`, `@connectrpc/connect`, and `@connectrpc/connect-web` in
 `consumerDependencies`. That pin is a temporary sample workaround for the
-published `0.1.9-beta.0` tarball. It is not the packaging contract, and the
-committed `test-results/installed-quickstart-budget.json` receipt that recorded
-those installs stays in place.
+published `0.1.9-beta.0` tarball, not the packaging contract.
 
 A consumer that selects `transport: "grpc-web"` must install the optional peers
 alongside the split SDK:
@@ -222,10 +232,30 @@ cases. Exact-head compiled artifact measurements with esbuild 0.28.1 reduced
 196,387 gzip bytes. The 880,000 / 200,000 byte ceilings deliberately preserve
 that improvement: the previous graph fails both ceilings.
 
-[Recorded comparisons](./evidence/distribution-1413/) include producer fingerprints,
-toolchain and external-peer options. The generic First Map does not retain this
+The recorded comparisons included producer fingerprints, toolchain and
+external-peer options. The generic First Map does not retain this
 validator, so this change makes no hero-path reduction claim. Its byte and CPU
 budgets are recorded in the [installed First Map report](./installed-first-map-budget.md).
 The bundle gate separately checks the actual generated validator path is absent
 from focused HonuaClient, connect, createHonua and FeatureLayerCompat consumers;
 existing optional renderer and RPC exclusion guards remain enforced.
+
+`@honua/app-platform` installs its statically imported Terra Draw, MapLibre draw
+adapter, and PMTiles runtime dependencies automatically. Browser component
+consumers do not need to add those packages manually. Applications still supply
+`maplibre-gl` when using the MapLibre integration. The package verification gate
+bundles the web-components entrypoint from a clean external consumer to check
+this dependency closure.
+
+### Conditional exports in the sample matrix
+
+`samples/dist/capability-sample-matrix.v2.json` records the full package export
+inventory, including the `node` condition on `./geoparquet/node`. It never
+substitutes a browser `default` target for a Node-only module. Its coverage states
+continue to require the same qualification evidence as other entrypoints.
+
+Existing site handoffs consume the v1 compatibility matrix. That projection
+contains only exports with a `default` target; its entrypoint dimensions and gap
+inventory use the same subset. It retains the digest of the complete package
+export input. Use v2 for the complete conditional export inventory. The published
+v1 schema and archived handoff integrity bindings remain unchanged.

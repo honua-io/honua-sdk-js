@@ -1,18 +1,18 @@
 /**
- * `WorkspaceEvent` — typed event union the `OperatorWorkspace` emits as
+ * `OperatorShellEvent` — typed event union the `OperatorShell` emits as
  * the cross-surface state machine advances. Embedders subscribe via
- * `OperatorWorkspace.on()` to hook intermediate transitions without
+ * `OperatorShell.on()` to hook intermediate transitions without
  * subclassing controllers.
  *
  * @module
  */
 
-import type { HonuaMapPackage } from "../../runtime/index.js";
+import type { HonuaMapDocument } from "../../runtime/index.js";
 import type { HonuaOperatorError } from "../errors.js";
 import type {
   AnalysisIntent,
   AnalysisPlan,
-  AppPackage,
+  AppVersion,
   ApprovalDecision,
   BuilderIntent,
   BuilderPlan,
@@ -22,7 +22,7 @@ import type {
   PublishingPlan,
 } from "./types.js";
 
-export type WorkspaceEvent =
+export type OperatorShellEvent =
   | { kind: "turn-updated"; turn: ConversationTurn }
   | { kind: "intent-drafted"; intent: AnalysisIntent | BuilderIntent }
   | { kind: "clarification-needed"; intent: AnalysisIntent | BuilderIntent }
@@ -33,13 +33,13 @@ export type WorkspaceEvent =
   | { kind: "execution-progress"; executionId: string; percent?: number; message?: string }
   | { kind: "execution-terminal"; executionId: string; result: ExecutionResult }
   | { kind: "execution-dismissed"; executionId: string }
-  | { kind: "map-loaded"; pkg: HonuaMapPackage }
-  | { kind: "map-refined"; pkg: HonuaMapPackage }
-  | { kind: "app-loaded"; pkg: AppPackage }
-  | { kind: "app-refined"; pkg: AppPackage }
+  | { kind: "map-loaded"; pkg: HonuaMapDocument }
+  | { kind: "map-refined"; pkg: HonuaMapDocument }
+  | { kind: "app-loaded"; pkg: AppVersion }
+  | { kind: "app-refined"; pkg: AppVersion }
   | { kind: "approval-required"; decision: ApprovalDecision }
   | { kind: "approval-resolved"; decision: ApprovalDecision }
   | { kind: "error"; error: HonuaOperatorError; recoverable: boolean };
 
-export type WorkspaceEventListener = (event: WorkspaceEvent) => void;
+export type OperatorShellEventListener = (event: OperatorShellEvent) => void;
 export type Unsubscribe = () => void;

@@ -1,5 +1,5 @@
 /**
- * `@honua/sdk-js/operator/i18n` — operator message catalog and resolution helpers.
+ * `@honua/app-platform/operator/i18n` — operator message catalog and resolution helpers.
  *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.

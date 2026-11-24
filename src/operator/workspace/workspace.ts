@@ -1,5 +1,5 @@
 /**
- * `OperatorWorkspace` — cross-surface orchestrator. Wires controllers
+ * `OperatorShell` — cross-surface orchestrator. Wires controllers
  * for chat, clarification, plan review, execution, map and builder
  * workspaces, and approval into a single typed event stream that
  * embedders can subscribe to.
@@ -11,30 +11,30 @@
  */
 
 import type { LinkedViewPresetName } from "../../exploration/index.js";
-import type { LoadMapPackageOptions } from "../../runtime/index.js";
+import type { LoadMapDocumentOptions } from "../../runtime/index.js";
 import type { OperatorClient } from "../client.js";
 import { ApprovalController } from "../controllers/approval.js";
 import { ListenerBag } from "../controllers/base.js";
-import { BuilderWorkspaceController } from "../controllers/builder-workspace.js";
+import { BuilderController } from "../controllers/builder-workspace.js";
 import { ChatController } from "../controllers/chat.js";
 import { ClarificationController } from "../controllers/clarification.js";
 import { ExecutionController } from "../controllers/execution.js";
-import { type MapFactory, MapWorkspaceController } from "../controllers/map-workspace.js";
+import { MapController, type MapFactory } from "../controllers/map-workspace.js";
 import { PlanReviewController } from "../controllers/plan-review.js";
 import { HonuaOperatorIntentError, HonuaOperatorPlanError, isHonuaOperatorError } from "../errors.js";
 import type { MessageCatalog } from "../i18n/messages.js";
 import type { OperatorTelemetry } from "../telemetry.js";
 import { type ThemeProvider, createThemeProvider } from "../theming/provider.js";
 import type { OperatorThemeTokens } from "../theming/tokens.js";
-import type { Unsubscribe, WorkspaceEvent } from "./events.js";
+import type { OperatorShellEvent, Unsubscribe } from "./events.js";
 import type { OperatorPlan } from "./types.js";
 
-export interface OperatorWorkspaceOptions {
+export interface OperatorShellOptions {
   client: OperatorClient;
   /** Optional MapLibre map factory; required if the host plans to load map packages. */
   mapFactory?: MapFactory;
-  /** Map-runtime options for `loadMapPackage`. */
-  mapLoadOptions?: Omit<LoadMapPackageOptions, "telemetry">;
+  /** Map-runtime options for `loadMapDocument`. */
+  mapLoadOptions?: Omit<LoadMapDocumentOptions, "telemetry">;
   /** Linked-view preset for the embedded `ExplorationContext`. Defaults to `"mapDriven"`. */
   explorationPreset?: LinkedViewPresetName;
   theme?: ThemeProvider | OperatorThemeTokens;
@@ -42,23 +42,23 @@ export interface OperatorWorkspaceOptions {
   telemetry?: OperatorTelemetry;
 }
 
-export class OperatorWorkspace {
+export class OperatorShell {
   public readonly chat: ChatController;
   public readonly clarification: ClarificationController;
   public readonly planReview: PlanReviewController;
   public readonly execution: ExecutionController;
-  public readonly map: MapWorkspaceController | undefined;
-  public readonly builder: BuilderWorkspaceController;
+  public readonly map: MapController | undefined;
+  public readonly builder: BuilderController;
   public readonly approval: ApprovalController;
   public readonly theme: ThemeProvider;
   public readonly messages: MessageCatalog | undefined;
 
-  readonly #bag = new ListenerBag<WorkspaceEvent>();
+  readonly #bag = new ListenerBag<OperatorShellEvent>();
   readonly #unsubscribers: Array<() => void> = [];
   #activeIntentId: string | undefined;
   #activeOperationId: string | undefined;
 
-  public constructor(options: OperatorWorkspaceOptions) {
+  public constructor(options: OperatorShellOptions) {
     const { client, telemetry } = options;
     this.theme =
       options.theme && typeof (options.theme as ThemeProvider).apply === "function"
@@ -70,10 +70,10 @@ export class OperatorWorkspace {
     this.clarification = new ClarificationController({ client, telemetry });
     this.planReview = new PlanReviewController({ client, telemetry });
     this.execution = new ExecutionController({ client, telemetry });
-    this.builder = new BuilderWorkspaceController({ client, telemetry });
+    this.builder = new BuilderController({ client, telemetry });
     this.approval = new ApprovalController({ client, telemetry });
     this.map = options.mapFactory
-      ? new MapWorkspaceController({
+      ? new MapController({
           client,
           mapFactory: options.mapFactory,
           explorationPreset: options.explorationPreset,
@@ -91,7 +91,7 @@ export class OperatorWorkspace {
     this.#wireApproval();
   }
 
-  public on(listener: (event: WorkspaceEvent) => void): Unsubscribe {
+  public on(listener: (event: OperatorShellEvent) => void): Unsubscribe {
     return this.#bag.on(listener);
   }
 
@@ -227,22 +227,22 @@ export class OperatorWorkspace {
             this.#bag.emit({ kind: "execution-terminal", executionId, result: event.result });
             const { result } = event;
             if (result.mapPackage && this.map) {
-              // Map / app loadPackage always rejects with a typed
+              // Map loadMapDocument / app loadAppVersion always rejects with a typed
               // operator error after wrapping; route any rejection
               // through `#emitError` (which wraps unknowns) so a host
               // factory failure cannot disappear from the event stream
               // — but only when the execution is still active.
-              void this.map.loadPackage(result.mapPackage).catch((error: unknown) => {
+              void this.map.loadMapDocument(result.mapPackage).catch((error: unknown) => {
                 if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
             }
             if (result.appPackage) {
-              void this.builder.loadPackage(result.appPackage).catch((error: unknown) => {
+              void this.builder.loadAppVersion(result.appPackage).catch((error: unknown) => {
                 if (executionId !== this.#activeOperationId) return;
                 this.#emitError(error);
               });
-              if (result.mapPackage) this.builder.bindMapPackage(result.mapPackage);
+              if (result.mapPackage) this.builder.bindMapDocument(result.mapPackage);
             }
             break;
           }
@@ -382,4 +382,4 @@ export class OperatorWorkspace {
   }
 }
 
-export type { Unsubscribe, WorkspaceEvent } from "./events.js";
+export type { Unsubscribe, OperatorShellEvent } from "./events.js";

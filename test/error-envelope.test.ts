@@ -32,7 +32,7 @@ import { HonuaTemporalPlaybackError } from "../src/map/temporal-playback.js";
 import { HonuaQueryPlanExecutionError, HonuaQueryPlanningError } from "../src/query-planner/types.js";
 import { HonuaRealtimeResumeError } from "../src/realtime/index.js";
 import type { ResumableRealtimeReasonCode } from "../src/realtime/index.js";
-import { HonuaMapPackageError } from "../src/runtime/errors.js";
+import { HonuaMapDocumentError } from "../src/runtime/errors.js";
 import { QueryTileServerResponseError } from "../src/runtime/query-tiles.js";
 import { HonuaRuntimeDiagnosticError } from "../src/runtime/style-interactions.js";
 
@@ -50,7 +50,7 @@ describe("tagged SDK error envelope", () => {
       new HonuaMapLibreRasterStrategyError("unsupported-strategy", "none"),
       new HonuaAutomaticMapLibreIntegrationError("invalid-target", "bad target"),
       new HonuaTemporalPlaybackError("bad extent"),
-      new HonuaMapPackageError("bad package", { stage: "validate" }),
+      new HonuaMapDocumentError("bad package", { stage: "validate" }),
       new HonuaRuntimeDiagnosticError("bad style", []),
       new QueryTileServerResponseError({ status: 400, url: "https://example.test/tiles", message: "bad tile" }),
       new HonuaRealtimeResumeError("invalid-checkpoint", "bad checkpoint"),
@@ -127,7 +127,7 @@ describe("tagged SDK error envelope", () => {
         HonuaAutomaticMapLibreIntegrationError,
       ],
       [new HonuaTemporalPlaybackError("invalid"), HonuaTemporalPlaybackError],
-      [new HonuaMapPackageError("failed", { stage: "load", detail, cause }), HonuaMapPackageError],
+      [new HonuaMapDocumentError("failed", { stage: "load", detail, cause }), HonuaMapDocumentError],
       [new HonuaRuntimeDiagnosticError("invalid", diagnostics, cause), HonuaRuntimeDiagnosticError],
       [
         new QueryTileServerResponseError({
@@ -167,9 +167,9 @@ describe("tagged SDK error envelope", () => {
     expect((instances[17][0] as HonuaAutomaticMapLibreStrategyError).code).toBe("no-eligible-strategy");
     expect((instances[18][0] as HonuaMapLibreRasterStrategyError).code).toBe("unsupported-strategy");
     expect((instances[19][0] as HonuaAutomaticMapLibreIntegrationError).code).toBe("invalid-target");
-    expect((instances[21][0] as HonuaMapPackageError).stage).toBe("load");
-    expect((instances[21][0] as HonuaMapPackageError).detail).toBe(detail);
-    expect((instances[21][0] as HonuaMapPackageError).cause).toBe(cause);
+    expect((instances[21][0] as HonuaMapDocumentError).stage).toBe("load");
+    expect((instances[21][0] as HonuaMapDocumentError).detail).toBe(detail);
+    expect((instances[21][0] as HonuaMapDocumentError).cause).toBe(cause);
     expect((instances[22][0] as HonuaRuntimeDiagnosticError).diagnostics).toBe(diagnostics);
     expect((instances[22][0] as HonuaRuntimeDiagnosticError).cause).toBe(cause);
     expect((instances[23][0] as QueryTileServerResponseError).body).toBe(body);

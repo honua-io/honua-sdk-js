@@ -6,6 +6,8 @@ resource: "honua://capability/raster.multidim-coverage"
 ---
 # Zarr client
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/zarr` is an experimental client for Honua Server's versioned
 Zarr registration and tile-serving contract. It reuses an existing
 `HonuaClient`, so API keys, bearer tokens, cancellation, retry policy, timeout,

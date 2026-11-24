@@ -39,14 +39,14 @@ import {
   reduceRealtimeFeatureState,
 } from "../realtime/index.js";
 
-export type HonuaAppWorkspaceSlice = "all" | "exploration" | "sources" | "realtime" | "jobs" | "layout" | "drafts";
+export type HonuaAppStoreSlice = "all" | "exploration" | "sources" | "realtime" | "jobs" | "layout" | "drafts";
 
-export interface HonuaAppWorkspaceExplorationState {
-  readonly reference?: HonuaAppWorkspaceExplorationReference;
+export interface HonuaAppStoreExplorationState {
+  readonly reference?: HonuaAppStoreExplorationReference;
   readonly snapshot?: ExplorationStateSnapshot;
 }
 
-export interface HonuaAppWorkspaceExplorationReference {
+export interface HonuaAppStoreExplorationReference {
   readonly datasetId: string;
   readonly sourceIds: ReadonlyArray<string>;
 }
@@ -61,103 +61,103 @@ export interface HonuaSourceMetadataEntry<TMetadata = unknown> {
   readonly error?: unknown;
 }
 
-export interface HonuaAppWorkspaceSourceState<TMetadata = unknown> {
+export interface HonuaAppStoreSourceState<TMetadata = unknown> {
   readonly entries: Readonly<Record<string, HonuaSourceMetadataEntry<TMetadata>>>;
 }
 
-export interface HonuaAppWorkspaceRealtimeState<TFeature = unknown> {
+export interface HonuaAppStoreRealtimeState<TFeature = unknown> {
   readonly features: RealtimeFeatureState<TFeature>;
 }
 
-export interface HonuaAppWorkspaceJobEntry<TResult = unknown> {
+export interface HonuaAppStoreJobEntry<TResult = unknown> {
   readonly id: string;
   readonly type: string;
   readonly snapshot: JobSnapshot<TResult>;
 }
 
-export interface HonuaAppWorkspaceJobState<TResult = unknown> {
-  readonly entries: Readonly<Record<string, HonuaAppWorkspaceJobEntry<TResult>>>;
+export interface HonuaAppStoreJobState<TResult = unknown> {
+  readonly entries: Readonly<Record<string, HonuaAppStoreJobEntry<TResult>>>;
 }
 
-export interface HonuaAppWorkspaceLayoutState {
+export interface HonuaAppStoreLayoutState {
   readonly activeViewId?: string;
-  readonly panels: Readonly<Record<string, HonuaAppWorkspacePanelState>>;
-  readonly savedState?: HonuaAppWorkspaceSavedStateMetadata;
+  readonly panels: Readonly<Record<string, HonuaAppStorePanelState>>;
+  readonly savedState?: HonuaAppStoreSavedStateMetadata;
 }
 
-export interface HonuaAppWorkspacePanelState {
+export interface HonuaAppStorePanelState {
   readonly visible?: boolean;
   readonly order?: number;
   readonly size?: number;
   readonly collapsed?: boolean;
 }
 
-export interface HonuaAppWorkspaceSavedStateMetadata {
+export interface HonuaAppStoreSavedStateMetadata {
   readonly id: string;
   readonly label?: string;
   readonly savedAt: number;
   readonly version?: string;
 }
 
-export interface HonuaAppWorkspaceDraftEntry<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+export interface HonuaAppStoreDraftEntry<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
   readonly id: string;
   readonly source: "mcp" | "ai" | "import" | "user" | (string & {});
-  readonly proposedIntent: HonuaAppWorkspaceReviewableIntent<TFeature, TMetadata, TResult>;
+  readonly proposedIntent: HonuaAppStoreReviewableIntent<TFeature, TMetadata, TResult>;
   readonly createdAt?: number;
   readonly label?: string;
   readonly description?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaAppWorkspaceDraftState<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly entries: Readonly<Record<string, HonuaAppWorkspaceDraftEntry<TFeature, TMetadata, TResult>>>;
+export interface HonuaAppStoreDraftState<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly entries: Readonly<Record<string, HonuaAppStoreDraftEntry<TFeature, TMetadata, TResult>>>;
   readonly activeDraftId?: string;
 }
 
-export interface HonuaAppWorkspaceState<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly exploration: HonuaAppWorkspaceExplorationState;
-  readonly sources: HonuaAppWorkspaceSourceState<TMetadata>;
-  readonly realtime: HonuaAppWorkspaceRealtimeState<TFeature>;
-  readonly jobs: HonuaAppWorkspaceJobState<TResult>;
-  readonly layout: HonuaAppWorkspaceLayoutState;
-  readonly drafts: HonuaAppWorkspaceDraftState<TFeature, TMetadata, TResult>;
+export interface HonuaAppStoreState<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly exploration: HonuaAppStoreExplorationState;
+  readonly sources: HonuaAppStoreSourceState<TMetadata>;
+  readonly realtime: HonuaAppStoreRealtimeState<TFeature>;
+  readonly jobs: HonuaAppStoreJobState<TResult>;
+  readonly layout: HonuaAppStoreLayoutState;
+  readonly drafts: HonuaAppStoreDraftState<TFeature, TMetadata, TResult>;
 }
 
-export interface HonuaAppWorkspaceSnapshot<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+export interface HonuaAppStoreSnapshot<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
   readonly version: 1;
-  readonly state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
+  readonly state: HonuaAppStoreState<TFeature, TMetadata, TResult>;
 }
 
-export const HONUA_SAVED_WORKSPACE_DOCUMENT_KIND = "honua.saved-workspace" as const;
-export const HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION = 1 as const;
+export const HONUA_SAVED_APP_STATE_DOCUMENT_KIND = "honua.saved-workspace" as const;
+export const HONUA_SAVED_APP_STATE_DOCUMENT_VERSION = 1 as const;
 
-export type HonuaSavedWorkspaceDocumentKind = typeof HONUA_SAVED_WORKSPACE_DOCUMENT_KIND;
-export type HonuaSavedWorkspaceDocumentVersion = typeof HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION;
+export type HonuaSavedAppStateDocumentKind = typeof HONUA_SAVED_APP_STATE_DOCUMENT_KIND;
+export type HonuaSavedAppStateDocumentVersion = typeof HONUA_SAVED_APP_STATE_DOCUMENT_VERSION;
 
-export interface HonuaSavedWorkspaceMigrationMetadata {
-  readonly schemaVersion: HonuaSavedWorkspaceDocumentVersion;
+export interface HonuaSavedAppStateMigrationMetadata {
+  readonly schemaVersion: HonuaSavedAppStateDocumentVersion;
   readonly savedAt: string;
   readonly createdBy?: string;
   readonly createdWith?: string;
   readonly migratedFrom?: ReadonlyArray<string>;
-  readonly migrations?: ReadonlyArray<HonuaSavedWorkspaceMigrationStep>;
+  readonly migrations?: ReadonlyArray<HonuaSavedAppStateMigrationStep>;
 }
 
-export interface HonuaSavedWorkspaceMigrationStep {
+export interface HonuaSavedAppStateMigrationStep {
   readonly from: string;
   readonly to: string;
   readonly at: string;
   readonly note?: string;
 }
 
-export interface HonuaWorkspaceProjectState {
+export interface HonuaAppProjectState {
   readonly id: string;
   readonly title?: string;
   readonly description?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaWorkspaceSessionState {
+export interface HonuaAppSessionState {
   readonly id?: string;
   readonly userId?: string;
   readonly createdAt?: string;
@@ -166,7 +166,7 @@ export interface HonuaWorkspaceSessionState {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceSource {
+export interface HonuaSavedAppStateSource {
   readonly id: string;
   readonly protocol?: string;
   readonly title?: string;
@@ -176,7 +176,7 @@ export interface HonuaSavedWorkspaceSource {
   readonly metadata?: unknown;
 }
 
-export interface HonuaSavedWorkspaceLayer {
+export interface HonuaSavedAppStateLayer {
   readonly id: string;
   readonly sourceId?: string;
   readonly title?: string;
@@ -187,7 +187,7 @@ export interface HonuaSavedWorkspaceLayer {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceStyle {
+export interface HonuaSavedAppStateStyle {
   readonly id: string;
   readonly layerId?: string;
   readonly name?: string;
@@ -195,7 +195,7 @@ export interface HonuaSavedWorkspaceStyle {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceQuery {
+export interface HonuaSavedAppStateQuery {
   readonly id: string;
   readonly label?: string;
   readonly sourceIds?: ReadonlyArray<string>;
@@ -211,7 +211,7 @@ export interface HonuaSavedWorkspaceQuery {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceSelectedFeature<TFeature = unknown> {
+export interface HonuaSavedAppStateSelectedFeature<TFeature = unknown> {
   readonly sourceId?: string;
   readonly id: string | number;
   readonly feature?: TFeature;
@@ -219,7 +219,7 @@ export interface HonuaSavedWorkspaceSelectedFeature<TFeature = unknown> {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceJob<TResult = unknown> {
+export interface HonuaSavedAppStateJob<TResult = unknown> {
   readonly id: string;
   readonly type: string;
   readonly status: JobSnapshot<TResult>["status"];
@@ -231,7 +231,7 @@ export interface HonuaSavedWorkspaceJob<TResult = unknown> {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceAnalysisOutput {
+export interface HonuaSavedAppStateAnalysisOutput {
   readonly id: string;
   readonly jobId?: string;
   readonly type: string;
@@ -245,89 +245,89 @@ export interface HonuaSavedWorkspaceAnalysisOutput {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly kind: HonuaSavedWorkspaceDocumentKind;
-  readonly version: HonuaSavedWorkspaceDocumentVersion;
-  readonly migration: HonuaSavedWorkspaceMigrationMetadata;
-  readonly project: HonuaWorkspaceProjectState;
-  readonly session?: HonuaWorkspaceSessionState;
-  readonly sources: ReadonlyArray<HonuaSavedWorkspaceSource>;
-  readonly layers: ReadonlyArray<HonuaSavedWorkspaceLayer>;
-  readonly styles: ReadonlyArray<HonuaSavedWorkspaceStyle>;
+export interface HonuaSavedAppStateDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly kind: HonuaSavedAppStateDocumentKind;
+  readonly version: HonuaSavedAppStateDocumentVersion;
+  readonly migration: HonuaSavedAppStateMigrationMetadata;
+  readonly project: HonuaAppProjectState;
+  readonly session?: HonuaAppSessionState;
+  readonly sources: ReadonlyArray<HonuaSavedAppStateSource>;
+  readonly layers: ReadonlyArray<HonuaSavedAppStateLayer>;
+  readonly styles: ReadonlyArray<HonuaSavedAppStateStyle>;
   readonly filters: Readonly<Record<string, FilterClause>>;
-  readonly savedQueries: ReadonlyArray<HonuaSavedWorkspaceQuery>;
-  readonly selectedFeatures: ReadonlyArray<HonuaSavedWorkspaceSelectedFeature<TFeature>>;
-  readonly jobs: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>;
-  readonly analysisOutputs: ReadonlyArray<HonuaSavedWorkspaceAnalysisOutput>;
-  readonly appSnapshot?: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>;
+  readonly savedQueries: ReadonlyArray<HonuaSavedAppStateQuery>;
+  readonly selectedFeatures: ReadonlyArray<HonuaSavedAppStateSelectedFeature<TFeature>>;
+  readonly jobs: ReadonlyArray<HonuaSavedAppStateJob<TResult>>;
+  readonly analysisOutputs: ReadonlyArray<HonuaSavedAppStateAnalysisOutput>;
+  readonly appSnapshot?: HonuaAppStoreSnapshot<TFeature, TMetadata, TResult>;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceCreateOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly project: HonuaWorkspaceProjectState;
-  readonly session?: HonuaWorkspaceSessionState;
-  readonly snapshot?: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>;
-  readonly state?: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
-  readonly sources?: ReadonlyArray<HonuaSavedWorkspaceSource>;
-  readonly layers?: ReadonlyArray<HonuaSavedWorkspaceLayer>;
-  readonly styles?: ReadonlyArray<HonuaSavedWorkspaceStyle>;
-  readonly savedQueries?: ReadonlyArray<HonuaSavedWorkspaceQuery>;
-  readonly jobs?: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>;
-  readonly analysisOutputs?: ReadonlyArray<HonuaSavedWorkspaceAnalysisOutput>;
-  readonly migration?: Partial<HonuaSavedWorkspaceMigrationMetadata>;
+export interface HonuaSavedAppStateCreateOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly project: HonuaAppProjectState;
+  readonly session?: HonuaAppSessionState;
+  readonly snapshot?: HonuaAppStoreSnapshot<TFeature, TMetadata, TResult>;
+  readonly state?: HonuaAppStoreState<TFeature, TMetadata, TResult>;
+  readonly sources?: ReadonlyArray<HonuaSavedAppStateSource>;
+  readonly layers?: ReadonlyArray<HonuaSavedAppStateLayer>;
+  readonly styles?: ReadonlyArray<HonuaSavedAppStateStyle>;
+  readonly savedQueries?: ReadonlyArray<HonuaSavedAppStateQuery>;
+  readonly jobs?: ReadonlyArray<HonuaSavedAppStateJob<TResult>>;
+  readonly analysisOutputs?: ReadonlyArray<HonuaSavedAppStateAnalysisOutput>;
+  readonly migration?: Partial<HonuaSavedAppStateMigrationMetadata>;
   readonly savedAt?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
-export interface HonuaSavedWorkspaceValidationError {
+export interface HonuaSavedAppStateValidationError {
   readonly path: string;
   readonly message: string;
 }
 
-export type HonuaSavedWorkspaceValidationResult<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
+export type HonuaSavedAppStateValidationResult<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
   | {
       readonly ok: true;
-      readonly document: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>;
+      readonly document: HonuaSavedAppStateDocument<TFeature, TMetadata, TResult>;
     }
   | {
       readonly ok: false;
-      readonly errors: ReadonlyArray<HonuaSavedWorkspaceValidationError>;
+      readonly errors: ReadonlyArray<HonuaSavedAppStateValidationError>;
     };
 
-export interface HonuaSavedWorkspaceHydrateOptions<TResult = unknown> {
-  readonly jobsById?: Readonly<Record<string, Partial<HonuaSavedWorkspaceJob<TResult>>>>;
-  readonly analysisOutputsById?: Readonly<Record<string, HonuaSavedWorkspaceAnalysisOutput>>;
+export interface HonuaSavedAppStateHydrateOptions<TResult = unknown> {
+  readonly jobsById?: Readonly<Record<string, Partial<HonuaSavedAppStateJob<TResult>>>>;
+  readonly analysisOutputsById?: Readonly<Record<string, HonuaSavedAppStateAnalysisOutput>>;
 }
 
-export interface HonuaSavedWorkspaceMcpSummary {
+export interface HonuaSavedAppStateMcpSummary {
   readonly kind: "honua.workspace.summary";
   readonly workspaceId: string;
   readonly title?: string;
   readonly savedAt: string;
-  readonly schemaVersion: HonuaSavedWorkspaceDocumentVersion;
+  readonly schemaVersion: HonuaSavedAppStateDocumentVersion;
   readonly sourceCount: number;
   readonly layerCount: number;
   readonly savedQueryCount: number;
   readonly selectedFeatureCount: number;
   readonly jobCount: number;
   readonly analysisOutputCount: number;
-  readonly sources: ReadonlyArray<Pick<HonuaSavedWorkspaceSource, "id" | "protocol" | "title" | "status">>;
-  readonly layers: ReadonlyArray<Pick<HonuaSavedWorkspaceLayer, "id" | "sourceId" | "title" | "visible">>;
-  readonly savedQueries: ReadonlyArray<Pick<HonuaSavedWorkspaceQuery, "id" | "label" | "sourceIds">>;
-  readonly jobs: ReadonlyArray<Pick<HonuaSavedWorkspaceJob, "id" | "type" | "status" | "outputIds">>;
+  readonly sources: ReadonlyArray<Pick<HonuaSavedAppStateSource, "id" | "protocol" | "title" | "status">>;
+  readonly layers: ReadonlyArray<Pick<HonuaSavedAppStateLayer, "id" | "sourceId" | "title" | "visible">>;
+  readonly savedQueries: ReadonlyArray<Pick<HonuaSavedAppStateQuery, "id" | "label" | "sourceIds">>;
+  readonly jobs: ReadonlyArray<Pick<HonuaSavedAppStateJob, "id" | "type" | "status" | "outputIds">>;
   readonly analysisOutputs: ReadonlyArray<
-    Pick<HonuaSavedWorkspaceAnalysisOutput, "id" | "jobId" | "type" | "label" | "sourceId" | "layerId">
+    Pick<HonuaSavedAppStateAnalysisOutput, "id" | "jobId" | "type" | "label" | "sourceId" | "layerId">
   >;
 }
 
-export interface HonuaAppWorkspaceOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly initialState?: Partial<HonuaAppWorkspaceState<TFeature, TMetadata, TResult>>;
+export interface HonuaAppStoreOptions<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly initialState?: Partial<HonuaAppStoreState<TFeature, TMetadata, TResult>>;
 }
 
-export type HonuaAppWorkspaceReviewableIntent<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
+export type HonuaAppStoreReviewableIntent<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
   | {
       readonly kind: "set-exploration";
-      readonly reference?: HonuaAppWorkspaceExplorationReference;
+      readonly reference?: HonuaAppStoreExplorationReference;
       readonly snapshot?: ExplorationStateSnapshot;
     }
   | {
@@ -366,12 +366,12 @@ export type HonuaAppWorkspaceReviewableIntent<TFeature = unknown, TMetadata = un
     }
   | {
       readonly kind: "set-layout";
-      readonly layout: HonuaAppWorkspaceLayoutState;
+      readonly layout: HonuaAppStoreLayoutState;
     }
   | {
       readonly kind: "update-panel";
       readonly panelId: string;
-      readonly panel: HonuaAppWorkspacePanelState;
+      readonly panel: HonuaAppStorePanelState;
     }
   | {
       readonly kind: "set-active-view";
@@ -379,11 +379,11 @@ export type HonuaAppWorkspaceReviewableIntent<TFeature = unknown, TMetadata = un
     }
   | {
       readonly kind: "set-saved-state-metadata";
-      readonly metadata: HonuaAppWorkspaceSavedStateMetadata | undefined;
+      readonly metadata: HonuaAppStoreSavedStateMetadata | undefined;
     };
 
-export type HonuaAppWorkspaceIntent<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
-  | HonuaAppWorkspaceReviewableIntent<TFeature, TMetadata, TResult>
+export type HonuaAppStoreIntent<TFeature = unknown, TMetadata = unknown, TResult = unknown> =
+  | HonuaAppStoreReviewableIntent<TFeature, TMetadata, TResult>
   | {
       readonly kind: "attach-exploration-context";
       readonly context: ExplorationContext;
@@ -394,7 +394,7 @@ export type HonuaAppWorkspaceIntent<TFeature = unknown, TMetadata = unknown, TRe
     }
   | {
       readonly kind: "stage-draft";
-      readonly draft: HonuaAppWorkspaceDraftEntry<TFeature, TMetadata, TResult>;
+      readonly draft: HonuaAppStoreDraftEntry<TFeature, TMetadata, TResult>;
       readonly activate?: boolean;
     }
   | {
@@ -410,10 +410,10 @@ export type HonuaAppWorkspaceIntent<TFeature = unknown, TMetadata = unknown, TRe
     }
   | {
       readonly kind: "restore-workspace-snapshot";
-      readonly snapshot: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>;
+      readonly snapshot: HonuaAppStoreSnapshot<TFeature, TMetadata, TResult>;
     };
 
-export interface HonuaAppWorkspaceMapModel<TMetadata = unknown> {
+export interface HonuaAppStoreMapModel<TMetadata = unknown> {
   readonly extent: ExplorationState["extent"];
   readonly spatialFilter: ExplorationState["spatialFilter"];
   readonly selection: ReadonlyArray<FeatureSelectionTarget>;
@@ -422,38 +422,38 @@ export interface HonuaAppWorkspaceMapModel<TMetadata = unknown> {
   readonly query: LinkedViewQueryProjection;
 }
 
-export interface HonuaAppWorkspaceTableModel<TFeature = unknown, TMetadata = unknown> {
+export interface HonuaAppStoreTableModel<TFeature = unknown, TMetadata = unknown> {
   readonly query: LinkedViewQueryProjection;
   readonly records: ReadonlyArray<RealtimeFeatureRecord<TFeature>>;
   readonly source?: HonuaSourceMetadataEntry<TMetadata>;
 }
 
-export interface HonuaAppWorkspaceDetailModel<TFeature = unknown> {
+export interface HonuaAppStoreDetailModel<TFeature = unknown> {
   readonly selection: ReadonlyArray<FeatureSelectionTarget>;
   readonly selectedRecords: ReadonlyArray<RealtimeFeatureRecord<TFeature>>;
   readonly tombstones: ReadonlyArray<RealtimeFeatureTombstone>;
   readonly missingSelection: ReadonlyArray<FeatureSelectionTarget>;
 }
 
-export interface HonuaAppWorkspaceFilterModel {
+export interface HonuaAppStoreFilterModel {
   readonly filters: Readonly<Record<string, FilterClause>>;
   readonly spatialFilter: ExplorationState["spatialFilter"];
   readonly extent: ExplorationState["extent"];
 }
 
-export interface HonuaAppWorkspaceChartModel {
+export interface HonuaAppStoreChartModel {
   readonly query: LinkedViewQueryProjection;
   readonly grouping: ExplorationState["grouping"];
   readonly aggregation: ExplorationState["aggregation"];
 }
 
-export interface HonuaAppWorkspaceJobModel<TResult = unknown> {
-  readonly entries: Readonly<Record<string, HonuaAppWorkspaceJobEntry<TResult>>>;
-  readonly running: ReadonlyArray<HonuaAppWorkspaceJobEntry<TResult>>;
-  readonly terminal: ReadonlyArray<HonuaAppWorkspaceJobEntry<TResult>>;
+export interface HonuaAppStoreJobModel<TResult = unknown> {
+  readonly entries: Readonly<Record<string, HonuaAppStoreJobEntry<TResult>>>;
+  readonly running: ReadonlyArray<HonuaAppStoreJobEntry<TResult>>;
+  readonly terminal: ReadonlyArray<HonuaAppStoreJobEntry<TResult>>;
 }
 
-export interface HonuaAppWorkspaceRealtimeModel<TFeature = unknown> {
+export interface HonuaAppStoreRealtimeModel<TFeature = unknown> {
   readonly status: RealtimeFeatureState<TFeature>["status"];
   readonly cursor: RealtimeFeatureState<TFeature>["cursor"];
   readonly watermark: RealtimeFeatureState<TFeature>["watermark"];
@@ -462,7 +462,7 @@ export interface HonuaAppWorkspaceRealtimeModel<TFeature = unknown> {
   readonly ignoredEventCount: number;
 }
 
-export interface HonuaAppWorkspaceMetadataCacheModel<TMetadata = unknown> {
+export interface HonuaAppStoreMetadataCacheModel<TMetadata = unknown> {
   readonly entries: Readonly<Record<string, HonuaSourceMetadataEntry<TMetadata>>>;
   readonly loading: ReadonlyArray<HonuaSourceMetadataEntry<TMetadata>>;
   readonly ready: ReadonlyArray<HonuaSourceMetadataEntry<TMetadata>>;
@@ -470,40 +470,40 @@ export interface HonuaAppWorkspaceMetadataCacheModel<TMetadata = unknown> {
   readonly errors: ReadonlyArray<HonuaSourceMetadataEntry<TMetadata>>;
 }
 
-export interface HonuaAppWorkspaceChangeEvent<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  readonly state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
-  readonly previous: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
-  readonly changedSlices: ReadonlySet<HonuaAppWorkspaceSlice>;
-  readonly intent: HonuaAppWorkspaceIntent<TFeature, TMetadata, TResult>;
+export interface HonuaAppStoreChangeEvent<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  readonly state: HonuaAppStoreState<TFeature, TMetadata, TResult>;
+  readonly previous: HonuaAppStoreState<TFeature, TMetadata, TResult>;
+  readonly changedSlices: ReadonlySet<HonuaAppStoreSlice>;
+  readonly intent: HonuaAppStoreIntent<TFeature, TMetadata, TResult>;
 }
 
-export type HonuaAppWorkspaceListener<TFeature = unknown, TMetadata = unknown, TResult = unknown> = (
-  event: HonuaAppWorkspaceChangeEvent<TFeature, TMetadata, TResult>,
+export type HonuaAppStoreListener<TFeature = unknown, TMetadata = unknown, TResult = unknown> = (
+  event: HonuaAppStoreChangeEvent<TFeature, TMetadata, TResult>,
 ) => void;
 
-export type HonuaAppWorkspaceSelector<TSelected, TFeature = unknown, TMetadata = unknown, TResult = unknown> = (
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+export type HonuaAppStoreSelector<TSelected, TFeature = unknown, TMetadata = unknown, TResult = unknown> = (
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
 ) => TSelected;
 
-export type HonuaAppWorkspaceSelectorListener<TSelected> = (value: TSelected, previous: TSelected) => void;
+export type HonuaAppStoreSelectorListener<TSelected> = (value: TSelected, previous: TSelected) => void;
 
-export type HonuaAppWorkspaceEquality<TSelected> = (a: TSelected, b: TSelected) => boolean;
+export type HonuaAppStoreEquality<TSelected> = (a: TSelected, b: TSelected) => boolean;
 
-export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
-  #state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>;
-  readonly #listeners = new Map<HonuaAppWorkspaceSlice, Set<HonuaAppWorkspaceListener<TFeature, TMetadata, TResult>>>();
+export class HonuaAppStore<TFeature = unknown, TMetadata = unknown, TResult = unknown> {
+  #state: HonuaAppStoreState<TFeature, TMetadata, TResult>;
+  readonly #listeners = new Map<HonuaAppStoreSlice, Set<HonuaAppStoreListener<TFeature, TMetadata, TResult>>>();
   readonly #externalUnsubscribers = new Set<Unsubscribe>();
   #disposed = false;
 
-  public constructor(options: HonuaAppWorkspaceOptions<TFeature, TMetadata, TResult> = {}) {
+  public constructor(options: HonuaAppStoreOptions<TFeature, TMetadata, TResult> = {}) {
     this.#state = mergeInitialState(options.initialState);
   }
 
-  public get state(): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  public get state(): HonuaAppStoreState<TFeature, TMetadata, TResult> {
     return this.#state;
   }
 
-  public dispatch(intent: HonuaAppWorkspaceIntent<TFeature, TMetadata, TResult>): void {
+  public dispatch(intent: HonuaAppStoreIntent<TFeature, TMetadata, TResult>): void {
     this.#ensureLive("dispatch");
     if (intent.kind === "attach-exploration-context") {
       this.#attachExplorationContext(intent.context);
@@ -520,8 +520,8 @@ export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult 
   }
 
   public subscribe(
-    slice: HonuaAppWorkspaceSlice,
-    listener: HonuaAppWorkspaceListener<TFeature, TMetadata, TResult>,
+    slice: HonuaAppStoreSlice,
+    listener: HonuaAppStoreListener<TFeature, TMetadata, TResult>,
   ): Unsubscribe {
     this.#ensureLive("subscribe");
     let listeners = this.#listeners.get(slice);
@@ -539,9 +539,9 @@ export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult 
   }
 
   public subscribeSelector<TSelected>(
-    selector: HonuaAppWorkspaceSelector<TSelected, TFeature, TMetadata, TResult>,
-    listener: HonuaAppWorkspaceSelectorListener<TSelected>,
-    equality: HonuaAppWorkspaceEquality<TSelected> = Object.is,
+    selector: HonuaAppStoreSelector<TSelected, TFeature, TMetadata, TResult>,
+    listener: HonuaAppStoreSelectorListener<TSelected>,
+    equality: HonuaAppStoreEquality<TSelected> = Object.is,
   ): Unsubscribe {
     this.#ensureLive("subscribeSelector");
     let selected = selector(this.#state);
@@ -554,19 +554,19 @@ export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult 
     });
   }
 
-  public snapshot(): HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult> {
+  public snapshot(): HonuaAppStoreSnapshot<TFeature, TMetadata, TResult> {
     this.#ensureLive("snapshot");
     return { version: 1, state: cloneValue(this.#state) };
   }
 
-  public restore(snapshot: HonuaAppWorkspaceSnapshot<TFeature, TMetadata, TResult>): void {
+  public restore(snapshot: HonuaAppStoreSnapshot<TFeature, TMetadata, TResult>): void {
     this.dispatch({ kind: "restore-workspace-snapshot", snapshot });
   }
 
   public applyDraft(draftId: string): void {
     this.#ensureLive("applyDraft");
     const draft = this.#state.drafts.entries[draftId];
-    if (!draft) throw new Error(`HonuaAppWorkspace draft ${draftId} was not found`);
+    if (!draft) throw new Error(`HonuaAppStore draft ${draftId} was not found`);
     this.dispatch(draft.proposedIntent);
     this.dispatch({ kind: "remove-draft", draftId });
   }
@@ -599,7 +599,7 @@ export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult 
     this.#externalUnsubscribers.add(unsubscribe);
   }
 
-  #emit(event: HonuaAppWorkspaceChangeEvent<TFeature, TMetadata, TResult>): void {
+  #emit(event: HonuaAppStoreChangeEvent<TFeature, TMetadata, TResult>): void {
     const allListeners = this.#listeners.get("all");
     if (allListeners) {
       for (const listener of [...allListeners]) listener(event);
@@ -613,30 +613,30 @@ export class HonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult 
 
   #ensureLive(operation: string): void {
     if (this.#disposed) {
-      throw new Error(`HonuaAppWorkspace cannot ${operation} after dispose()`);
+      throw new Error(`HonuaAppStore cannot ${operation} after dispose()`);
     }
   }
 }
 
-export function createHonuaAppWorkspace<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  options?: HonuaAppWorkspaceOptions<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspace<TFeature, TMetadata, TResult> {
-  return new HonuaAppWorkspace(options);
+export function createHonuaAppStore<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  options?: HonuaAppStoreOptions<TFeature, TMetadata, TResult>,
+): HonuaAppStore<TFeature, TMetadata, TResult> {
+  return new HonuaAppStore(options);
 }
 
-export function createHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  options: HonuaSavedWorkspaceCreateOptions<TFeature, TMetadata, TResult>,
-): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
+export function createHonuaSavedAppStateDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  options: HonuaSavedAppStateCreateOptions<TFeature, TMetadata, TResult>,
+): HonuaSavedAppStateDocument<TFeature, TMetadata, TResult> {
   const snapshot = options.snapshot ?? (options.state ? { version: 1, state: cloneValue(options.state) } : undefined);
   const state = snapshot?.state;
   const savedAt = options.savedAt ?? new Date().toISOString();
   const exploration = state ? selectWorkspaceExplorationState(state) : EMPTY_STATE;
 
   return {
-    kind: HONUA_SAVED_WORKSPACE_DOCUMENT_KIND,
-    version: HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION,
+    kind: HONUA_SAVED_APP_STATE_DOCUMENT_KIND,
+    version: HONUA_SAVED_APP_STATE_DOCUMENT_VERSION,
     migration: {
-      schemaVersion: HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION,
+      schemaVersion: HONUA_SAVED_APP_STATE_DOCUMENT_VERSION,
       savedAt,
       ...cloneValue(options.migration ?? {}),
     },
@@ -662,24 +662,24 @@ export function createHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata 
   };
 }
 
-export function validateHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+export function validateHonuaSavedAppStateDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
   value: unknown,
-): HonuaSavedWorkspaceValidationResult<TFeature, TMetadata, TResult> {
-  const errors: HonuaSavedWorkspaceValidationError[] = [];
+): HonuaSavedAppStateValidationResult<TFeature, TMetadata, TResult> {
+  const errors: HonuaSavedAppStateValidationError[] = [];
   if (!isRecord(value)) {
     return { ok: false, errors: [{ path: "$", message: "document must be an object" }] };
   }
 
-  if (value.kind !== HONUA_SAVED_WORKSPACE_DOCUMENT_KIND) {
-    errors.push({ path: "$.kind", message: `must be ${HONUA_SAVED_WORKSPACE_DOCUMENT_KIND}` });
+  if (value.kind !== HONUA_SAVED_APP_STATE_DOCUMENT_KIND) {
+    errors.push({ path: "$.kind", message: `must be ${HONUA_SAVED_APP_STATE_DOCUMENT_KIND}` });
   }
-  if (value.version !== HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION) {
+  if (value.version !== HONUA_SAVED_APP_STATE_DOCUMENT_VERSION) {
     errors.push({ path: "$.version", message: "unsupported saved workspace document version" });
   }
   if (!isRecord(value.migration)) {
     errors.push({ path: "$.migration", message: "migration metadata is required" });
   } else {
-    if (value.migration.schemaVersion !== HONUA_SAVED_WORKSPACE_DOCUMENT_VERSION) {
+    if (value.migration.schemaVersion !== HONUA_SAVED_APP_STATE_DOCUMENT_VERSION) {
       errors.push({ path: "$.migration.schemaVersion", message: "unsupported migration schema version" });
     }
     if (typeof value.migration.savedAt !== "string") {
@@ -750,25 +750,25 @@ export function validateHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadat
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    document: cloneValue(value) as unknown as HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
+    document: cloneValue(value) as unknown as HonuaSavedAppStateDocument<TFeature, TMetadata, TResult>,
   };
 }
 
-export function assertHonuaSavedWorkspaceDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+export function assertHonuaSavedAppStateDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
   value: unknown,
-): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
-  const validation = validateHonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>(value);
+): HonuaSavedAppStateDocument<TFeature, TMetadata, TResult> {
+  const validation = validateHonuaSavedAppStateDocument<TFeature, TMetadata, TResult>(value);
   if (validation.ok) return validation.document;
   const message = validation.errors.map((error) => `${error.path}: ${error.message}`).join("; ");
   throw new Error(`Invalid Honua saved workspace document: ${message}`);
 }
 
-export function hydrateHonuaSavedWorkspaceState<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+export function hydrateHonuaSavedAppState<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
   value: unknown,
-  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
-  const document = reattachHonuaSavedWorkspaceArtifacts(
-    assertHonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>(value),
+  options: HonuaSavedAppStateHydrateOptions<TResult> = {},
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
+  const document = reattachHonuaSavedAppStateArtifacts(
+    assertHonuaSavedAppStateDocument<TFeature, TMetadata, TResult>(value),
     options,
   );
   if (document.appSnapshot) {
@@ -777,19 +777,19 @@ export function hydrateHonuaSavedWorkspaceState<TFeature = unknown, TMetadata = 
   return stateFromSavedWorkspaceDocument(document);
 }
 
-export function createHonuaAppWorkspaceFromSavedDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+export function createHonuaAppStoreFromSavedDocument<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
   value: unknown,
-  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
-): HonuaAppWorkspace<TFeature, TMetadata, TResult> {
-  return createHonuaAppWorkspace({
-    initialState: hydrateHonuaSavedWorkspaceState<TFeature, TMetadata, TResult>(value, options),
+  options: HonuaSavedAppStateHydrateOptions<TResult> = {},
+): HonuaAppStore<TFeature, TMetadata, TResult> {
+  return createHonuaAppStore({
+    initialState: hydrateHonuaSavedAppState<TFeature, TMetadata, TResult>(value, options),
   });
 }
 
-export function reattachHonuaSavedWorkspaceArtifacts<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  value: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
-  options: HonuaSavedWorkspaceHydrateOptions<TResult> = {},
-): HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult> {
+export function reattachHonuaSavedAppStateArtifacts<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  value: HonuaSavedAppStateDocument<TFeature, TMetadata, TResult>,
+  options: HonuaSavedAppStateHydrateOptions<TResult> = {},
+): HonuaSavedAppStateDocument<TFeature, TMetadata, TResult> {
   const jobsById = options.jobsById ?? {};
   const analysisOutputsById = options.analysisOutputsById ?? {};
   const analysisOutputIds = new Set(value.analysisOutputs.map((output) => output.id));
@@ -805,8 +805,8 @@ export function reattachHonuaSavedWorkspaceArtifacts<TFeature = unknown, TMetada
   };
 }
 
-export function summarizeHonuaSavedWorkspaceForMcp(value: unknown): HonuaSavedWorkspaceMcpSummary {
-  const document = assertHonuaSavedWorkspaceDocument(value);
+export function summarizeHonuaSavedAppStateForMcp(value: unknown): HonuaSavedAppStateMcpSummary {
+  const document = assertHonuaSavedAppStateDocument(value);
   return {
     kind: "honua.workspace.summary",
     workspaceId: document.project.id,
@@ -834,11 +834,11 @@ export function summarizeHonuaSavedWorkspaceForMcp(value: unknown): HonuaSavedWo
   };
 }
 
-export function bindHonuaAppWorkspaceSelector<TSelected, TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  workspace: HonuaAppWorkspace<TFeature, TMetadata, TResult>,
-  selector: HonuaAppWorkspaceSelector<TSelected, TFeature, TMetadata, TResult>,
-  listener: HonuaAppWorkspaceSelectorListener<TSelected>,
-  options: { readonly equality?: HonuaAppWorkspaceEquality<TSelected>; readonly fireImmediately?: boolean } = {},
+export function bindHonuaAppStoreSelector<TSelected, TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  workspace: HonuaAppStore<TFeature, TMetadata, TResult>,
+  selector: HonuaAppStoreSelector<TSelected, TFeature, TMetadata, TResult>,
+  listener: HonuaAppStoreSelectorListener<TSelected>,
+  options: { readonly equality?: HonuaAppStoreEquality<TSelected>; readonly fireImmediately?: boolean } = {},
 ): Unsubscribe {
   if (options.fireImmediately) {
     const selected = selector(workspace.state);
@@ -847,10 +847,10 @@ export function bindHonuaAppWorkspaceSelector<TSelected, TFeature = unknown, TMe
   return workspace.subscribeSelector(selector, listener, options.equality);
 }
 
-export function selectHonuaAppWorkspaceMapModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+export function selectHonuaAppStoreMapModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
   options: LinkedViewQueryProjectionOptions = {},
-): HonuaAppWorkspaceMapModel<TMetadata> {
+): HonuaAppStoreMapModel<TMetadata> {
   const exploration = selectWorkspaceExplorationState(state);
   const sourceStatuses: Record<SourceId, HonuaSourceCacheStatus> = {};
   for (const [sourceId, entry] of Object.entries(state.sources.entries)) {
@@ -866,10 +866,10 @@ export function selectHonuaAppWorkspaceMapModel<TFeature = unknown, TMetadata = 
   };
 }
 
-export function selectHonuaAppWorkspaceTableModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+export function selectHonuaAppStoreTableModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
   options: LinkedViewQueryProjectionOptions = {},
-): HonuaAppWorkspaceTableModel<TFeature, TMetadata> {
+): HonuaAppStoreTableModel<TFeature, TMetadata> {
   return {
     query: selectLinkedViewQueryProjection(selectWorkspaceExplorationState(state), options),
     records: selectRealtimeRecords(state.realtime.features, options.sourceId),
@@ -877,9 +877,9 @@ export function selectHonuaAppWorkspaceTableModel<TFeature = unknown, TMetadata 
   };
 }
 
-export function selectHonuaAppWorkspaceDetailModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceDetailModel<TFeature> {
+export function selectHonuaAppStoreDetailModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): HonuaAppStoreDetailModel<TFeature> {
   const exploration = selectWorkspaceExplorationState(state);
   const selectedRecords: RealtimeFeatureRecord<TFeature>[] = [];
   const tombstones: RealtimeFeatureTombstone[] = [];
@@ -915,9 +915,9 @@ export function selectHonuaAppWorkspaceDetailModel<TFeature = unknown, TMetadata
   };
 }
 
-export function selectHonuaAppWorkspaceFilterModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceFilterModel {
+export function selectHonuaAppStoreFilterModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): HonuaAppStoreFilterModel {
   const exploration = selectWorkspaceExplorationState(state);
   return {
     filters: exploration.filters,
@@ -926,10 +926,10 @@ export function selectHonuaAppWorkspaceFilterModel<TFeature = unknown, TMetadata
   };
 }
 
-export function selectHonuaAppWorkspaceChartModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+export function selectHonuaAppStoreChartModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
   options: LinkedViewQueryProjectionOptions = {},
-): HonuaAppWorkspaceChartModel {
+): HonuaAppStoreChartModel {
   const exploration = selectWorkspaceExplorationState(state);
   return {
     query: selectLinkedViewQueryProjection(exploration, options),
@@ -938,9 +938,9 @@ export function selectHonuaAppWorkspaceChartModel<TFeature = unknown, TMetadata 
   };
 }
 
-export function selectHonuaAppWorkspaceJobModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceJobModel<TResult> {
+export function selectHonuaAppStoreJobModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): HonuaAppStoreJobModel<TResult> {
   const entries = Object.values(state.jobs.entries);
   return {
     entries: state.jobs.entries,
@@ -949,10 +949,10 @@ export function selectHonuaAppWorkspaceJobModel<TFeature = unknown, TMetadata = 
   };
 }
 
-export function selectHonuaAppWorkspaceRealtimeModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+export function selectHonuaAppStoreRealtimeModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
   options: { readonly sourceId?: SourceId } = {},
-): HonuaAppWorkspaceRealtimeModel<TFeature> {
+): HonuaAppStoreRealtimeModel<TFeature> {
   const realtime = state.realtime.features;
   return {
     status: realtime.status,
@@ -964,9 +964,9 @@ export function selectHonuaAppWorkspaceRealtimeModel<TFeature = unknown, TMetada
   };
 }
 
-export function selectHonuaAppWorkspaceMetadataCacheModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceMetadataCacheModel<TMetadata> {
+export function selectHonuaAppStoreMetadataCacheModel<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): HonuaAppStoreMetadataCacheModel<TMetadata> {
   const entries = Object.values(state.sources.entries);
   return {
     entries: state.sources.entries,
@@ -977,16 +977,16 @@ export function selectHonuaAppWorkspaceMetadataCacheModel<TFeature = unknown, TM
   };
 }
 
-export function selectHonuaAppWorkspaceDrafts<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceDraftState<TFeature, TMetadata, TResult> {
+export function selectHonuaAppStoreDrafts<TFeature = unknown, TMetadata = unknown, TResult = unknown>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): HonuaAppStoreDraftState<TFeature, TMetadata, TResult> {
   return state.drafts;
 }
 
 function reduceAppWorkspaceState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-  intent: HonuaAppWorkspaceIntent<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+  intent: HonuaAppStoreIntent<TFeature, TMetadata, TResult>,
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
   switch (intent.kind) {
     case "set-exploration":
       return withSlice(state, "exploration", {
@@ -1093,26 +1093,26 @@ function reduceAppWorkspaceState<TFeature, TMetadata, TResult>(
       return withSlice(state, "drafts", { ...state.drafts, activeDraftId: intent.draftId });
     case "restore-workspace-snapshot":
       if (intent.snapshot.version !== 1) {
-        throw new Error(`HonuaAppWorkspace snapshot version ${String(intent.snapshot.version)} is not supported`);
+        throw new Error(`HonuaAppStore snapshot version ${String(intent.snapshot.version)} is not supported`);
       }
       return cloneValue(intent.snapshot.state);
   }
 }
 
-function withSlice<TFeature, TMetadata, TResult, K extends Exclude<HonuaAppWorkspaceSlice, "all">>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+function withSlice<TFeature, TMetadata, TResult, K extends Exclude<HonuaAppStoreSlice, "all">>(
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
   slice: K,
-  value: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>[K],
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  value: HonuaAppStoreState<TFeature, TMetadata, TResult>[K],
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
   if (Object.is(state[slice], value)) return state;
   return { ...state, [slice]: value };
 }
 
 function changedWorkspaceSlices<TFeature, TMetadata, TResult>(
-  previous: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-  next: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-): ReadonlySet<HonuaAppWorkspaceSlice> {
-  const changed = new Set<HonuaAppWorkspaceSlice>();
+  previous: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+  next: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+): ReadonlySet<HonuaAppStoreSlice> {
+  const changed = new Set<HonuaAppStoreSlice>();
   if (previous.exploration !== next.exploration) changed.add("exploration");
   if (previous.sources !== next.sources) changed.add("sources");
   if (previous.realtime !== next.realtime) changed.add("realtime");
@@ -1123,8 +1123,8 @@ function changedWorkspaceSlices<TFeature, TMetadata, TResult>(
 }
 
 function mergeInitialState<TFeature, TMetadata, TResult>(
-  initial: Partial<HonuaAppWorkspaceState<TFeature, TMetadata, TResult>> | undefined,
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  initial: Partial<HonuaAppStoreState<TFeature, TMetadata, TResult>> | undefined,
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
   return {
     exploration: initial?.exploration ? cloneValue(initial.exploration) : {},
     sources: initial?.sources ? cloneValue(initial.sources) : { entries: {} },
@@ -1136,7 +1136,7 @@ function mergeInitialState<TFeature, TMetadata, TResult>(
 }
 
 function selectWorkspaceExplorationState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
 ): ExplorationState {
   return state.exploration.snapshot?.state ?? EMPTY_STATE;
 }
@@ -1163,8 +1163,8 @@ function realtimeKeyForSelection(target: FeatureSelectionTarget): string {
 }
 
 function sourcesFromWorkspaceState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
-): HonuaSavedWorkspaceSource[] {
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedAppStateSource[] {
   if (!state) return [];
   return Object.values(state.sources.entries).map((entry) => ({
     id: entry.sourceId,
@@ -1174,8 +1174,8 @@ function sourcesFromWorkspaceState<TFeature, TMetadata, TResult>(
 }
 
 function selectedFeaturesFromWorkspaceState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
-): HonuaSavedWorkspaceSelectedFeature<TFeature>[] {
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedAppStateSelectedFeature<TFeature>[] {
   if (!state) return [];
   return selectWorkspaceExplorationState(state).selection.map((target) => {
     if (isSourceQualifiedSelectionTarget(target)) {
@@ -1186,8 +1186,8 @@ function selectedFeaturesFromWorkspaceState<TFeature, TMetadata, TResult>(
 }
 
 function jobsFromWorkspaceState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult> | undefined,
-): HonuaSavedWorkspaceJob<TResult>[] {
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult> | undefined,
+): HonuaSavedAppStateJob<TResult>[] {
   if (!state) return [];
   return Object.values(state.jobs.entries).map((entry) => ({
     id: entry.id,
@@ -1201,8 +1201,8 @@ function jobsFromWorkspaceState<TFeature, TMetadata, TResult>(
 }
 
 function stateFromSavedWorkspaceDocument<TFeature, TMetadata, TResult>(
-  document: HonuaSavedWorkspaceDocument<TFeature, TMetadata, TResult>,
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  document: HonuaSavedAppStateDocument<TFeature, TMetadata, TResult>,
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
   const sources: Record<string, HonuaSourceMetadataEntry<TMetadata>> = {};
   for (const source of document.sources) {
     sources[source.id] = {
@@ -1212,7 +1212,7 @@ function stateFromSavedWorkspaceDocument<TFeature, TMetadata, TResult>(
     };
   }
 
-  const jobs: Record<string, HonuaAppWorkspaceJobEntry<TResult>> = {};
+  const jobs: Record<string, HonuaAppStoreJobEntry<TResult>> = {};
   for (const job of document.jobs) {
     jobs[job.id] = {
       id: job.id,
@@ -1261,11 +1261,11 @@ function stateFromSavedWorkspaceDocument<TFeature, TMetadata, TResult>(
 }
 
 function applySavedWorkspaceJobsToState<TFeature, TMetadata, TResult>(
-  state: HonuaAppWorkspaceState<TFeature, TMetadata, TResult>,
-  jobs: ReadonlyArray<HonuaSavedWorkspaceJob<TResult>>,
-): HonuaAppWorkspaceState<TFeature, TMetadata, TResult> {
+  state: HonuaAppStoreState<TFeature, TMetadata, TResult>,
+  jobs: ReadonlyArray<HonuaSavedAppStateJob<TResult>>,
+): HonuaAppStoreState<TFeature, TMetadata, TResult> {
   if (jobs.length === 0) return state;
-  const entries: Record<string, HonuaAppWorkspaceJobEntry<TResult>> = { ...state.jobs.entries };
+  const entries: Record<string, HonuaAppStoreJobEntry<TResult>> = { ...state.jobs.entries };
   for (const job of jobs) {
     entries[job.id] = {
       id: job.id,
@@ -1281,7 +1281,7 @@ function applySavedWorkspaceJobsToState<TFeature, TMetadata, TResult>(
   return { ...state, jobs: { entries } };
 }
 
-function validateArrayWithIds(value: unknown, path: string, errors: HonuaSavedWorkspaceValidationError[]): void {
+function validateArrayWithIds(value: unknown, path: string, errors: HonuaSavedAppStateValidationError[]): void {
   if (!Array.isArray(value)) {
     errors.push({ path, message: "must be an array" });
     return;

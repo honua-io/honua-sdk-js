@@ -1,44 +1,10 @@
+import { isSafeBrowserTileEndpoint as isSafeMapLibreRasterEndpoint } from "../core/browser-tile-endpoint.js";
+export { isSafeBrowserTileEndpoint as isSafeMapLibreRasterEndpoint } from "../core/browser-tile-endpoint.js";
 import type { SourceDescriptor } from "../contract/types.js";
 import { wmtsExtensionForFormat } from "../core/wms-types.js";
 
 const DEFAULT_RASTER_TILE_SIZE = 256;
 const MAX_RASTER_TILE_SIZE = 4_096;
-const CREDENTIAL_QUERY_KEYS = new Set([
-  "accesstoken",
-  "apikey",
-  "auth",
-  "authorization",
-  "authtoken",
-  "awsaccesskeyid",
-  "bearer",
-  "bearertoken",
-  "clientsecret",
-  "code",
-  "credential",
-  "expires",
-  "googleaccessid",
-  "idtoken",
-  "jwt",
-  "key",
-  "keypairid",
-  "password",
-  "passwd",
-  "privatekey",
-  "policy",
-  "pwd",
-  "refreshtoken",
-  "sas",
-  "secret",
-  "se",
-  "session",
-  "sessionid",
-  "sig",
-  "signature",
-  "sp",
-  "subscriptionkey",
-  "sv",
-  "token",
-]);
 const WMS_REQUEST_KEYS = new Set([
   "BBOX",
   "CRS",
@@ -166,20 +132,6 @@ export function buildWmtsRasterSourceSpec(
   };
 }
 
-/** Return whether a URL is safe to embed in a browser-owned raster source. */
-export function isSafeMapLibreRasterEndpoint(value: string): boolean {
-  if (typeof value !== "string" || value.length === 0) return false;
-  try {
-    const url = new URL(value);
-    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password || url.hash) {
-      return false;
-    }
-    return [...url.searchParams.keys()].every((key) => !isCredentialQueryKey(key));
-  } catch {
-    return false;
-  }
-}
-
 /** Validate a browser raster tileSize; WMS mirrors it into image dimensions. */
 export function validateRasterTileSize(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1 || value > MAX_RASTER_TILE_SIZE) {
@@ -196,11 +148,6 @@ function requireSafeRasterLocatorUrl(descriptor: SourceDescriptor, discoveredUrl
     );
   }
   return new URL(value);
-}
-
-function isCredentialQueryKey(key: string): boolean {
-  const normalized = key.replace(/[^A-Za-z0-9]/gu, "").toLowerCase();
-  return CREDENTIAL_QUERY_KEYS.has(normalized) || normalized.startsWith("xamz") || normalized.startsWith("xgoog");
 }
 
 function wmtsResourceTemplate(

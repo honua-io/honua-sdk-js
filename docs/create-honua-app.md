@@ -6,13 +6,15 @@ resource: "https://www.npmjs.com/package/create-honua-app"
 ---
 # create-honua-app
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `create-honua-app` scaffolds a Vite + TypeScript application that already connects to a geospatial endpoint and mounts
 a source on MapLibre. It exists so the first minute with the SDK is spent reading a working workflow instead of
 assembling peer dependencies.
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.3 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.4.0 # x-release-please-version
 cd my-map
 npm install
 npm run dev
@@ -52,10 +54,10 @@ Both templates pin **MapLibre GL JS 6.4.1**, the first release patched for
 `overrides` and no `--legacy-peer-deps`. MapLibre 5 and 6.0.0 through 6.4.0 do not satisfy that range: no patched 5.x
 release exists, so apps still on MapLibre 5 must upgrade the renderer before the SDK. Because MapLibre 6 is
 ESM-only and loads its worker as a separate module, each starter ships `src/maplibre-worker.ts` and imports it before
-the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-5-and-6-compatibility).
+the first map is created. See [`maplibre-runtime.md`](./maplibre-runtime.md#maplibre-runtime-support).
 
 ```bash
-npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.3.3 # x-release-please-version
+npm create honua-app@latest my-map -- --template react-ts --sdk-version 0.4.0 # x-release-please-version
 create-honua-app --list-templates
 ```
 
@@ -73,7 +75,7 @@ const connection = await honua.connect(
 );
 const inspection = await connection.inspect();
 const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
-const plan = await connection.explain({ returnGeometry: true, pagination: { limit: 250 } }, { sourceId });
+const plan = await connection.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 250 } }, { sourceId });
 const mounted = await connection.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId });
 await mounted.ready;
 ```

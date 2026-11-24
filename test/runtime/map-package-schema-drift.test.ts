@@ -35,7 +35,7 @@ import {
   HONUA_MAP_PACKAGE_SCHEMA_STATUSES,
 } from "../../src/runtime/generated/map-package-schema-meta.js";
 import validateAgainstSchema from "../../src/runtime/generated/map-package-schema-validator.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, validateMapPackage } from "../../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, validateMapDocument } from "../../src/runtime/index.js";
 
 const SCHEMA_URL = new URL("../../schemas/honua-map-package.v1.json", import.meta.url);
 const TYPES_URL = new URL("../../src/runtime/map-package.ts", import.meta.url);
@@ -50,21 +50,21 @@ const typesSource = fs.readFileSync(TYPES_URL, "utf8");
  * completeness below, so this table cannot silently omit a type.
  */
 const INTERFACE_TO_DEF: Readonly<Record<string, string>> = {
-  HonuaMapPackage: "#",
-  HonuaMapPackageSourceBinding: "sourceBinding",
-  HonuaMapPackageLocator: "locator",
-  HonuaMapPackageStyleRef: "styleRef",
+  HonuaMapDocument: "#",
+  HonuaMapDocumentSourceBinding: "sourceBinding",
+  HonuaMapDocumentLocator: "locator",
+  HonuaMapDocumentStyleRef: "styleRef",
   HonuaStyleRefLayerBinding: "styleRefLayerBinding",
   HonuaStyleRefLayerOverride: "styleRefLayerOverride",
-  HonuaMapPackageThemeSpec: "themeSpec",
-  HonuaMapPackageInitialView: "initialView",
-  HonuaMapPackageLegendEntry: "legendEntry",
-  HonuaMapPackagePopupBinding: "popupBinding",
-  HonuaMapPackageLabelBinding: "labelBinding",
-  HonuaMapPackageAttribution: "attribution",
-  HonuaMapPackageWidget: "widget",
-  HonuaMapPackageDependency: "dependency",
-  HonuaMapPackageProvenance: "provenance",
+  HonuaMapDocumentThemeSpec: "themeSpec",
+  HonuaMapDocumentInitialView: "initialView",
+  HonuaMapDocumentLegendEntry: "legendEntry",
+  HonuaMapDocumentPopupBinding: "popupBinding",
+  HonuaMapDocumentLabelBinding: "labelBinding",
+  HonuaMapDocumentAttribution: "attribution",
+  HonuaMapDocumentWidget: "widget",
+  HonuaMapDocumentDependency: "dependency",
+  HonuaMapDocumentProvenance: "provenance",
 };
 
 /**
@@ -167,10 +167,10 @@ function collectAnnotationNamedProperties(node: unknown, pointer = "#", insideSc
   return found;
 }
 
-function packageWithPopupTitle(title: unknown): HonuaMapPackage {
+function packageWithPopupTitle(title: unknown): HonuaMapDocument {
   return {
     mapPackageId: "pkg-drift",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [
       {
         sourceId: "parcels",
@@ -180,7 +180,7 @@ function packageWithPopupTitle(title: unknown): HonuaMapPackage {
     ],
     mapSpec: { version: 8, sources: {}, layers: [] },
     popupBindings: [{ sourceId: "parcels", title }],
-  } as unknown as HonuaMapPackage;
+  } as unknown as HonuaMapDocument;
 }
 
 function errorPaths(result: { diagnostics: readonly { severity: string; path?: string }[] }): string[] {
@@ -257,13 +257,13 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
       "a new annotation-named property needs a case below",
     ).toEqual(["#/$defs/popupBinding/properties/title"]);
 
-    expect(errorPaths(validateMapPackage(packageWithPopupTitle(12345)))).toContain("popupBindings[0].title");
-    expect(errorPaths(validateMapPackage(packageWithPopupTitle("x".repeat(513))))).toContain("popupBindings[0].title");
-    expect(errorPaths(validateMapPackage(packageWithPopupTitle("Parcel detail")))).toEqual([]);
+    expect(errorPaths(validateMapDocument(packageWithPopupTitle(12345)))).toContain("popupBindings[0].title");
+    expect(errorPaths(validateMapDocument(packageWithPopupTitle("x".repeat(513))))).toContain("popupBindings[0].title");
+    expect(errorPaths(validateMapDocument(packageWithPopupTitle("Parcel detail")))).toEqual([]);
   });
 
   test("the schema pins the canonical format string", () => {
-    expect(schema.properties.format.const).toBe(HONUA_MAP_PACKAGE_FORMAT_V1);
+    expect(schema.properties.format.const).toBe(HONUA_MAP_DOCUMENT_FORMAT_V1);
   });
 
   test("every interface in map-package.ts is described by the schema", () => {
@@ -316,16 +316,16 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
     }
   });
 
-  test("HonuaMapPackageProtocol enumerates exactly the schema's protocols", () => {
-    const union = parseUnionAlias(typesSource, "HonuaMapPackageProtocol");
+  test("HonuaMapDocumentProtocol enumerates exactly the schema's protocols", () => {
+    const union = parseUnionAlias(typesSource, "HonuaMapDocumentProtocol");
     expect(union).toBeDefined();
     expect([...(union ?? [])].sort()).toEqual([...schema.$defs.sourceBinding.properties.protocol.enum].sort());
     // …and the generated projection the runtime actually reads agrees too.
     expect([...HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS].sort()).toEqual([...(union ?? [])].sort());
   });
 
-  test("HonuaMapPackageStatus enumerates exactly the schema's statuses", () => {
-    const union = parseUnionAlias(typesSource, "HonuaMapPackageStatus");
+  test("HonuaMapDocumentStatus enumerates exactly the schema's statuses", () => {
+    const union = parseUnionAlias(typesSource, "HonuaMapDocumentStatus");
     expect(union).toBeDefined();
     expect([...(union ?? [])].sort()).toEqual([...schema.properties.status.enum].sort());
     expect([...HONUA_MAP_PACKAGE_SCHEMA_STATUSES].sort()).toEqual([...(union ?? [])].sort());

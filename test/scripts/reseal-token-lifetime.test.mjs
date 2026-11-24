@@ -24,7 +24,9 @@ case "$1 $2" in
   "run view") echo "$RUN_HEAD" ;;
   "run watch") exit "$STRICT_EXIT" ;;
   "pr checks") echo "$CHECKS" ;;
+  "api repos/"*) echo '["gate","disposition","review"]' ;;
   "pr view") echo "$PR_JSON" ;;
+  "run list") echo "$PENDING" ;;
   "pr merge"|"pr close"|"workflow run") [[ "$GH_TOKEN" == fresh-app ]] ;;
   *) exit 99 ;;
 esac`,
@@ -34,7 +36,10 @@ printf 'git %s\\n' "$*" >> "$TRACE"
 case "$1" in
   fetch) exit 0 ;;
   rev-parse) if [[ "$2" == refs/remotes/origin/trunk ]]; then echo "$TRUNK_SHA"; else echo "$REMOTE_HEAD"; fi ;;
-  merge-base) exit "$ANCESTRY_EXIT" ;;
+  merge-base)
+    [[ "$3" != generated || "$4" != merged ]] || exit "$MERGED_HEAD_EXIT"
+    [[ "$3" != merged ]] || exit "$MERGED_TRUNK_EXIT"
+    exit "$ANCESTRY_EXIT" ;;
   *) exit 99 ;;
 esac`,
       sleep: "exit 0",
@@ -51,6 +56,7 @@ esac`,
         GH_TOKEN: step === wait ? "job-token" : "fresh-app",
         GENERATED: "generated", RUN_HEAD: "generated", REMOTE_HEAD: "generated", TRUNK_SHA: "source",
         STRICT_CI_RUN_ID: "123", STRICT_EXIT: "0", ANCESTRY_EXIT: "0", PR_NUMBER: "456",
+        MERGED_HEAD_EXIT: "0", MERGED_TRUNK_EXIT: "0", PENDING: "0", RELEASE_MATRIX_RECEIPT_RUN_ID: "",
         GITHUB_SHA: "source", GITHUB_RUN_ID: "789", GITHUB_RUN_ATTEMPT: "1",
         GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
         CHECKS: JSON.stringify(["gate", "disposition", "review"].map((name) => ({ name, bucket: "pass" }))),
@@ -117,9 +123,57 @@ test("changed remote head or ancestry is refused after validation", () => {
   }
 });
 
-test("moving trunk closes the stale regeneration PR without merging it", () => {
+test("moving trunk closes the stale regeneration PR and re-enters regeneration for the new tip", () => {
   const result = run(merge, { TRUNK_SHA: "new-source" });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.trace, /pr close 456/);
-  assert.doesNotMatch(result.trace, /pr merge|workflow run/);
+  assert.match(result.trace, /pr close 456[\s\S]*workflow run regenerate-derived-artifacts.yml --repo honua-io\/honua-sdk-js --ref trunk\n/);
+  assert.doesNotMatch(result.trace, /pr merge|release_matrix_receipt_run_id/);
+});
+
+test("moving trunk hands a carried release-matrix receipt to the re-entered regeneration", () => {
+  const result = run(merge, { TRUNK_SHA: "new-source", RELEASE_MATRIX_RECEIPT_RUN_ID: "321" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.trace, /workflow run regenerate-derived-artifacts.yml .* -f release_matrix_receipt_run_id=321/);
+});
+
+test("moving trunk never evicts a pending regeneration run", () => {
+  const plain = run(merge, { TRUNK_SHA: "new-source", PENDING: "1" });
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.match(plain.trace, /pr close 456/);
+  assert.doesNotMatch(plain.trace, /workflow run|pr merge/);
+
+  const carried = run(merge, { TRUNK_SHA: "new-source", PENDING: "1", RELEASE_MATRIX_RECEIPT_RUN_ID: "321" });
+  assert.notEqual(carried.status, 0);
+  assert.match(carried.stdout, /cannot be handed off without evicting it/);
+  assert.doesNotMatch(carried.trace, /workflow run|pr merge/);
+});
+
+const mergedPr = { state: "MERGED", headRefName: "automation/derived-artifacts-789-1",
+  headRefOid: "generated", baseRefName: "trunk", baseRefOid: "merged",
+  mergeCommit: { oid: "merged" } };
+
+test("already merged approved regeneration dispatches follow-through without its deleted branch", () => {
+  const result = run(merge, { PR_JSON: JSON.stringify(mergedPr), TRUNK_SHA: "later-trunk" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.trace, /git merge-base --is-ancestor source generated/);
+  assert.match(result.trace, /git merge-base --is-ancestor generated merged/);
+  assert.match(result.trace, /git merge-base --is-ancestor merged later-trunk/);
+  assert.match(result.trace, /workflow run regenerate-derived-artifacts.yml/);
+  assert.doesNotMatch(result.trace, /pr merge|pr close|fetch origin refs\/heads\/automation/);
+});
+
+test("merged regeneration rejects identity drift, missing merge and uncontained approved commits", () => {
+  const cases = [
+    { PR_JSON: JSON.stringify({ ...mergedPr, state: "CLOSED" }) },
+    { PR_JSON: JSON.stringify({ ...mergedPr, headRefOid: "changed" }) },
+    { PR_JSON: JSON.stringify({ ...mergedPr, headRefName: "another-branch" }) },
+    { PR_JSON: JSON.stringify({ ...mergedPr, baseRefName: "another-base" }) },
+    { PR_JSON: JSON.stringify({ ...mergedPr, mergeCommit: null }) },
+    { ANCESTRY_EXIT: "1" }, { MERGED_HEAD_EXIT: "1" }, { MERGED_TRUNK_EXIT: "1" },
+  ];
+  for (const overrides of cases) {
+    const result = run(merge, { PR_JSON: JSON.stringify(mergedPr), ...overrides });
+    assert.notEqual(result.status, 0, JSON.stringify(overrides));
+    assert.doesNotMatch(result.trace, /pr merge|pr close|workflow run/);
+  }
 });

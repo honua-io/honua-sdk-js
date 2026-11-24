@@ -1,5 +1,9 @@
 import type { Client, Interceptor } from "@connectrpc/connect";
-import type { FeatureService } from "../gen/geospatial/v1/feature_service_pb.js";
+import type {
+  DescribeLayerResponse,
+  DescribeServiceResponse,
+  FeatureService,
+} from "../gen/geospatial/v1/feature_service_pb.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
   type HonuaCacheValidator,
@@ -12,6 +16,8 @@ import {
   withHonuaCacheState,
   withoutHonuaCacheState,
 } from "./cache-state.js";
+import { getCatalogItem, listCatalog } from "./catalog.js";
+import type { HonuaCatalogItem, HonuaCatalogPage, HonuaCatalogQuery, HonuaCatalogRequestOptions } from "./catalog.js";
 import {
   HONUA_MINIMUM_SUPPORTED_SERVER_VERSION,
   MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL,
@@ -22,6 +28,7 @@ import {
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
 import {
   applyEdits,
+  applyServiceEdits,
   exportMap,
   findMap,
   getFeatureServiceMetadata,
@@ -36,6 +43,12 @@ import {
   queryMapRelatedRecords,
   queryRelatedRecords,
 } from "./geoservices.js";
+import {
+  REPLAY_SAFE_GRPC_METHODS,
+  applyServiceEditsOverGrpc,
+  queryRelatedRecordsOverGrpc,
+} from "./grpc-native-calls.js";
+import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
 import {
@@ -112,6 +125,8 @@ import {
   toGeoServicesError,
   toHttpError,
 } from "./request-pipeline.js";
+import { readBoundedResponseBytes } from "./response-body.js";
+import { assertDistinctServiceLayers } from "./service-edit-layers.js";
 import {
   HonuaStacSearch,
   getStacCollection,
@@ -133,9 +148,11 @@ import {
 import { assertSecureCredentialedBaseUrl } from "./transport-security.js";
 import type {
   ApplyEditsRequest,
+  ApplyServiceEditsRequest,
   ExportMapRequest,
   HonuaApiEnvelope,
   HonuaApplyEditsResponse,
+  HonuaApplyServiceEditsResponse,
   HonuaAuthCredentials,
   HonuaAuthCredentialsProvider,
   HonuaAuthProvider,
@@ -253,7 +270,11 @@ function normalizePath(path: string): string {
 }
 
 function isAbsoluteHttpUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://");
+  return /^https?:\/\//i.test(value);
+}
+
+function isProtocolRelativeUrl(value: string): boolean {
+  return value.startsWith("//") || value.startsWith("/\\");
 }
 
 function resolveRequestUrl(baseUrl: string, path: string): string {
@@ -268,7 +289,25 @@ function resolveRequestUrl(baseUrl: string, path: string): string {
     }
     return requestUrl.toString();
   }
+  if (!isAbsoluteHttpUrl(baseUrl) && isProtocolRelativeUrl(path)) {
+    throw new Error(`Protocol-relative request URL is not allowed: ${path}`);
+  }
   return `${baseUrl}${path}`;
+}
+
+/**
+ * Check a URL the Connect transport already built from `baseUrl`. An absolute
+ * URL must stay on the base origin; a relative one already carries the base
+ * path, so it is passed through unchanged rather than joined to it again.
+ */
+function guardTransportRequestUrl(baseUrl: string, url: string): string {
+  if (isAbsoluteHttpUrl(url)) {
+    return resolveRequestUrl(baseUrl, url);
+  }
+  if (isProtocolRelativeUrl(url)) {
+    throw new Error(`Protocol-relative request URL is not allowed: ${url}`);
+  }
+  return url;
 }
 
 /**
@@ -317,6 +356,9 @@ function normalizeInterceptorRequestUrl(baseUrl: string, url: string): string {
   }
 
   if (!isAbsoluteHttpUrl(baseUrl)) {
+    if (isProtocolRelativeUrl(url)) {
+      throw new Error(`Protocol-relative request URL is not allowed: ${url}`);
+    }
     return url;
   }
 
@@ -397,6 +439,9 @@ export class HonuaClient {
   /** The minimum Honua server version this SDK is contractually tested against. */
   public static readonly minimumSupportedServerVersion = HONUA_MINIMUM_SUPPORTED_SERVER_VERSION;
   public static readonly minimumSupportedServerReleaseChannel = MINIMUM_SUPPORTED_SERVER_RELEASE_CHANNEL;
+
+  /** Native unary attachment operations; requires transport: grpc-web. */
+  public readonly attachments = createNativeAttachments((call, options) => this.callAttachment(call, options));
 
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
@@ -540,7 +585,7 @@ export class HonuaClient {
   private buildConnectRetryInterceptor(): Interceptor {
     return (next) => async (req) => {
       // Only retry replay-safe unary calls; mirror REST idempotency scoping.
-      if (req.stream || !this.retryOptions) {
+      if (req.stream || !this.retryOptions || !REPLAY_SAFE_GRPC_METHODS.has(req.method?.name ?? "")) {
         return next(req);
       }
       const retryOptions = this.retryOptions;
@@ -579,7 +624,21 @@ export class HonuaClient {
     }
     return {
       baseUrl: this.baseUrl,
-      fetch: this.fetchFn,
+      fetch: async (input, init) => {
+        const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        const resolvedUrl = guardTransportRequestUrl(this.baseUrl, rawUrl);
+        const requestInit: RequestInit =
+          input instanceof Request
+            ? {
+                method: input.method,
+                headers: input.headers,
+                body: input.body,
+                signal: input.signal,
+                ...init,
+              }
+            : (init ?? {});
+        return this.fetchWithSafeRedirects(resolvedUrl, requestInit, "preserve-method");
+      },
       interceptors,
       ...(this.timeoutMs !== undefined ? { defaultTimeoutMs: this.timeoutMs } : {}),
     };
@@ -595,7 +654,7 @@ export class HonuaClient {
     // Vite/Rolldown and fails a REST production build when the peer is absent.
     let initPromise = this.connectClientPromise;
     if (!initPromise) {
-      initPromise = loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
+      initPromise = this.loadGrpcWebRuntime().then(({ createClient, createGrpcWebTransport, FeatureService }) => {
         const transport = createGrpcWebTransport(this.connectTransportOptions());
         this.connectClient = createClient(FeatureService, transport);
         return this.connectClient;
@@ -700,7 +759,12 @@ export class HonuaClient {
     }
   }
 
-  private static async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
+  /** Override in the explicit browser entrypoint to bind the optional runtime. */
+  protected loadGrpcWebRuntime(): ReturnType<typeof loadGrpcWebRuntime> {
+    return loadGrpcWebRuntime();
+  }
+
+  protected async loadGrpcAdapter(): Promise<GrpcAdapterModule> {
     let loaded: unknown;
     try {
       loaded = await importOptionalGrpcSpecifier(GRPC_ADAPTER_SPECIFIER);
@@ -803,10 +867,11 @@ export class HonuaClient {
    */
   public async *queryFeaturesStream(request: QueryFeaturesRequest): AsyncGenerator<HonuaFeature[], void, undefined> {
     const client = await this.ensureConnectClient();
-    const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+    const grpcAdapter = await this.loadGrpcAdapter();
     const protoRequest = grpcAdapter.toProtoQueryRequest(request);
     yield* grpcAdapter.streamProtoPages(
       client.queryFeaturesStream(protoRequest, request.signal ? { signal: request.signal } : undefined),
+      protoRequest,
     );
   }
 
@@ -1366,7 +1431,7 @@ export class HonuaClient {
           ),
         };
       },
-      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
+      finalize: async (response, _durationMs, _currentRequest, runAfter, deadlineSignal) => {
         const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
@@ -1382,11 +1447,9 @@ export class HonuaClient {
         if (envelopeError) {
           const stale = this.staleMetadataFallback(cached, metadataOptions, envelopeError);
           if (stale) return stale;
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
 
@@ -1617,6 +1680,21 @@ export class HonuaClient {
     return fetchOgcRecordRaw(this.protocolTransport, request);
   }
 
+  // ── Public catalog ──────────────────────────────────────────
+
+  /**
+   * List one page of the published services and Layers the caller may see.
+   * The server applies access filtering before paging and counting.
+   */
+  public async listCatalog(query: HonuaCatalogQuery = {}): Promise<HonuaCatalogPage> {
+    return listCatalog(this.protocolTransport, query);
+  }
+
+  /** Read one catalog record by its id (`service:<name>` or `layer:<publicationId>`). */
+  public async getCatalogItem(id: string, options: HonuaCatalogRequestOptions = {}): Promise<HonuaCatalogItem> {
+    return getCatalogItem(this.protocolTransport, id, options);
+  }
+
   // ── WMS 1.3 ─────────────────────────────────────────────────
 
   /**
@@ -1769,6 +1847,54 @@ export class HonuaClient {
     return getMapLayerMetadata(this.protocolTransport, serviceId, layerId, options);
   }
 
+  private async callAttachment<T>(
+    call: (client: Client<typeof FeatureService>) => Promise<T>,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<T> {
+    if (!this.isGrpcWeb) throw new Error("Native attachments require transport: grpc-web.");
+    options?.signal?.throwIfAborted();
+    const client = await this.ensureConnectClient();
+    const adapter = await this.loadGrpcAdapter();
+    try {
+      return await call(client);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
+  }
+
+  /** Read the native service descriptor without a REST metadata request. */
+  public async describeService(request: {
+    readonly serviceId: string;
+    readonly pageSize?: number;
+    readonly pageToken?: string;
+    readonly signal?: AbortSignal;
+  }): Promise<DescribeServiceResponse> {
+    if (!this.isGrpcWeb) throw new Error("describeService requires transport: grpc-web.");
+    const client = await this.ensureConnectClient();
+    const adapter = await this.loadGrpcAdapter();
+    try {
+      return await client.describeService(request, request.signal ? { signal: request.signal } : undefined);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
+  }
+
+  /** Read typed fields, domains, templates and capabilities over gRPC-Web. */
+  public async describeLayer(request: {
+    readonly serviceId: string;
+    readonly layerId: number;
+    readonly signal?: AbortSignal;
+  }): Promise<DescribeLayerResponse> {
+    if (!this.isGrpcWeb) throw new Error("describeLayer requires transport: grpc-web.");
+    const client = await this.ensureConnectClient();
+    const adapter = await this.loadGrpcAdapter();
+    try {
+      return await client.describeLayer(request, request.signal ? { signal: request.signal } : undefined);
+    } catch (error) {
+      throw adapter.wrapConnectError(error);
+    }
+  }
+
   /**
    * Run a GeoServices `FeatureServer/query` request against a Honua-hosted layer.
    *
@@ -1801,14 +1927,14 @@ export class HonuaClient {
   public async queryFeatures(request: QueryFeaturesRequest): Promise<HonuaQueryResponse> {
     if (this.transport === "grpc-web") {
       const client = await this.ensureConnectClient();
-      const grpcAdapter = await HonuaClient.loadGrpcAdapter();
+      const grpcAdapter = await this.loadGrpcAdapter();
       const protoRequest = grpcAdapter.toProtoQueryRequest(request);
       try {
         const response = await client.queryFeatures(
           protoRequest,
           request.signal ? { signal: request.signal } : undefined,
         );
-        return grpcAdapter.fromProtoQueryResponse(response) as HonuaQueryResponse;
+        return grpcAdapter.fromProtoQueryResponse(response, protoRequest) as HonuaQueryResponse;
       } catch (error) {
         throw grpcAdapter.wrapConnectError(error);
       }
@@ -1822,10 +1948,36 @@ export class HonuaClient {
   }
 
   public async applyEdits(request: ApplyEditsRequest): Promise<HonuaApplyEditsResponse> {
+    if (this.transport === "grpc-web") {
+      const grpcAdapter = await this.loadGrpcAdapter();
+      const protoRequest = grpcAdapter.toProtoApplyEditsRequest(request);
+      const client = await this.ensureConnectClient();
+      try {
+        const response = await client.applyEdits(protoRequest, request.signal ? { signal: request.signal } : undefined);
+        return grpcAdapter.fromProtoApplyEditsResponse(response, protoRequest);
+      } catch (error) {
+        throw grpcAdapter.wrapConnectError(error);
+      }
+    }
     return applyEdits(this.protocolTransport, request);
   }
 
+  /**
+   * Apply edits to several layers of one service in one call (parent and child rows together).
+   * gRPC-Web uses ApplyServiceEdits with no REST fallback; REST uses the service-level applyEdits.
+   */
+  public async applyServiceEdits(request: ApplyServiceEditsRequest): Promise<HonuaApplyServiceEditsResponse> {
+    assertDistinctServiceLayers(request);
+    if (this.transport !== "grpc-web") {
+      return applyServiceEdits(this.protocolTransport, request);
+    }
+    return applyServiceEditsOverGrpc(await this.loadGrpcAdapter(), await this.ensureConnectClient(), request);
+  }
+
   public async queryRelatedRecords(request: QueryRelatedRecordsRequest): Promise<HonuaRelatedRecordsResponse> {
+    if (this.transport === "grpc-web") {
+      return queryRelatedRecordsOverGrpc(await this.loadGrpcAdapter(), await this.ensureConnectClient(), request);
+    }
     return queryRelatedRecords(this.protocolTransport, request);
   }
 
@@ -1917,7 +2069,7 @@ export class HonuaClient {
     return this.executeRequest<unknown>(request, {
       callerSignal,
       deadlineThroughFinalize: true,
-      finalize: async (response, durationMs, currentRequest, runAfter, deadlineSignal) => {
+      finalize: async (response, _durationMs, currentRequest, runAfter, deadlineSignal) => {
         await runAfter();
 
         // If the server returned PBF, decode it; on decode failure (including
@@ -1948,11 +2100,9 @@ export class HonuaClient {
         const body = await parseSuccessfulJsonBody(response, undefined, deadlineSignal);
         const envelopeError = toGeoServicesError(response.status, body, response.headers);
         if (envelopeError) {
-          await this.applyErrorInterceptors({
-            request: cloneRequestContext(currentRequest),
-            error: envelopeError,
-            durationMs,
-          });
+          // deadlineThroughFinalize is set for this wrapper, so executeRequest
+          // dispatches error interceptors for this throw. Notifying here as well
+          // runs every hook twice.
           throw envelopeError;
         }
         return body;
@@ -2476,59 +2626,6 @@ async function parseSuccessfulJsonBody(
   return parseResponseBody(prepared, maxResponseBytes, true);
 }
 
-async function readBoundedResponseBytes(
-  response: Response,
-  maximum: number,
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
-  if (signal?.aborted) {
-    void response.body?.cancel().catch(() => undefined);
-    throw new HonuaAbortError();
-  }
-  const advertised = response.headers.get("content-length");
-  if (advertised !== null) {
-    const length = Number(advertised);
-    if (Number.isFinite(length) && length > maximum) {
-      void response.body?.cancel().catch(() => undefined);
-      throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
-    }
-  }
-
-  if (!response.body) return new Uint8Array();
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  const abort = () => void reader.cancel().catch(() => undefined);
-  signal?.addEventListener("abort", abort, { once: true });
-  try {
-    for (;;) {
-      if (signal?.aborted) throw new HonuaAbortError();
-      const { done, value } = await reader.read();
-      if (signal?.aborted) throw new HonuaAbortError();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maximum) {
-        void reader.cancel().catch(() => undefined);
-        throw new HonuaNetworkError(`Response body exceeds the configured ${maximum}-byte limit.`, undefined);
-      }
-      chunks.push(value);
-    }
-  } catch (error) {
-    if (signal?.aborted) throw new HonuaAbortError();
-    throw error;
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
-}
-
 function bufferedResponse(source: Response, bytes: Uint8Array): Response {
   const body = source.status === 204 || source.status === 205 || source.status === 304 ? null : bytes.slice();
   return new Response(body, {
@@ -2838,6 +2935,8 @@ function isGrpcAdapterModule(value: unknown): value is GrpcAdapterModule {
   if (!isNamespace(value)) return false;
   return (
     typeof value.toProtoQueryRequest === "function" &&
+    typeof value.toProtoApplyEditsRequest === "function" &&
+    typeof value.fromProtoApplyEditsResponse === "function" &&
     typeof value.fromProtoQueryResponse === "function" &&
     typeof value.wrapConnectError === "function" &&
     typeof value.streamProtoPages === "function"

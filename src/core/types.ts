@@ -88,6 +88,8 @@ export interface QueryFeaturesRequest {
   method?: QueryMethod;
   orderByFields?: string;
   objectIds?: number[] | string;
+  /** gRPC only: select features by global ID (UUID); mutually exclusive with `objectIds`. */
+  globalIds?: readonly string[];
   geometry?: string | Record<string, unknown>;
   geometryType?: GeoServicesGeometryType;
   spatialRel?: GeoServicesSpatialRel;
@@ -523,14 +525,42 @@ export interface MigrationReadinessAttestationItem {
 
 /** Parameters for applying feature edits (add, update, delete) to a feature layer. */
 export interface ApplyEditsRequest {
+  /** gRPC only: primary-key attribute used for Feature.id; defaults to objectid or id (case insensitive). */
+  objectIdField?: string;
+  /** gRPC only: stable server receipt key for an explicitly retried logical edit. Writes are never automatically retried. */
+  idempotencyKey?: string;
+  /**
+   * Address updates and deletes by global ID instead of object ID; `deletes` then lists
+   * global IDs. On gRPC, updates read the global ID from `HonuaFeature.globalId` or the
+   * `globalIdField` attribute; on REST they keep it in the server's global-ID attribute.
+   */
+  useGlobalIds?: boolean;
+  /** gRPC only: attribute that carries `Feature.global_id` on adds and global-ID updates. */
+  globalIdField?: string;
+  /**
+   * gRPC only: declared types of string-valued attributes that need a precise
+   * wire value (ISO date, local time, offset timestamp, exact decimal). Other
+   * strings travel as plain strings.
+   */
+  attributeTypes?: Readonly<Record<string, GrpcPreciseAttributeType>>;
   serviceId: string;
   layerId: number;
   adds?: HonuaFeature[];
   updates?: HonuaFeature[];
-  deletes?: number[] | string;
+  /** Object IDs, or global IDs when `useGlobalIds` is true. */
+  deletes?: number[] | string | readonly string[];
   rollbackOnFailure?: boolean;
   signal?: AbortSignal;
 }
+
+export type {
+  ApplyServiceEditsRequest,
+  HonuaApplyServiceEditsResponse,
+  ServiceLayerEditsRequest,
+} from "./service-edit-types.js";
+
+/** Precise attribute value kinds carried by geospatial-grpc 1.2 `AttributeValue`. */
+export type GrpcPreciseAttributeType = "date" | "time" | "timestamp-offset" | "decimal";
 
 export type HonuaTransport = "rest" | "grpc-web";
 
@@ -619,8 +649,10 @@ export interface HonuaClientOptions {
    */
   preferBinary?: boolean;
   /**
-   * Transport protocol. `"rest"` uses JSON/PBF over HTTP (default).
-   * `"grpc-web"` uses typed RPC via Connect gRPC-Web transport.
+   * Transport protocol for this constructor. `"rest"` uses GeoServices JSON/PBF over HTTP
+   * (the constructor default). `"grpc-web"` uses the native typed RPC contract via the
+   * Connect gRPC-Web transport. Prefer `createHonuaClient`, which selects gRPC-Web where
+   * the server offers it and REST otherwise.
    */
   transport?: HonuaTransport;
 }
@@ -914,12 +946,16 @@ export interface GeoServicesPoint {
 /** An Esri polyline geometry. */
 export interface GeoServicesPolyline {
   paths: number[][][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 
 /** An Esri polygon geometry. */
 export interface GeoServicesPolygon {
   rings: number[][][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 
@@ -935,6 +971,8 @@ export interface GeoServicesEnvelope {
 /** An Esri multipoint geometry. */
 export interface GeoServicesMultipoint {
   points: number[][];
+  hasZ?: boolean;
+  hasM?: boolean;
   spatialReference?: HonuaSpatialReference;
 }
 
@@ -1020,6 +1058,11 @@ export type HonuaFieldDomain =
 export interface HonuaFeature {
   attributes: Record<string, unknown>;
   geometry?: GeoServicesGeometry | Record<string, unknown> | null;
+  /**
+   * gRPC only: stable global ID sent as `Feature.global_id` on adds and on `useGlobalIds`
+   * updates. REST callers put the global ID in `attributes` instead.
+   */
+  globalId?: string;
 }
 
 // ── Query Responses ───────────────────────────
@@ -1027,6 +1070,7 @@ export interface HonuaFeature {
 /** Response from a feature or map-layer query returning features. */
 export interface HonuaQueryResponse {
   objectIdFieldName?: string;
+  globalIdFieldName?: string;
   geometryType?: GeoServicesGeometryType;
   spatialReference?: HonuaSpatialReference;
   fields?: HonuaFieldInfo[];
@@ -1055,7 +1099,10 @@ export interface HonuaExtentResponse {
 
 /** Result for a single add, update, or delete operation. */
 export interface HonuaEditResult {
-  objectId: number;
+  /** gRPC int64 IDs outside the safe integer range are returned as decimal strings. */
+  objectId: number | string;
+  /** Stable global ID of the affected feature, when the layer has one. */
+  globalId?: string;
   success: boolean;
   error?: { code: number; description: string };
 }

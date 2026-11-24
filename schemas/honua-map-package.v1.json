@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://honua.io/schemas/honua-map-package.v1.json",
   "title": "Honua Map Package (honua_map_package.v1)",
-  "description": "Canonical, portable, versioned description of one Honua map. This is the single map artifact JS, the CLI, the MCP server, and Studio all read and write (honua-sdk-js#1426); `src/studio/types.ts` re-tags this shape for the `map` package family rather than declaring a Studio-only twin. The schema covers sources/layers, style, popup and label (interaction) configuration, viewport, attribution, widgets/components, dependencies, and provenance. It deliberately does NOT model lifecycle states, content-hash identity, optimistic concurrency, actor/tenant, authorization scope, or audit/correlation identifiers: those belong to the canonical honua-server composition contract and are projected into the SDK through honua-sdk-js#1397 and #1398. The one lifecycle-adjacent field present, `status`, is a pre-existing server-produced value mirrored here verbatim, not a lifecycle model minted by the SDK. This file is the source of truth for `validateMapPackage`: `scripts/generate-map-package-validator.mjs` compiles it to a zero-dependency standalone validator, and `test/runtime/map-package-schema-drift.test.ts` fails when it and the TypeScript type in `src/runtime/map-package.ts` disagree.",
+  "description": "Canonical, portable, versioned description of one Honua map. This is the single map artifact JS, the CLI, the MCP server, and Studio all read and write (honua-sdk-js#1426); `src/studio/types.ts` re-tags this shape for the `map` package family rather than declaring a Studio-only twin. The schema covers sources/layers, style, popup and label (interaction) configuration, viewport, attribution, widgets/components, dependencies, and provenance. It deliberately does NOT model lifecycle states, content-hash identity, optimistic concurrency, actor/tenant, authorization scope, or audit/correlation identifiers: those belong to the canonical honua-server composition contract and are projected into the SDK through honua-sdk-js#1397 and #1398. The one lifecycle-adjacent field present, `status`, is a pre-existing server-produced value mirrored here verbatim, not a lifecycle model minted by the SDK. This file is the source of truth for `validateMapDocument`: `scripts/generate-map-package-validator.mjs` compiles it to a zero-dependency standalone validator, and `test/runtime/map-package-schema-drift.test.ts` fails when it and the TypeScript type in `src/runtime/map-package.ts` disagree.",
   "type": "object",
   "required": ["mapPackageId", "format", "sourceBindings", "mapSpec"],
-  "$comment": "Unknown properties are permitted at every level. The wire format is additively forward-compatible and the runtime preserves unrecognized fields through `updatePackage`; rejecting them would make every additive server revision a client-breaking change. Drift between the known-field set here and `src/runtime/map-package.ts` is caught by the drift test instead.",
+  "$comment": "Unknown properties are permitted at every level. The wire format is additively forward-compatible and the runtime preserves unrecognized fields through `updateMapDocument`; rejecting them would make every additive server revision a client-breaking change. Drift between the known-field set here and `src/runtime/map-package.ts` is caught by the drift test instead.",
   "additionalProperties": true,
   "properties": {
     "mapPackageId": {
@@ -160,7 +160,7 @@
           "maxLength": 1024
         },
         "metadata": {
-          "description": "Out-of-band binding metadata, preserved round-trip. Never a credential store: `exportMapPackage` strips any key whose name reads as a secret.",
+          "description": "Out-of-band binding metadata, preserved round-trip. Never a credential store: `exportMapDocument` strips any key whose name reads as a secret.",
           "type": "object",
           "additionalProperties": { "type": "string", "maxLength": 4096 }
         }
@@ -172,7 +172,7 @@
       "additionalProperties": true,
       "properties": {
         "url": {
-          "description": "Service endpoint. Required in practice by `validateMapPackage`; optional in the shape so a locator addressed purely by `serviceId` still parses.",
+          "description": "Service endpoint. Required in practice by `validateMapDocument`; optional in the shape so a locator addressed purely by `serviceId` still parses.",
           "type": "string",
           "maxLength": 4096
         },

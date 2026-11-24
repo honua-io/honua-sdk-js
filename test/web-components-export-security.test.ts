@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { HonuaMapPackage } from "../src/runtime/index.js";
+import type { HonuaMapDocument } from "../src/runtime/index.js";
 import {
   HONUA_EXPORT_KINDS,
   HONUA_EXPORT_STATE_SCHEMA,
@@ -53,7 +53,7 @@ const SECRETS = {
   userinfo: "https://admin:hunter2@internal.example.com/tiles/{z}/{x}/{y}.png",
 } as const;
 
-function mapPackageWithSecrets(): HonuaMapPackage {
+function mapPackageWithSecrets(): HonuaMapDocument {
   return {
     mapPackageId: "incident-response",
     format: "honua_map_package.v1",
@@ -85,7 +85,7 @@ function mapPackageWithSecrets(): HonuaMapPackage {
         satellite: { type: "raster", tiles: [SECRETS.apiKeyUrl], attribution: "© Example Imagery" },
       },
       layers: [],
-    } as unknown as HonuaMapPackage["mapSpec"],
+    } as unknown as HonuaMapDocument["mapSpec"],
   };
 }
 

@@ -1,12 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 import { type HonuaAppLifecycleEvent, createHonuaApp, normalizeHonuaAppOptions } from "../src/app/index.js";
 import { PROTOCOL_DEFAULT_CAPABILITIES, type Protocol, type SourceDescriptor } from "../src/contract/index.js";
 import { HonuaClient } from "../src/core/client.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, type MaplibreMap } from "../src/runtime/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument, type MaplibreMap } from "../src/runtime/index.js";
 import type { HonuaWebComponentController, HonuaWebComponentState } from "../src/web-components/types.js";
 
 interface MockMap extends MaplibreMap {
@@ -95,10 +92,10 @@ function makeClient(fetchFn: typeof fetch = async () => new Response("not used",
   return new HonuaClient({ baseUrl: "https://mock.honua.test", fetchFn });
 }
 
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "app-test",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [],
     initialView: { center: [-157.86, 21.3], zoom: 11 },
     legend: [{ label: "Incidents", color: "#dc2626" }],
@@ -374,19 +371,5 @@ describe("createHonuaApp", () => {
 
     expect(map.calls.some((call) => call.method === "removeLayer" && call.args[0] === "incident-points")).toBe(true);
     expect(map.calls.some((call) => call.method === "removeSource" && call.args[0] === "incidents")).toBe(true);
-  });
-
-  it("exports the app package subpath via the one-minor deprecation shim", () => {
-    // Moved to `@honua/app-platform/app` in the 1.0 scope split; the old
-    // `@honua/sdk-js/app` subpath resolves through a `@deprecated` re-export
-    // shim for one minor (docs/decisions/scope-split-and-1.0.md).
-    const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as {
-      exports?: Record<string, { types?: string; default?: string }>;
-    };
-
-    expect(packageJson.exports?.["./app"]).toEqual({
-      types: "./dist/src/_deprecated/app.d.ts",
-      default: "./dist/src/_deprecated/app.js",
-    });
   });
 });

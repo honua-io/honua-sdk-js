@@ -1,5 +1,7 @@
 # Honua React Quickstart
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Browser sample for the `@honua/sdk-js/react` bindings (published standalone as `@honua/react`). This remains a focused
 framework recipe. The framework-neutral
 [First Map](../maplibre-quickstart/README.md) owns endpoint-to-map behavior, plan evidence, and golden qualification;

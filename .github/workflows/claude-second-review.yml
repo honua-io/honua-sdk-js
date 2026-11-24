@@ -242,10 +242,11 @@ jobs:
     if: needs.gate.outputs.should_review == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The reviewer reads comment text any user can write, so the token it holds can comment
+    # on the pull request but cannot write repository contents.
     permissions:
       contents: read
       pull-requests: write
-      id-token: write
     steps:
       # Comment events are privileged: inspect PR code through the read-only
       # API, never by checking out or executing the PR's files in this job.
@@ -266,15 +267,15 @@ jobs:
           wc -c .claude-second-review/resolved-threads.md
 
       - name: Run the second-pass review
-        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
+        id: second_review
+        uses: anthropics/claude-code-action@c84e279f859e2591391e95bd309286eb111c345f # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The job's own token (contents: read). Without it the action exchanges an App token
+          # that keeps contents: write, which the action's permission inputs cannot take away.
+          github_token: ${{ github.token }}
           # The gate authenticates this connector's App identity and summary.
           allowed_bots: chatgpt-codex-connector[bot]
-          # The action exchanges its own App token; job GITHUB_TOKEN permissions
-          # do not constrain that token's default contents:write permission.
-          additional_permissions: |
-            contents: read
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ env.PR_NUMBER }}
@@ -341,3 +342,57 @@ jobs:
           claude_args: |
             --max-turns 60
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh api repos/${{ github.repository }}/contents/*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)"
+
+      - name: Report a safe review failure category
+        if: ${{ failure() && steps.second_review.outcome == 'failure' }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { openSync, readFileSync, closeSync, fstatSync } from "node:fs";
+          import { join } from "node:path";
+
+          const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+          const CATEGORIES = [
+            ["authentication", /authentication_failed|unauthorized|invalid (?:api key|token)|oauth.{0,30}(?:expired|invalid)|\b401\b/i],
+            ["access-or-model", /billing_error|permission_denied|model.{0,40}(?:not found|unavailable|access)|\b403\b/i],
+            ["rate-limit", /rate_limit|rate limit|too many requests|\b429\b/i],
+            ["network-or-service", /server_error|ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed|connection error|\b50[0234]\b/i],
+          ];
+
+          function errorText(message) {
+            if (message?.type === "result" && message.is_error === true) {
+              return [message.result, ...(Array.isArray(message.errors) ? message.errors : [])]
+                .filter((value) => typeof value === "string").join("\n");
+            }
+            if (message?.type !== "assistant" || typeof message.error !== "string") return "";
+            const content = message.message?.content;
+            return [message.error, ...(Array.isArray(content) ? content.map((part) => part?.text) : [])]
+              .filter((value) => typeof value === "string").join("\n");
+          }
+
+          function classifySecondReviewFailure(messages) {
+            if (!Array.isArray(messages)) return "unavailable";
+            const text = messages.map(errorText).join("\n");
+            const matches = CATEGORIES.filter(([, pattern]) => pattern.test(text));
+            return matches.length === 1 ? matches[0][0] : "unknown";
+          }
+
+          function readSecondReviewFailure(path) {
+            let descriptor;
+            try {
+              descriptor = openSync(path, "r");
+              const stat = fstatSync(descriptor);
+              if (!stat.isFile() || stat.size > MAX_OUTPUT_BYTES) return "unavailable";
+              return classifySecondReviewFailure(JSON.parse(readFileSync(descriptor, "utf8")));
+            } catch {
+              return "unavailable";
+            } finally {
+              if (descriptor !== undefined) closeSync(descriptor);
+            }
+          }
+
+          const category = process.env.RUNNER_TEMP
+            ? readSecondReviewFailure(join(process.env.RUNNER_TEMP, "claude-execution-output.json"))
+            : "unavailable";
+          console.log(`Second-pass review failed; error category hint: ${category}. Raw output withheld.`);
+          NODE

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   collectQualificationEvidence,
   generateCapabilitySampleMatrix,
+  projectLegacyCapabilitySampleMatrix,
   validateCapabilitySampleMatrix,
   validateQualificationRunInventory,
 } from "../scripts/sample-contract.mjs";
@@ -176,7 +177,7 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(31);
+    expect(matrix.samples).toHaveLength(23);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
@@ -187,11 +188,12 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "experimental",
       coverage: { qualifyingSampleIds: [] },
     });
-    // 66 = 59 original package entrypoints + the experimental STAC, raster,
-    // PMTiles, zarr, and the experimental declarative-interactions compiler
-    // and Studio agent session, plus the experimental local installer, plus
-    // `./client-compat`.
-    expect(matrix.packageEntrypoints).toHaveLength(66);
+    // 51 = the 22 stable and 29 experimental entrypoints in config/public-surface.json.
+    expect(matrix.packageEntrypoints).toHaveLength(51);
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./grpc-web")).toMatchObject({
+      subpath: "./grpc-web",
+      supportStatus: "experimental",
+    });
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./client-compat")).toMatchObject({
       subpath: "./client-compat",
       supportStatus: "supported",
@@ -232,11 +234,7 @@ describe("capability-to-sample matrix contract", () => {
       supportStatus: "unsupported",
       coverage: { state: "unsupported" },
     });
-    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./app")).toMatchObject({
-      supportStatus: "deprecated",
-      replacement: "@honua/app-platform/app",
-      coverage: { state: "unsupported" },
-    });
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./app")).toBeUndefined();
     expect(new Set(matrix.gaps.map((gap) => gap.coverageState))).toEqual(
       new Set(["partial", "planned", "experimental", "unsupported"]),
     );
@@ -543,6 +541,62 @@ describe("capability-to-sample matrix contract", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it("preserves Node-only exports without adding a browser fallback", async () => {
+    const inputs = await canonicalInputs();
+    const matrix = generateCapabilitySampleMatrix(
+      inputs.catalog,
+      inputs.packageJson,
+      inputs.supportTruth,
+      inputs.qualificationEvidence,
+    );
+    const entry = matrix.packageEntrypoints.find((candidate) => candidate.subpath === "./geoparquet/node");
+    const nativeTargets = {
+      types: "./dist/src/geoparquet/node.d.ts",
+      node: "./dist/src/geoparquet/node.js",
+    };
+    expect(entry?.targets).toEqual(nativeTargets);
+    expect(matrix).toMatchObject({ format: "honua.site.sdk-capability-sample-matrix.v2", schemaVersion: 2 });
+    const legacy = projectLegacyCapabilitySampleMatrix(matrix);
+    expect(legacy).toMatchObject({ format: "honua.site.sdk-capability-sample-matrix.v1", schemaVersion: 1 });
+    expect(legacy.inputs).toEqual(matrix.inputs);
+    expect(legacy.packageEntrypoints).toHaveLength(matrix.packageEntrypoints.length - 1);
+    expect(legacy.dimensions.packageEntrypoints).toEqual(legacy.packageEntrypoints.map((item) => item.subpath));
+    expect(legacy.dimensions.packageEntrypoints).not.toContain("./geoparquet/node");
+    expect(
+      legacy.gaps.some((gap) => gap.targetType === "package-entrypoint" && gap.targetId === "./geoparquet/node"),
+    ).toBe(false);
+    expect(matrix.dimensions.packageEntrypoints).toContain("./geoparquet/node");
+    await expect(validateCapabilitySampleMatrix(legacy, inputs)).resolves.toBeUndefined();
+    const invalidLegacy = structuredClone(matrix);
+    invalidLegacy.format = "honua.site.sdk-capability-sample-matrix.v1";
+    invalidLegacy.schemaVersion = 1;
+    await expect(validateCapabilitySampleMatrix(invalidLegacy)).rejects.toThrow();
+    await expect(validateCapabilitySampleMatrix(matrix, inputs)).resolves.toBeUndefined();
+    for (const targets of [
+      { types: "./dist/src/geoparquet/node.d.ts", default: "./dist/src/geoparquet/node.js" },
+      { ...nativeTargets, default: "./dist/src/geoparquet/node.js" },
+      { ...nativeTargets, browser: "./dist/src/geoparquet/node.js" },
+      { types: "./dist/src/geoparquet/node.d.ts", node: "./dist/../outside.js" },
+      { types: "./dist/src/geoparquet/node.d.ts", node: "./dist/src/geoparquet/node.json" },
+    ]) {
+      const invalidPackage = structuredClone(inputs.packageJson);
+      invalidPackage.exports["./geoparquet/node"] = targets;
+      expect(() =>
+        generateCapabilitySampleMatrix(
+          inputs.catalog,
+          invalidPackage,
+          inputs.supportTruth,
+          inputs.qualificationEvidence,
+        ),
+      ).toThrow();
+    }
+    const invalidMatrix = structuredClone(matrix);
+    const nativeEntry = invalidMatrix.packageEntrypoints.find((candidate) => candidate.subpath === "./geoparquet/node");
+    if (!nativeEntry) throw new Error("Missing native entry");
+    nativeEntry.targets = { ...nativeTargets, default: "./dist/src/geoparquet/node.js" };
+    await expect(validateCapabilitySampleMatrix(invalidMatrix)).rejects.toThrow();
   });
 
   it("rejects export, join, target, and support-claim reference drift", async () => {

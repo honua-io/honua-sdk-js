@@ -1,5 +1,5 @@
 /**
- * Native Honua UI control kit (`@honua/sdk-js/controls`) — optional,
+ * Native Honua UI control kit (`@honua/app-platform/controls`) — optional,
  * framework-free custom elements for apps built on the native lane
  * (HonuaClient + MapLibre). Tracked by issue #274; ships the basemap
  * switcher, the legend, the layer list, and the swipe control.
@@ -14,7 +14,7 @@
  * safe; call `defineHonuaControls()` explicitly when using a scoped registry.
  * The legend and the layer list are opt-in via {@link defineHonuaLegend} /
  * {@link defineHonuaLayerList} — both tags also have a controller-driven
- * implementation in `@honua/sdk-js/web-components`, which is each tag's
+ * implementation in `@honua/app-platform/web-components`, which is each tag's
  * canonical/default registrant (see `./catalog.js`). Issue #679 consolidated
  * component ownership so importing any combination of `./controls` and
  * `./web-components`, in any order, always registers the same tags with the

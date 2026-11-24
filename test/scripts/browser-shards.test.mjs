@@ -132,7 +132,7 @@ describe("the committed browser shard partition", () => {
     // The two Kepler specs this also covered went with the retired
     // examples/kepler-analytics demo; the property is about the map shard, not
     // about those specs, so it is asserted on what remains.
-    for (const spec of ["cesium-route-playback.spec.mjs", "overture-geoparquet.spec.mjs"]) {
+    for (const spec of ["cesium-scene-adapter-fixtures.spec.mjs", "overture-geoparquet.spec.mjs"]) {
       assert.equal(shardMap.claimedBy.get(spec), "map");
     }
   });

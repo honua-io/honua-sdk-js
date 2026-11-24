@@ -67,7 +67,7 @@ export function firstPublishedLayer(payload: unknown): { serviceId: string; laye
     }
     const l = layer as Record<string, unknown>;
     const serviceId = asServiceId(l.serviceId ?? l.service_id);
-    const layerId = asLayerId(l.layerId ?? l.layer_id);
+    const layerId = asLayerId(l.serviceLayerIndex ?? l.layerId ?? l.layer_id);
     if (serviceId && layerId !== undefined) {
       return { serviceId, layerId };
     }

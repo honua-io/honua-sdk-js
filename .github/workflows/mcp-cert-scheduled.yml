@@ -94,6 +94,7 @@ jobs:
         run: |
           npm ci --prefix ..
           npm run build --prefix ..
+          npm run build:split-packages:prepared --prefix ..
 
       - name: Install dependencies
         run: npm ci
@@ -237,7 +238,7 @@ jobs:
       - name: Mint publication token
         id: app-token
         if: steps.creds.outputs.available == 'true'
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.BOT_APP_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
@@ -384,23 +385,9 @@ jobs:
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
-          for attempt in {1..30}; do
-            required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name 2>/dev/null || true)"
-            if [[ -z "$required" ]]; then
-              required='[]'
-            fi
-            if [[ "$(jq 'length' <<<"$required")" -ge 3 ]]; then
-              break
-            fi
-            if (( attempt == 30 )); then
-              echo "Required checks did not attach to publication PR #$PR_NUMBER."
-              exit 1
-            fi
-            sleep 10
-          done
-          gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch --fail-fast --interval 10
+          bash scripts/wait-required-checks.sh "$PR_NUMBER"
           # --match-head-commit refuses to merge anything but the commit whose
-          # paths were validated above and whose checks were just watched.
+          # paths were validated above and whose required checks all passed.
           gh pr merge "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
             --merge \

@@ -5,6 +5,8 @@ description: "Running against public GeoServices and OGC endpoints with no Honua
 ---
 # Standalone quickstart moved to First Map
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The server-optional public-endpoint workflow is now the canonical
 [First Map quickstart](./quickstart.md). It accepts anonymous GeoServices FeatureServer layers and OGC API Features
 endpoints, then shows the discovered source, accepted query plan, bounded result, MapLibre map, popup, filter,
@@ -14,13 +16,6 @@ There is one runnable implementation:
 
 ```bash
 npm run demo:quickstart:mock
-```
-
-The historical commands remain compatibility aliases and execute that same app:
-
-```bash
-npm run demo:standalone
-npm run demo:standalone:mock
 ```
 
 For the lower-level caller-owned-map API, see the focused

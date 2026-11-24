@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/honua-migrate"
 ---
 # `honua-maplibre` migration target
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The `honua-maplibre` codemod target rewrites a curated subset of
 `@arcgis/core` constructors directly into `@honua/sdk-js/map` helpers
 plus MapLibre GL source/layer definitions, instead of routing them
@@ -57,13 +59,12 @@ registerHonuaWidgetKit({
 });
 ```
 
-`@honua/app-platform/web-components` is the widget package. Importing it, or
-the deprecated `@honua/sdk-js/web-components` forwarder, evaluates
+`@honua/app-platform/web-components` is the widget package. Importing it evaluates
 `defineHonuaWebComponents()` and defines every tag. Use that import when the
 app wants the whole kit. Use `registerComponent` when it wants one tag.
 
 The `honua-compat` codemod in `@honua/honua-migrate` inserts one
-`registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"))` call
+`registerHonuaWidgetKit(() => import("@honua/app-platform/web-components"))` call
 when the file constructs a hosted compat widget (Legend, LayerList, TimeSlider,
 Search, Measurement, Editor, FeatureForm, FeatureTable, Bookmarks,
 BasemapGallery, BasemapToggle, Locate, Sketch, Print, Popup, Zoom, Home,
@@ -364,9 +365,10 @@ list:
   through the Honua widget host with non-byte-identical visuals.
   `honua-maplibre` does not paper over this — widget constructors
   fall to manual TODO instead of being silently rewritten. Under
-  `honua-compat` they are rewritten, but rendering still depends on
-  the app performing the [widget kit registration](#widget-kit-registration)
-  the codemod does not yet insert.
+  `honua-compat` they are rewritten and the codemod inserts the
+  [widget kit registration](#widget-kit-registration) loader for hosted
+  widgets, which the app can keep or narrow to individual
+  `registerComponent(...)` calls.
 - **3D / SceneView and scene layers.** `scene-view`,
   `SceneLayer`/`BuildingSceneLayer`/`IntegratedMeshLayer`/
   `PointCloudLayer`/`MeshLayer`/`ElevationLayer`/`VoxelLayer` are

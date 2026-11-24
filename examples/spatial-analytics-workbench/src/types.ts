@@ -1,4 +1,4 @@
-import type { HonuaAppWorkspace } from "@honua/sdk-js/app-workspace";
+import type { HonuaAppStore } from "@honua/app-platform/app-workspace";
 import type {
   SpatialAggregationCell,
   SpatialAggregationRequest,
@@ -267,7 +267,7 @@ export interface AnalyticsViewControllers {
 
 export interface SpatialAnalyticsWorkbenchSession {
   readonly dataset: AnalyticsDataset;
-  readonly workspace: HonuaAppWorkspace<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>;
+  readonly workspace: HonuaAppStore<AnalyticsFeature, AnalyticsSourceMetadata, AnalyticsJobOutput>;
   readonly exploration: ExplorationContext;
   readonly views: AnalyticsViewControllers;
   readonly activeAoi: AnalyticsAoi;

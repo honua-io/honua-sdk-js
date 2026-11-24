@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { resolveSnappingConfig } from "../src/contract/edit-snapping.js";
 import {
   createHonuaWebComponentController,
   createHonuaWebComponentControllerFromRuntime,
@@ -229,6 +230,19 @@ describe("Honua web component controller", () => {
     expect(sketch.status).toBe("ready");
     expect(sketch.result?.id).toBe("drawn-1");
     expect(sketch.result?.geometry).toMatchObject({ x: -157.86, y: 21.3 });
+  });
+
+  it("hands the sketch snapping configuration to the sketch provider", () => {
+    const setSnapping = vi.fn();
+    const controller = createHonuaWebComponentController({
+      mapPackage: mapPackage(),
+      sketchGeometry: { startMode: () => undefined, setSnapping },
+    });
+    const config = resolveSnappingConfig({ enabled: true, tolerance: 6 });
+
+    controller.setSketchSnapping?.(config);
+
+    expect(setSnapping).toHaveBeenCalledWith(config);
   });
 
   it("reports provider failures as error change details and stops on `off`", async () => {

@@ -404,13 +404,13 @@ function normalizeRecordsBbox(value: OgcRecordsSearchRequest["bbox"]): string {
   return Array.isArray(value) ? value.join(",") : String(value);
 }
 
-function buildOgcRecordsSearchPath(request: OgcRecordsSearchRequest): string {
+export function buildOgcRecordsSearchPath(request: OgcRecordsSearchRequest): string {
   const collection = encodeURIComponent(String(request.collectionId));
   const params = serializeOgcRecordsSearchParams(request);
   return `${recordsBase(request)}/collections/${collection}/items?${params.toString()}`;
 }
 
-function buildOgcRecordPath(request: OgcRecordItemRequest): string {
+export function buildOgcRecordPath(request: OgcRecordItemRequest): string {
   const collection = encodeURIComponent(String(request.collectionId));
   const record = encodeURIComponent(String(request.recordId));
   const params = createOgcMetadataParams(request);

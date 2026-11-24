@@ -18,16 +18,19 @@ import { layersCommand, servicesCommand } from "./commands/catalog.js";
 import { connectionCommand, importCommand } from "./commands/control-plane.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { explainCommand } from "./commands/explain.js";
+import { exportCommand } from "./commands/export.js";
 import { geocodeCommand } from "./commands/geocode.js";
 import { gpCommand } from "./commands/gp.js";
 import { loginCommand, logoutCommand, whoamiCommand } from "./commands/login.js";
 import { mapCommand, tilesCommand } from "./commands/map.js";
 import { queryCommand } from "./commands/query.js";
+import { sceneCommand } from "./commands/scene.js";
 import { stacCommand } from "./commands/stac.js";
 import { studioCommand } from "./commands/studio.js";
+import { versionCommand } from "./commands/version.js";
 import { printLine } from "./output.js";
 
-export const CLI_VERSION = "0.1.0";
+export const CLI_VERSION = "0.4.0"; // x-release-please-version
 
 const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
@@ -104,13 +107,30 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "source-url" },
   { name: "connection" },
   { name: "title" },
+  { name: "description" },
+  { name: "scene-id" },
+  { name: "longitude" },
+  { name: "latitude" },
+  { name: "upload-id" },
+  { name: "resume" },
+  { name: "chunk-bytes" },
   { name: "options" },
   { name: "workspace" },
   { name: "actor" },
   { name: "tenant" },
   { name: "if-match" },
   { name: "idempotency-key" },
+  { name: "kind" },
+  { name: "bucket" },
+  { name: "prefix" },
+  { name: "region" },
+  { name: "endpoint" },
+  { name: "public", boolean: true },
   { name: "count", boolean: true },
+  { name: "image", boolean: true },
+  { name: "wait", boolean: true },
+  { name: "async", boolean: true },
+  { name: "requires-auth", boolean: true },
   { name: "json", boolean: true },
   { name: "dry-run", boolean: true },
   { name: "yes", boolean: true },
@@ -125,7 +145,9 @@ const COMMANDS: Record<string, CommandHandler> = {
   services: servicesCommand,
   layers: layersCommand,
   query: queryCommand,
+  scene: sceneCommand,
   explain: explainCommand,
+  export: exportCommand,
   stac: stacCommand,
   studio: studioCommand,
   geocode: geocodeCommand,
@@ -183,6 +205,17 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
       Probe a stored connection through the shared connection.test command.
       --workspace <id>           Owning workspace, when the deployment scopes them
 
+  honua connection add --kind object-storage [options]
+      Print the object-storage quick-create link and probe the connection when --id is supplied.
+      --bucket / --prefix / --region / --endpoint   Non-secret quick-create hints
+      --id <connectionId>        Test the configured connection after printing the link
+
+  honua export <serviceId/layerId> [--id <exportId>] [--public] [--timeout-ms <ms>]
+      Create a cloud-native Export (PMTiles + GeoParquet + Portolan STAC collection).
+      --public waits for a server-confirmed public URL; --timeout-ms bounds the wait (default 600000).
+  honua export list              List Exports
+  honua export remove <exportId> Unpublish an Export (requires --yes)
+
   honua import create --source-kind <kind> [options]
       Enqueue an import job through the shared import.create command.
       --source-kind <kind>       Import source kind, e.g. geojson or postgis (required)
@@ -202,9 +235,11 @@ CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
 MAPS
   honua map export <service>[/<layers>] --bbox ... --size WxH [-o out.png]
   honua tiles <service> <z>/<x>/<y> [-o tile.png]
+      Cached map tile from the service's MapServer
+      --image              Read the ImageServer tile cache instead (--format png|jpg|tif)
 
   honua map publish [<mapId>] --package <json|@file> [options]
-      Publish a map package through the shared control-plane command layer.
+      Publish a map document through the shared control-plane command layer.
       --package <json|@file>     honua_map_package.v1 document (required)
       --intent <json|@file>      Requested publication route and visibility; server approval still required
       --workspace <id>           Owning workspace
@@ -215,6 +250,14 @@ MAPS
       --dry-run                  Print the plan; never contacts the server
       --yes                      Required to actually publish
       --json                     Emit the full command receipt
+
+SCENES (3D Tiles, models, point clouds)
+  honua scene list [--json]
+  honua scene get <sceneId> [--json]
+  honua scene resolve <sceneId> [--json]
+  honua scene import <file> --format <3d-tiles|gltf|glb|obj> [--longitude <degrees> --latitude <degrees>] [--scene-id <id>] [--async [--wait]] [--yes]
+  honua scene status <jobId> [--wait] [--timeout-ms <ms>] [--json]
+  honua scene retire <datasetId> [--yes] [--json]
 
 AUTH / CONFIG
   honua login --base-url <url> [--api-key <key>]
@@ -235,7 +278,8 @@ ADMIN CONTROL PLANE
   honua admin operations [group]               List generated operation inventory
   honua admin qualify --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>
       Qualify local setup, the bounded workflow view, and style/render.
-      Add --service-id --layer-id --bbox minx,miny,maxx,maxy --yes to apply a discovered preset.
+      Add --service-id --layer-id <service layer index> --bbox minx,miny,maxx,maxy --yes to apply
+      a discovered preset.
       Or replay --style-evidence <file> --style-png <file>. --output writes the redacted receipt.
 
 GLOBAL OPTIONS
@@ -246,12 +290,13 @@ GLOBAL OPTIONS
   HONUA_BEARER_TOKEN   Ephemeral bearer credential; replaces saved API/Admin keys
   --json               Machine-readable JSON output
   -h, --help           Show help
-  -V, --version        Show version
+  -V, --version        Show the CLI version and, when a server is configured, its
+                       Honua platform version (--json adds platformVersion)
 
 EXAMPLES
   HONUA_BASE_URL=https://demo.honua.io honua services
   honua query maui-parcels/1 --count
-  honua query maui-parcels/1 --where "TMK LIKE '2%'" --limit 5
+  honua query maui-parcels/1 --where "zone = '1'" --limit 5
   honua stac collections
 `;
 
@@ -273,12 +318,10 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
     printLine(HELP);
     return 0;
   }
-  if (command === "--version" || command === "-V" || command === "version") {
-    printLine(CLI_VERSION);
-    return 0;
-  }
-
-  const handler = COMMANDS[command];
+  const isVersion = command === "--version" || command === "-V" || command === "version";
+  const handler: CommandHandler | undefined = isVersion
+    ? (parsed, ctx) => versionCommand(parsed, ctx, CLI_VERSION)
+    : COMMANDS[command];
   if (!handler) {
     printLine(`Unknown command: ${command}\n`, process.stderr);
     printLine(HELP);

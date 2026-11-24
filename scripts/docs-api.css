@@ -1,0 +1,24 @@
+/* Long constant names have no break opportunity; wrap titles at every width so the tag chip stays in view. */
+.tsd-page-title h1 {
+  overflow-wrap: anywhere;
+}
+
+/* Keep long API content within TypeDoc's mobile content column. */
+@media (max-width: 769px) {
+  .tsd-breadcrumb,
+  .tsd-signature,
+  .tsd-hierarchy,
+  .tsd-parameter-list,
+  .tsd-member-summary,
+  .tsd-returns-title,
+  .tsd-sources,
+  .tsd-typography p {
+    overflow-wrap: anywhere;
+  }
+
+  .tsd-typography table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

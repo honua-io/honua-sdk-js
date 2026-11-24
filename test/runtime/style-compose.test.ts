@@ -19,8 +19,8 @@ import * as styleSpec from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, test } from "vitest";
 
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   applyStyleRefs,
   applyTheme,
   composeStyle,
@@ -80,10 +80,10 @@ function geoJsonSources(): HonuaStyleSpecification["sources"] {
  * A package whose layers omit every optional MapLibre property — the shape
  * that used to come out of composition carrying `layout: undefined`.
  */
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-1269",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     sourceBindings: [],
     mapSpec: {
       version: 8,

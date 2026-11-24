@@ -5,6 +5,8 @@ description: "Decide between server pushdown of a Honua Arrow query and bounded 
 ---
 # Choose server pushdown or bounded browser execution
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Use this walkthrough when the same map workflow may begin with a Honua feature layer or a direct GeoParquet object. Make the execution boundary and ceilings visible before bytes move, then compare measured evidence rather than assuming the server or browser is cheaper.
 
 ## Outcome

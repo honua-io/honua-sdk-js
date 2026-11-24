@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { entrypointsInTier, loadPublicSurface } from "./lib/public-surface.mjs";
+import { loadPublicSurface, subpathName } from "./lib/public-surface.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -115,6 +115,7 @@ function createSdkPackage() {
   // turf stays a dependency of the packages whose entry does.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyEmittedModule(packageRoot, "widget-capabilities");
+  copyEmittedModule(packageRoot, "grpc-web");
   // Offline declarations type-import this module. Its implementation stays on
   // @honua/app-platform; the type module only imports contract/types.js.
   copyEmittedModule(packageRoot, "replica-sync/types");
@@ -163,9 +164,12 @@ function createSdkPackage() {
   for (const moduleName of [
     "connect-cache-data",
     "connect-constants",
+    "connect-grpc-schema",
+    "connect-ogc-vector-template",
     "connect-endpoint",
     "connect-pmtiles-cache-validation",
     "connect-pmtiles-inspection",
+    "connect-transport",
   ]) {
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
@@ -233,6 +237,10 @@ function createSdkPackage() {
       ".": {
         types: "./index.d.ts",
         default: "./index.js",
+      },
+      "./grpc-web": {
+        types: "./grpc-web.d.ts",
+        default: "./grpc-web.js",
       },
       "./auth": {
         types: "./core/auth/index.d.ts",
@@ -378,6 +386,7 @@ function createCompatPackage() {
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  forwardCoreClientToSdkPeer(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "client-compat"), path.join(packageRoot, "client-compat"));
   copyDirectory(path.join(DIST_SRC_ROOT, "gen"), path.join(packageRoot, "gen"));
   // The geometryEngine compat shim (client-compat/geometry-engine.js) imports the
@@ -451,6 +460,7 @@ function createGeometryPackage() {
   // resolve; only geometry + the GeoServices conversion module load at runtime.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
   copyDirectory(path.join(DIST_SRC_ROOT, "core"), path.join(packageRoot, "core"));
+  forwardCoreClientToSdkPeer(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "contract"), path.join(packageRoot, "contract"));
   copySourceCapabilityContractSupport(packageRoot);
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
@@ -528,12 +538,20 @@ function createReactPackage() {
   for (const directory of reactClosureDirectories) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  forwardCoreClientToSdkPeer(packageRoot);
   copyColumnarRuntimeClosure(packageRoot);
   copyEmittedModule(packageRoot, "widget-capabilities");
   // runtime/maplibre-renderer.d.ts type-imports this module. The rest of kernel
   // imports connect.js, which this package does not ship.
   copyEmittedModule(packageRoot, "kernel/renderer");
   copySourceCapabilityContractSupport(packageRoot);
+  // The shared scene.resolve command uses the dependency-free discovery runtime.
+  // Its return type references workspace declarations that need no runtime copies.
+  copyEmittedModule(packageRoot, "scene-workspace/scene-discovery");
+  for (const name of ["primitives", "scene-access-session", "state-sync", "types"]) {
+    const declaration = `scene-workspace/${name}.d.ts`;
+    copyFile(path.join(DIST_SRC_ROOT, declaration), path.join(packageRoot, declaration));
+  }
 
   writePackageJson(packageRoot, {
     name: "@honua/react",
@@ -591,17 +609,7 @@ function createAppPlatformPackage() {
   // client-compat / migration / react split targets: the app-platform entrypoints
   // plus their downward stable-tier closure are copied so the package resolves
   // without a separate `@honua/sdk-js` install.
-  // A deprecated subpath whose replacement stays inside @honua/sdk-js is not an
-  // app-platform move. Only app-platform replacements belong in this package.
-  const movedSubpaths = entrypointsInTier(publicSurface, "deprecated")
-    .filter((entrypoint) => !entrypoint.replacement.startsWith("@honua/sdk-js/"))
-    .map((entrypoint) => {
-      const prefix = "@honua/app-platform/";
-      if (!entrypoint.replacement.startsWith(prefix)) {
-        throw new Error(`${entrypoint.subpath} has invalid app-platform replacement ${entrypoint.replacement}`);
-      }
-      return entrypoint.replacement.slice(prefix.length);
-    });
+  const movedSubpaths = publicSurface.appPlatformSubpaths.map(subpathName);
   const appPlatformDirectories = [...new Set(movedSubpaths.map((subpath) => subpath.split("/")[0]))];
   const stableClosureDirectories = [
     "contract",
@@ -634,6 +642,7 @@ function createAppPlatformPackage() {
   for (const directory of [...appPlatformDirectories, ...stableClosureDirectories]) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  forwardCoreClientToSdkPeer(packageRoot);
   // Scene imagery applies the same credential-name classifier as discovery so
   // the app-platform package must carry this internal stable-tier dependency.
   copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
@@ -679,6 +688,10 @@ function createAppPlatformPackage() {
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
       ...geometryRuntimeDependencies(),
+      // Static web-component imports must resolve in a clean consumer install.
+      "terra-draw": rootPackageJson.devDependencies["terra-draw"],
+      "terra-draw-maplibre-gl-adapter": rootPackageJson.devDependencies["terra-draw-maplibre-gl-adapter"],
+      pmtiles: rootPackageJson.devDependencies.pmtiles,
     },
     peerDependencies: {
       "@honua/sdk": version,
@@ -705,6 +718,7 @@ function createAppPlatformPackage() {
       "(control-plane, collaboration, share, operate, replica-sync).",
       "",
       "`maplibre-gl` and `cesium` are optional peer dependencies.",
+      "Drawing and PMTiles runtime dependencies are installed automatically.",
       "",
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
@@ -748,6 +762,17 @@ function copySourceCapabilityContractSupport(packageRoot) {
   fs.writeFileSync(path.join(packageRoot, "source-capability-registry.d.ts"), forwardingModule, "utf8");
 }
 
+function forwardCoreClientToSdkPeer(packageRoot) {
+  // Companion packages declare the exact `@honua/sdk` peer. Re-exporting
+  // `HonuaClient` from that peer keeps one nominal class declaration and
+  // runtime constructor across `@honua/sdk`, `@honua/app-platform`,
+  // `@honua/react`, `@honua/sdk-client-compat`, and `@honua/geometry`.
+  const forwardingModule =
+    'export { HonuaClient, HONUA_MINIMUM_SUPPORTED_SERVER_VERSION } from "@honua/sdk";\n';
+  fs.writeFileSync(path.join(packageRoot, "core", "client.js"), forwardingModule, "utf8");
+  fs.writeFileSync(path.join(packageRoot, "core", "client.d.ts"), forwardingModule, "utf8");
+}
+
 function writeCanonicalCapabilityProfileVerifier(packageRoot) {
   const forwardingModule =
     'export { isRegisteredCapabilityProfile, matchesRegisteredCapabilityProfileSource } from "./source-capability-registry.js";\n';
@@ -777,6 +802,10 @@ function writePackageJson(packageRoot, overrides) {
     sideEffects: overrides.sideEffects,
     engines: publishedEngines,
   };
+
+  if (packageJson.dependencies?.["@duckdb/node-api"] || packageJson.peerDependencies?.["@duckdb/node-api"]) {
+    throw new Error("Native GeoParquet belongs only to the canonical SDK Node entrypoint");
+  }
 
   fs.writeFileSync(
     path.join(packageRoot, "package.json"),

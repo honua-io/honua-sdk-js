@@ -36,6 +36,7 @@
  *
  * Run with:
  *   npm run samples:playgrounds:generate   # write projects + catalog overlay + sample READMEs
+ *   node scripts/sample-playgrounds.mjs write-artifact   # trunk's derived-artifact refresh only
  *   npm run samples:playgrounds:check      # fail on drift
  */
 
@@ -46,6 +47,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadTemplateManifest, playgroundUrl } from "../packages/create-honua-app/lib/templates.mjs";
+import { subpathName } from "./lib/public-surface.mjs";
 import { SAMPLE_BUNDLE_AUDIT } from "./build-sample-bundles.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -329,6 +331,8 @@ const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
 const HTML_MODULE_PATTERN = /<script[^>]*\ssrc=["']([^"']+)["']/g;
 const ENV_PATTERN = /import\.meta\.env\.(VITE_[A-Z0-9_]+)/g;
 const SDK_PACKAGE = "@honua/sdk-js";
+// Published from the same build at the same version as the SDK.
+const APP_PLATFORM_PACKAGE = "@honua/app-platform";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf8"));
@@ -403,6 +407,10 @@ export function publishedSdkEntrypoints(rootManifest) {
   return new Set(
     Object.keys(rootManifest.exports ?? {}).map((key) => (key === "." ? SDK_PACKAGE : `${SDK_PACKAGE}/${key.slice(2)}`)),
   );
+}
+
+export function publishedAppPlatformEntrypoints(publicSurface) {
+  return new Set(publicSurface.appPlatformSubpaths.map((subpath) => `${APP_PLATFORM_PACKAGE}/${subpathName(subpath)}`));
 }
 
 /** Strip a CSS/asset suffix so `maplibre-gl/dist/maplibre-gl.css` resolves to its package. */
@@ -545,6 +553,13 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
         return exclude("unpublished-entrypoint", `${specifier} is not a published SDK entrypoint.`);
       }
       dependencies[SDK_PACKAGE] = context.sdkVersion;
+      continue;
+    }
+    if (specifier.startsWith(`${APP_PLATFORM_PACKAGE}/`)) {
+      if (!context.appPlatformEntrypoints.has(specifier)) {
+        return exclude("unpublished-entrypoint", `${specifier} is not a published ${APP_PLATFORM_PACKAGE} entrypoint.`);
+      }
+      dependencies[APP_PLATFORM_PACKAGE] = context.sdkVersion;
       continue;
     }
     const packageName = bareSpecifierPackage(specifier);
@@ -953,6 +968,22 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+export function playgroundArtifactMatches(committedBytes, expectedBytes, mode = "strict") {
+  if (mode !== "derived-artifact-relaxed") return committedBytes === expectedBytes;
+  try {
+    const committed = JSON.parse(committedBytes);
+    const expected = JSON.parse(expectedBytes);
+    validateArtifact(committed);
+    validateArtifact(expected);
+    for (const artifact of [committed, expected]) {
+      for (const exclusion of artifact.excluded) exclusion.detail = "";
+    }
+    return stableJson(committed) === stableJson(expected);
+  } catch {
+    return false;
+  }
+}
+
 function collectPlan() {
   const catalog = readJson(CATALOG_PATH);
   const manifest = loadTemplateManifest(PACKAGE_ROOT);
@@ -961,6 +992,7 @@ function collectPlan() {
     analyze: analyzeSampleSource,
     resolveFixtureOrigin,
     sdkEntrypoints: publishedSdkEntrypoints(readJson("package.json")),
+    appPlatformEntrypoints: publishedAppPlatformEntrypoints(readJson("config/public-surface.json")),
     sdkVersion: manifest.sdk.version,
   };
   const decisions = derivePlaygroundDecisions(catalog, context);
@@ -1027,8 +1059,8 @@ function reportDrift(problems) {
 
 function main() {
   const mode = process.argv[2] ?? "check";
-  if (mode !== "write" && mode !== "check") {
-    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|check]\n");
+  if (!["write", "write-artifact", "check"].includes(mode)) {
+    process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|write-artifact|check]\n");
     process.exit(1);
   }
   const { decisions, files, catalogEntries, sampleReadmes, sdkVersion } = collectPlan();
@@ -1044,6 +1076,12 @@ function main() {
   const artifact = renderPlaygroundArtifact(decisions, catalogEntries, sdkVersion);
   validateArtifact(artifact);
   const artifactBytes = stableJson(artifact);
+
+  if (mode === "write-artifact") {
+    fs.writeFileSync(path.join(ROOT, ARTIFACT_PATH), artifactBytes);
+    process.stdout.write(`samplePlaygroundArtifactWritten=${ARTIFACT_PATH}\n`);
+    return;
+  }
 
   if (mode === "write") {
     fs.rmSync(path.join(ROOT, PLAYGROUND_ROOT), { recursive: true, force: true });
@@ -1103,7 +1141,10 @@ function main() {
   const committedArtifact = fs.existsSync(path.join(ROOT, ARTIFACT_PATH))
     ? fs.readFileSync(path.join(ROOT, ARTIFACT_PATH), "utf8")
     : "";
-  if (committedArtifact !== artifactBytes) problems.push(`${ARTIFACT_PATH} has drifted`);
+  const artifactMode = process.env.HONUA_DERIVED_ARTIFACTS_RELAX === "1" ? "derived-artifact-relaxed" : "strict";
+  if (!playgroundArtifactMatches(committedArtifact, artifactBytes, artifactMode)) {
+    problems.push(`${ARTIFACT_PATH} has drifted`);
+  }
   if (problems.length > 0) reportDrift(problems);
 
   process.stdout.write(

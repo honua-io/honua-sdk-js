@@ -1,24 +1,24 @@
 # Honua Web Components Basic
 
-Plain TypeScript sample for `@honua/sdk-js/web-components` and the native
-control kit in `@honua/sdk-js/controls`.
+Plain TypeScript sample for `@honua/app-platform/web-components` and the native
+control kit in `@honua/app-platform/controls`.
 
 The sample registers Honua custom elements, shares one controller across map,
 layer list, legend, table, search, editor, and chart widgets, and demonstrates
 read-only editor capability state without React or another framework.
 
 Basemaps are driven by `<honua-basemap-switcher>` from
-`@honua/sdk-js/controls`: three exclusive bases (Light, Dark, and a composite
+`@honua/app-platform/controls`: three exclusive bases (Light, Dark, and a composite
 Terrain option) are applied directly to the MapLibre map, wired declaratively
 via `for="ops-map"`, and themed from `styles.css` through the control's
 `::part(group)` / `::part(radio)` / `::part(radio-active)` hooks.
 
 The legend is `<honua-legend>` from the same controls entry. That tag also has
-a controller-driven implementation in `@honua/sdk-js/web-components`, and the
+a controller-driven implementation in `@honua/app-platform/web-components`, and the
 web-components implementation is the tag's canonical/default registrant — so
 `src/main.ts` claims it explicitly for the controls element via
 `defineHonuaLegend()` (through the `register-controls-legend.ts` side-effect
-import, sequenced before `@honua/sdk-js/web-components`) rather than relying
+import, sequenced before `@honua/app-platform/web-components`) rather than relying
 on import order. It combines explicit incident-priority entries with a section *derived* from the
 zoning fill layer's `match` expression on the `district` attribute — the map
 style is the single source of truth, so restyling the layer restyles the
@@ -36,8 +36,8 @@ a pluggable seam: pass a `measurementGeometry` and/or `sketchGeometry` provider
 to `createHonuaWebComponentController(...)`.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { createHonuaWebComponentController } from "@honua/sdk-js/web-components";
-import type { HonuaMeasureProvider, HonuaSketchProvider } from "@honua/sdk-js/web-components";
+import { createHonuaWebComponentController } from "@honua/app-platform/web-components";
+import type { HonuaMeasureProvider, HonuaSketchProvider } from "@honua/app-platform/web-components";
 
 const measurementGeometry: HonuaMeasureProvider = {
   // Adapt maplibre-gl-draw (or any drawing tool) here.

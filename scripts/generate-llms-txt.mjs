@@ -226,7 +226,7 @@ const SECTIONS = [
       },
       {
         path: "docs/maplibre-runtime.md",
-        description: "loadMapPackage() and HonuaMapRuntime — render a MapPackage on MapLibre GL JS.",
+        description: "loadMapDocument() and HonuaMapRuntime — render a map document on MapLibre GL JS.",
       },
       {
         path: "docs/terra-draw-sketch.md",

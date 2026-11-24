@@ -51,6 +51,8 @@ export const RECEIPT_SCHEMA_VERSION = 1;
 export const MANIFEST_PATH = "config/release-artifacts.v1.json";
 export const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 export const PROVENANCE_PREDICATE_TYPE = "https://slsa.dev/provenance/v1";
+/** CLI exit code when every SDK package verifies and only companions are missing from the registry. */
+export const COMPANION_GAP_EXIT_CODE = 3;
 export const PUBLISH_PREDICATE_TYPE = "https://github.com/npm/attestation/tree/main/specs/publish/v0.1";
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
@@ -147,17 +149,9 @@ export function planPublishedReleaseTargets({
   }
 
   for (const artifact of manifest?.included ?? []) {
-    let version;
-    try {
-      version = readPackageVersion(artifact.versionSource);
-    } catch (error) {
-      errors.push(
-        `cannot read the published version of "${artifact.npmName}" from ${artifact.versionSource}: ${messageOf(error)}`,
-      );
-      continue;
-    }
-    if (typeof version !== "string" || version.length === 0) {
-      errors.push(`${artifact.versionSource} carries no version for "${artifact.npmName}"`);
+    const { version, error: versionError } = readArtifactVersion(artifact, readPackageVersion);
+    if (versionError) {
+      errors.push(versionError);
       continue;
     }
 
@@ -186,21 +180,74 @@ export function planPublishedReleaseTargets({
       }
     }
 
-    targets.push({
-      id: artifact.id,
-      npmName: artifact.npmName,
-      version,
-      distTag: resolveDistTag(version),
-      tag,
-      commit,
-      expectedRef: sealed ? sealedRef : `refs/tags/${tag}`,
-      workflow: artifact.publish.workflow,
-      sourceBinding: artifact.sourceBinding,
-    });
+    targets.push(verificationTarget(artifact, { version, tag, commit, expectedRef: sealed ? sealedRef : `refs/tags/${tag}` }));
   }
 
   targets.sort((left, right) => left.npmName.localeCompare(right.npmName));
   return { targets, errors };
+}
+
+/**
+ * Plan the verification of one artifact that publishes from its own Release
+ * Please tag (the MCP server, the scaffold), for a publish run that finds its
+ * version already on the registry. The run's own tag and commit are the
+ * expected source, so a second run for the same tag ends green only when the
+ * registry copy is the one this tag built.
+ *
+ * @returns {{targets: object[], errors: string[]}}
+ */
+export function planPublishedArtifactTarget({ manifest, artifactId, tag, commit, readPackageVersion }) {
+  const artifact = (manifest?.included ?? []).find((candidate) => candidate.id === artifactId);
+  const refusal = ownTagArtifactRefusal(artifact, artifactId, commit);
+  if (refusal) return { targets: [], errors: [refusal] };
+  const { version, error: versionError } = readArtifactVersion(artifact, readPackageVersion);
+  if (versionError) return { targets: [], errors: [versionError] };
+  const expectedTag = releaseTagFor(artifact.publish.releaseTagPrefix, version);
+  if (tag !== expectedTag) {
+    return {
+      targets: [],
+      errors: [`"${artifact.npmName}" is at ${version}, so its release tag is ${expectedTag}, not ${tag ?? "<missing>"}`],
+    };
+  }
+  return { targets: [verificationTarget(artifact, { version, tag, commit, expectedRef: `refs/tags/${tag}` })], errors: [] };
+}
+
+function ownTagArtifactRefusal(artifact, artifactId, commit) {
+  if (!artifact) return `${MANIFEST_PATH} includes no artifact "${artifactId}"`;
+  if (artifact.sourceBinding !== "own-release-tag") {
+    return `"${artifactId}" is bound to the sealed js-sdk cut; verify it with --tag and --commit for the whole cut`;
+  }
+  if (!COMMIT_PATTERN.test(commit ?? "")) return `--commit must be a full 40-character commit sha, got "${commit ?? ""}"`;
+  return undefined;
+}
+
+function readArtifactVersion(artifact, readPackageVersion) {
+  let version;
+  try {
+    version = readPackageVersion(artifact.versionSource);
+  } catch (error) {
+    return {
+      error: `cannot read the published version of "${artifact.npmName}" from ${artifact.versionSource}: ${messageOf(error)}`,
+    };
+  }
+  if (typeof version !== "string" || version.length === 0) {
+    return { error: `${artifact.versionSource} carries no version for "${artifact.npmName}"` };
+  }
+  return { version };
+}
+
+function verificationTarget(artifact, { version, tag, commit, expectedRef }) {
+  return {
+    id: artifact.id,
+    npmName: artifact.npmName,
+    version,
+    distTag: resolveDistTag(version),
+    tag,
+    commit,
+    expectedRef,
+    workflow: artifact.publish.workflow,
+    sourceBinding: artifact.sourceBinding,
+  };
 }
 
 function messageOf(error) {
@@ -270,6 +317,15 @@ function expectSubjectIsTarball(statement, target, tarballSha512Hex) {
   return expectedName;
 }
 
+async function fetchPackument(target, { registry, fetchImpl }) {
+  const packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+  expect(
+    isPackument(packument),
+    `the registry response for ${target.npmName} is not a packument with a versions map`,
+  );
+  return packument;
+}
+
 /**
  * Verify one planned target against the registry.
  *
@@ -280,7 +336,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl, selection
   const checks = [];
   let packument;
   try {
-    packument = await fetchJson(fetchImpl, packumentUrl(registry, target.npmName));
+    packument = await fetchPackument(target, { registry, fetchImpl });
   } catch (error) {
     checks.push({
       id: "registry-packument",
@@ -291,7 +347,7 @@ async function verifyTarget(target, { registry, repository, fetchImpl, selection
     return finishTarget(target, checks, {});
   }
 
-  const release = packument?.versions?.[target.version];
+  const release = packument.versions[target.version];
   checks.push(
     check("registry-version", `${target.npmName}@${target.version} is published`, () => {
       expect(
@@ -445,8 +501,22 @@ async function checkAsync(id, description, evaluate) {
   }
 }
 
+function isPackument(packument) {
+  const versions = packument?.versions;
+  return typeof versions === "object" && versions !== null && !Array.isArray(versions);
+}
+
+/** A companion release that never happened, reported apart from SDK package failures. */
+function isCompanionGap(target, checks) {
+  if (target.sourceBinding !== "own-release-tag") return false;
+  const failures = checks.filter((entry) => entry.status === "fail");
+  return failures.length === 1 && failures[0].id === "registry-version";
+}
+
 function finishTarget(target, checks, extras) {
   const failures = checks.filter((entry) => entry.status === "fail");
+  let status = "verified";
+  if (failures.length > 0) status = isCompanionGap(target, checks) ? "unpublished" : "failed";
   return {
     id: target.id,
     npmName: target.npmName,
@@ -459,7 +529,7 @@ function finishTarget(target, checks, extras) {
     workflow: target.workflow,
     tarball: extras.tarball ?? null,
     integrity: extras.integrity ?? null,
-    status: failures.length === 0 ? "verified" : "failed",
+    status,
     checks,
   };
 }
@@ -494,10 +564,15 @@ export async function verifyPublishedRelease({
         .map((entry) => `${artifact.npmName}@${artifact.version}: ${entry.description} — ${entry.detail}`),
     ),
   ];
+  const companionGaps = artifacts
+    .filter((artifact) => artifact.status === "unpublished")
+    .map(({ id, npmName, version, tag, workflow }) => ({ id, npmName, version, tag, workflow }));
+  const outcome = receiptOutcome({ planningErrors, artifacts, companionGaps });
   return {
     format: RECEIPT_FORMAT,
     schemaVersion: RECEIPT_SCHEMA_VERSION,
-    status: failures.length === 0 && artifacts.length > 0 ? "verified" : "failed",
+    status: outcome === "verified" ? "verified" : "failed",
+    outcome,
     verifiedAt: now().toISOString(),
     registry,
     selection,
@@ -507,7 +582,21 @@ export async function verifyPublishedRelease({
     manifest: MANIFEST_PATH,
     artifacts,
     failures,
+    companionGaps,
   };
+}
+
+function receiptOutcome({ planningErrors, artifacts, companionGaps }) {
+  const failed = artifacts.some((artifact) => artifact.status === "failed");
+  if (planningErrors.length > 0 || failed || artifacts.length === 0) return "failed";
+  return companionGaps.length > 0 ? "companion-gap" : "verified";
+}
+
+/** 0 when the cut verifies, {@link COMPANION_GAP_EXIT_CODE} when only companions are unpublished, 1 otherwise. */
+export function exitCodeFor(receipt) {
+  if (receipt.outcome === "verified") return 0;
+  if (receipt.outcome === "companion-gap") return COMPANION_GAP_EXIT_CODE;
+  return 1;
 }
 
 /** Stable serialization; the receipt is an input to honua-io/honua-sdk-js#39. */
@@ -525,6 +614,7 @@ export function parseVerifyPublishedReleaseArgs(argv) {
     else if (flag === "--publish-ref") options.publishRef = value;
     else if (flag === "--registry") options.registry = value;
     else if (flag === "--receipt") options.receipt = value;
+    else if (flag === "--artifact") options.artifact = value;
     else throw new Error(`Unknown verify-published-release argument: ${flag}`);
     index += 1;
   }
@@ -549,14 +639,23 @@ function resolveTagCommitWith(root) {
 async function main(argv) {
   const options = parseVerifyPublishedReleaseArgs(argv);
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, MANIFEST_PATH), "utf8"));
-  const { targets, errors } = planPublishedReleaseTargets({
-    manifest,
-    sealedTag: options.tag,
-    sealedCommit: options.commit,
-    publishRef: options.publishRef,
-    readPackageVersion: readPackageVersionFrom(ROOT),
-    resolveTagCommit: resolveTagCommitWith(ROOT),
-  });
+  const readPackageVersion = readPackageVersionFrom(ROOT);
+  const { targets, errors } = options.artifact
+    ? planPublishedArtifactTarget({
+        manifest,
+        artifactId: options.artifact,
+        tag: options.tag,
+        commit: options.commit,
+        readPackageVersion,
+      })
+    : planPublishedReleaseTargets({
+        manifest,
+        sealedTag: options.tag,
+        sealedCommit: options.commit,
+        publishRef: options.publishRef,
+        readPackageVersion,
+        resolveTagCommit: resolveTagCommitWith(ROOT),
+      });
 
   const receipt = await verifyPublishedRelease({
     targets,
@@ -565,20 +664,25 @@ async function main(argv) {
     registry: options.registry,
     repository: manifest.repository,
     planningErrors: errors,
+    selection: options.artifact ? "exact-version" : "release-channel",
   });
 
   const receiptPath = path.resolve(ROOT, options.receipt);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
   fs.writeFileSync(receiptPath, receiptJson(receipt));
 
+  const label = { verified: "OK  ", unpublished: "GAP ", failed: "FAIL" };
   for (const artifact of receipt.artifacts) {
-    process.stdout.write(
-      `${artifact.status === "verified" ? "OK  " : "FAIL"} ${artifact.npmName}@${artifact.version}\n`,
-    );
+    process.stdout.write(`${label[artifact.status]} ${artifact.npmName}@${artifact.version}\n`);
   }
   process.stdout.write(`receipt: ${options.receipt}\n`);
 
-  if (receipt.status !== "verified") {
+  for (const gap of receipt.companionGaps) {
+    process.stderr.write(
+      `Companion gap: ${gap.npmName}@${gap.version} is tagged ${gap.tag} but the registry has never received it.\n`,
+    );
+  }
+  if (receipt.outcome === "failed") {
     process.stderr.write(`\nPublished release verification FAILED for ${options.tag}:\n`);
     for (const failure of receipt.failures) {
       process.stderr.write(`- ${failure}\n`);
@@ -586,8 +690,8 @@ async function main(argv) {
     if (receipt.artifacts.length === 0) {
       process.stderr.write("- no artifact was verified at all\n");
     }
-    process.exitCode = 1;
   }
+  process.exitCode = exitCodeFor(receipt);
 }
 
 if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {

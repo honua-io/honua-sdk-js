@@ -6,6 +6,8 @@ resource: "honua://capability/raster.cloud-cog-serving"
 ---
 # Direct COG inspection, bounded reads, and MapLibre rendering
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/cog` is an experimental, browser-safe boundary from static STAC
 asset discovery to direct Cloud Optimized GeoTIFF inspection, pixel-window
 reads, and an opt-in MapLibre image-source renderer. It is intentionally a
@@ -26,6 +28,9 @@ The caller injects a decoder implementing two methods, `inspect()` and
 operation; it never receives an unbounded Fetch function. This keeps a
 preferred GeoTIFF package lazy and application-owned while Honua enforces the
 network and lifecycle policy.
+
+This recipe uses the lower-level `connect()` rather than `createHonua().connect()`: the static STAC
+asset candidates are on its synchronous `inspection`, which the kernel connection does not expose.
 
 ```ts doc-test=compile
 import { connect } from "@honua/sdk-js";
@@ -149,3 +154,7 @@ overview-source-pixel, encoded-byte, canvas-dimension, and diagnostic-history
 ceilings. Callers may tighten them or raise them only within hard SDK limits.
 This S2 bridge does not select assets in UI, cache decoded pixels, perform
 raster analytics, or supply a GeoTIFF implementation.
+
+Browser sessions use the native global `fetch` by default; injecting `fetchFn` is optional.
+The asset host must allow the browser origin and Range requests through CORS and
+expose `Content-Range` so bounded reads can validate each response.

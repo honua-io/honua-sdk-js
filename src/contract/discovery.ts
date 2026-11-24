@@ -255,6 +255,22 @@ export function resolveDiscoveryCapabilities(
   evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[],
   policy: DiscoveryCapabilityPolicy = {},
 ): DiscoveryCapabilityResolution {
+  return resolveTransportDiscoveryCapabilities({ protocol, evidence, policy });
+}
+
+/**
+ * @internal Same as {@link resolveDiscoveryCapabilities}, with `transportLimit`
+ * narrowing the adapter to what the client transport serves (the gRPC
+ * FeatureService set for a gRPC-Web client); excluded capabilities resolve as
+ * `adapter-unsupported`. Evidence is still checked against the full adapter.
+ */
+export function resolveTransportDiscoveryCapabilities(request: {
+  readonly protocol: Protocol;
+  readonly evidence: DiscoveryCapabilityEvidence | readonly DiscoveryCapabilityEvidence[];
+  readonly policy?: DiscoveryCapabilityPolicy | undefined;
+  readonly transportLimit?: ReadonlySet<Capability> | undefined;
+}): DiscoveryCapabilityResolution {
+  const { protocol, evidence, policy = {}, transportLimit } = request;
   const adapter = DISCOVERY_ADAPTER_MAXIMA.get(protocol);
   if (!adapter) {
     throw new HonuaDiscoveryError("unsupported-protocol", `Unknown discovery protocol "${String(protocol)}".`, {
@@ -266,7 +282,8 @@ export function resolveDiscoveryCapabilities(
   const deny = capabilitySet(policy.deny ?? [], "policy.deny");
   const effective: Capability[] = [];
   const decisions = CAPABILITIES.map((capability): DiscoveryCapabilityDecision => {
-    const adapterSupported = adapter.has(capability);
+    const adapterSupported =
+      adapter.has(capability) && (transportLimit === undefined || transportLimit.has(capability));
     const relevant = evidenceRecords.filter((record) => record.scope.has(capability));
     const positive = relevant.filter((record) => record.capabilities.has(capability));
     const authoritativeNegative = relevant.some(

@@ -6,7 +6,9 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Honua Web Components
 
-`@honua/sdk-js/web-components` registers framework-neutral custom elements for
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
+`@honua/app-platform/web-components` registers framework-neutral custom elements for
 plain TypeScript applications:
 
 - `honua-map`
@@ -35,7 +37,7 @@ elements when `customElements` is available and also exports
 import {
   createHonuaWebComponentController,
   defineHonuaWebComponents,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 defineHonuaWebComponents();
 
@@ -52,9 +54,7 @@ document.querySelector("honua-map")!.controller = controller;
 ## Supported application shell
 
 The canonical `@honua/app-platform/web-components` package exposes one
-supported, versioned application context for the whole component suite. The
-deprecated `@honua/sdk-js/web-components` forwarding entrypoint exposes the
-same contract during the transition through 0.3.x. That entrypoint is removed in 0.4.0.
+supported, versioned application context for the whole component suite.
 
 ```ts doc-test=skip reason="requires browser markup and a Source supplied by the application"
 import { createHonuaApplicationContext, mountHonuaApplication } from "@honua/app-platform/web-components";
@@ -105,7 +105,7 @@ Neither locale nor theme uses global mutable state, and disposal restores the
 host's original attributes and token values.
 
 `honua-map` owns a MapLibre GL JS map for package and controller bindings.
-Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
+Import MapLibre's CSS in browser demos, then pass either an inline `HonuaMapDocument`,
 a hosted package URL, or a controller whose state contains a package. MapLibre
 6 bundler hosts must configure the ESM worker before the element creates its
 map; for Vite:
@@ -131,7 +131,7 @@ If an application already created a `HonuaMapRuntime`, adapt it through
 the existing controller bridge and bind that controller to the element:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { createHonuaWebComponentControllerFromRuntime } from "@honua/sdk-js/web-components";
+import { createHonuaWebComponentControllerFromRuntime } from "@honua/app-platform/web-components";
 
 document.querySelector("honua-map")!.controller = createHonuaWebComponentControllerFromRuntime(runtime);
 ```
@@ -155,7 +155,7 @@ Sibling controls bind to the same controller with `for="<map-id>"`.
 The controller contract is intentionally small so this package can integrate
 with the runtime today and a richer `HonuaController` later. Use
 `createHonuaWebComponentControllerFromRuntime(runtime)` when a
-`HonuaMapRuntime` already owns the MapPackage and layer operations.
+`HonuaMapRuntime` already owns the map document and layer operations.
 
 Components dispatch typed custom events:
 
@@ -232,6 +232,16 @@ available it renders an explicit unsupported state and emits
 buttons and typed events (`honua-measure-change`, `honua-sketch-change`). Until
 a geometry editing or measurement adapter is attached to the shared controller,
 they render visible unsupported messaging instead of disappearing.
+
+`honua-sketch-control` snapping uses the same engine as the feature editor.
+Set `snappingOptions` to a partial `SnappingConfig` (`enabled`, `tolerance` in
+pixels, or its alias `distance`, `kinds`, `sources`); snapping stays off unless
+`enabled` is `true`. The control snaps the vertices it places with
+`addVertex()` to the vertices and edges already in the sketch, and hands the
+resolved config to the controller's sketch provider through
+`HonuaSketchProvider.setSnapping`, so a terra-draw provider can pass it to
+`createTerraDrawSnapping({ index, config })` for vertex, edge, and feature
+snapping on the map.
 
 `honua-print-export` emits `honua-export` for print, snapshot, and JSON export
 actions. Browser print calls `window.print()` when available. Snapshot and state
@@ -337,7 +347,7 @@ drives is the controller, not the map:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createTemporalPlayback } from "@honua/sdk-js/map";
-import "@honua/sdk-js/web-components";
+import "@honua/app-platform/web-components";
 
 const playback = createTemporalPlayback({
   handle: mountedSource, // or `layer: { map, layerIds }`
@@ -386,7 +396,7 @@ state.
 import {
   createHonuaExportAdapter,
   runHonuaExport,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 const adapter = createHonuaExportAdapter({
   id: "operations-console",
@@ -450,7 +460,7 @@ element only renders its snapshot and forwards input.
 import {
   createHonuaFeatureTable,
   linkFeatureTableToExploration,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 import { explainQuery } from "@honua/sdk-js/query-planner";
 
 const source = dataset.source<Incident>("incidents")!;
@@ -675,7 +685,7 @@ Wire it to a `Source` through `createFeatureEditorWorkflow`:
 import {
   createFeatureEditorWorkflow,
   defineHonuaWebComponents,
-} from "@honua/sdk-js/web-components";
+} from "@honua/app-platform/web-components";
 
 defineHonuaWebComponents();
 
@@ -718,7 +728,7 @@ if (!review.ready) console.warn(review.blockers, review.validation.errors);
 order, and override their labels without altering the workflow's source metadata:
 
 ```ts doc-test=compile
-import type { HonuaFeatureEditorElement } from "@honua/sdk-js/web-components";
+import type { HonuaFeatureEditorElement } from "@honua/app-platform/web-components";
 
 const editor = document.querySelector<HonuaFeatureEditorElement>("honua-feature-editor")!;
 editor.fieldPresentation = [
@@ -801,7 +811,7 @@ MapLibre map, wires SDK snapping, reports terra-draw's real tool support so
 `rectangle` / `circle` become enabled, and re-binds itself to each new draft.
 
 ```ts doc-test=skip reason="partial excerpt requires terra-draw peers and a MapLibre map"
-import { createTerraDrawEditorSketch } from "@honua/sdk-js/web-components";
+import { createTerraDrawEditorSketch } from "@honua/app-platform/web-components";
 
 const sketch = await createTerraDrawEditorSketch(map, { workflow, snapping: { index } });
 sketch.setTool("polygon"); // arms terra-draw and the workflow together
@@ -918,7 +928,7 @@ import {
   defineHonuaFilterBuilder,
   HonuaFilterBuilderElement,
 } from "@honua/app-platform/controls";
-import { createFilterRegistry } from "@honua/app-platform/filter-registry";
+import { createFilterRegistry } from "@honua/sdk-js/filter-registry";
 
 defineHonuaFilterBuilder();
 const builder = new HonuaFilterBuilderElement();

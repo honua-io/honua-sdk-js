@@ -5,7 +5,7 @@
  * The element renders an accessible radio group (one radio per base) inside
  * shadow DOM with structural-only CSS and `::part()` hooks, and delegates all
  * style mutations to {@link HonuaBasemapStyleBinding}. It never imports
- * `maplibre-gl` or the SDK core, so the `@honua/sdk-js/controls` entry stays
+ * `maplibre-gl` or the SDK core, so the `@honua/app-platform/controls` entry stays
  * independent of the core bundle.
  *
  * ## Wiring

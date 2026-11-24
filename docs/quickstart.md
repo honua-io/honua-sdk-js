@@ -1,10 +1,14 @@
 ---
 type: guide
-title: "Put a map on the page"
-description: "Install @honua/sdk-js, point it at a public FeatureServer or OGC API Features endpoint, and render the result on MapLibre. No Honua server and no account required."
+title: "Start native, then connect an existing map"
+description: "Start with gRPC-Web and cloud-native files; use the public FeatureServer walkthrough for compatibility during migration."
 resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
-# Put a map on the page
+# Start native, then connect an existing map
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
+## Compatibility walkthrough: an existing public endpoint
 
 The SDK's map workflow is five verbs in order: **connect → discover → explain →
 query → mount**. This page runs them against a public endpoint. Nothing of
@@ -22,7 +26,7 @@ at or below 6.4.0 carries [GHSA-jrc7-96c5-q579](https://github.com/advisories/GH
 a sanitizer bypass the runtime cannot protect you from. MapLibre 6 is ESM-only
 and loads its worker as a separate module; a Vite host configures it once with
 `maplibregl.setWorkerUrl(...)` before the first map is created (see
-[MapLibre 5 and 6 compatibility](maplibre-runtime.md#maplibre-5-and-6-compatibility)).
+[MapLibre runtime support](maplibre-runtime.md#maplibre-runtime-support)).
 
 ## 2. Connect, query, explain
 
@@ -31,15 +35,13 @@ verbs without a map. Capability gaps throw `HonuaCapabilityNotSupportedError`
 rather than returning empty data.
 
 ```ts doc-test=compile
-import { connect, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
+import { createHonua, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
 
 // 1. connect — a public FeatureServer; nothing of Honua's is running.
-const data = await connect({
-  endpoint:
-    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+await using honua = createHonua();
+const data = await honua.connect(
+  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+);
 const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 
 // 2. query — one typed, protocol-neutral filter expression.
@@ -84,7 +86,7 @@ const connection = await honua.connect(
 );
 const inspection = await connection.inspect();
 const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
-const plan = await connection.explain({ returnGeometry: true, pagination: { limit: 250 } }, { sourceId });
+const plan = await connection.explain({ returnGeometry: true, outSr: 4326, pagination: { limit: 250 } }, { sourceId });
 const mounted = await connection.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId });
 await mounted.ready; // first usable frame, not merely source mutation
 
@@ -93,6 +95,9 @@ await honua.dispose();
 ```
 
 `inspect()` reports the sources and capabilities the endpoint advertises.
+`outSr: 4326` asks the service for WGS84 longitude/latitude, which a MapLibre
+GeoJSON source needs; most public FeatureServer layers are stored in Web Mercator,
+and a plan that returns projected coordinates is refused rather than drawn blank.
 `explain()` returns the accepted plan, and `mount()` executes exactly that plan
 for the renderer, so what is drawn is what was reviewed. Pass an existing
 `maplibregl.Map` instead of a selector to borrow a map you already own.
@@ -106,7 +111,7 @@ controls, use [`mountSource`](data-to-map-bridge.md).
 
 <!-- doc-run: run ready-url="http://localhost:5173/" -->
 ```bash
-npm create honua-app@latest my-map -- --sdk-version 0.3.3 # x-release-please-version
+npm create honua-app@latest my-map -- --sdk-version 0.4.0 # x-release-please-version
 cd my-map
 npm install
 npm run dev

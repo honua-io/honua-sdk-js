@@ -2,21 +2,21 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { HonuaClient } from "../../src/core/client.js";
 import {
-  HONUA_MAP_PACKAGE_FORMAT_V1,
-  type HonuaMapPackage,
+  HONUA_MAP_DOCUMENT_FORMAT_V1,
+  type HonuaMapDocument,
   type HonuaMapRuntime,
-  MAP_PACKAGE_REALTIME_CHANNEL_V1,
-  type MapPackageRealtimeEventSource,
-  type MapPackageRealtimeObserver,
-  type MapPackageRealtimeSubscribeRequest,
-  type MapPackageRealtimeTransport,
-  type MapPackageWatchEvent,
-  createMapPackageServerSentEventsTransport,
-  mapPackageFingerprint,
-  watchMapPackage,
+  MAP_DOCUMENT_REALTIME_CHANNEL_V1,
+  type MapDocumentRealtimeEventSource,
+  type MapDocumentRealtimeObserver,
+  type MapDocumentRealtimeSubscribeRequest,
+  type MapDocumentRealtimeTransport,
+  type MapDocumentWatchEvent,
+  createMapDocumentServerSentEventsTransport,
+  mapDocumentFingerprint,
+  watchMapDocument,
 } from "../../src/runtime/index.js";
 
-class MockMapPackageEventSource implements MapPackageRealtimeEventSource {
+class MockMapPackageEventSource implements MapDocumentRealtimeEventSource {
   public onopen: ((event: Event) => void) | null = null;
   public onmessage: ((event: MessageEvent<string>) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
@@ -61,18 +61,18 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("watchMapPackage realtime", () => {
+describe("watchMapDocument realtime", () => {
   test("applies realtime package updates once and ignores duplicate update messages", async () => {
     const initial = makePackage();
     const next = makePackage({
       updatedAt: "2026-05-11T00:01:00.000Z",
       mapSpec: styleWithFill("#0055ff"),
     });
-    const events: MapPackageWatchEvent[] = [];
-    let observer: MapPackageRealtimeObserver | undefined;
-    let request: MapPackageRealtimeSubscribeRequest | undefined;
+    const events: MapDocumentWatchEvent[] = [];
+    let observer: MapDocumentRealtimeObserver | undefined;
+    let request: MapDocumentRealtimeSubscribeRequest | undefined;
     const close = vi.fn();
-    const transport: MapPackageRealtimeTransport = {
+    const transport: MapDocumentRealtimeTransport = {
       kind: "mock",
       subscribe(nextRequest, nextObserver) {
         request = nextRequest;
@@ -80,10 +80,10 @@ describe("watchMapPackage realtime", () => {
         return { close };
       },
     };
-    const updatePackage = vi.fn(async () => {});
-    const runtime = { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime;
+    const updateMapDocument = vi.fn(async () => {});
+    const runtime = { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime;
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
       initialPackage: initial,
       runtime,
@@ -94,8 +94,8 @@ describe("watchMapPackage realtime", () => {
       },
     });
 
-    expect(request?.resumeFrom?.fingerprint).toBe(mapPackageFingerprint(initial));
-    observer?.connected({ transport: "mock", channel: MAP_PACKAGE_REALTIME_CHANNEL_V1 });
+    expect(request?.resumeFrom?.fingerprint).toBe(mapDocumentFingerprint(initial));
+    observer?.connected({ transport: "mock", channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1 });
     observer?.message({
       type: "updated",
       packageId: "pkg-001",
@@ -113,8 +113,8 @@ describe("watchMapPackage realtime", () => {
     });
     await flushPromises();
 
-    expect(updatePackage).toHaveBeenCalledTimes(1);
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledTimes(1);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
     expect(events.map((event) => event.type)).toContain("connected");
     expect(events.filter((event) => event.type === "updated")).toHaveLength(1);
 
@@ -127,7 +127,7 @@ describe("watchMapPackage realtime", () => {
     const initial = makePackage({
       realtime: {
         mapPackageWatch: {
-          channel: MAP_PACKAGE_REALTIME_CHANNEL_V1,
+          channel: MAP_DOCUMENT_REALTIME_CHANNEL_V1,
           transport: "sse",
           href: "/api/v1/map-packages/pkg-001/watch",
           withCredentials: true,
@@ -138,14 +138,14 @@ describe("watchMapPackage realtime", () => {
       updatedAt: "2026-05-11T00:02:00.000Z",
       mapSpec: styleWithFill("#ff5500"),
     });
-    const events: MapPackageWatchEvent[] = [];
+    const events: MapDocumentWatchEvent[] = [];
     const sources: MockMapPackageEventSource[] = [];
-    const updatePackage = vi.fn(async () => {});
+    const updateMapDocument = vi.fn(async () => {});
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
       initialPackage: initial,
-      runtime: { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime,
+      runtime: { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime,
       immediate: false,
       realtime: {
         eventSourceFactory(url, init) {
@@ -162,7 +162,7 @@ describe("watchMapPackage realtime", () => {
 
     const [source] = sources;
     expect(source?.url).toContain("/api/v1/map-packages/pkg-001/watch?");
-    expect(source?.url).toContain(`channel=${encodeURIComponent(MAP_PACKAGE_REALTIME_CHANNEL_V1)}`);
+    expect(source?.url).toContain(`channel=${encodeURIComponent(MAP_DOCUMENT_REALTIME_CHANNEL_V1)}`);
     expect(source?.url).toContain("packageId=pkg-001");
 
     source?.open();
@@ -176,7 +176,7 @@ describe("watchMapPackage realtime", () => {
     await flushPromises();
 
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "connected", advertised: true })]));
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
 
     handle.dispose();
     expect(source?.closed).toBe(true);
@@ -191,10 +191,10 @@ describe("watchMapPackage realtime", () => {
         },
       },
     });
-    const events: MapPackageWatchEvent[] = [];
+    const events: MapDocumentWatchEvent[] = [];
     const sources: MockMapPackageEventSource[] = [];
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
       initialPackage: initial,
       immediate: false,
@@ -231,10 +231,10 @@ describe("watchMapPackage realtime", () => {
         },
       },
     });
-    const events: MapPackageWatchEvent[] = [];
+    const events: MapDocumentWatchEvent[] = [];
     const factory = vi.fn(() => new MockMapPackageEventSource("unused"));
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(vi.fn()),
       initialPackage: initial,
       immediate: false,
@@ -268,21 +268,21 @@ describe("watchMapPackage realtime", () => {
       mapSpec: styleWithFill("#22aa66"),
     });
     const fetchFn = vi.fn(async () => jsonResponse(next));
-    const events: MapPackageWatchEvent[] = [];
-    let observer: MapPackageRealtimeObserver | undefined;
-    const transport: MapPackageRealtimeTransport = {
+    const events: MapDocumentWatchEvent[] = [];
+    let observer: MapDocumentRealtimeObserver | undefined;
+    const transport: MapDocumentRealtimeTransport = {
       kind: "mock",
       subscribe(_request, nextObserver) {
         observer = nextObserver;
         return { close: vi.fn() };
       },
     };
-    const updatePackage = vi.fn(async () => {});
+    const updateMapDocument = vi.fn(async () => {});
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(fetchFn),
       initialPackage: initial,
-      runtime: { mapPackage: initial, updatePackage } as unknown as HonuaMapRuntime,
+      runtime: { mapPackage: initial, updateMapDocument } as unknown as HonuaMapRuntime,
       immediate: false,
       realtime: { transport, reconnect: false },
       onEvent: (event) => {
@@ -300,7 +300,7 @@ describe("watchMapPackage realtime", () => {
     await flushPromises();
 
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(updatePackage).toHaveBeenCalledWith(next);
+    expect(updateMapDocument).toHaveBeenCalledWith(next);
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "fallback", mode: "polling", reason: "AUTH" }),
@@ -326,9 +326,9 @@ describe("watchMapPackage realtime", () => {
       },
     });
     const fetchFn = vi.fn(async () => jsonResponse(next));
-    const events: MapPackageWatchEvent[] = [];
-    let observer: MapPackageRealtimeObserver | undefined;
-    const transport: MapPackageRealtimeTransport = {
+    const events: MapDocumentWatchEvent[] = [];
+    let observer: MapDocumentRealtimeObserver | undefined;
+    const transport: MapDocumentRealtimeTransport = {
       kind: "mock",
       subscribe(_request, nextObserver) {
         observer = nextObserver;
@@ -336,7 +336,7 @@ describe("watchMapPackage realtime", () => {
       },
     };
 
-    const handle = watchMapPackage("pkg-001", {
+    const handle = watchMapDocument("pkg-001", {
       client: makeClient(fetchFn),
       initialPackage: initial,
       immediate: false,
@@ -371,10 +371,10 @@ describe("watchMapPackage realtime", () => {
   });
 });
 
-function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage {
+function makePackage(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
   return {
     mapPackageId: "pkg-001",
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     status: "Ready",
     updatedAt: "2026-05-11T00:00:00.000Z",
     sourceBindings: [
@@ -389,7 +389,7 @@ function makePackage(overrides: Partial<HonuaMapPackage> = {}): HonuaMapPackage 
   };
 }
 
-function styleWithFill(color: string): HonuaMapPackage["mapSpec"] {
+function styleWithFill(color: string): HonuaMapDocument["mapSpec"] {
   return {
     version: 8,
     sources: {},
@@ -421,7 +421,7 @@ describe("map-package SSE default EventSource factory", () => {
   // constructs the source.
   test("constructs the global EventSource with `new` when no eventSourceFactory is provided", () => {
     const constructed: GlobalEventSourceDouble[] = [];
-    class GlobalEventSourceDouble implements MapPackageRealtimeEventSource {
+    class GlobalEventSourceDouble implements MapDocumentRealtimeEventSource {
       public onopen: ((event: Event) => void) | null = null;
       public onmessage: ((event: MessageEvent<string>) => void) | null = null;
       public onerror: ((event: Event) => void) | null = null;
@@ -440,7 +440,7 @@ describe("map-package SSE default EventSource factory", () => {
     }
     vi.stubGlobal("EventSource", GlobalEventSourceDouble);
     try {
-      const transport = createMapPackageServerSentEventsTransport({
+      const transport = createMapDocumentServerSentEventsTransport({
         url: "/api/v1/map-packages/pkg-001/watch",
         withCredentials: true,
       });

@@ -1,5 +1,7 @@
 # Ask this map (experimental)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Review a schema-grounded spatial query and execute it against six versioned
 incident fixtures. The map and accessible table use the same returned IDs;
 counts are never inferred from a SQL substring. Recorded mode accepts only the
@@ -116,8 +118,8 @@ Actual authenticated qualification passed the bounded gate with Bedrock Haiku
 cases and 4/4 safety controls, zero unexpected executions, median 4.182 seconds
 and maximum 10.373 seconds. Distance refinement succeeded on its second bounded
 attempt. The exact source, corpus/harness, external bridge, provider request IDs,
-and all nine earlier failed attempts are retained in
-[the qualification evidence](../../docs/evidence/ask-map-2051/README.md).
+and all nine earlier failed attempts were recorded in the qualification
+evidence.
 Earlier Haiku runs reached only 5/6 supported cases; Sonnet did not qualify.
 This is evidence for this configuration and ten-case sample only. Recorded replay
 is reported separately. Experimental API promotion stays with #1459.
@@ -137,3 +139,16 @@ pass by substituting the recorded model. Each response must report the server ad
 the reviewed evaluation configuration before any query is executed. The
 source/harness hashes still need to be joined to the deployed adapter's reviewed
 source before admitting the receipt.
+
+## Public package imports
+
+The application imports the SDK through published `@honua/sdk-js` entry points.
+The MapLibre worker import lives in this example, so copying the application
+source does not require `examples/shared`.
+
+After `npm run prepare:test-sdk` and `npm run build:browser`,
+`npm run verify:packed-sdk` copies the application source into a temporary
+consumer of the installed SDK tarball and checks its TypeScript declarations and
+Vite browser bundle without repository aliases. This verifies the package import
+contract. It does not run the spatial engine: the development example still
+uses the repository's pinned DuckDB asset cache and evidence tooling.

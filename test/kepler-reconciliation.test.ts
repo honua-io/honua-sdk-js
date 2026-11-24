@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_KEPLER_BRIDGE_LIMITS,
+  type KeplerAppDatasetState,
   type KeplerDatasetProjection,
   type KeplerResultProjectionRequest,
-  type KeplerWorkspaceDatasetState,
   keplerDatasetStateFromProjection,
   projectResultToKeplerDataset,
   reconcileKeplerDataset,
@@ -37,7 +37,7 @@ function snapshotProjection(
   });
 }
 
-function baseState(): KeplerWorkspaceDatasetState {
+function baseState(): KeplerAppDatasetState {
   return keplerDatasetStateFromProjection(
     snapshotProjection([
       { attributes: { objectid: 1, status: "open" }, geometry: { x: -122.4, y: 37.8 } },
@@ -297,7 +297,7 @@ describe("reconcileKeplerDataset — bounded delta", () => {
     expect(first.diagnostic.identityMismatches).toEqual([]);
 
     // The follow-up delta for the same row must update it, not append a duplicate.
-    const second = reconcileKeplerDataset(first.nextState as KeplerWorkspaceDatasetState, {
+    const second = reconcileKeplerDataset(first.nextState as KeplerAppDatasetState, {
       type: "delta",
       upserts: [{ id: 1, attributes: { status: "closed" } }],
     });
@@ -321,7 +321,7 @@ describe("reconcileKeplerDataset — bounded delta", () => {
     expect(plan.diagnostic.identityMismatches).toEqual([{ id: 1, attributeValue: 999, field: "objectid" }]);
 
     // The row stays addressable under the envelope id.
-    const followUp = reconcileKeplerDataset(plan.nextState as KeplerWorkspaceDatasetState, {
+    const followUp = reconcileKeplerDataset(plan.nextState as KeplerAppDatasetState, {
       type: "delta",
       deletes: [{ id: 1 }],
     });

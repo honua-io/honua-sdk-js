@@ -7,6 +7,8 @@ tags: [mcp, agents, install]
 ---
 # `@honua/mcp-server`
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 For the persistent connector journey across Docker, data, Studio, Processes and
 optional cloud operations, see [Unified agent workflows](unified-agent-workflows.md).
 
@@ -19,13 +21,16 @@ which is the single most common way an agent gets stuck here.
 | Transport | stdio | HTTP `POST /mcp`, authenticated |
 | Needs a Honua deployment | No | Yes |
 | Points at | any public Esri FeatureServer or OGC API endpoint | that one deployment |
-| Surface | 10 read-only discovery/query/style tools | the full operator catalog: planning, async jobs, Studio drafts, publishing |
+| Surface | 11 read-only discovery/query/style tools | the full operator catalog: planning, async jobs, Studio drafts, publishing |
 | Install | `npx -y -p @honua/mcp-server honua-mcp` | already running; connect to it |
 
-The package ships two binaries. `honua-mcp` is the standalone server — no Honua
-server, no admin API, no `/mcp` catalog. `honua-mcp-proxy` bridges a Honua
-deployment's `/mcp` catalog to stdio for clients that only speak stdio; it does
-not add tools of its own.
+The package ships five binaries (`honua-mcp`, `honua-mcp-proxy`,
+`honua-zero-to-map-release`, `honua-agent-mcp`, and `honua-agent-gateway`).
+`honua-mcp` is the standalone server — no Honua server, no admin API, no `/mcp`
+catalog. `honua-mcp-proxy` bridges a Honua deployment's `/mcp` catalog to stdio
+for clients that only speak stdio; it does not add tools of its own. The other
+three binaries serve the unified agent connector (`honua-agent-mcp`,
+`honua-agent-gateway`) and release check (`honua-zero-to-map-release`).
 
 ## Install
 

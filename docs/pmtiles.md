@@ -6,6 +6,8 @@ resource: "honua://capability/serve.vector-tiles"
 ---
 # PMTiles
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 [PMTiles](https://github.com/protomaps/PMTiles) is a single-file archive format
 for an entire pyramid of map tiles (raster or vector). One `.pmtiles` file on
 static hosting — S3, R2, GCS, or any HTTP server that honours `Range` requests —
@@ -31,17 +33,14 @@ evidence and causes an `ambiguous-protocol` error before cache, authentication,
 or network work begins.
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 
-const connection = await connect({
-  endpoint: "pmtiles://https://example.com/basemaps/hawaii.pmtiles",
-  protocol: "auto",
-  authorizationScopeFingerprint: "public",
-});
+await using honua = createHonua();
+const connection = await honua.connect("pmtiles://https://example.com/basemaps/hawaii.pmtiles");
 
 const source = connection.source();
 console.log(source.descriptor.locator.sourceType); // "vector" or "raster"
-console.log(connection.inspection.sources[0]?.metadata?.pmtiles?.bounds);
+console.log((await connection.inspect()).sources[0]?.metadata?.pmtiles?.bounds);
 ```
 
 Discovery runs through the normal client auth/interceptor/timeout pipeline and
@@ -71,7 +70,7 @@ second native fetch.
 
 ## Rendering a PMTiles source (runtime)
 
-`loadMapPackage` auto-registers the `pmtiles://` protocol before it applies the
+`loadMapDocument` auto-registers the `pmtiles://` protocol before it applies the
 composed style, so a `pmtiles` source binding renders with no manual
 `addProtocol` call. The registration is lazy (the `pmtiles` and `maplibre-gl`
 packages are imported only when a PMTiles-backed map loads) and idempotent
@@ -79,15 +78,15 @@ across every map you attach.
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
-import { HONUA_MAP_PACKAGE_FORMAT_V1, loadMapPackage } from "@honua/sdk-js/runtime";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, loadMapDocument } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 
 const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
 await new Promise((resolve) => map.on("load", resolve));
 
-await loadMapPackage(
+await loadMapDocument(
   {
-    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
     mapPackageId: "pmtiles-basemap",
     sourceBindings: [
       {

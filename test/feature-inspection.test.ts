@@ -157,6 +157,47 @@ describe("feature inspection workflow", () => {
     expect(snapshot.diagnostics.map((diagnostic) => diagnostic.code)).toContain("attachments-unsupported");
   });
 
+  it("excludes geometry columns from default details while retaining scalar fields named geometry", async () => {
+    const base = source({
+      query: async (request) => {
+        if (request?.outFields?.includes("SHAPE")) throw new Error("Unknown field SHAPE");
+        return {
+          features: [{ attributes: { ...feature(1).attributes, geometry: "surveyed" } }],
+          exceededTransferLimit: false,
+        };
+      },
+    });
+    const incidents = {
+      ...base,
+      descriptor: {
+        ...base.descriptor,
+        schema: {
+          ...base.descriptor.schema,
+          fields: [
+            ...(base.descriptor.schema?.fields ?? []),
+            { name: "SHAPE", type: "esriFieldTypeGeometry" },
+            { name: "geometry", type: "esriFieldTypeString" },
+          ],
+        },
+      },
+    };
+    const inspection = createHonuaFeatureInspection<Incident>({ resolveSource: () => incidents });
+
+    const snapshot = await inspection.openFromTableRow({ target: sourceFeatureSelectionTarget("incidents", 1) });
+
+    expect(incidents.query).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outFields: ["OBJECTID", "NAME", "STATUS", "WEBSITE", "geometry"],
+        returnGeometry: false,
+        pagination: { limit: 1 },
+      }),
+    );
+    expect(snapshot.status).toBe("ready");
+    expect(snapshot.feature?.fields.find((field) => field.name === "geometry")?.text).toBe("surveyed");
+    expect(snapshot.feature?.fields.some((field) => field.name === "SHAPE")).toBe(false);
+    inspection.dispose();
+  });
+
   it("pages and bounds overlapping results, attachments, and relationships", async () => {
     const incidents = source({ capabilities: ["query", "attachments", "queryRelated"] });
     const loadAttachmentPage = vi.fn(async ({ target, offset, limit, signal }) => {

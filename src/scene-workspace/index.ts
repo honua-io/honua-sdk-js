@@ -1,7 +1,6 @@
 /**
  * `@honua/app-platform/scene-workspace` — framework-neutral 3D scene workspace
- * state and the Cesium renderer adapter. `@honua/sdk-js/scene-workspace` is a
- * deprecated forwarder retained through 0.3.x and removed in 0.4.0.
+ * state and the Cesium renderer adapter.
  *
  * This barrel carries two support tiers, and they are enumerated symbol by
  * symbol in `config/support-manifest.v1.json` (projected into
@@ -25,10 +24,10 @@
  */
 
 export {
-  createSceneWorkspace,
-  emptySceneWorkspaceState,
-  reduceSceneWorkspaceState,
-  sceneWorkspaceIntentFromAdapterEvent,
+  createSceneStore,
+  emptySceneStoreState,
+  reduceSceneStoreState,
+  sceneStoreIntentFromAdapterEvent,
   selectSceneDiagnosticsByStatus,
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
@@ -37,7 +36,7 @@ export {
 export {
   SCENE_STATE_SYNC_KIND,
   SCENE_STATE_SYNC_SLICES,
-  SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK,
+  SCENE_STATE_SYNC_SLICE_STORE_CROSSWALK,
   SCENE_STATE_SYNC_VERSION,
   HonuaSceneStateSyncError,
   createSceneStateSynchronizer,
@@ -275,6 +274,7 @@ export type {
   SceneAnalysisCesiumModule,
   SceneAnalysisOverlay,
   SceneAnalysisPosition,
+  SceneAnalysisProvenance,
   SceneAnalysisRequestExecutor,
   SceneMeasurement,
   ViewshedRequest,
@@ -305,8 +305,127 @@ export type {
   HonuaSceneResolution,
   SceneDiscoveryRequestExecutor,
   SceneExtent3D,
+  SceneSemanticContentKind,
+  SceneServingFormat,
   SceneViewpoint,
 } from "./scene-discovery.js";
+export {
+  HonuaSceneAccessSessionError,
+  createProtectedSceneAssetSession,
+} from "./scene-access-session.js";
+export type {
+  CesiumResourceDescriptor,
+  CreateProtectedSceneAssetSessionOptions,
+  SceneAccessAffordance,
+  SceneAccessCredentialTransport,
+  SceneAccessEnvelopePayload,
+  SceneAccessScope,
+  SceneAccessSessionErrorCode,
+  SceneAccessSessionSnapshot,
+  SceneAccessSessionStatus,
+  SceneAssetResourceRequest,
+  SceneProtectedAssetSession,
+} from "./scene-access-session.js";
+export {
+  buildSceneCopcUrl,
+  createCopcRangeClient,
+  parseCopcInfoVlr,
+  parseLas14Header,
+} from "./copc-range.js";
+export type {
+  CopcByteRange,
+  CopcHeadResult,
+  CopcHeaderInfo,
+  CopcInfo,
+  CopcRangeClient,
+  CopcRangeClientOptions,
+  CopcRangeReadResult,
+} from "./copc-range.js";
+export {
+  QUANTIZED_MESH_EXTENSION_METADATA,
+  QUANTIZED_MESH_EXTENSION_OCT_VERTEX_NORMALS,
+  QUANTIZED_MESH_EXTENSION_WATER_MASK,
+  QUANTIZED_MESH_MAX_COORD,
+  HonuaQuantizedMeshError,
+  createQuantizedMeshTerrainClient,
+  decodeQuantizedMeshTile,
+  encodeQuantizedMeshTile,
+  isQuantizedMeshTileAvailable,
+  parseQuantizedMeshLayerJson,
+  resolveQuantizedMeshTileUrl,
+  sampleQuantizedMeshElevation,
+  validateQuantizedMeshTile,
+} from "./quantized-mesh.js";
+export type {
+  DecodedQuantizedMeshTile,
+  QuantizedMeshAvailabilityRect,
+  QuantizedMeshEdgeIndices,
+  QuantizedMeshEncodeInput,
+  QuantizedMeshHeader,
+  QuantizedMeshLayerManifest,
+  QuantizedMeshTerrainClient,
+  QuantizedMeshTerrainClientOptions,
+  QuantizedMeshTileCoord,
+  QuantizedMeshValidationResult,
+} from "./quantized-mesh.js";
+export {
+  HONUA_3D_SYMBOLOGY_KIND,
+  HONUA_3D_SYMBOLOGY_VERSION,
+  applyEntityStyleUpdate,
+  compile3DSymbologyToTilesetStyle,
+  evaluateEntitySymbology,
+  validate3DSymbology,
+  validate3DSymbologyExpression,
+} from "./symbology-3d.js";
+export type {
+  EntityStyleUpdateResult,
+  EvaluateEntitySymbologyOptions,
+  EvaluatedEntitySymbology,
+  Honua3DSymbologyV1,
+  Scene3DClassBreakRule,
+  Scene3DLabelStyle,
+  Scene3DScaleRange,
+  Scene3DSelectionHighlightStyle,
+  Scene3DSymbolStyle,
+  Scene3DSymbologyDiagnostic,
+  Scene3DUniqueValueRule,
+  Scene3DVisualVariable,
+  Scene3DVisualVariableStop,
+  StyleableCesiumEntityCollection,
+} from "./symbology-3d.js";
+export {
+  captureSceneBookmark,
+  normalizeCesiumPick,
+  parseSceneBookmark,
+  pickNormalizedSceneFeature,
+  serializeSceneBookmark,
+} from "./scene-picking.js";
+export type {
+  NormalizeCesiumPickOptions,
+  NormalizedScenePickResult,
+  ScenePickDiagnostic,
+  ScenePickTargetKind,
+} from "./scene-picking.js";
+export {
+  applySceneEditProposal,
+  approveSceneEditProposal,
+  createSceneEditProposal,
+  reconcileSceneEditWithRealtime,
+} from "./scene-edit-proposal.js";
+export type {
+  CreateSceneEditProposalOptions,
+  SceneAltitudeReference,
+  SceneEditCapabilityDeclaration,
+  SceneEditDiagnostic,
+  SceneEditPlacement,
+  SceneEditProposalStatus,
+  SceneEditRealtimeReconciliation,
+  SceneEditReceipt,
+  SceneEditVerticalContext,
+  SceneEditableGeometryKind,
+  ScenePlacementEditProposal,
+  SceneRealtimeFeatureEvent,
+} from "./scene-edit-proposal.js";
 export { SceneView } from "./scene-view.js";
 export type {
   SceneViewEvent,
@@ -314,7 +433,7 @@ export type {
   SceneViewOptions,
   SceneViewRequestExecutor,
 } from "./scene-view.js";
-export { SCENE_WORKSPACE_SLICES } from "./types.js";
+export { SCENE_STORE_SLICES } from "./types.js";
 export type {
   MapLibreExtrusionLayerSpecification,
   MapLibreFilterCompilation,
@@ -359,14 +478,14 @@ export type {
   SceneLayerState,
   SceneRealtimeState,
   SceneTimelineState,
-  SceneWorkspace,
-  SceneWorkspaceAdapterEvent,
-  SceneWorkspaceChangeEvent,
-  SceneWorkspaceHistoryEntry,
-  SceneWorkspaceIntent,
-  SceneWorkspaceListener,
-  SceneWorkspaceSlice,
-  SceneWorkspaceSnapshot,
-  SceneWorkspaceState,
-  SceneWorkspaceUnsubscribe,
+  SceneStore,
+  SceneStoreAdapterEvent,
+  SceneStoreChangeEvent,
+  SceneStoreHistoryEntry,
+  SceneStoreIntent,
+  SceneStoreListener,
+  SceneStoreSlice,
+  SceneStoreSnapshot,
+  SceneStoreState,
+  SceneStoreUnsubscribe,
 } from "./types.js";

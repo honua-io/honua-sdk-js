@@ -1,6 +1,6 @@
 /**
  * Legend helpers. The runtime surfaces a `LegendEntry[]` derived from
- * `MapPackage.legend[]` (authoritative) with optional swatches pulled
+ * `HonuaMapDocument.legend[]` (authoritative) with optional swatches pulled
  * from the composed style for layers that did not supply an explicit
  * color.
  *
@@ -9,7 +9,7 @@
 
 import { trimChar } from "../core/path-utils.js";
 import type { HonuaStyleSpecification } from "../style/specification.js";
-import type { HonuaMapPackageLegendEntry } from "./map-package.js";
+import type { HonuaMapDocumentLegendEntry } from "./map-package.js";
 
 /** Runtime-facing legend entry. */
 export interface LegendEntry {
@@ -24,7 +24,7 @@ export interface LegendEntry {
 
 /** Build a legend list from the package entries, backfilling colors from the style when possible. */
 export function buildLegend(
-  packageEntries: readonly HonuaMapPackageLegendEntry[] | undefined,
+  packageEntries: readonly HonuaMapDocumentLegendEntry[] | undefined,
   style: HonuaStyleSpecification,
 ): LegendEntry[] {
   const entries = packageEntries ?? [];
@@ -40,7 +40,7 @@ export function buildLegend(
   }));
 }
 
-function legendEntryId(entry: HonuaMapPackageLegendEntry, index: number): string {
+function legendEntryId(entry: HonuaMapDocumentLegendEntry, index: number): string {
   const slug = trimChar(
     entry.label
       .trim()

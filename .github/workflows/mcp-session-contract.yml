@@ -53,6 +53,7 @@ jobs:
         run: |
           npm ci
           npm run build
+          npm run build:split-packages:prepared
           npm ci --prefix mcp
           npm run typecheck --prefix mcp
           npm run build --prefix mcp

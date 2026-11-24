@@ -222,7 +222,7 @@ export function unionCapabilities(participants: ReadonlyArray<{ readonly capabil
  * Update both together.
  */
 export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabilities>> = {
-  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream"]),
+  grpc: capabilities(["query", "queryExtent", "queryObjectIds", "applyEdits", "stream", "queryRelated", "attachments"]),
   "geoservices-feature-service": capabilities([
     "query",
     "queryAggregate",
@@ -266,7 +266,7 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   geoparquet: capabilities(["query", "queryAggregate", "stream"]),
   "maplibre-vector": capabilities(["render", "tiles"]),
   "maplibre-raster": capabilities(["render", "tiles"]),
-  // Reserved/recognized protocol token only: inline MapPackage GeoJSON is supported,
+  // Reserved/recognized protocol token only: inline map document GeoJSON is supported,
   // but descriptor-to-runtime support for maplibre-geojson is not implemented.
   "maplibre-geojson": capabilities([]),
   "ogc-coverages": capabilities(["render"]),
@@ -378,6 +378,8 @@ export interface SourceLocator {
   basePath?: string;
   /** OGC API Tiles tile-matrix-set identifier (e.g. `WebMercatorQuad`). */
   tileMatrixSetId?: string;
+  /** Discovered WebMercatorQuad vector item URL, normalized to MapLibre XYZ placeholders. */
+  tileUrlTemplate?: string;
   /** OGC API Maps / Tiles style identifier for styled-output endpoints. */
   styleId?: string;
   /** Exact, capability-reviewed raster operation selected by `connect()`. */
@@ -763,6 +765,12 @@ export interface Result<T = Record<string, unknown>> {
 export interface CanonicalFeature<T = Record<string, unknown>> {
   /** Optional row identity. Required for updates and deletes. */
   id?: FeatureId;
+  /**
+   * Stable global ID (UUID), when the layer declares a global-ID field. On
+   * adds it is a client-generated identity; with `useGlobalIds` it addresses
+   * the updated row.
+   */
+  globalId?: string;
   attributes: T;
   geometry?: Record<string, unknown> | null;
 }
@@ -774,7 +782,13 @@ export interface CanonicalFeature<T = Record<string, unknown>> {
 export interface EditEnvelope<T = Record<string, unknown>> {
   adds?: ReadonlyArray<CanonicalFeature<T>>;
   updates?: ReadonlyArray<CanonicalFeature<T>>;
+  /** Object IDs, or global IDs when `useGlobalIds` is true. */
   deletes?: ReadonlyArray<FeatureId>;
+  /**
+   * Address updates (by `globalId`) and deletes by global ID instead of object
+   * ID. Integer and global-ID selectors cannot be mixed in one envelope.
+   */
+  useGlobalIds?: boolean;
   /** When true (and the protocol honors it) the edit batch is atomic. */
   rollbackOnFailure?: boolean;
   /** Caller-supplied cancellation. */
@@ -784,6 +798,8 @@ export interface EditEnvelope<T = Record<string, unknown>> {
 /** Per-feature edit outcome. */
 export interface EditOutcome {
   id?: FeatureId;
+  /** Stable global ID of the affected row, when the layer has one. */
+  globalId?: string;
   success: boolean;
   error?: { code: number; description: string };
 }
@@ -863,6 +879,8 @@ export interface AttachmentGroup {
 
 /** Add-attachment request. `attachment` accepts `Blob`, `File`, or string. */
 export interface AttachmentAdd {
+  /** Reuse for an identical native upload retry. Defaults to a fresh operation key. */
+  idempotencyKey?: string;
   parentId: FeatureId;
   attachment: Blob | File | string;
   name?: string;
@@ -877,6 +895,8 @@ export interface AttachmentUpdate extends AttachmentAdd {
 
 /** Delete one or more attachments from a parent feature. */
 export interface AttachmentDelete {
+  /** Native retry key prefix; one independent operation key is derived per attachment. */
+  idempotencyKey?: string;
   parentId: FeatureId;
   attachmentIds: ReadonlyArray<FeatureId>;
   signal?: AbortSignal;
@@ -901,6 +921,22 @@ export interface AttachmentApi {
   add(request: AttachmentAdd): Promise<AttachmentEditOutcome>;
   update(request: AttachmentUpdate): Promise<AttachmentEditOutcome>;
   delete(request: AttachmentDelete): Promise<ReadonlyArray<AttachmentEditOutcome>>;
+  /**
+   * Short-lived signed download URL for `<img src>`, links and CDN fetches.
+   * Implemented on gRPC-Web sources; absent where the protocol has no signed URLs.
+   */
+  downloadUrl?(
+    parentId: FeatureId,
+    attachmentId: FeatureId,
+    options?: { signal?: AbortSignal },
+  ): Promise<AttachmentDownloadUrl>;
+}
+
+/** Signed attachment download URL and its expiry. */
+export interface AttachmentDownloadUrl {
+  url: string;
+  expiresAt: Date;
+  attachment: AttachmentInfo;
 }
 
 // ── Map binding ───────────────────────────────────────────────
@@ -933,6 +969,7 @@ export interface MapBinding {
  * to cast through `unknown`.
  */
 export type AdapterKind =
+  | "grpc"
   | "geoservices-feature-service"
   | "geoservices-map-service"
   | "geoservices-map-layer"

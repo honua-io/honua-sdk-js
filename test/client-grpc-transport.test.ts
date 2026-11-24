@@ -189,7 +189,9 @@ describe("HonuaClient gRPC-web retry interceptor", () => {
   const connectError = (code: number, metadata?: Headers) =>
     Object.assign(new Error(`grpc code ${code}`), { code, ...(metadata ? { metadata } : {}) });
 
+  // Only replay-safe reads are retried; QueryFeatures is one.
   const unaryReq = (signal?: AbortSignal) => ({
+    method: { name: "QueryFeatures" },
     stream: false as const,
     header: new Headers(),
     signal: signal ?? new AbortController().signal,

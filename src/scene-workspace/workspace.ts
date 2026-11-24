@@ -19,16 +19,16 @@ import {
 import type {
   SceneEvidenceReference,
   SceneLayerState,
-  SceneWorkspace,
-  SceneWorkspaceAdapterEvent,
-  SceneWorkspaceChangeEvent,
-  SceneWorkspaceIntent,
-  SceneWorkspaceListener,
-  SceneWorkspaceSlice,
-  SceneWorkspaceState,
+  SceneStore,
+  SceneStoreAdapterEvent,
+  SceneStoreChangeEvent,
+  SceneStoreIntent,
+  SceneStoreListener,
+  SceneStoreSlice,
+  SceneStoreState,
 } from "./types.js";
 
-export function emptySceneWorkspaceState(): SceneWorkspaceState {
+export function emptySceneStoreState(): SceneStoreState {
   return {
     layers: {},
     primitives: {},
@@ -44,16 +44,16 @@ export function emptySceneWorkspaceState(): SceneWorkspaceState {
   };
 }
 
-export function createSceneWorkspace(initialState: Partial<SceneWorkspaceState> = {}): SceneWorkspace {
-  let state: SceneWorkspaceState = mergeState(emptySceneWorkspaceState(), initialState);
-  const listeners = new Map<SceneWorkspaceSlice, Set<SceneWorkspaceListener>>();
+export function createSceneStore(initialState: Partial<SceneStoreState> = {}): SceneStore {
+  let state: SceneStoreState = mergeState(emptySceneStoreState(), initialState);
+  const listeners = new Map<SceneStoreSlice, Set<SceneStoreListener>>();
   let disposed = false;
 
   function ensureLive(): void {
-    if (disposed) throw new Error("SceneWorkspace has been disposed.");
+    if (disposed) throw new Error("SceneStore has been disposed.");
   }
 
-  function emit(event: SceneWorkspaceChangeEvent): void {
+  function emit(event: SceneStoreChangeEvent): void {
     for (const listener of listeners.get("all") ?? []) listener(event);
     for (const slice of event.changedSlices) {
       if (slice === "all") continue;
@@ -68,7 +68,7 @@ export function createSceneWorkspace(initialState: Partial<SceneWorkspaceState> 
     dispatch(intent) {
       ensureLive();
       const previous = state;
-      const next = reduceSceneWorkspaceState(state, intent);
+      const next = reduceSceneStoreState(state, intent);
       const changedSlices = changedSceneWorkspaceSlices(previous, next);
       if (changedSlices.size === 0) return state;
       state = next;
@@ -77,7 +77,7 @@ export function createSceneWorkspace(initialState: Partial<SceneWorkspaceState> 
     },
     subscribe(slice, listener) {
       ensureLive();
-      const sliceListeners = listeners.get(slice) ?? new Set<SceneWorkspaceListener>();
+      const sliceListeners = listeners.get(slice) ?? new Set<SceneStoreListener>();
       sliceListeners.add(listener);
       listeners.set(slice, sliceListeners);
       return () => {
@@ -98,18 +98,15 @@ export function createSceneWorkspace(initialState: Partial<SceneWorkspaceState> 
   };
 }
 
-export function reduceSceneWorkspaceState(
-  state: SceneWorkspaceState,
-  intent: SceneWorkspaceIntent,
-): SceneWorkspaceState {
+export function reduceSceneStoreState(state: SceneStoreState, intent: SceneStoreIntent): SceneStoreState {
   const base = applyIntent(state, intent);
   return appendHistory(base, intent);
 }
 
-export function sceneWorkspaceIntentFromAdapterEvent(
-  event: SceneWorkspaceAdapterEvent,
-  source: SceneWorkspaceIntent["source"] = "scene",
-): SceneWorkspaceIntent {
+export function sceneStoreIntentFromAdapterEvent(
+  event: SceneStoreAdapterEvent,
+  source: SceneStoreIntent["source"] = "scene",
+): SceneStoreIntent {
   switch (event.type) {
     case "camera-change":
       return { kind: "set-camera", camera: event.camera, source, historyLabel: "Scene camera changed" };
@@ -155,12 +152,12 @@ export function sceneWorkspaceIntentFromAdapterEvent(
   }
 }
 
-export function selectSceneVisibleLayers(state: SceneWorkspaceState): SceneLayerState[] {
+export function selectSceneVisibleLayers(state: SceneStoreState): SceneLayerState[] {
   return Object.values(state.layers).filter((layer) => layer.visible);
 }
 
 export function selectScenePrimitivesByKind<K extends SceneRuntimePrimitive["kind"]>(
-  state: SceneWorkspaceState,
+  state: SceneStoreState,
   kind: K,
 ): Array<Extract<SceneRuntimePrimitive, { readonly kind: K }>> {
   return Object.values(state.primitives).filter(
@@ -169,21 +166,21 @@ export function selectScenePrimitivesByKind<K extends SceneRuntimePrimitive["kin
 }
 
 export function selectSceneDiagnosticsByStatus(
-  state: SceneWorkspaceState,
+  state: SceneStoreState,
   status: ScenePrimitiveDiagnostic["status"],
 ): ScenePrimitiveDiagnostic[] {
   return state.diagnostics.filter((diagnostic) => diagnostic.status === status);
 }
 
 export function selectSceneEvidenceForFeature(
-  state: SceneWorkspaceState,
+  state: SceneStoreState,
   featureId: string | number | undefined,
 ): SceneEvidenceReference[] {
   if (featureId === undefined) return [];
   return Object.values(state.evidence).filter((evidence) => evidence.featureId === featureId);
 }
 
-function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): SceneWorkspaceState {
+function applyIntent(state: SceneStoreState, intent: SceneStoreIntent): SceneStoreState {
   switch (intent.kind) {
     case "set-scene":
       return {
@@ -229,9 +226,10 @@ function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): 
       return {
         ...state,
         camera: { ...intent.bookmark.camera },
+        ...(intent.bookmark.time ? { timeline: { ...intent.bookmark.time } } : {}),
         bookmarks: {
           ...state.bookmarks,
-          [intent.bookmark.id]: { ...intent.bookmark, camera: { ...intent.bookmark.camera } },
+          [intent.bookmark.id]: cloneBookmark(intent.bookmark),
         },
       };
     case "set-filter":
@@ -295,7 +293,7 @@ function applyIntent(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): 
   }
 }
 
-function appendHistory(state: SceneWorkspaceState, intent: SceneWorkspaceIntent): SceneWorkspaceState {
+function appendHistory(state: SceneStoreState, intent: SceneStoreIntent): SceneStoreState {
   if (intent.kind === "restore") return state;
   const label = intent.historyLabel ?? intent.kind;
   const at = intent.at ?? new Date().toISOString();
@@ -311,11 +309,8 @@ function appendHistory(state: SceneWorkspaceState, intent: SceneWorkspaceIntent)
   };
 }
 
-function changedSceneWorkspaceSlices(
-  previous: SceneWorkspaceState,
-  next: SceneWorkspaceState,
-): ReadonlySet<SceneWorkspaceSlice> {
-  const changed = new Set<SceneWorkspaceSlice>();
+function changedSceneWorkspaceSlices(previous: SceneStoreState, next: SceneStoreState): ReadonlySet<SceneStoreSlice> {
+  const changed = new Set<SceneStoreSlice>();
   if (previous.sceneId !== next.sceneId || previous.title !== next.title) changed.add("scene");
   if (previous.camera !== next.camera) changed.add("camera");
   if (previous.layers !== next.layers) changed.add("layers");
@@ -331,7 +326,7 @@ function changedSceneWorkspaceSlices(
   return changed;
 }
 
-function mergeState(base: SceneWorkspaceState, initial: Partial<SceneWorkspaceState>): SceneWorkspaceState {
+function mergeState(base: SceneStoreState, initial: Partial<SceneStoreState>): SceneStoreState {
   return cloneSceneWorkspaceState({
     ...base,
     ...initial,
@@ -370,7 +365,7 @@ function mergeState(base: SceneWorkspaceState, initial: Partial<SceneWorkspaceSt
   });
 }
 
-function cloneSceneWorkspaceState(state: SceneWorkspaceState): SceneWorkspaceState {
+function cloneSceneWorkspaceState(state: SceneStoreState): SceneStoreState {
   return {
     ...state,
     layers: Object.fromEntries(Object.entries(state.layers).map(([id, layer]) => [id, cloneLayer(layer)])),
@@ -405,7 +400,7 @@ function cloneDiagnostic(diagnostic: ScenePrimitiveDiagnostic): ScenePrimitiveDi
   return cloneValue(diagnostic);
 }
 
-function cloneDetail(detail: SceneWorkspaceState["detail"]): SceneWorkspaceState["detail"] {
+function cloneDetail(detail: SceneStoreState["detail"]): SceneStoreState["detail"] {
   return {
     ...detail,
     target: detail.target ? cloneSelectionTarget(detail.target) : undefined,
@@ -413,16 +408,17 @@ function cloneDetail(detail: SceneWorkspaceState["detail"]): SceneWorkspaceState
   };
 }
 
-function cloneCamera(camera: NonNullable<SceneWorkspaceState["camera"]>): NonNullable<SceneWorkspaceState["camera"]> {
+function cloneCamera(camera: NonNullable<SceneStoreState["camera"]>): NonNullable<SceneStoreState["camera"]> {
   return { ...camera };
 }
 
 function cloneBookmark(
-  bookmark: NonNullable<SceneWorkspaceState["bookmarks"][string]>,
-): NonNullable<SceneWorkspaceState["bookmarks"][string]> {
+  bookmark: NonNullable<SceneStoreState["bookmarks"][string]>,
+): NonNullable<SceneStoreState["bookmarks"][string]> {
   return {
     ...bookmark,
     camera: cloneCamera(bookmark.camera),
+    ...(bookmark.time ? { time: { ...bookmark.time } } : {}),
   };
 }
 
@@ -433,9 +429,9 @@ function cloneEvidence(evidence: SceneEvidenceReference): SceneEvidenceReference
   };
 }
 
-function dedupeSelection(selection: ReadonlyArray<SceneWorkspaceState["selection"][number]>) {
+function dedupeSelection(selection: ReadonlyArray<SceneStoreState["selection"][number]>) {
   const seen = new Set<string>();
-  const out: SceneWorkspaceState["selection"][number][] = [];
+  const out: SceneStoreState["selection"][number][] = [];
   for (const target of selection) {
     const key = featureSelectionKey(target);
     if (seen.has(key)) continue;
@@ -445,9 +441,7 @@ function dedupeSelection(selection: ReadonlyArray<SceneWorkspaceState["selection
   return out;
 }
 
-function cloneSelectionTarget(
-  target: SceneWorkspaceState["selection"][number],
-): SceneWorkspaceState["selection"][number] {
+function cloneSelectionTarget(target: SceneStoreState["selection"][number]): SceneStoreState["selection"][number] {
   return typeof target === "object" && target !== null ? { ...target } : target;
 }
 

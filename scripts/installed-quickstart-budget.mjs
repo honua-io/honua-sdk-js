@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import { build, loadConfigFromFile, normalizePath } from "vite";
@@ -13,7 +13,7 @@ import { runNpmSync } from "./lib/npm-cli.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
-import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
+import { readInstalledCandidateInput, readLegacyFirstMapSourceRevision } from "./installed-candidate-input.mjs";
 import { readFirstMapBuildResolution } from "./lib/first-map-build-resolution.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -32,18 +32,40 @@ await rm(output, { force: true });
 assert.ok(!(localTarball && process.env.HONUA_INSTALLED_CANDIDATE_MODE === "release-snapshot"),
   "release-snapshot cannot be combined with --local-tarball");
 const candidate = await readInstalledCandidateInput();
+const legacyFixtureSha = !localTarball && !candidate.releaseInput
+  ? await readLegacyFirstMapSourceRevision(candidate)
+  : undefined;
 const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const proveRegression = process.argv.includes("--prove-regression");
 const enforceExecution = process.argv.includes("--enforce-execution-budget");
 const measureExecution = enforceExecution || process.argv.includes("--measure-execution");
-const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
-  (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
-).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const previousMode = process.env.HONUA_SAMPLE_SDK_MODE;
 const previousDirectory = process.env.HONUA_SAMPLE_SDK_DIR;
 
 try {
+  let legacyBasemap;
+  let exampleRoot = path.join(root, "examples/maplibre-quickstart");
+  if (legacyFixtureSha) {
+    const source = spawnSync("git", ["cat-file", "-e", `${legacyFixtureSha}^{commit}`], { cwd: root });
+    assert.equal(source.status, 0,
+      `Legacy First Map source is unavailable. Run git fetch --no-tags --depth=1 origin ${legacyFixtureSha} and retry.`);
+    const fixtureRoot = path.join(work, "legacy-fixture");
+    await mkdir(fixtureRoot);
+    // Unaliased imports must still resolve to checkout dependencies in the regression controls.
+    await symlink(path.join(root, "node_modules"), path.join(fixtureRoot, "node_modules"), "junction");
+    const archive = path.join(work, "legacy-fixture.tar");
+    execFileSync("git", ["archive", "--output", archive, legacyFixtureSha,
+      "examples/maplibre-quickstart", "examples/_kit/design", "examples/shared/maplibre-vite-worker.ts", "samples/fixtures/first-map/v2"], { cwd: root });
+    execFileSync("tar", ["-xf", archive], { cwd: fixtureRoot });
+    exampleRoot = path.join(fixtureRoot, "examples/maplibre-quickstart");
+    if (measureExecution) {
+      legacyBasemap = JSON.parse(await readFile(path.join(exampleRoot, "public/__honua-quickstart__/basemap-style.json"), "utf8"));
+    }
+  }
+  const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
+    (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
+  ).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
   let packageIdentity = candidate.package;
   let packageSpec = candidate.package.version;
   let prepared;
@@ -112,7 +134,7 @@ try {
       }
     } });
     try {
-      await build({ ...loaded.config, configFile: false, logLevel: "warn",
+      await build({ ...loaded.config, configFile: false, root: exampleRoot, logLevel: "warn",
         define: { ...loaded.config.define, ...(fixtureBuild ? fixtureDefines : {}) },
         resolve: { ...loaded.config.resolve, alias: loaded.config.resolve.alias.filter((alias) =>
           !removePeerAlias || !(alias.find instanceof RegExp &&
@@ -178,7 +200,7 @@ try {
       fixture.peerIdentityStatus = "passed";
       Object.assign(fixture, firstMapVerdict(fixture));
       execution = { status: "pending", buildMode: "canonical fixture", bundle: fixture };
-      Object.assign(execution, await measureFirstMapExecution(path.join(work, "execution-fixture")), { status: "measured" });
+      Object.assign(execution, await measureFirstMapExecution(path.join(work, "execution-fixture"), { basemap: legacyBasemap }), { status: "measured" });
       if (enforceExecution) {
         const { firstMapExecutionVerdict } = await import("./lib/first-map-execution-budget.mjs");
         const executionBudget = JSON.parse(await readFile(path.join(root, "config/first-map-execution-budget.v1.json"), "utf8"));
@@ -198,6 +220,7 @@ try {
     dependencies: Object.fromEntries(Object.entries(lock.packages).filter(([key]) => key).map(([key, value]) =>
       [key, { version: value.version, integrity: value.integrity }])),
     sourceSha, sourceDirty,
+    ...(legacyFixtureSha ? { fixtureSourceSha: legacyFixtureSha } : {}),
     ...(previousLockBytes ? { comparisonLockSha256: sha256(previousLockBytes), comparisonRenderer: { version: previousRenderer.version, integrity: previousRenderer.integrity } } : {}),
     inputDigests: Object.fromEntries(await Promise.all(["package-lock.json", "scripts/installed-quickstart-budget.mjs",
       "scripts/lib/first-map-build-resolution.mjs", "scripts/lib/first-map-execution.mjs", "scripts/lib/first-map-execution-budget.mjs", "config/first-map-execution-budget.v1.json", "examples/maplibre-quickstart/mock-server.mjs", "examples/maplibre-quickstart/vite.config.ts"]

@@ -57,3 +57,16 @@ test("reports a mistyped target while still importing valid sibling entrypoints"
     "./honua built-entrypoint target is missing: ./dist/mistyped.mjs",
   ]);
 });
+
+test("imports a Node-only conditional entrypoint without a browser default", async (t) => {
+  const projectRoot = fixtureRoot(t);
+  fs.writeFileSync(path.join(projectRoot, "native.mjs"), "export const native = true;\n");
+  const result = await verifyBuiltEntrypoints({
+    entrypoints: [{ subpath: "./geoparquet/node" }],
+    packageJson: { exports: { "./geoparquet/node": { node: "./native.mjs" } } },
+    projectRoot,
+    rootRuntimeExportCeiling: 10,
+  });
+  assert.equal(result.importCount, 1);
+  assert.deepEqual(result.failures, []);
+});

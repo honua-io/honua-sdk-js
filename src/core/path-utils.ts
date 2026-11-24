@@ -99,6 +99,18 @@ export function stripQuery(value: string): string {
 }
 
 /**
+ * Percent-encode a single URL path segment, rejecting dot segments (`.` and
+ * `..`) that `encodeURIComponent` leaves unescaped and that URL resolvers treat
+ * as path traversal.
+ */
+export function encodePathSegment(segment: string): string {
+  if (segment === "." || segment === "..") {
+    throw new Error(`Invalid path segment "${segment}": path traversal segments are not allowed.`);
+  }
+  return encodeURIComponent(segment);
+}
+
+/**
  * Encode an Esri-style `serviceId` for use as a URL path segment, preserving
  * folder structure.
  *
@@ -111,20 +123,44 @@ export function stripQuery(value: string): string {
  * special characters within a segment (spaces, `&`, etc.) are still encoded.
  *
  * A plain `serviceId` without slashes behaves exactly like
- * `encodeURIComponent(serviceId)`. Empty segments produced by leading,
- * trailing, or doubled slashes are dropped so the result never contains
- * stray `/` runs. Use {@link encodePathSegments} instead when empty segments
- * must be preserved verbatim.
+ * `encodeURIComponent(serviceId)` (while rejecting `.` and `..` traversal
+ * segments). Empty segments produced by leading, trailing, or doubled slashes
+ * are dropped so the result never contains stray `/` runs. Use
+ * {@link encodePathSegments} instead when empty segments must be preserved
+ * verbatim.
  */
 export function encodeServiceIdPath(serviceId: string): string {
-  if (!serviceId.includes("/")) {
-    return encodeURIComponent(serviceId);
+  const segments = serviceId.split("/").filter((segment) => segment.length > 0);
+  if (segments.some(isDotSegment)) {
+    throw new TypeError(`Service id "${serviceId}" must not contain "." or ".." path segments.`);
   }
-  return serviceId
-    .split("/")
-    .filter((segment) => segment.length > 0)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
+  if (!serviceId.includes("/")) {
+    return encodePathSegment(serviceId);
+  }
+  return segments.map((segment) => encodePathSegment(segment)).join("/");
+}
+
+function isDotSegment(segment: string): boolean {
+  return segment === "." || segment === "..";
+}
+
+/**
+ * Render a layer or object id as a single URL path segment.
+ *
+ * GeoServices layer and object ids are non-negative integers. A value that is
+ * not (for example a string carrying `/` or `..` from an untrusted item) would
+ * otherwise be interpolated verbatim and address a different path on the same
+ * host, so it is refused. Digit-only strings are accepted for object ids that
+ * arrive as text.
+ */
+export function numericPathSegment(value: unknown, label: string): string {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return String(value);
+  }
+  if (typeof value === "string" && /^\d{1,16}$/.test(value) && Number.isSafeInteger(Number(value))) {
+    return value;
+  }
+  throw new TypeError(`${label} must be a non-negative integer.`);
 }
 
 /**
@@ -135,17 +171,27 @@ export function encodeServiceIdPath(serviceId: string): string {
  * folder-prefixed identifiers such as `myFolder/parcels` that must serialize
  * as `myFolder/parcels` on the wire. Splitting on `/` and encoding each
  * segment keeps the separators literal while still escaping reserved
- * characters inside each segment. Empty segments (leading/trailing/double
- * slashes) are preserved verbatim so callers retain full control over the
- * resulting path shape. Use {@link encodeServiceIdPath} when empty segments
- * should instead be dropped (e.g. routable Esri service ids).
+ * characters inside each segment (and rejecting `.` and `..` traversal
+ * segments). Empty segments (leading/trailing/double slashes) are preserved
+ * verbatim so callers retain full control over the resulting path shape. Use
+ * {@link encodeServiceIdPath} when empty segments should instead be dropped
+ * (e.g. routable Esri service ids).
  */
 export function encodePathSegments(value: string): string {
   if (!value.includes("/")) {
-    return encodeURIComponent(value);
+    return encodePathSegment(value);
   }
   return value
     .split("/")
-    .map((segment) => encodeURIComponent(segment))
+    .map((segment) => (segment.length === 0 ? "" : encodePathSegment(segment)))
     .join("/");
+}
+
+/**
+ * `/rest/services/{serviceId}/{server}/{layerId}` with the service id encoded
+ * by {@link encodeServiceIdPath} and the layer id checked by
+ * {@link numericPathSegment}.
+ */
+export function restLayerPath(serviceId: string, server: "FeatureServer" | "MapServer", layerId: unknown): string {
+  return `/rest/services/${encodeServiceIdPath(serviceId)}/${server}/${numericPathSegment(layerId, "layerId")}`;
 }

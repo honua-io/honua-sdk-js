@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import featureCollectionUrl from "../../../samples/fixtures/first-map/v2/features.json?url";
 import layerDefinitionUrl from "../../../samples/fixtures/first-map/v2/layer.json?url&no-inline";
 import ogcApiDefinitionUrl from "../../../samples/fixtures/first-map/v2/ogc-api-definition.json?url&no-inline";

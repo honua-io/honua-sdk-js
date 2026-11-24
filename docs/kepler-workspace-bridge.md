@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Kepler.gl analytics workspace bridge (experimental)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js/kepler` projects an accepted Honua result, a columnar artifact, or
 a supported remote tile/imagery source into a [Kepler.gl](https://kepler.gl)
 workspace. It is experimental.
@@ -223,9 +225,9 @@ console.log(redacted, redactions.length, state);
 ## Bridge lifecycle
 
 ```ts doc-test=skip reason="requires the optional @kepler.gl/actions peer and a live Redux store"
-import { createKeplerWorkspaceBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
+import { createKeplerAppBridge, loadKeplerPeers } from "@honua/sdk-js/kepler";
 
-const bridge = createKeplerWorkspaceBridge({
+const bridge = createKeplerAppBridge({
   peers: await loadKeplerPeers({ version: "3.2.6" }),
   host: { dispatch: store.dispatch, instanceId: "ops-replay" },
 });

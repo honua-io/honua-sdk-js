@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import { ADMIN_MCP_EXCLUDED_OPERATIONS } from "@honua/sdk-js/control-plane";
+import { ADMIN_MCP_EXCLUDED_OPERATIONS } from "@honua/app-platform/control-plane";
 import { describe, expect, it } from "vitest";
 import {
   parseInstallAccessCredential,

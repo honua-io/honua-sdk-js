@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # Prebuilt browser bundle (CDN / build-less)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/sdk-js` ships ESM + TypeScript types as its canonical output, intended
 for consumption through a bundler (Vite, webpack, esbuild, Rollup) or Node.
 For static sites, quick prototypes, and CSP-strict pages that cannot run their
@@ -71,11 +73,11 @@ unpkg works the same way:
 
 The bundle is focused on the **core SDK public API** (everything re-exported
 from `src/index.ts`). Its stable-core runtime dependency,
-`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has two
-other bounded direct dependencies: `@honua/honua-migrate` backs deprecated
-migration forwarders outside the browser graph, and
-`@mapbox/jsonlint-lines-primitives@2.0.2` temporarily pins style-spec's
-existing parser. That pin originated with the earlier Node 20 compatibility
+`@maplibre/maplibre-gl-style-spec`, is bundled in. The package manifest has
+three other bounded direct dependencies: `hyparquet` and `fzstd` back the
+lazily loaded Parquet reader in `@honua/sdk-js/export`, outside the browser
+graph, and `@mapbox/jsonlint-lines-primitives@2.0.3` temporarily pins
+style-spec's existing parser. That pin originated with the earlier Node 20 compatibility
 work and remains unchanged under the current Node 22.12+ runtime requirement.
 
 The heavy runtime *peers* are kept **external** so the artifact stays small and

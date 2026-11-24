@@ -59,6 +59,7 @@ export type {
   AttachmentEditOutcome,
   AttachmentGroup,
   AttachmentInfo,
+  AttachmentDownloadUrl,
   AttachmentQuery,
   AttachmentUpdate,
   CanonicalFeature,
@@ -307,6 +308,14 @@ export type {
 export { WIDGET_SOURCE_SCHEMA_VERSION, createWidgetSource, widgetSource } from "./widget-source.js";
 
 export { EditWorkflowSession, createEditSession, normalizeEditWorkflowFailures } from "./edit-session.js";
+export { createServiceEditSession } from "./service-edit-session.js";
+export type {
+  ServiceEditSession,
+  ServiceEditSubmitOptions,
+  ServiceEditSubmitResult,
+  ServiceSourceEdits,
+  ServiceSourceEditResult,
+} from "./service-edit-session.js";
 export type {
   CreateEditSessionOptions,
   EditAttachmentMutation,
@@ -474,7 +483,7 @@ export {
   wmsSource,
   wmtsSource,
 } from "./source.js";
-export type { OdataSourceOptions, OdataWriteEncoding } from "./source.js";
+export type { GrpcLayerHandle, OdataSourceOptions, OdataWriteEncoding } from "./source.js";
 
 export type {
   IJobRun,
@@ -570,3 +579,14 @@ export type {
   TemporalSourceCapability,
   TemporalValidationIssue,
 } from "./temporal.js";
+
+export { findSources, identifySources } from "./query-helpers.js";
+export type {
+  FindOptions,
+  FindSearch,
+  FindTarget,
+  IdentifyOptions,
+  SearchOptions,
+  SearchSource,
+  SourceSearchResult,
+} from "./query-helpers.js";

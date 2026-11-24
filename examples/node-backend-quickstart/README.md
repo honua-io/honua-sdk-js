@@ -1,5 +1,7 @@
 # Node.js Backend Quickstart
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Minimal Node HTTP service that uses the Honua JavaScript SDK from a backend process. It exposes fixture-safe spatial API routes without Express or browser-only dependencies.
 
 ## Run
@@ -40,11 +42,11 @@ HONUA_API_KEY=dev-fixture-key npm run demo:node-backend
 
 ## Control-Plane Pattern
 
-Backend processes can use `@honua/sdk-js/control-plane` for hosted product administration while keeping runtime data operations on the regular SDK client:
+Backend processes can use `@honua/app-platform/control-plane` for hosted product administration while keeping runtime data operations on the regular SDK client:
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js";
-import { createHonuaControlPlane } from "@honua/sdk-js/control-plane";
+import { createHonuaControlPlane } from "@honua/app-platform/control-plane";
 
 const client = new HonuaClient({
   baseUrl: process.env.HONUA_BASE_URL ?? "https://cloud.honua.io",
@@ -52,7 +54,7 @@ const client = new HonuaClient({
 });
 const controlPlane = createHonuaControlPlane({ client });
 
-const maps = await controlPlane.hostedMaps.list({ workspaceId: process.env.HONUA_WORKSPACE_ID, limit: 20 });
+const maps = await controlPlane.maps.list({ workspaceId: process.env.HONUA_WORKSPACE_ID, limit: 20 });
 if (!maps.supported) {
   // Deployment does not expose this admin capability.
   console.warn({ capability: maps.capability, reason: maps.reason });

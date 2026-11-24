@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -7,25 +7,6 @@ async function json(path: string): Promise<Record<string, unknown>> {
 }
 
 describe("First Map portfolio convergence", () => {
-  it("keeps one executable and stable compatibility aliases", async () => {
-    const packageJson = await json("package.json");
-    const scripts = packageJson.scripts as Record<string, string>;
-    expect(scripts["demo:standalone"]).toBe("npm run demo:quickstart");
-    expect(scripts["demo:standalone:mock"]).toBe("npm run demo:quickstart:mock");
-    expect(scripts["demo:endpoint-to-map"]).toBe("npm run demo:quickstart");
-    expect(scripts["demo:endpoint-to-map:mock"]).toBe("npm run demo:quickstart:mock");
-    expect(scripts["test:playwright:standalone"]).toBe("npm run test:playwright:quickstart");
-
-    for (const directory of ["examples/standalone-quickstart", "examples/endpoint-to-map"]) {
-      const files = (await readdir(directory, { recursive: true, withFileTypes: true }))
-        .filter((entry) => entry.isFile() || entry.isSymbolicLink())
-        .map((entry) => entry.name)
-        .sort();
-      expect(files).toEqual(["README.md"]);
-      expect(await readFile(`${directory}/README.md`, "utf8")).toContain("maplibre-quickstart");
-    }
-  });
-
   it("projects First Map as the sole catalog journey without redesigning React", async () => {
     const catalog = await json("samples/catalog.v1.json");
     const samples = catalog.samples as Array<{ id: string }>;

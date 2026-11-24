@@ -1,12 +1,12 @@
 /**
- * Typed mirror of the server-produced `MapPackage` (honua-server #731). The
+ * Typed mirror of the server-produced map document. The
  * package shape is `honua_map_package.v1` — the format string is the
  * canonical version gate and the runtime loader refuses other values.
  *
  * Field names mirror the server's camelCase JSON; see
  * `/honua-server/docs/developer/AI_OPERATOR_CONTRACT.md#MapPackage` for the
  * authoritative definition. The runtime preserves unknown fields on the
- * package through `updatePackage` so minor additive changes do not break
+ * package through `updateMapDocument` so minor additive changes do not break
  * callers.
  *
  * @module
@@ -14,21 +14,21 @@
 
 import type { HonuaStyleSpecification } from "../style/specification.js";
 
-/** Canonical format string for the v1 MapPackage shape. */
-export const HONUA_MAP_PACKAGE_FORMAT_V1 = "honua_map_package.v1" as const;
+/** Canonical format string of a v1 map document. */
+export const HONUA_MAP_DOCUMENT_FORMAT_V1 = "honua_map_package.v1" as const;
 
-/** Canonical format string for the v1 MapPackage shape. */
-export type HonuaMapPackageFormat = typeof HONUA_MAP_PACKAGE_FORMAT_V1;
+/** Type of the v1 map document format string. */
+export type HonuaMapDocumentFormat = typeof HONUA_MAP_DOCUMENT_FORMAT_V1;
 
-/** Lifecycle states a MapPackage may occupy server-side. */
-export type HonuaMapPackageStatus = "Draft" | "Composing" | "Ready" | "Failed" | "Expired";
+/** Lifecycle states a map document may occupy server-side. */
+export type HonuaMapDocumentStatus = "Draft" | "Composing" | "Ready" | "Failed" | "Expired";
 
 /**
  * Server `SourceBinding.protocol` enum. Uses snake_case to match the
  * server wire format. Translated to the SDK's kebab-case `Protocol`
  * union in `source-bridge.ts`.
  */
-export type HonuaMapPackageProtocol =
+export type HonuaMapDocumentProtocol =
   | "geoservices_feature_service"
   | "geoservices_map_service"
   | "ogc_features"
@@ -44,7 +44,7 @@ export type HonuaMapPackageProtocol =
   | "workspace_artifact";
 
 /** Protocol-specific endpoint information attached to a binding. */
-export interface HonuaMapPackageLocator {
+export interface HonuaMapDocumentLocator {
   url?: string;
   serviceId?: string;
   /**
@@ -62,11 +62,11 @@ export interface HonuaMapPackageLocator {
   [extra: string]: unknown;
 }
 
-/** One inlined `SourceBinding` entry on a MapPackage. */
-export interface HonuaMapPackageSourceBinding {
+/** One inlined `SourceBinding` entry on a map document. */
+export interface HonuaMapDocumentSourceBinding {
   sourceId: string;
-  protocol: HonuaMapPackageProtocol;
-  locator: HonuaMapPackageLocator;
+  protocol: HonuaMapDocumentProtocol;
+  locator: HonuaMapDocumentLocator;
   /** Server-side filter expression (protocol-specific). */
   filter?: string;
   /** Optional free-form attribution text. */
@@ -76,7 +76,7 @@ export interface HonuaMapPackageSourceBinding {
 }
 
 /** A style reference carried inline on the package body. */
-export interface HonuaMapPackageStyleRef {
+export interface HonuaMapDocumentStyleRef {
   styleId: string;
   label?: string;
   presetId?: string;
@@ -110,7 +110,7 @@ export interface HonuaStyleRefLayerBinding {
  * Resolved `StyleRef` body. Keys name MapLibre layers; values are partial
  * layer overrides (paint/layout/minzoom/maxzoom/filter/metadata). Token
  * placeholders in the form `{theme:key}` are substituted during
- * composition from the active {@link HonuaMapPackageThemeSpec}.
+ * composition from the active {@link HonuaMapDocumentThemeSpec}.
  */
 export type HonuaStyleRefBody = Record<string, HonuaStyleRefLayerOverride>;
 
@@ -129,13 +129,13 @@ export interface HonuaStyleRefLayerOverride {
  * ramp / typography shapes can be added without breaking the runtime
  * public surface.
  */
-export interface HonuaMapPackageThemeSpec {
+export interface HonuaMapDocumentThemeSpec {
   themeId?: string;
   tokens?: Record<string, string | number>;
 }
 
 /** Initial camera / extent for the composed map. */
-export interface HonuaMapPackageInitialView {
+export interface HonuaMapDocumentInitialView {
   bbox?: readonly [number, number, number, number];
   center?: readonly [number, number];
   zoom?: number;
@@ -145,7 +145,7 @@ export interface HonuaMapPackageInitialView {
 }
 
 /** Legend swatch rendered by the runtime. */
-export interface HonuaMapPackageLegendEntry {
+export interface HonuaMapDocumentLegendEntry {
   label: string;
   color?: string;
   minValue?: number;
@@ -155,7 +155,7 @@ export interface HonuaMapPackageLegendEntry {
 }
 
 /** Popup binding surface; resolved into a click handler by the runtime. */
-export interface HonuaMapPackagePopupBinding {
+export interface HonuaMapDocumentPopupBinding {
   sourceId: string;
   /** Name of the source field to render. Optional when `template` is set. */
   fieldName?: string;
@@ -169,7 +169,7 @@ export interface HonuaMapPackagePopupBinding {
 }
 
 /** Label binding surface (v1 is pass-through metadata for the runtime). */
-export interface HonuaMapPackageLabelBinding {
+export interface HonuaMapDocumentLabelBinding {
   sourceId: string;
   fieldName: string;
   placement?: "point" | "line" | "polygon";
@@ -178,12 +178,12 @@ export interface HonuaMapPackageLabelBinding {
 /**
  * Package-level attribution the host is expected to display.
  *
- * Per-binding `attribution` on {@link HonuaMapPackageSourceBinding} stays the
+ * Per-binding `attribution` on {@link HonuaMapDocumentSourceBinding} stays the
  * source-of-record for a single service; this collection is for the
  * package-wide notices (basemap credit, licence text) that no single binding
  * owns.
  */
-export interface HonuaMapPackageAttribution {
+export interface HonuaMapDocumentAttribution {
   /** Attribution text. Plain text; hosts escape before rendering. */
   text: string;
   /** Optional link target for the attribution. */
@@ -202,7 +202,7 @@ export interface HonuaMapPackageAttribution {
  * component a breaking change to the artifact. Unknown types are carried
  * through the round trip and ignored by hosts that cannot render them.
  */
-export interface HonuaMapPackageWidget {
+export interface HonuaMapDocumentWidget {
   widgetId: string;
   /** Widget kind, e.g. `legend`, `layer-list`, `basemap-gallery`, `search`. */
   type: string;
@@ -219,7 +219,7 @@ export interface HonuaMapPackageWidget {
  * only — nothing in the SDK installs or resolves these; hosts use them to
  * report a fidelity gap before rendering rather than after.
  */
-export interface HonuaMapPackageDependency {
+export interface HonuaMapDocumentDependency {
   /** Dependency name, e.g. `maplibre-gl`, `@honua/sdk-js`, `pmtiles`. */
   name: string;
   /** semver range the package was authored against. */
@@ -238,7 +238,7 @@ export interface HonuaMapPackageDependency {
  * the SDK through #1397 / #1398; minting them here would fork the identity
  * model, which is the failure mode #1426 exists to prevent.
  */
-export interface HonuaMapPackageProvenance {
+export interface HonuaMapDocumentProvenance {
   /** Tool that produced the package, e.g. `honua-cli`, `@honua/mcp-server`. */
   generatedBy?: string;
   /** Version of that tool. */
@@ -252,15 +252,15 @@ export interface HonuaMapPackageProvenance {
 }
 
 /**
- * v1 MapPackage shape — mirrors the draft server type in
+ * v1 map document shape — mirrors the draft server type in
  * `/home/makani/honua-server/src/Honua.Core/Features/Geoprocessing/Domain/MapPackage.cs`.
- * Unknown fields are preserved through `updatePackage` round-trip so
+ * Unknown fields are preserved through `updateMapDocument` round-trip so
  * minor additive changes do not break runtime consumers.
  */
-export interface HonuaMapPackage {
+export interface HonuaMapDocument {
   mapPackageId: string;
-  format: HonuaMapPackageFormat;
-  status?: HonuaMapPackageStatus;
+  format: HonuaMapDocumentFormat;
+  status?: HonuaMapDocumentStatus;
   createdAt?: string;
   updatedAt?: string;
   /** Optional server retention / hosting expiry timestamp. */
@@ -269,11 +269,11 @@ export interface HonuaMapPackage {
   templateId?: string;
   themeId?: string;
   /** Optional inline theme body. Overrides out-of-band theme lookup. */
-  theme?: HonuaMapPackageThemeSpec;
+  theme?: HonuaMapDocumentThemeSpec;
   previewArtifactId?: string;
 
-  sourceBindings: readonly HonuaMapPackageSourceBinding[];
-  styleRefs?: readonly HonuaMapPackageStyleRef[];
+  sourceBindings: readonly HonuaMapDocumentSourceBinding[];
+  styleRefs?: readonly HonuaMapDocumentStyleRef[];
 
   /**
    * MapLibre-compatible style document. The runtime composes style-ref
@@ -282,20 +282,20 @@ export interface HonuaMapPackage {
    */
   mapSpec: HonuaStyleSpecification;
 
-  initialView?: HonuaMapPackageInitialView;
-  legend?: readonly HonuaMapPackageLegendEntry[];
-  popupBindings?: readonly HonuaMapPackagePopupBinding[];
-  labelBindings?: readonly HonuaMapPackageLabelBinding[];
+  initialView?: HonuaMapDocumentInitialView;
+  legend?: readonly HonuaMapDocumentLegendEntry[];
+  popupBindings?: readonly HonuaMapDocumentPopupBinding[];
+  labelBindings?: readonly HonuaMapDocumentLabelBinding[];
   boundArtifacts?: readonly string[];
 
   /** Package-wide attribution notices. */
-  attribution?: readonly HonuaMapPackageAttribution[];
+  attribution?: readonly HonuaMapDocumentAttribution[];
   /** Renderer-neutral widgets/components declared by the package. */
-  widgets?: readonly HonuaMapPackageWidget[];
+  widgets?: readonly HonuaMapDocumentWidget[];
   /** External capabilities required to render at full fidelity. */
-  dependencies?: readonly HonuaMapPackageDependency[];
+  dependencies?: readonly HonuaMapDocumentDependency[];
   /** How the package was produced. Descriptive; carries no identity. */
-  provenance?: HonuaMapPackageProvenance;
+  provenance?: HonuaMapDocumentProvenance;
 
   /** Preserve additive fields through round-trip without forcing a type bump. */
   [extra: string]: unknown;

@@ -12,7 +12,7 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/nl-map-control/index.ts"),
       },
       // Subpath aliases come first so the prefix-matching parent
-      // aliases below cannot rewrite `@honua/sdk-js/operator/<sub>`
+      // aliases below cannot rewrite `@honua/app-platform/operator/<sub>`
       // into `src/operator/index.ts/<sub>` (which is a nonexistent
       // path). Each must be an exact-suffix entry pointing at the
       // matching `index.ts` for that subpath export.
@@ -25,39 +25,39 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/studio-agent/index.ts"),
       },
       {
-        find: "@honua/sdk-js/operator/controllers",
+        find: "@honua/app-platform/operator/controllers",
         replacement: path.resolve(import.meta.dirname, "src/operator/controllers/index.ts"),
       },
       {
-        find: "@honua/sdk-js/operator/workspace",
+        find: "@honua/app-platform/operator/workspace",
         replacement: path.resolve(import.meta.dirname, "src/operator/workspace/index.ts"),
       },
       {
-        find: "@honua/sdk-js/operator/theming",
+        find: "@honua/app-platform/operator/theming",
         replacement: path.resolve(import.meta.dirname, "src/operator/theming/index.ts"),
       },
       {
-        find: "@honua/sdk-js/operator/i18n",
+        find: "@honua/app-platform/operator/i18n",
         replacement: path.resolve(import.meta.dirname, "src/operator/i18n/index.ts"),
       },
       {
-        find: "@honua/sdk-js/app-workspace",
+        find: "@honua/app-platform/app-workspace",
         replacement: path.resolve(import.meta.dirname, "src/app-workspace/index.ts"),
       },
       {
-        find: "@honua/sdk-js/app-controller",
+        find: "@honua/app-platform/app-controller",
         replacement: path.resolve(import.meta.dirname, "src/app-controller/index.ts"),
       },
       {
-        find: "@honua/sdk-js/app",
+        find: "@honua/app-platform/app",
         replacement: path.resolve(import.meta.dirname, "src/app/index.ts"),
       },
       {
-        find: "@honua/sdk-js/scene-workspace",
+        find: "@honua/app-platform/scene-workspace",
         replacement: path.resolve(import.meta.dirname, "src/scene-workspace/index.ts"),
       },
       {
-        find: "@honua/sdk-js/control-plane",
+        find: "@honua/app-platform/control-plane",
         replacement: path.resolve(import.meta.dirname, "src/control-plane/index.ts"),
       },
       {
@@ -113,11 +113,11 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/query-planner/index.ts"),
       },
       {
-        find: "@honua/sdk-js/controls",
+        find: "@honua/app-platform/controls",
         replacement: path.resolve(import.meta.dirname, "src/controls/index.ts"),
       },
       {
-        find: "@honua/sdk-js/collaboration",
+        find: "@honua/app-platform/collaboration",
         replacement: path.resolve(import.meta.dirname, "src/collaboration/index.ts"),
       },
       {
@@ -133,7 +133,7 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/geometry/index.ts"),
       },
       {
-        find: "@honua/sdk-js/generated-app",
+        find: "@honua/app-platform/generated-app",
         replacement: path.resolve(import.meta.dirname, "src/generated-app/index.ts"),
       },
       {
@@ -149,7 +149,7 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/realtime/index.ts"),
       },
       {
-        find: "@honua/sdk-js/operator",
+        find: "@honua/app-platform/operator",
         replacement: path.resolve(import.meta.dirname, "src/operator/index.ts"),
       },
       {
@@ -157,12 +157,20 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/runtime/index.ts"),
       },
       {
-        find: "@honua/sdk-js/web-components",
+        find: "@honua/app-platform/web-components",
         replacement: path.resolve(import.meta.dirname, "src/web-components/index.ts"),
       },
       {
         find: "@honua/sdk-js/react",
         replacement: path.resolve(import.meta.dirname, "src/react/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/geoparquet",
+        replacement: path.resolve(import.meta.dirname, "src/geoparquet/index.ts"),
+      },
+      {
+        find: "@honua/sdk-js/source-schema",
+        replacement: path.resolve(import.meta.dirname, "src/source-schema.ts"),
       },
       {
         find: "@honua/sdk-js",
@@ -177,7 +185,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["src/**/*.ts", "examples/maplibre-quickstart/src/**/*.ts", "examples/storytelling-25d-map/src/**/*.ts"],
+      include: ["src/**/*.ts", "examples/maplibre-quickstart/src/**/*.ts"],
       exclude: [
         "dist/**",
         "src/gen/**",

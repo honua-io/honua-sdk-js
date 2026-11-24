@@ -30,6 +30,7 @@ const TERMINAL_PULL_REQUEST_STATES = new Set(["open", "closed"]);
 // other inconsistency stays a hard Error.
 const SUPERSEDED_SOURCE_RUN = "superseded-source-run";
 const SUPERSEDE_REASONS = new Set([
+  "source-run-cancelled-before-jobs",
   "pull-request-association-withdrawn",
   "source-run-head-superseded",
   "pull-request-head-moved",
@@ -129,6 +130,13 @@ async function resolveTrustedPullRequestWorkflowRun({
     attempt_number: expectedAttempt,
     per_page: 100,
   });
+  if (run.conclusion === "cancelled" && jobs.length === 0) {
+    throw new SupersededSourceRunError("source-run-cancelled-before-jobs", {
+      runId: id,
+      runAttempt: expectedAttempt,
+      runHeadSha: run.head_sha,
+    });
+  }
   const canonicalJobs = jobs.filter(
     (job) =>
       job.run_id === id &&

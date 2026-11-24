@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createSpatialAnalyticsKeplerHandoff } from "../examples/spatial-analytics-workbench/src/kepler-handoff.js";
-import { createKeplerWorkspaceBridge } from "../src/kepler/index.js";
+import { createKeplerAppBridge } from "../src/kepler/index.js";
 
 describe("Kepler cloud-native analytics handoff", () => {
   it("opens the accepted #547 fixture result through the reusable bridge", async () => {
     const handoff = await createSpatialAnalyticsKeplerHandoff();
-    const bridge = createKeplerWorkspaceBridge({
+    const bridge = createKeplerAppBridge({
       peers: {
         version: "3.2.6",
         addDataToMap: (payload) => ({ type: "kepler/addDataToMap", payload }),

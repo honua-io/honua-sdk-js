@@ -11,6 +11,7 @@ import {
   type CesiumEntityRuntimeModule,
   type CesiumEntityTimeOptions,
   mountSourceToCesium,
+  normalizeCesiumPick,
   projectSourceToCesium,
 } from "../src/scene-workspace/index.js";
 // Not on the barrel: the fingerprint helper is internal, and its fail-closed
@@ -30,9 +31,10 @@ const context = {
   schemaVersion: "schema-3",
   authorizationScope: ["units:read"],
 } as const;
+const query: Query = { pagination: { limit: 100 }, returnGeometry: true, outSr: 4326 };
 const plan = explainQuery({
   descriptor,
-  query: { pagination: { limit: 100 }, returnGeometry: true, outSr: 4326 },
+  query,
   ...context,
 });
 const firstResult: Result<Record<string, unknown>> = {
@@ -52,6 +54,26 @@ const firstResult: Result<Record<string, unknown>> = {
 };
 
 describe("projectSourceToCesium", () => {
+  it("uses the canonical source for picking projected entities and safely handles malformed IDs", () => {
+    const sourceDescriptor = { ...descriptor, id: "My Source:42" };
+    const source = fakeSource([firstResult], sourceDescriptor);
+    const sourcePlan = explainQuery({ descriptor: sourceDescriptor, query, ...context });
+    const projection = projectSourceToCesium(source, sourcePlan, firstResult, {
+      verticalDatum: "ellipsoidal-wgs84",
+    });
+    const entity = projection.entities[0]!;
+    expect(entity.id).toBe("honua-my-source-42:s:medic%2F1");
+    const options = { defaultSourceId: sourceDescriptor.id };
+    expect(normalizeCesiumPick({ id: entity }, options)).toMatchObject({
+      selectionTarget: { sourceId: "My Source:42", id: "medic/1" },
+    });
+    expect(
+      normalizeCesiumPick({ id: { id: "honua-my-source-42:s:%XX", properties: { id: 98 } } }, options),
+    ).toMatchObject({
+      selectionTarget: { sourceId: "My Source:42", id: 98 },
+    });
+  });
+
   it("projects bounded WGS84 entities with stable identity, elevation, intervals, and fidelity diagnostics", () => {
     const source = fakeSource([firstResult]);
     const projection = projectSourceToCesium(source, plan, firstResult, {

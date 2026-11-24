@@ -30,11 +30,16 @@ import type {
 } from "../../control-plane/index.js";
 import { connectionTestCommand, importCreateCommand } from "../../control-plane/index.js";
 import type { ParsedArgs } from "../args.js";
-import { ArgError, getString } from "../args.js";
+import { ArgError, getBoolean, getString } from "../args.js";
 import { cliCommandInvocation, runCommandVerb } from "../command-adapter.js";
 import type { CommandContext } from "../command.js";
+import { resolveConnection } from "../config.js";
+import { printLine, renderDetail, renderJson } from "../output.js";
 
-const CONNECTION_USAGE = "Usage: honua connection test <connectionId> [--dry-run] [--yes]";
+const CONNECTION_USAGE =
+  "Usage:\n" +
+  "  honua connection test <connectionId> [--dry-run] [--yes]\n" +
+  "  honua connection add --kind object-storage [--id <connectionId>] [--bucket <name>] [--prefix <path>] [--region <region>] [--endpoint <url>] [--dry-run] [--yes]";
 const IMPORT_USAGE =
   "Usage: honua import create --source-kind <kind> --source-url <url> " +
   "[--workspace <id>] [--title <text>] [--options <json|@file>] [--dry-run] [--yes]";
@@ -90,10 +95,92 @@ export function importCreateInvocation(parsed: ParsedArgs): {
   };
 }
 
+/** Build the non-secret quick-create console URL for adding an object-storage connection. */
+export function buildObjectStorageQuickCreateUrl(baseUrl: string, parsed: ParsedArgs): string {
+  let end = baseUrl.length;
+  while (baseUrl[end - 1] === "/") end--;
+  const normalized = baseUrl.slice(0, end);
+  const url = new URL(`${normalized}/console/connections/new`);
+  url.searchParams.set("kind", "object-storage");
+  for (const key of ["bucket", "prefix", "region", "endpoint", "workspace"] as const) {
+    const value = getString(parsed, key);
+    if (value) url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+async function connectionAddCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
+  const kind = getString(parsed, "kind");
+  if (kind !== "object-storage") {
+    throw new ArgError("honua connection add currently supports `--kind object-storage`.");
+  }
+  const resolved = resolveConnection(ctx);
+  const quickCreateUrl = buildObjectStorageQuickCreateUrl(resolved.baseUrl, parsed);
+  const connectionId = getString(parsed, "id") ?? parsed.positionals[0];
+  const json = getBoolean(parsed, "json");
+
+  if (!json) {
+    printLine(
+      renderDetail(
+        {
+          kind: "object-storage",
+          quickCreateUrl,
+          ...(connectionId ? { connectionId } : {}),
+        },
+        { title: "Add object-storage connection" },
+      ),
+    );
+  }
+
+  if (!connectionId) {
+    if (json) {
+      printLine(renderJson({ kind: "object-storage", quickCreateUrl, tested: false }));
+    } else {
+      printLine(
+        "\nOpen the quick-create link to authorize object storage, then test it with:\n  honua connection test <connectionId> --yes",
+      );
+    }
+    return;
+  }
+
+  const probeParsed: ParsedArgs = { positionals: [connectionId], flags: parsed.flags };
+  const { input, invocation } = connectionTestInvocation(probeParsed);
+  if (json) {
+    const runtime = (await import("../client.js")).createCommandRuntime(ctx);
+    if (!invocation.dryRun && !getBoolean(parsed, "yes")) {
+      throw new ArgError(
+        "honua connection add --id <connectionId> probes the connection. Re-run with --yes, or preview with --dry-run.",
+      );
+    }
+    const receipt = await runtime.execute(connectionTestCommand, input, invocation);
+    printLine(renderJson({ kind: "object-storage", quickCreateUrl, tested: true, receipt }));
+    return;
+  }
+
+  await runCommandVerb({
+    command: connectionTestCommand,
+    input,
+    invocation,
+    parsed: probeParsed,
+    ctx,
+    heading: connectionTestHeading,
+    confirm:
+      "honua connection add --id <connectionId> issues a server-side probe. Re-run with --yes, or preview with --dry-run.",
+    detail: (receipt) => ({
+      connection: receipt.resourceRef?.id ?? "(unknown)",
+      reachable: reachabilityLabel(receipt.status),
+    }),
+  });
+}
+
 export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const sub = parsed.positionals[0];
-  if (sub !== "test") throw new ArgError(CONNECTION_USAGE);
   const rest: ParsedArgs = { positionals: parsed.positionals.slice(1), flags: parsed.flags };
+  if (sub === "add") {
+    await connectionAddCommand(rest, ctx);
+    return;
+  }
+  if (sub !== "test") throw new ArgError(CONNECTION_USAGE);
   const { input, invocation } = connectionTestInvocation(rest);
   await runCommandVerb({
     command: connectionTestCommand,

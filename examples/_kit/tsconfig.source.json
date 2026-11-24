@@ -12,7 +12,7 @@
     "types": ["vite/client"],
     "paths": {
       "@honua/sdk-js": ["src/index.ts"],
-      "@honua/sdk-js/app-workspace": ["src/_deprecated/app-workspace.ts"],
+      "@honua/app-platform/app-workspace": ["src/app-workspace/index.ts"],
       "@honua/sdk-js/cog": ["src/cog/index.ts"],
       "@honua/sdk-js/client-compat": ["src/client-compat-entry.ts"],
       "@honua/sdk-js/contract": ["src/contract/index.ts"],
@@ -25,7 +25,7 @@
       "@honua/sdk-js/query-planner": ["src/query-planner/index.ts"],
       "@honua/sdk-js/runtime": ["src/runtime/index.ts"],
       "@honua/sdk-js/style": ["src/style/index.ts"],
-      "@honua/sdk-js/web-components": ["src/_deprecated/web-components.ts"]
+      "@honua/app-platform/web-components": ["src/web-components/index.ts"]
     }
   }
 }

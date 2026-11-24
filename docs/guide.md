@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/sdk-js"
 ---
 # `@honua/sdk-js` reference guide
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This long-form guide collects the runnable demos, server compatibility contract,
 subpath entrypoints, protocol-specific cookbooks, MapLibre runtime, request/auth
 bridge, migration CLI, and other reference material that used to live in the
@@ -24,7 +26,7 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 ### Core surfaces
 - [Shared client contract and exploration](#shared-client-contract-and-exploration)
 - [Standalone data-to-map bridge](#standalone-data-to-map-bridge)
-- [MapLibre GL JS runtime for `MapPackage`](#maplibre-gl-js-runtime-for-mappackage)
+- [MapLibre GL JS runtime for `HonuaMapDocument`](#maplibre-gl-js-runtime-for-honuamapdocument)
 - [Generated app preview runtime](#generated-app-preview-runtime)
 - [Request/auth bridge](#requestauth-bridge)
 - [Streaming pagination](#streaming-pagination)
@@ -52,15 +54,8 @@ project README. Skim the [README](../README.md) for the 60-second tour and the
 > unsupported, the query returns no features, or none of the returned records survive
 > conversion into the rendered point, line, or polygon geometry buckets.
 
-- [`examples/maplibre-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/maplibre-quickstart/README.md): committed MapLibre quickstart app with a deterministic fixture-backed mock lane, one compatibility check, one read-only feature query, popup inspection, browser telemetry, and a matching staging integration suite that reuses the same compatibility-plus-query data-loading path.
-- [`examples/react-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/react-quickstart/README.md): `@honua/react` quickstart — `HonuaProvider` + `useDataset`/`useQuery`/`useCapabilities` hooks and a `HonuaMap`/`HonuaLayer`/`HonuaPopup` composition over the same deterministic fixture lane, booted under React StrictMode.
-- [`examples/storytelling-25d-map/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/storytelling-25d-map/README.md): legacy `2.5D` storytelling lab retained for its focused extrusion and route-replay interactions; public 2.5D publication routes converge on the Imagery and Terrain journey.
-- [`examples/imagery-cog-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/imagery-cog-quickstart/README.md): canonical accessible MapLibre Imagery and Terrain candidate for bounded STAC/COG inspection, WMS/ImageServer comparison, Terrain-RGB 2.5D context, point elevation, and route profiles, with explicit fidelity and degradation receipts plus a scheduled pinned public evidence lane.
-- [`examples/spatial-analytics-workbench/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/spatial-analytics-workbench/README.md): Honua Cloud analytics workbench for AOI jobs, materialized outputs, linked map/table/chart state, and fixture-backed indexed aggregation cells plus category/histogram/range widgets.
-- [`examples/edit-workflow-demo/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/edit-workflow-demo/README.md): Honua Cloud editing workflow for metadata-backed forms, optimistic create/update/delete, rollback diagnostics, conflicts, relationships, and attachment lifecycle checks over shared map/table/form context.
-- [`examples/geocoding-quickstart/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/geocoding-quickstart/README.md): MapLibre geocoding sample for forward geocoding, reverse lookup from a clicked point, typeahead suggestions, and GeocodeServer audit mapping through `HonuaGeocodingClient`.
-- [`examples/terrain-rgb-elevation/`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/terrain-rgb-elevation/README.md): legacy focused Terrain-RGB proof retained while its public point/profile and 2.5D route converges on the credential-safe Imagery and Terrain journey.
-- [`docs/examples/cesium-route-playback/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/examples/cesium-route-playback/README.md): exploratory Cesium route-playback spike that consumes one bounded Honua `FeatureServer/query` response, keeps the preprocessing steps explicit, and stays outside the SDK's `SceneViewCompat` and WebMap 3D support contract.
+The [examples index](../examples/README.md) lists every runnable example once, grouped by capability, with
+whether it runs on fixtures or a live server.
 
 Each example README documents its own env surface, network contract, browser telemetry hooks, run lanes, accepted data
 contracts, live-query narrowing rules, preprocessing rules, and browser diagnostics.
@@ -73,23 +68,11 @@ npm install
 # Run either mock server in its own terminal/session.
 npm run demo:quickstart:mock
 # or
-npm run demo:25d:mock
-# or
 npm run demo:geocoding:mock
 ```
 
-The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT`, the 2.5D command prints
-`story25dMockUrl=http://127.0.0.1:PORT`, and the geocoding command prints
+The quickstart command prints `quickstartMockUrl=http://127.0.0.1:PORT` and the geocoding command prints
 `geocodingMockUrl=http://127.0.0.1:PORT`.
-
-Live Honua flow for the `2.5D` demo:
-
-```bash
-cp examples/storytelling-25d-map/.env.example examples/storytelling-25d-map/.env
-npm run demo:25d
-```
-
-Use the linked example READMEs for the `2.5D` collection contract, the Cesium live-query URL parameters, custom `routeIdField` matching and multi-route selection rules, terrain fallback behavior, and smoke-test globals.
 
 ## Server Compatibility Baseline
 
@@ -164,18 +147,18 @@ Prefer subpath entrypoints to keep Honua-first and migration layers separate:
 - Migration tooling: `@honua/honua-migrate` (`@honua/sdk-js/migration` is a deprecated forwarder)
 - Canonical shared client contract: `@honua/sdk-js/contract`
 - Exploration state + linked-view presets: `@honua/sdk-js/exploration`
-- MapLibre GL JS runtime for `MapPackage`: `@honua/sdk-js/runtime`
+- MapLibre GL JS runtime for `HonuaMapDocument`: `@honua/sdk-js/runtime`
 - React bindings (provider, hooks, map components): `@honua/sdk-js/react` — see [`docs/react.md`](./react.md)
 - Client-side geometry ops + reprojection (curated turf/proj4): `@honua/sdk-js/geometry` — see [`docs/geometry.md`](./geometry.md)
 - Agent tool surface (bounded JSON-Schema map tools + executor, MCP/OpenAI compatible; stable tier): `@honua/sdk-js/agent-tools` — see the [agent-safety threat model](./agent-safety-threat-model.md)
 - Agent safety boundary (signed approvals, effect budgets, single-use consumption, receipts; stable tier): `@honua/sdk-js/agent-safety` — see [`docs/agent-safety.md`](./agent-safety.md) and the [threat model](./agent-safety-threat-model.md)
 - Natural-language map control (plan-first, BYO LLM, approval envelopes, receipts): `@honua/sdk-js/nl-map-control` — see [`docs/nl-map-control.md`](./nl-map-control.md)
 - Provider-pluggable geocoding (Nominatim/Photon/Pelias/Honua) + routing (OSRM/Valhalla/Honua): `@honua/sdk-js/geocoding`, `@honua/sdk-js/routing` — see [`docs/geocoding-routing-providers.md`](./geocoding-routing-providers.md)
-- Generated operations-dashboard manifest projection and preview runtime: `@honua/sdk-js/generated-app`
-- Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/sdk-js/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
+- Generated operations-dashboard manifest projection and preview runtime: `@honua/app-platform/generated-app`
+- Studio package-family projections, validation/preview envelopes, capability manifest, and publish/share/embed contracts (MCP/QGIS-safe): `@honua/app-platform/studio` — see [`docs/studio-package-contracts.md`](./studio-package-contracts.md)
 
 The root entrypoint (`@honua/sdk-js`) remains available as an aggregate export for compatibility. Surfaces documented
-as subpath-only, including `@honua/sdk-js/generated-app`, should be imported from their named subpath.
+as subpath-only, including `@honua/app-platform/generated-app`, should be imported from their named subpath.
 
 ## Shared Client Contract And Exploration
 
@@ -215,7 +198,7 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
 - Capability coverage per protocol: [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md).
 - Cross-SDK semantic alignment for JS/Python/.NET language bindings:
   [`docs/sdk-surface-alignment.md`](./sdk-surface-alignment.md).
-- Round-trip mapping to the server `SourceBinding` / `MapPackage` document:
+- Round-trip mapping to the server `SourceBinding` / `HonuaMapDocument` document:
   [`docs/source-binding-alignment.md`](./source-binding-alignment.md).
 
 ```ts doc-test=compile
@@ -258,7 +241,7 @@ Capability misses throw `HonuaCapabilityNotSupportedError` (under `strict` polic
 ## Standalone Data-To-Map Bridge
 
 `mountSource(map, source, options)` from `@honua/sdk-js/map` (`@experimental`) mounts any contract
-`Source` as a live, styled MapLibre layer set with no MapPackage and no Honua server — the standalone
+`Source` as a live, styled MapLibre layer set with no map document and no Honua server — the standalone
 slice of the kernel ADR's `connection.mount(target)` contract. The bridge selects bounded GeoJSON
 materialization or the dynamic query-tile path from declared capabilities plus a result-size heuristic,
 applies geometry-appropriate default styling, wires optional click popups and hover feature-state, and
@@ -266,10 +249,11 @@ returns one disposable handle whose `setFilter()`/`refresh()` diff-update in pla
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import * as maplibregl from "maplibre-gl";
-import { connect } from "@honua/sdk-js";
+import { createHonua } from "@honua/sdk-js";
 import { mountSource } from "@honua/sdk-js/map";
 
-const data = await connect({ endpoint: FEATURE_LAYER_URL, protocol: "auto", authorizationScopeFingerprint: "public" });
+await using honua = createHonua();
+const data = await honua.connect(FEATURE_LAYER_URL);
 const mounted = await mountSource(map, data.source(), {
   popup: { factory: () => new maplibregl.Popup() },
   hover: true,
@@ -287,9 +271,9 @@ mounted.dispose();
   `clusterRenderer` on `/style`), `mountSource({ renderer })` + `setRenderer()` swaps, and temporal
   playback (`createTemporalPlayback` on `/map`): [`docs/renderers.md`](./renderers.md).
 
-## MapLibre GL JS Runtime For `MapPackage`
+## MapLibre GL JS Runtime For `HonuaMapDocument`
 
-`@honua/sdk-js/runtime` binds a server-produced `MapPackage` to a
+`@honua/sdk-js/runtime` binds a server-produced `HonuaMapDocument` to a
 caller-provided `maplibre-gl.Map`. It composes the style from `mapSpec` + `styleRefs[]` + `theme` tokens,
 projects `sourceBindings[]` through the `@honua/sdk-js/contract` adapters, and exposes an operational API
 that mixed-protocol composition and operator components build on. The runtime never instantiates the map (`maplibre-gl`
@@ -298,28 +282,28 @@ stays a peer dependency) and never issues edit writes.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import * as maplibregl from "maplibre-gl";
 import { HonuaClient } from "@honua/sdk-js/honua";
-import { loadMapPackage } from "@honua/sdk-js/runtime";
+import { loadMapDocument } from "@honua/sdk-js/runtime";
 
 const map = new maplibregl.Map({ container: "map", style: { version: 8, sources: {}, layers: [] } });
-const runtime = await loadMapPackage(pkg, map, {
+const runtime = await loadMapDocument(pkg, map, {
   client: new HonuaClient({ baseUrl: "https://your-honua-server.example" }),
   popupFactory: () => new maplibregl.Popup(),
 });
 
 runtime.setLayerVisibility("parcels-fill", true);
 runtime.bindPopup("parcels-fill");
-await runtime.updatePackage(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
+await runtime.updateMapDocument(nextPkg);  // diffs by stable ids, falls back to setStyle on structural change
 runtime.dispose();
 ```
 
 - Full runtime reference: [`docs/maplibre-runtime.md`](./maplibre-runtime.md).
 - Protocol routing (server `SourceBinding` → MapLibre / contract adapter):
   [`docs/source-binding-alignment.md`](./source-binding-alignment.md#runtime-consumer-honuasdk-jsruntime).
-- `MapPackage` format tag: `honua_map_package.v1`. The loader throws
-  `HonuaMapPackageError { stage: "load" }` on any other value, and `updatePackage` rejects format
+- `HonuaMapDocument` format tag: `honua_map_package.v1`. The loader throws
+  `HonuaMapDocumentError { stage: "load" }` on any other value, and `updateMapDocument` rejects format
   mismatches without mutating the map.
 
-Binding failures throw `HonuaMapPackageError` with a `stage` of
+Binding failures throw `HonuaMapDocumentError` with a `stage` of
 `"load" | "update" | "style-compose" | "source-bind" | "view" | "popup" | "dispose"` under the opt-in
 `sourceErrorPolicy: "fail-fast"`. Under the default `"tolerant"` policy a single per-source binding
 failure does not abort the load — the failed source is dropped from the composed style along with any
@@ -338,13 +322,13 @@ entries (now carrying optional `sourceId`) for per-source attribution. Full comp
 
 ## Generated App Preview Runtime
 
-`@honua/sdk-js/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
-canonical `BuildSpec`, `AppPackage.manifest_artifact`, and `MapPackage` inputs into a versioned
+`@honua/app-platform/generated-app` is the browser-safe proof slice for generated operations dashboards. It projects
+canonical `BuildSpec`, `AppVersion.manifest_artifact`, and `HonuaMapDocument` inputs into a versioned
 `honua_generated_app_manifest.v1` manifest with the `operations-dashboard.v1` profile, then binds the generated
 map/table or list/count/chart/filter widgets through `@honua/sdk-js/runtime` and the shared `ExplorationContext`.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import { previewGeneratedApp } from "@honua/sdk-js/generated-app";
+import { previewGeneratedApp } from "@honua/app-platform/generated-app";
 
 const preview = await previewGeneratedApp(
   { appPackage, mapPackage },
@@ -365,8 +349,8 @@ The preview response is a discriminated union: ready responses include the resol
 render model, and `errors: []`; error responses include serializable `HonuaGeneratedAppDiagnostic` objects and never
 throw from `previewGeneratedApp`. Call `loadGeneratedAppRuntime` directly when the host wants exceptions. Full
 contract reference: [`docs/generated-app-runtime.md`](./generated-app-runtime.md). For map-backed manifests,
-the host must provide a `MapPackage`, `mapFactory`, and `mapLoadOptions`; when `manifest.mapPackageId` is present,
-the supplied `MapPackage.mapPackageId` must match before map construction. Map filter bindings use the widget
+the host must provide a `HonuaMapDocument`, `mapFactory`, and `mapLoadOptions`; when `manifest.mapPackageId` is present,
+the supplied `HonuaMapDocument.mapPackageId` must match before map construction. Map filter bindings use the widget
 `layerId` with `manifest.bindings.layerId` as fallback, and failed initial feature loads dispose partially loaded map
 resources before returning an error result.
 

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { NlCompletionRequest, NlCompletionResponse } from "../../src/nl-map-control/index.js";
+import type { NlCompletionRequest, NlCompletionResponse } from "@honua/sdk-js/nl-map-control";
 export type LiveModelResponse = NlCompletionResponse & {
   readonly clarification?: string;
   readonly modelIdentity?: { readonly provider: string; readonly model: string };

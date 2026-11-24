@@ -1,5 +1,5 @@
 /**
- * `MapPackage` validation.
+ * `HonuaMapDocument` validation.
  *
  * The *structural* rules — which properties exist, which are required, which
  * scalar types and enum members are legal, how long a string may be — are not
@@ -22,12 +22,12 @@
 import type { HonuaStyleSpecification } from "../style/specification.js";
 import { HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS } from "./generated/map-package-schema-meta.js";
 import validateAgainstSchema from "./generated/map-package-schema-validator.js";
-import type { HonuaMapPackage, HonuaStyleRefBody } from "./map-package.js";
+import type { HonuaMapDocument, HonuaStyleRefBody } from "./map-package.js";
 import { readStyleLayerBindings, validateBoundStyleBody, validateStyleBindingTargets } from "./style-ref-bindings.js";
 
-export type HonuaMapPackageDiagnosticSeverity = "error" | "warning";
+export type HonuaMapDocumentDiagnosticSeverity = "error" | "warning";
 
-export type HonuaMapPackageDiagnosticCode =
+export type HonuaMapDocumentDiagnosticCode =
   | "invalid-package"
   | "unsupported-format"
   | "missing-map-package-id"
@@ -46,25 +46,25 @@ export type HonuaMapPackageDiagnosticCode =
   | "style-ref-unresolved"
   | "style-ref-resolution-failed";
 
-export interface HonuaMapPackageDiagnostic {
-  readonly code: HonuaMapPackageDiagnosticCode;
-  readonly severity: HonuaMapPackageDiagnosticSeverity;
+export interface HonuaMapDocumentDiagnostic {
+  readonly code: HonuaMapDocumentDiagnosticCode;
+  readonly severity: HonuaMapDocumentDiagnosticSeverity;
   readonly message: string;
   readonly packageId?: string;
   readonly path?: string;
   readonly detail?: unknown;
 }
 
-export interface ValidateMapPackageOptions {
+export interface ValidateMapDocumentOptions {
   /** Wall-clock used for stale / expired diagnostics. Defaults to `Date.now()`. */
   readonly now?: number | Date;
   /** Emit a `stale-package` warning when `updatedAt` / `createdAt` is older than this many ms. */
   readonly maxAgeMs?: number;
 }
 
-export interface ValidateMapPackageResult {
-  readonly mapPackage: HonuaMapPackage | undefined;
-  readonly diagnostics: readonly HonuaMapPackageDiagnostic[];
+export interface ValidateMapDocumentResult {
+  readonly mapPackage: HonuaMapDocument | undefined;
+  readonly diagnostics: readonly HonuaMapDocumentDiagnostic[];
   readonly valid: boolean;
 }
 
@@ -106,18 +106,18 @@ type SchemaValidator = typeof validateAgainstSchema & { errors?: readonly Schema
  * The codes predate the schema and are part of the public surface, so the
  * mapping is explicit rather than derived: hosts switch on these strings.
  */
-function schemaErrorToDiagnostic(error: SchemaValidationError): Omit<HonuaMapPackageDiagnostic, "packageId"> {
+function schemaErrorToDiagnostic(error: SchemaValidationError): Omit<HonuaMapDocumentDiagnostic, "packageId"> {
   const path = jsonPointerToPath(error.instancePath ?? "");
   const missing = error.params?.missingProperty;
   const fullPath = missing ? (path ? `${path}.${missing}` : missing) : path;
   const detail = { schemaPath: error.schemaPath, keyword: error.keyword, params: error.params };
-  const message = `MapPackage does not satisfy honua-map-package.v1 at ${fullPath || "(root)"}${
+  const message = `Map document does not satisfy honua-map-package.v1 at ${fullPath || "(root)"}${
     error.message ? `: ${error.message}` : ""
   }.`;
   return { code: schemaErrorCode(fullPath, missing), severity: "error", message, path: fullPath || undefined, detail };
 }
 
-function schemaErrorCode(fullPath: string, missing: string | undefined): HonuaMapPackageDiagnosticCode {
+function schemaErrorCode(fullPath: string, missing: string | undefined): HonuaMapDocumentDiagnosticCode {
   if (fullPath === "mapPackageId") return "missing-map-package-id";
   if (fullPath === "format") return "unsupported-format";
   if (fullPath === "sourceBindings") return "missing-source-bindings";
@@ -145,23 +145,26 @@ function jsonPointerToPath(pointer: string): string {
 }
 
 /**
- * Validate the server-produced `MapPackage` wire shape and runtime binding
+ * Validate the server-produced `HonuaMapDocument` wire shape and runtime binding
  * assumptions without throwing raw JSON/type errors. Diagnostics are
  * stable-enough for hosts to show or log directly.
  */
-export function validateMapPackage(value: unknown, options: ValidateMapPackageOptions = {}): ValidateMapPackageResult {
-  const diagnostics: HonuaMapPackageDiagnostic[] = [];
+export function validateMapDocument(
+  value: unknown,
+  options: ValidateMapDocumentOptions = {},
+): ValidateMapDocumentResult {
+  const diagnostics: HonuaMapDocumentDiagnostic[] = [];
   if (!isRecord(value)) {
     diagnostics.push({
       code: "invalid-package",
       severity: "error",
-      message: "MapPackage response must be a JSON object.",
+      message: "Map document response must be a JSON object.",
     });
     return { mapPackage: undefined, diagnostics, valid: false };
   }
 
   const packageId = typeof value.mapPackageId === "string" ? value.mapPackageId : undefined;
-  const add = (diagnostic: Omit<HonuaMapPackageDiagnostic, "packageId">): void => {
+  const add = (diagnostic: Omit<HonuaMapDocumentDiagnostic, "packageId">): void => {
     diagnostics.push({ ...(packageId ? { packageId } : {}), ...diagnostic });
   };
 
@@ -240,20 +243,20 @@ export function validateMapPackage(value: unknown, options: ValidateMapPackageOp
 
   validateLifecycle(add, value, options);
 
-  const valid = !hasMapPackageDiagnosticErrors(diagnostics);
+  const valid = !hasMapDocumentDiagnosticErrors(diagnostics);
   return {
-    mapPackage: value as HonuaMapPackage,
+    mapPackage: value as HonuaMapDocument,
     diagnostics,
     valid,
   };
 }
 
-export function hasMapPackageDiagnosticErrors(diagnostics: readonly HonuaMapPackageDiagnostic[]): boolean {
+export function hasMapDocumentDiagnosticErrors(diagnostics: readonly HonuaMapDocumentDiagnostic[]): boolean {
   return diagnostics.some((diagnostic) => diagnostic.severity === "error");
 }
 
 function validateMapSpecSources(
-  add: (diagnostic: Omit<HonuaMapPackageDiagnostic, "packageId">) => void,
+  add: (diagnostic: Omit<HonuaMapDocumentDiagnostic, "packageId">) => void,
   mapSpec: Record<string, unknown>,
   sourceIds: ReadonlySet<string>,
 ): void {
@@ -280,7 +283,7 @@ function validateMapSpecSources(
 }
 
 function validateStyleRefTargets(
-  add: (diagnostic: Omit<HonuaMapPackageDiagnostic, "packageId">) => void,
+  add: (diagnostic: Omit<HonuaMapDocumentDiagnostic, "packageId">) => void,
   pkg: Record<string, unknown>,
   mapSpec: Record<string, unknown>,
 ): void {
@@ -330,16 +333,16 @@ function validateStyleRefTargets(
 }
 
 function validateLifecycle(
-  add: (diagnostic: Omit<HonuaMapPackageDiagnostic, "packageId">) => void,
+  add: (diagnostic: Omit<HonuaMapDocumentDiagnostic, "packageId">) => void,
   pkg: Record<string, unknown>,
-  options: ValidateMapPackageOptions,
+  options: ValidateMapDocumentOptions,
 ): void {
   const nowMs = normalizeNowMs(options.now);
   if (pkg.status === "Expired") {
     add({
       code: "expired-package",
       severity: "error",
-      message: "MapPackage status is Expired.",
+      message: "Map document status is Expired.",
       path: "status",
       detail: { status: pkg.status },
     });
@@ -350,7 +353,7 @@ function validateLifecycle(
     add({
       code: "expired-package",
       severity: "error",
-      message: "MapPackage expiresAt is in the past.",
+      message: "Map document expiresAt is in the past.",
       path: "expiresAt",
       detail: { expiresAt: pkg.expiresAt },
     });
@@ -363,7 +366,7 @@ function validateLifecycle(
     add({
       code: "stale-package",
       severity: "warning",
-      message: "MapPackage is older than the configured freshness budget.",
+      message: "Map document is older than the configured freshness budget.",
       path: pkg.updatedAt ? "updatedAt" : "createdAt",
       detail: { ageMs: nowMs - updatedAt, maxAgeMs: options.maxAgeMs },
     });

@@ -1,5 +1,13 @@
 name: Installed package certification
 
+# Dispatch-only since 2026-11-18. The current-release route needs a committed
+# selection naming a honua-release snapshot at refs/nightly-candidates/<sha>. The
+# honua-release nightly train (nightly-certification.yml) mints none since the
+# release redesign (its resolver refuses; resolver-dry-run.yml, #1445), so no
+# selection can be committed and every scheduled run failed closed (honua-sdk-js#1994).
+# Candidate-bound installed SDK proof is honua-release gate-installed-clients.yml,
+# release-promise row clients-installed. Dispatch still certifies an explicit
+# release-snapshot or the legacy regression cohort.
 on:
   workflow_dispatch:
     inputs:
@@ -16,16 +24,12 @@ on:
         description: Immutable nightly candidate commit SHA, exactly 40 lowercase hex characters; required for release-snapshot
         type: string
         default: ""
-  schedule:
-    - cron: "30 8 * * *"
 
 permissions:
   contents: read
-  issues: write
   packages: read
 
-# Serialize runs so the tracking-issue lookup/create below cannot race and
-# open duplicates; never cancel a certification run in flight.
+# Serialize runs; never cancel a certification run in flight.
 concurrency:
   group: installed-package-certification
   cancel-in-progress: false
@@ -112,7 +116,14 @@ jobs:
       - name: Installed First Map bundle regression
         id: quickstart
         continue-on-error: true
-        run: npm run test:installed-quickstart
+        env:
+          CANDIDATE_MODE: ${{ steps.candidate.outputs.mode }}
+        run: |
+          if [ "$CANDIDATE_MODE" = "legacy-regression" ]; then
+            revision="$(node --input-type=module -e 'import { readInstalledCandidateInput, readLegacyFirstMapSourceRevision } from "./scripts/installed-candidate-input.mjs"; const candidate = await readInstalledCandidateInput({ env: {} }); console.log(await readLegacyFirstMapSourceRevision(candidate))')"
+            git fetch --no-tags --depth=1 origin "$revision"
+          fi
+          npm run test:installed-quickstart
       - name: Authenticate to the public candidate registry
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Pull exact candidate image
@@ -165,12 +176,12 @@ jobs:
           path: test-results/installed-example-certification.json
           if-no-files-found: error
       - name: Enforce certification verdict
-        if: steps.certify.outcome != 'success'
+        if: always() && steps.certify.outcome == 'failure'
         run: |
           jq -r '.operations[] | select(.verdict != "pass") | "\(.id): \(.verdict) blocked-by \(.blockedBy // "n/a")"' test-results/installed-package-certification.json
           exit 1
       - name: Enforce installed-example verdict
-        if: steps.examples.outcome != 'success'
+        if: always() && steps.examples.outcome == 'failure'
         run: |
           jq -r '.admission.diagnostic // empty' test-results/installed-example-certification.json
           jq -r '.verdicts[] | select(.verdict == "fail") | "\(.id): fail issue \(.issue // "unfiled")"' test-results/installed-example-certification.json
@@ -178,30 +189,3 @@ jobs:
       - name: Enforce installed First Map budget
         if: always() && steps.quickstart.outcome != 'success'
         run: exit 1
-      # A red scheduled run is otherwise silent: keep ONE open tracking issue
-      # and comment each further failure on it instead of opening duplicates.
-      - name: Open or update the tracking issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          QUICKSTART: ${{ steps.quickstart.outcome }}
-          CERTIFY: ${{ steps.certify.outcome }}
-          EXAMPLES: ${{ steps.examples.outcome }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          title="Installed package certification is failing"
-          run="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          body="Scheduled installed-package certification failed.
-
-          - First Map bundle budget: ${QUICKSTART}
-          - Installed-package receipt: ${CERTIFY}
-          - Installed-example receipt: ${EXAMPLES}
-
-          Run: ${run}"
-          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "${title} in:title" --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1)"
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --assignee mikemcdougall
-          fi

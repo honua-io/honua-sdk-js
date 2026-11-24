@@ -1,0 +1,69 @@
+{
+  "type": "Feature",
+  "id": "service:maui-parcels",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          -157.310973200775,
+          20.500726018870214
+        ],
+        [
+          -155.97651825472587,
+          20.500726018870214
+        ],
+        [
+          -155.97651825472587,
+          21.224444140270162
+        ],
+        [
+          -157.310973200775,
+          21.224444140270162
+        ],
+        [
+          -157.310973200775,
+          20.500726018870214
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    -157.310973200775,
+    20.500726018870214,
+    -155.97651825472587,
+    21.224444140270162
+  ],
+  "properties": {
+    "title": "maui-parcels",
+    "description": "Honua service 'maui-parcels'",
+    "type": "service",
+    "resourceType": "Service",
+    "externalIds": [
+      "maui-parcels"
+    ],
+    "layerIds": [
+      "pub-layer-1"
+    ]
+  },
+  "links": [
+    {
+      "href": "https://demo.honua.io/ogc/records/collections/honua-catalog/items/service%3Amaui-parcels",
+      "rel": "self",
+      "type": "application/geo+json",
+      "title": "maui-parcels"
+    },
+    {
+      "href": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer",
+      "rel": "alternate",
+      "type": "application/json",
+      "title": "FeatureServer"
+    },
+    {
+      "href": "https://demo.honua.io/rest/services/maui-parcels/MapServer",
+      "rel": "alternate",
+      "type": "application/json",
+      "title": "MapServer"
+    }
+  ]
+}

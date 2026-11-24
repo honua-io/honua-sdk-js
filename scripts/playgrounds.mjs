@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 
 import { loadTemplateManifest, playgroundLinks } from "../packages/create-honua-app/lib/templates.mjs";
 
+import { nativeApplicationPathNotice } from "./lib/native-documentation.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_ROOT = path.join(ROOT, "packages/create-honua-app");
 const OUTPUT_PATH = "docs/playgrounds.md";
@@ -39,6 +41,8 @@ export function renderPlaygroundPage(manifest, samples = []) {
     GENERATED_NOTICE,
     "",
     "# Zero-install playgrounds",
+    "",
+    nativeApplicationPathNotice,
     "",
     `Every \`create-honua-app\` starter runs in a browser playground straight from this repository — no clone, no`,
     "install, no account. Each project is self-contained: it depends on the published",

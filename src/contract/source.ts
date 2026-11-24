@@ -16,6 +16,7 @@
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
 import { geoServicesGeometryToGeoJSON } from "../core/geoservices-geojson.js";
+import { memoizedGrpcEditSchema } from "../core/grpc-edit-schema.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -84,6 +85,9 @@ import {
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
 import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { canonicalEditResult } from "./edit-result.js";
+import { toApplyEditsRequest } from "./feature-layer-edits.js";
+import { nativeAttachmentApi } from "./native-attachments.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import {
@@ -255,6 +259,13 @@ export function createDatasetWithAdapterSeeds(
   };
 }
 
+/** Native layer metadata, including domains, templates and relationships. */
+export interface GrpcLayerHandle {
+  readonly serviceId: string;
+  readonly layerId: number;
+  describe(options?: { signal?: AbortSignal }): ReturnType<HonuaClient["describeLayer"]>;
+}
+
 // ── Built-in resolver ─────────────────────────────────────────
 
 function buildBuiltInSource<T>(
@@ -267,13 +278,8 @@ function buildBuiltInSource<T>(
 ): CapabilityAwareSource<T> | undefined {
   switch (descriptor.protocol) {
     case "grpc":
-      // Honua gRPC is a transport-selectable fast path over the same
-      // canonical FeatureServer semantics, not a distinct adapter: the
-      // returned `HonuaFeatureLayer` transparently routes `queryFeatures`
-      // over gRPC-Web when `client.transport === "grpc-web"` (see
-      // `docs/protocol-capability-matrix.md`, "gRPC FeatureService"). The
-      // discovered descriptor's narrower `capabilities` (verified through a
-      // live gRPC parity probe in `connect-grpc.ts`) still gate execution.
+      // Query execution shares the canonical feature implementation. Native
+      // discovery obtains metadata and caller capabilities from descriptor RPCs.
       return geoServicesFeatureSource<T>(descriptor, client, policy);
     case "geoservices-feature-service":
       return geoServicesFeatureSource<T>(descriptor, client, policy);
@@ -349,20 +355,29 @@ export function geoServicesFeatureSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const { serviceId, layerId } = requireFeatureServiceLocator(descriptor);
   const layer = new HonuaFeatureLayer<T>({ client, serviceId, layerId });
+  const editSchema = memoizedGrpcEditSchema(client, serviceId, layerId);
   // Indexed by the descriptor's own protocol (not hardcoded to
   // "geoservices-feature-service") so a `protocol: "grpc"` descriptor built
   // without explicit capabilities falls back to the narrower gRPC default
   // set rather than silently inheriting REST-only capabilities (`pbf`,
-  // `sql`, `attachments`, `queryRelated`) the gRPC FeatureService RPC
-  // surface does not support.
+  // `sql`) the gRPC FeatureService RPC surface does not support.
+  // `queryRelated` (QueryRelatedRecords) and `attachments` are native on gRPC.
   const declaredCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES[descriptor.protocol];
   const caps = client.isGrpcWeb
     ? new Set([...declaredCaps].filter((capability) => PROTOCOL_DEFAULT_CAPABILITIES.grpc.has(capability)))
     : declaredCaps;
 
-  const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
-    "geoservices-feature-service": layer,
-  };
+  const adapterRegistry: Partial<Record<AdapterKind, unknown>> =
+    descriptor.protocol === "grpc"
+      ? {
+          grpc: Object.freeze({
+            serviceId,
+            layerId,
+            describe: (options: { signal?: AbortSignal } = {}) =>
+              client.describeLayer({ serviceId, layerId, ...options }),
+          }),
+        }
+      : { "geoservices-feature-service": layer };
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
@@ -381,7 +396,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -406,7 +421,11 @@ export function geoServicesFeatureSource<T>(
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const params = toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor));
+      // A Honua gRPC server answers count-only before extent-only, so gRPC-Web
+      // asks for the extent alone and reads the exact count separately.
+      const params = client.isGrpcWeb
+        ? toGrpcExtentOnlyRequest(toFeatureLayerRequest(request, descriptor))
+        : toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor));
       const response = await layer.queryFeatures(params);
       const envelope = extractExtentEnvelope(response);
       if (client.isGrpcWeb && envelope.count === undefined) {
@@ -432,7 +451,16 @@ export function geoServicesFeatureSource<T>(
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
-      const response = await layer.applyEdits(toApplyEditsRequest(envelope));
+      // Translate (and validate) locally before the one-time DescribeLayer read.
+      const edits = toApplyEditsRequest(envelope, descriptor.schema?.primaryKey);
+      const native = client.isGrpcWeb ? await editSchema(envelope.signal) : undefined;
+      const globalIdField = native?.globalIdField;
+      const response = await layer.applyEdits({
+        ...edits,
+        objectIdField: descriptor.schema?.primaryKey,
+        ...(globalIdField ? { globalIdField } : {}),
+        ...(native && Object.keys(native.attributeTypes).length > 0 ? { attributeTypes: native.attributeTypes } : {}),
+      });
       return canonicalEditResult(response);
     },
     async queryRelated<R>(request: RelatedQuery) {
@@ -440,7 +468,9 @@ export function geoServicesFeatureSource<T>(
       const response = await layer.queryRelatedRecords(toRelatedRecordsRequest(request));
       return canonicalRelatedResult<R>(response);
     },
-    attachments: featureLayerAttachmentApi(descriptor, caps, layer),
+    attachments: client.isGrpcWeb
+      ? nativeAttachmentApi({ client, descriptor, caps, serviceId, layerId })
+      : featureLayerAttachmentApi(descriptor, caps, layer),
   });
 }
 
@@ -497,7 +527,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
+      const params = withRowBudget(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -4199,13 +4229,13 @@ function withUnboundedMaxPages<R extends object>(params: R): R & { maxPages: num
 }
 
 /**
- * `HonuaFeatureLayer.queryFeaturesAll` / `HonuaMapLayer.queryFeaturesAll` only
- * stop on an empty or short page — they have no total-row cap. When the
- * canonical `Query.pagination.limit` supplies a cap, derive the per-page size
- * *and* `maxPages` from it so the paging loop fetches at most `limit + 1`
+ * Paged collection drains (OGC Records, STAC) stop only on an empty or short
+ * page. When the canonical `Query.pagination.limit` supplies a cap, derive the
+ * per-page size *and* `maxPages` from it so the loop fetches about `limit + 1`
  * rows (the extra row lets `applyQueryAllLimit` stamp `exceededTransferLimit`
  * when more records exist). Without this, `queryAll({ pagination: { limit: 1 } })`
  * would keep issuing `resultOffset=0,1,2,…` until the source is drained.
+ * GeoServices layers take an exact row budget instead; see `withRowBudget`.
  */
 function withPagingBounds<R extends object>(
   params: R,
@@ -4218,6 +4248,22 @@ function withPagingBounds<R extends object>(
   const target = limit + 1;
   const maxPages = Math.max(1, Math.ceil(target / pageSize));
   return { ...params, pageSize, maxPages };
+}
+
+/**
+ * Bounded GeoServices drains need one row past the limit to report overflow.
+ * `maxRecords` caps the total so the last page asks for that row, not another
+ * full page, and replaces the page cap: a server that clamps every page below
+ * the requested size still reaches the probe row.
+ */
+function withRowBudget<R extends object>(
+  params: R,
+  limit: number | undefined,
+): R & { pageSize?: number; maxPages: number; maxRecords?: number } {
+  const bounded = withPagingBounds(params, limit);
+  return typeof limit === "number" && limit >= 0
+    ? { ...bounded, maxPages: Number.MAX_SAFE_INTEGER, maxRecords: limit + 1 }
+    : bounded;
 }
 
 /**
@@ -4396,8 +4442,10 @@ function compileGeoServicesQueryFilter<T>(
  * `QueryFeaturesRequest`.
  *
  * `returnCountOnly=true` is sent beside it: the documented Esri combination
- * returns `{extent, count}`, and ArcGIS Online omits `count` without it
- * (honua-sdk-js#2249). honua-server answers both forms with `{extent, count}`.
+ * returns `{extent, count}`, and ArcGIS Online omits `count` without it.
+ * honua-server REST answers both forms with `{extent, count}`;
+ * its gRPC service answers count-only first, so gRPC-Web uses
+ * `toGrpcExtentOnlyRequest`, which drops the count flag.
  */
 function toExtentOnlyRequest(
   params: ReturnType<typeof toFeatureLayerRequest>,
@@ -4415,6 +4463,15 @@ function toExtentOnlyRequest(
       returnCountOnly: true,
     },
   };
+}
+
+function toGrpcExtentOnlyRequest(
+  params: ReturnType<typeof toFeatureLayerRequest>,
+): ReturnType<typeof toExtentOnlyRequest> {
+  const request = toExtentOnlyRequest(params);
+  const { returnCountOnly: _count, ...extraParams } = request.extraParams ?? {};
+  void _count;
+  return { ...request, extraParams };
 }
 
 /**
@@ -4969,89 +5026,6 @@ function readField(attributes: unknown, field: string): unknown {
 
 // ── Edit / related / attachment translators ───────────────────
 
-function toApplyEditsRequest<T>(envelope: EditEnvelope<T>): {
-  adds?: HonuaFeature[];
-  updates?: HonuaFeature[];
-  deletes?: number[] | string;
-  rollbackOnFailure?: boolean;
-  signal?: AbortSignal;
-} {
-  const out: {
-    adds?: HonuaFeature[];
-    updates?: HonuaFeature[];
-    deletes?: number[] | string;
-    rollbackOnFailure?: boolean;
-    signal?: AbortSignal;
-  } = {};
-  if (envelope.adds && envelope.adds.length > 0) {
-    out.adds = envelope.adds.map(canonicalToHonuaFeature);
-  }
-  if (envelope.updates && envelope.updates.length > 0) {
-    out.updates = envelope.updates.map(canonicalToHonuaFeature);
-  }
-  if (envelope.deletes && envelope.deletes.length > 0) {
-    const numericIds: number[] = [];
-    let allNumeric = true;
-    for (const id of envelope.deletes) {
-      const parsed = Number(id);
-      if (Number.isFinite(parsed)) {
-        numericIds.push(parsed);
-      } else {
-        allNumeric = false;
-        break;
-      }
-    }
-    out.deletes = allNumeric ? numericIds : envelope.deletes.map(String).join(",");
-  }
-  if (envelope.rollbackOnFailure !== undefined) {
-    out.rollbackOnFailure = envelope.rollbackOnFailure;
-  }
-  if (envelope.signal) {
-    out.signal = envelope.signal;
-  }
-  return out;
-}
-
-function canonicalToHonuaFeature<T>(feature: {
-  id?: FeatureId;
-  attributes: T;
-  geometry?: Record<string, unknown> | null;
-}): HonuaFeature {
-  const attributes = { ...(feature.attributes as Record<string, unknown>) };
-  // GeoServices addresses updates by `OBJECTID` inside attributes; populate it
-  // from the canonical `id` when the caller supplied one but did not embed it
-  // in attributes themselves. Skip when an OBJECTID is already present so a
-  // mismatch surfaces as a server-side validation error rather than being
-  // silently overwritten.
-  if (feature.id !== undefined && feature.id !== null && attributes.OBJECTID === undefined) {
-    attributes.OBJECTID = feature.id;
-  }
-  const out: HonuaFeature = { attributes };
-  if (feature.geometry !== undefined) {
-    out.geometry = feature.geometry;
-  }
-  return out;
-}
-
-function canonicalEditResult(response: import("../core/types.js").HonuaApplyEditsResponse): EditResult {
-  return {
-    added: (response.addResults ?? []).map(toEditOutcome),
-    updated: (response.updateResults ?? []).map(toEditOutcome),
-    deleted: (response.deleteResults ?? []).map(toEditOutcome),
-  };
-}
-
-function toEditOutcome(result: import("../core/types.js").HonuaEditResult): EditOutcome {
-  const out: EditOutcome = { success: result.success };
-  if (typeof result.objectId === "number" && Number.isFinite(result.objectId)) {
-    out.id = result.objectId;
-  }
-  if (result.error) {
-    out.error = { code: result.error.code, description: result.error.description };
-  }
-  return out;
-}
-
 function toRelatedRecordsRequest(request: RelatedQuery): {
   relationshipId: number;
   objectIds?: number[] | string;
@@ -5069,17 +5043,9 @@ function toRelatedRecordsRequest(request: RelatedQuery): {
     signal?: AbortSignal;
   } = { relationshipId: request.relationshipId };
   if (request.sourceIds.length > 0) {
-    const numeric: number[] = [];
-    let allNumeric = true;
-    for (const id of request.sourceIds) {
-      const parsed = Number(id);
-      if (Number.isFinite(parsed)) numeric.push(parsed);
-      else {
-        allNumeric = false;
-        break;
-      }
-    }
-    out.objectIds = allNumeric ? numeric : request.sourceIds.map(String).join(",");
+    // Unsafe int64 IDs stay exact decimal strings rather than rounding through Number.
+    const numeric = request.sourceIds.map(Number);
+    out.objectIds = numeric.every(Number.isSafeInteger) ? numeric : request.sourceIds.map(String).join(",");
   }
   if (request.where !== undefined) out.where = request.where;
   if (request.outFields && request.outFields.length > 0) out.outFields = [...request.outFields];
@@ -5267,6 +5233,7 @@ function isFiniteNumberStrict(n: number): n is number {
  */
 declare module "./types.js" {
   interface AdapterTypeMap {
+    grpc: GrpcLayerHandle;
     "geoservices-feature-service": HonuaFeatureLayer;
     "geoservices-map-service": HonuaMapService;
     "geoservices-map-layer": HonuaMapLayer;

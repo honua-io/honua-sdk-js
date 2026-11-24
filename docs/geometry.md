@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/geometry"
 ---
 # `@honua/geometry` — client-side geometry operations
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/geometry` (the `@honua/sdk-js/geometry` subpath, split-packaged as
 `@honua/geometry`) adds curated, tree-shakeable client-side geometry operations
 and reprojection to the Honua SDK, wrapping the individual [`@turf/*`](https://turfjs.org)

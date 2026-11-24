@@ -197,7 +197,7 @@ const TARGETS = [
   {
     key: "/scene-workspace",
     kind: "bundle",
-    entry: "dist/src/_deprecated/scene-workspace.js",
+    entry: "dist/src/scene-workspace/index.js",
     label: "`/scene-workspace` (MapLibre/Cesium external — optional peers)",
   },
   { key: "/client-compat", kind: "bundle", entry: "dist/src/client-compat-entry.js", label: "`/client-compat`" },

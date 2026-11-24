@@ -330,6 +330,14 @@
             "$ref": "#/$defs/surfaceTier"
           }
         },
+        "appPlatformSubpaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\./[a-z0-9][a-z0-9/-]*$"
+          },
+          "uniqueItems": true
+        },
         "entrypoints": {
           "type": "array",
           "items": {
@@ -662,6 +670,14 @@
             "$ref": "#/$defs/surfaceTier"
           }
         },
+        "appPlatformSubpaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\./[a-z0-9][a-z0-9/-]*$"
+          },
+          "uniqueItems": true
+        },
         "entrypoints": {
           "type": "array",
           "items": {
@@ -721,10 +737,6 @@
           "$ref": "#/$defs/status"
         },
         "barrel": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sdkForwarder": {
           "type": "string",
           "minLength": 1
         },

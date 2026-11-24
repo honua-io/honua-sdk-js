@@ -1,5 +1,7 @@
 # DuckDB executable provenance
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This directory intentionally contains no executable artifacts. The demo copies
 its DuckDB main module and worker from the package-locked dependency and prepares
 the SHA-256-pinned Parquet extension into an ignored cache; generated `.wasm` and worker

@@ -19,18 +19,10 @@
   "excludedDirs": [
     {
       "path": "docs/decisions",
-      "why": "Decision records and execution plans - scope splits, library selections, market strategy, 1.0 sequencing. They explain why the SDK is shaped as it is, for people changing it rather than people using it."
+      "why": "Decision records and execution plans - scope splits, library selections, 1.0 sequencing. They explain why the SDK is shaped as it is, for people changing it rather than people using it."
     }
   ],
   "excludedFiles": [
-    {
-      "path": "docs/evidence/published-commands-1897/corrected/sdk-publication-replay/executable-docs-summary.md",
-      "why": "Immutable hosted command-replay report retained byte-for-byte with its provenance hash; the adjacent authored README explains its qualification scope."
-    },
-    {
-      "path": "docs/evidence/published-commands-1897/retained-source-audit-failure/executable-docs-summary.md",
-      "why": "Immutable failed hosted command-replay report retained byte-for-byte with its provenance hash; changing its frontmatter would invalidate the original evidence."
-    },
     {
       "path": "docs/SUMMARY.md",
       "why": "GitBook's table of contents, generated from this bundle by scripts/generate-summary.py. Navigation over the bundle, not a concept in it."

@@ -6,6 +6,8 @@ resource: "honua://capability/discovery.capability-manifest"
 ---
 # Discovery truth and cache identity
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The protocol-neutral truth contract used by endpoint detectors and
 metadata adapters. It does not claim that every protocol can already be
 passed to one `connect()` implementation.
@@ -108,20 +110,21 @@ complete decision, diagnostic, provenance, cache-result, and inspection type
 vocabulary for adapter authors. This keeps the beginner surface bounded while
 preserving a fully typed protocol integration seam.
 
-## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, WFS/WMS/WMTS, OData, PMTiles, and GeoParquet slices)
+## Connect facade (OGC Features/Records/Tiles/Maps, STAC API/static, GeoServices, gRPC, WFS/WMS/WMTS, OData, PMTiles, and GeoParquet slices)
 
 The experimental `connect()` facade composes this truth contract for raw OGC
 API Features and STAC API landing pages or bounded static STAC objects, raw OGC API Records catalog roots, raw
 OGC API Tiles and Maps service roots (render-only sources),
+gRPC endpoints,
 WFS 2.0, WMS 1.3.0, and WMTS 1.0.0 endpoints, OData v4 service
 roots, direct PMTiles and static-file GeoParquet assets, and canonical GeoServices
 `FeatureServer` / `MapServer` service or layer URLs plus executable
-`ImageServer` raster catalogs. OGC, STAC, WFS, WMS, WMTS, OData, Records,
+`ImageServer` raster catalogs. OGC, STAC, gRPC, WFS, WMS, WMTS, OData, Records,
 Tiles, Maps, GeoParquet, and ordinary HTTPS PMTiles endpoints require an explicit
 `protocol: "ogc-features"`,
-`protocol: "stac"`, `protocol: "wfs"`, `protocol: "wms"`, `protocol: "wmts"`, `protocol: "odata"`,
-`protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`, or
-`protocol: "geoparquet"` or `protocol: "pmtiles"` hint. A
+`protocol: "stac"`, `protocol: "grpc"`, `protocol: "wfs"`, `protocol: "wms"`, `protocol: "wmts"`, `protocol: "odata"`,
+`protocol: "ogc-records"`, `protocol: "ogc-tiles"`, `protocol: "ogc-maps"`,
+`protocol: "geoparquet"`, or `protocol: "pmtiles"` hint. A
 `pmtiles://https://...` asset marker is the sole direct static-asset shape that
 `auto` accepts: the marker is structural evidence and is stripped before
 cache/network identity is computed. A `.pmtiles` filename alone remains
@@ -167,16 +170,16 @@ have exactly one positive `discovery` support claim, and rejects source-backed
 entries outside the connector inventory.
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js/honua";
+import { createHonua } from "@honua/sdk-js";
 
-const connection = await connect({
-  endpoint: "https://demo.pygeoapi.io/master",
+await using honua = createHonua();
+const connection = await honua.connect({
+  url: "https://demo.pygeoapi.io/master",
   protocol: "ogc-features",
-  authorizationScopeFingerprint: "anonymous",
   collectionId: "lakes",
 });
 
-const inspection = connection.inspection.sources[0];
+const inspection = (await connection.inspect()).sources[0];
 // Capabilities are the intersection of the SDK adapter and advertised
 // conformance evidence, never PROTOCOL_DEFAULT_CAPABILITIES by assumption.
 const lakes = connection.source();
@@ -187,14 +190,12 @@ layer/table metadata with a maximum concurrency of four. A layer URL performs
 only the single selected-layer metadata request:
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js/honua";
+import { createHonua } from "@honua/sdk-js";
 
-const parcels = await connect({
-  endpoint:
-    "https://sampleserver.example/arcgis/rest/services/Cadastre/Parcels/FeatureServer/0",
-  protocol: "auto",
-  authorizationScopeFingerprint: "anonymous",
-});
+await using honua = createHonua();
+const parcels = await honua.connect(
+  "https://sampleserver.example/arcgis/rest/services/Cadastre/Parcels/FeatureServer/0",
+);
 
 const layer = parcels.source();
 // locator.serviceId === "Cadastre/Parcels"; locator.layerId === 0
@@ -505,6 +506,9 @@ root. Endpoints must be absolute HTTP(S) URLs without user info,
 identity-bearing query parameters, or fragments; authentication belongs in
 `clientOptions`. `signal` cancels metadata work and
 settles `connect()` even when a caller cache hook ignores its supplied signal.
+Before discovery, during cache waits, and during the default transport probe,
+`connect()` rejects cancellation with `HonuaAbortError` (`core.cancelled`), whose
+`cause` preserves the exact `signal.reason`, including primitive and null reasons.
 Cache implementations remain responsible for stopping their own late work.
 `refresh: true` skips the caller cache read and forwards conditional-refresh
 semantics to the client's metadata cache.

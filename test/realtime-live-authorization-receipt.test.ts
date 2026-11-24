@@ -168,11 +168,10 @@ describe("live authorization receipt against a well-behaved candidate", () => {
     const byId = new Map<number, Set<number>>();
     for (const item of sensorRows) {
       for (const observation of item.authorization.observations) {
-        const frame = /^(?:event: observation\ndata: )?(\{.*\})\s*$/u.exec(observation.raw)?.[1];
+        const frame = /^(?:event: observations\ndata: )?(\{.*\})\s*$/u.exec(observation.raw)?.[1];
         if (!frame) continue;
-        const parsed = JSON.parse(frame) as { "@iot.id"?: number; result?: number };
-        if (parsed["@iot.id"] === undefined || parsed.result === undefined) continue;
-        byId.set(parsed["@iot.id"], (byId.get(parsed["@iot.id"]) ?? new Set()).add(parsed.result));
+        const batch = JSON.parse(frame) as { observations?: { id: number; result: number }[] };
+        batch.observations?.forEach((row) => byId.set(row.id, (byId.get(row.id) ?? new Set()).add(row.result)));
       }
     }
     expect([...byId.values()].some((results) => results.size > 1)).toBe(true);
@@ -217,6 +216,31 @@ describe("live authorization receipt against a candidate that delivers live fram
       expect(assertion(item, "tenant-owned-delivery"), summary).toMatchObject({ passed: true });
       expect(assertion(item, "no-cross-tenant-payload"), summary).toMatchObject({ passed: true });
       expect(item.result, summary).toBe("passed");
+    }
+  });
+});
+
+describe("live authorization receipt against a candidate whose observation replay ignores tenancy", () => {
+  let candidate: FakeCandidate;
+  let receipt: LiveAuthorizationReceipt;
+
+  beforeAll(async () => {
+    ({ candidate, receipt } = await mint({ leakForeignObservationReplay: true }));
+  }, RUN_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await candidate?.close();
+  });
+
+  it("fails every SensorThings row that resumes from a cursor", () => {
+    const summary = summarizeLiveAuthorizationReceipt(receipt).join("\n");
+    for (const transport of ["sse", "websocket"]) {
+      for (const scenario of ["token-expiry", "token-revocation", "tenant-scope-change"]) {
+        const item = row(receipt, "sensorthings", transport, scenario);
+        expect(item.result, summary).toBe("failed");
+        expect(assertion(item, "no-cross-tenant-payload"), summary).toMatchObject({ passed: false });
+      }
+      expect(row(receipt, "feature-stream", transport, "token-expiry").result, summary).toBe("passed");
     }
   });
 });

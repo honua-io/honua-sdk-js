@@ -6,6 +6,8 @@ resource: "honua://capability/serve.vector-tiles"
 ---
 # Dynamic Query Tiles
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 Dynamic query tiles let SDK consumers describe large operational sources as
 viewport-scoped vector tiles while preserving the canonical `Source` identity
 used by selection, feature-state, and detail panels. The abstraction is split

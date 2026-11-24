@@ -25,6 +25,7 @@ export type AnalyticsWarehouseProvider =
   | "bigquery"
   | "snowflake"
   | "redshift"
+  | "databricks"
   | "postgres"
   | "duckdb"
   | "carto"
@@ -52,6 +53,8 @@ export interface AnalyticsSourceRelationDescriptor {
 export interface AnalyticsSourceSqlDescriptor {
   /** SQL text or a stable server-side query id. Never put secrets here. */
   readonly text: string;
+  /** Opaque server-governed query identifier when raw vendor SQL is withheld. */
+  readonly governedQueryId?: string;
   readonly dialect?: string;
   readonly parameters?: Readonly<Record<string, string | number | boolean | null>>;
 }

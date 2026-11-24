@@ -761,6 +761,49 @@ describe("fromProtoQueryResponse", () => {
       expect(result.features[1].attributes).toEqual({ OBJECTID: 4 });
     });
 
+    function withNullAttribute(feature: Feature, name: string): Feature {
+      const attr = create(AttributeValueSchema);
+      attr.value = { case: "nullValue", value: NullValue.NULL_VALUE };
+      feature.attributes[name] = attr;
+      return feature;
+    }
+
+    it("replaces a null attribute under the object ID field name with Feature.id", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("id", [withNullAttribute(protoFeature(16n, { name: "A" }), "ID")]),
+      ) as any;
+
+      expect(result.features[0].attributes).toEqual({ name: "A", ID: 16 });
+    });
+
+    it("keeps a non-null value when another casing of the field name is null", () => {
+      const result = fromProtoQueryResponse(
+        featureResponse("id", [withNullAttribute(protoFeature(16n, { id: 5n }), "ID")]),
+      ) as any;
+
+      expect(result.features[0].attributes).toEqual({ id: 5, ID: null });
+    });
+
+    it("leaves a null object ID attribute alone when the feature has no object ID", () => {
+      const result = fromProtoQueryResponse(featureResponse("id", [withNullAttribute(protoFeature(0n), "id")])) as any;
+
+      expect(result.features[0].attributes).toEqual({ id: null });
+    });
+
+    it("replaces a null attribute under the global ID field name with Feature.global_id", () => {
+      const feature = withNullAttribute(protoFeature(2n), "globalid");
+      feature.globalId = "{8C1B6A0E-3E64-4B7F-9D3A-2B1C0F5E7A11}";
+      const response = featureResponse("objectid", [feature]);
+      response.globalIdFieldName = "GlobalID";
+
+      const result = fromProtoQueryResponse(response) as any;
+
+      expect(result.features[0].attributes).toEqual({
+        objectid: 2,
+        globalid: "{8C1B6A0E-3E64-4B7F-9D3A-2B1C0F5E7A11}",
+      });
+    });
+
     it("keeps a differing custom public ID rather than overwriting it", () => {
       const result = fromProtoQueryResponse(
         featureResponse("parcel_id", [protoFeature(5n, { parcel_id: "P-0005" })]),

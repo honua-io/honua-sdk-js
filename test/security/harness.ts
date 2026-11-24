@@ -21,6 +21,7 @@
  */
 
 import { HonuaClient } from "../../src/index.js";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1, type HonuaMapDocument } from "../../src/runtime/index.js";
 
 /** One request as it actually left the client. */
 export interface CapturedRequest {
@@ -162,4 +163,30 @@ function safeJson(raw: string): unknown {
   } catch {
     return raw;
   }
+}
+
+/** A minimal ready map document; `overrides` replace top-level fields. */
+export function baseMapDocument(overrides: Partial<HonuaMapDocument> = {}): HonuaMapDocument {
+  return {
+    mapPackageId: "pkg-1425-security",
+    format: HONUA_MAP_DOCUMENT_FORMAT_V1,
+    status: "Ready",
+    sourceBindings: [
+      {
+        sourceId: "parcels",
+        protocol: "ogc_features",
+        locator: { url: "https://gis.example.test/ogc/collections/parcels" },
+        attribution: "City of Example",
+      },
+    ],
+    mapSpec: {
+      version: 8,
+      sources: {},
+      layers: [{ id: "parcels-fill", type: "fill", source: "parcels", paint: { "fill-color": "#cccccc" } }],
+    },
+    initialView: { center: [-122.4, 37.8], zoom: 11 },
+    attribution: [{ text: "City of Example", url: "https://example.test/credits", required: true }],
+    provenance: { generatedBy: "honua-cli", generatorVersion: "0.1.0", generatedAt: "2026-01-01T00:00:00.000Z" },
+    ...overrides,
+  } as HonuaMapDocument;
 }

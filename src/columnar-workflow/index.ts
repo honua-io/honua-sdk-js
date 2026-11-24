@@ -17,7 +17,7 @@ import type {
 import * as Columnar from "../columnar/index.js";
 import { type QueryFilterExpression, compileQueryFilterToSql92 } from "../contract/query-filter.js";
 import { HonuaClient } from "../core/client.js";
-import { encodeServiceIdPath } from "../core/path-utils.js";
+import { restLayerPath } from "../core/path-utils.js";
 import { envelope } from "../core/spatial-filter.js";
 import type { HonuaClientOptions } from "../core/types.js";
 import * as GeoParquet from "../geoparquet/index.js";
@@ -421,7 +421,7 @@ const buildServerRequest = (
   }
   parameters.set("returnGeometry", String(query.returnGeometry ?? true));
 
-  const path = `/rest/services/${encodeServiceIdPath(source.serviceId)}/FeatureServer/${source.layerId}/query`;
+  const path = `${restLayerPath(source.serviceId, "FeatureServer", source.layerId)}/query`;
   const queryString = parameters.toString();
   const usePost = query.preferPost === true || queryString.length > 1_800;
   const requestPath = usePost ? path : `${path}?${queryString}`;
@@ -1258,3 +1258,9 @@ export const createApacheArrowResponseDecoder = (
       batchIndex += 1;
     }
   };
+
+export * from "./warehouse-security.js";
+export * from "./warehouse-source.js";
+export * from "./warehouse-plan.js";
+export * from "./warehouse-stream.js";
+export * from "./warehouse-conformance.js";

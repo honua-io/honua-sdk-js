@@ -1,12 +1,12 @@
-import { HonuaClient } from "@honua/sdk-js";
 import {
   HONUA_COMMANDS,
   HONUA_COMMAND_IDS,
   type HonuaCommandReceipt,
   createHonuaCommandRuntime,
   importCreateCommand,
-  mapPackagePublishCommand,
-} from "@honua/sdk-js/control-plane";
+  mapDocumentPublishCommand,
+} from "@honua/app-platform/control-plane";
+import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -197,7 +197,7 @@ describe("transports adapt input and output only", () => {
     // 2. The direct JS path: the same command, the same input, no MCP involved.
     const jsSide = recorder();
     const jsReceipt = await runtimeFor(jsSide.fetchFn).execute(
-      mapPackagePublishCommand,
+      mapDocumentPublishCommand,
       { mapId: "map-ops", workspaceId: "ws-1", package: MAP_PACKAGE, message: "ship it", intent: PUBLICATION_INTENT },
       { transport: "sdk", identity: IDENTITY },
     );

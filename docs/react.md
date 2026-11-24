@@ -6,6 +6,8 @@ resource: "https://www.npmjs.com/package/@honua/react"
 ---
 # React bindings (`@honua/react`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `@honua/react` is the idiomatic React layer over the framework-neutral
 `@honua/sdk-js` core: a context provider, data hooks, and declarative map
 components. The core SDK stays React-free — React is imported only from this
@@ -21,11 +23,17 @@ entry point (`@honua/sdk-js/react`, published standalone as `@honua/react`).
 ## Install
 
 ```bash
-npm install @honua/sdk-js @honua/react react react-dom maplibre-gl
+npm install @honua/sdk @honua/sdk-js @honua/react react react-dom maplibre-gl
 ```
 
-Inside this monorepo the same surface is available at the subpath
-`@honua/sdk-js/react`.
+From the first release after 0.4.0, `@honua/react` takes its `HonuaClient`
+from its `@honua/sdk` peer, so create the client from `@honua/sdk`. A
+`HonuaClient` from `@honua/sdk-js/honua` is a separate declaration and fails to
+type-check as `HonuaProvider`'s `client`. On 0.4.0, `@honua/react` still bundles
+its own client copy that no public import provides. Use the
+`@honua/sdk-js/react` subpath with `HonuaClient` from `@honua/sdk-js/honua`
+there. That pairing type-checks on every release and is the same surface this
+monorepo uses.
 
 ## Provider setup
 
@@ -33,7 +41,7 @@ Wrap your app once with a `HonuaClient`. The provider owns a session-scoped
 query cache shared by every hook below it.
 
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
-import { HonuaClient } from "@honua/sdk-js/honua";
+import { HonuaClient } from "@honua/sdk";
 import { HonuaProvider } from "@honua/react";
 
 const client = new HonuaClient({ baseUrl: "https://honua.example.com" });
@@ -167,7 +175,7 @@ add on mount and remove on unmount.
 
 ```tsx doc-test=skip reason="partial excerpt requires application host context"
 import { HonuaMap, HonuaLayer, HonuaPopup } from "@honua/react";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "@honua/sdk-js/runtime";
+import { HONUA_MAP_DOCUMENT_FORMAT_V1 } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 
@@ -175,7 +183,7 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 const mapPackage = {
   mapPackageId: "sites",
-  format: HONUA_MAP_PACKAGE_FORMAT_V1,
+  format: HONUA_MAP_DOCUMENT_FORMAT_V1,
   sourceBindings: [],
   mapSpec: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#0b1021" } }] },
   initialView: { center: [-157.84, 21.31], zoom: 10 },
@@ -344,14 +352,14 @@ Feature-state needs stable feature ids: give the source descriptor a
 
 ### Attaching a `HonuaMap` runtime to an external map
 
-`HonuaMap` (the `MapPackage` runtime component) also accepts an existing map
+`HonuaMap` (the `HonuaMapDocument` runtime component) also accepts an existing map
 instance via its `map` prop; it then attaches its runtime and **does not**
 remove the map on unmount — the owner keeps control; Honua only disposes its
 runtime.
 
 ## Web components vs. React
 
-The SDK also ships framework-neutral web components (`@honua/sdk-js/web-components`).
+The SDK also ships framework-neutral web components (`@honua/app-platform/web-components`).
 Choose based on your app:
 
 - **Use `@honua/react`** in a React app: you get JSX, typed props, hooks that

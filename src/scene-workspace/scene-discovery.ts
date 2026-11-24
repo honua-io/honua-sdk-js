@@ -38,6 +38,7 @@
 
 import type { QueryMethod } from "../core/types.js";
 import type { SceneCameraPrimitive, SceneElevationSourcePrimitive, SceneModelLayerPrimitive } from "./primitives.js";
+import type { SceneAccessAffordance, SceneAccessCredentialTransport } from "./scene-access-session.js";
 import type { SceneBookmark, SceneCameraState, SceneLayerState } from "./types.js";
 
 /**
@@ -85,12 +86,41 @@ export interface HonuaSceneAuth {
   readonly policy?: string;
 }
 
+/** Serving wire format of a scene endpoint (distinct from semantic content kind). */
+export type SceneServingFormat =
+  | "3d-tiles"
+  | "quantized-mesh"
+  | "copc"
+  | "gltf"
+  | "glb"
+  | "i3s"
+  | "openusd"
+  | "terrain-rgb"
+  | "custom";
+
+/** Semantic content kind carried by a scene asset (distinct from serving format). */
+export type SceneSemanticContentKind =
+  | "mesh"
+  | "buildings"
+  | "point-cloud"
+  | "terrain"
+  | "model"
+  | "bim"
+  | "integrated-mesh"
+  | "custom";
+
 /** One render endpoint from the resolve route (`kind` + absolute `url`). */
 export interface HonuaSceneEndpoint {
   readonly kind: string;
   readonly url: string;
   readonly mediaType?: string;
   readonly format?: string;
+  /** Explicit serving wire format (e.g. `3d-tiles`, `copc`, `quantized-mesh`). */
+  readonly servingFormat?: string;
+  /** Semantic content kind (e.g. `buildings`, `point-cloud`, `terrain`, `model`). */
+  readonly contentKind?: string;
+  /** Whether HTTP byte-range access (`Range: bytes=...`) is advertised on this endpoint. */
+  readonly rangeSupported?: boolean;
   readonly requiresAuthentication: boolean;
 }
 
@@ -110,6 +140,16 @@ export interface HonuaSceneLink {
 export interface HonuaSceneResolution {
   readonly sceneId: string;
   readonly tilesetUrl?: string;
+  /** Absolute COPC range endpoint URL, when advertised by resolve. */
+  readonly copcUrl?: string;
+  /** Absolute terrain provider URL, when advertised by resolve. */
+  readonly terrainUrl?: string;
+  /** Separated serving wire format advertised for the primary scene endpoint. */
+  readonly servingFormat?: string;
+  /** Separated semantic content kind advertised for the scene. */
+  readonly contentKind?: string;
+  /** Credential-free POST acquisition affordance for protected scenes, when advertised. */
+  readonly accessAffordance?: SceneAccessAffordance;
   readonly endpoints: readonly HonuaSceneEndpoint[];
   readonly capabilities: readonly string[];
   readonly auth: HonuaSceneAuth;
@@ -128,8 +168,16 @@ export interface HonuaScene {
   readonly description?: string;
   /** URL of the root 3D-Tiles tileset (`tileset.json`). */
   readonly tilesetUrl?: string;
+  /** URL of the COPC point-cloud range asset, when advertised. */
+  readonly copcUrl?: string;
   /** URL of the terrain provider backing the scene, when present. */
   readonly terrainUrl?: string;
+  /** Serving wire format of the scene (distinct from {@link contentKind}). */
+  readonly servingFormat?: string;
+  /** Semantic content kind of the scene (distinct from {@link servingFormat}). */
+  readonly contentKind?: string;
+  /** Credential-free POST acquisition affordance for protected scenes, when advertised. */
+  readonly accessAffordance?: SceneAccessAffordance;
   /** Full 3D extent of the scene (horizontal envelope + min/max height). */
   readonly extent?: SceneExtent3D;
   /** Suggested initial camera for the first view. */
@@ -209,17 +257,83 @@ function readEndpoint(value: unknown): HonuaSceneEndpoint | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value as Record<string, unknown>;
   const url = readText(record.url) ?? readText(record.href);
-  const kind = readText(record.kind) ?? readText(record.type) ?? readText(record.format);
+  const servingFormat = readText(record.servingFormat) ?? readText(record.serving_format);
+  const kind = readText(record.kind) ?? readText(record.type) ?? readText(record.format) ?? servingFormat;
   if (!isUsableSceneResourceUrl(url) || !kind) return undefined;
   const mediaType = readText(record.mediaType);
   const format = readText(record.format);
+  const contentKind = readText(record.contentKind) ?? readText(record.content_kind);
+  const rangeSupported = typeof record.rangeSupported === "boolean" ? record.rangeSupported : undefined;
   return {
     kind,
     url: url.trim(),
     ...(mediaType !== undefined ? { mediaType } : {}),
     ...(format !== undefined ? { format } : {}),
+    ...(servingFormat !== undefined ? { servingFormat } : {}),
+    ...(contentKind !== undefined ? { contentKind } : {}),
+    ...(rangeSupported !== undefined ? { rangeSupported } : {}),
     requiresAuthentication: record.requiresAuthentication === true,
   };
+}
+
+function readAccessAffordance(record: Record<string, unknown>): SceneAccessAffordance | undefined {
+  const candidate = record.accessSession ?? record.accessEnvelope ?? record.accessAffordance;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return undefined;
+  const obj = candidate as Record<string, unknown>;
+  const method = readText(obj.method)?.toUpperCase() ?? "POST";
+  const path = readText(obj.path) ?? readText(obj.href) ?? readText(obj.url);
+  if (method !== "POST" || !path || path.includes(EMPTY_TILESET_PATH)) return undefined;
+  const scope =
+    obj.scope && typeof obj.scope === "object" && !Array.isArray(obj.scope)
+      ? (obj.scope as Record<string, unknown>)
+      : obj;
+  const origin = readText(scope.origin);
+  const pathPrefix = readText(scope.pathPrefix) ?? readText(scope.path_prefix);
+  const rawTransport = readText(scope.transport);
+  const transport: SceneAccessCredentialTransport | undefined =
+    rawTransport === "header" || rawTransport === "query" ? rawTransport : undefined;
+  const headerName = readText(scope.headerName) ?? readText(scope.header_name);
+  const queryParam = readText(scope.queryParam) ?? readText(scope.query_param);
+  const allowRedirects = typeof scope.allowRedirects === "boolean" ? scope.allowRedirects : undefined;
+  return {
+    method: "POST",
+    path: path.trim(),
+    ...(origin !== undefined ? { origin } : {}),
+    ...(pathPrefix !== undefined ? { pathPrefix } : {}),
+    ...(transport !== undefined ? { transport } : {}),
+    ...(headerName !== undefined ? { headerName } : {}),
+    ...(queryParam !== undefined ? { queryParam } : {}),
+    ...(allowRedirects !== undefined ? { allowRedirects } : {}),
+  };
+}
+
+function readEndpointAccessAffordance(value: unknown): SceneAccessAffordance | undefined {
+  if (!Array.isArray(value)) return undefined;
+  for (const record of value) {
+    if (record?.requiresAuthentication !== true || typeof record.url !== "string") continue;
+    const affordance = readAccessAffordance(record);
+    if (!affordance) continue;
+    const endpoint = scopeEndpointAffordance(record.url, affordance);
+    if (endpoint) return endpoint;
+  }
+  return undefined;
+}
+
+function scopeEndpointAffordance(url: string, affordance: SceneAccessAffordance): SceneAccessAffordance | undefined {
+  try {
+    const asset = new URL(url);
+    const acquisition = new URL(affordance.path, asset);
+    if (!["http:", "https:"].includes(asset.protocol) || acquisition.origin !== asset.origin) return undefined;
+    if (acquisition.username || acquisition.password || asset.username || asset.password) return undefined;
+    return {
+      method: "POST",
+      path: acquisition.href,
+      origin: asset.origin,
+      pathPrefix: asset.pathname.slice(0, asset.pathname.lastIndexOf("/") + 1),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function readEndpoints(value: unknown): HonuaSceneEndpoint[] {
@@ -357,8 +471,15 @@ function readScene(record: Record<string, unknown>, missingIdMessage: string): H
   const name = readText(record.name);
   const title = name ?? readText(record.title);
   const description = readText(record.description);
-  const tilesetUrl = readTilesetUrl(record);
+  const endpoints = readEndpoints(record.endpoints);
+  const tilesetUrl = readTilesetUrl(record) ?? tilesetEndpointUrl(endpoints);
+  const rawCopcUrl = readText(record.copcUrl) ?? readText(record.copc_url);
+  const copcUrl = (isUsableSceneResourceUrl(rawCopcUrl) ? rawCopcUrl.trim() : undefined) ?? copcEndpointUrl(endpoints);
   const terrainUrl = readText(record.terrainUrl) ?? readText(record.terrain_url);
+  const servingFormat =
+    readText(record.servingFormat) ?? readText(record.serving_format) ?? endpoints[0]?.servingFormat;
+  const contentKind = readText(record.contentKind) ?? readText(record.content_kind) ?? endpoints[0]?.contentKind;
+  const accessAffordance = readEndpointAccessAffordance(record.endpoints) ?? readAccessAffordance(record);
   const extent = readExtent(record);
   const initialCamera = readInitialCamera(record);
   const styleExpression = readStyleExpression(record);
@@ -367,14 +488,19 @@ function readScene(record: Record<string, unknown>, missingIdMessage: string): H
   const attribution = readStringList(record.attribution);
   const updatedAt = readText(record.updatedAt);
   const links = readLinks(record.links);
-  const usableTerrain = isUsableSceneResourceUrl(terrainUrl) ? terrainUrl.trim() : undefined;
+  const usableTerrain =
+    (isUsableSceneResourceUrl(terrainUrl) ? terrainUrl.trim() : undefined) ?? terrainEndpointUrl(endpoints);
   return {
     sceneId,
     ...(name !== undefined ? { name } : {}),
     ...(title !== undefined ? { title } : {}),
     ...(description !== undefined ? { description } : {}),
     ...(tilesetUrl !== undefined ? { tilesetUrl } : {}),
+    ...(copcUrl !== undefined ? { copcUrl } : {}),
     ...(usableTerrain !== undefined ? { terrainUrl: usableTerrain } : {}),
+    ...(servingFormat !== undefined ? { servingFormat } : {}),
+    ...(contentKind !== undefined ? { contentKind } : {}),
+    ...(accessAffordance !== undefined ? { accessAffordance } : {}),
     ...(extent ? { extent } : {}),
     ...(initialCamera ? { initialCamera } : {}),
     viewpoints: readViewpoints(record.viewpoints),
@@ -426,7 +552,28 @@ export function normalizeScene(raw: unknown): HonuaScene {
 }
 
 function tilesetEndpointUrl(endpoints: readonly HonuaSceneEndpoint[]): string | undefined {
-  const match = endpoints.find((endpoint) => endpoint.kind === "3d-tiles" || endpoint.format === "3d-tiles");
+  const match = endpoints.find(
+    (endpoint) =>
+      endpoint.kind === "3d-tiles" || endpoint.format === "3d-tiles" || endpoint.servingFormat === "3d-tiles",
+  );
+  return match && isUsableSceneResourceUrl(match.url) ? match.url.trim() : undefined;
+}
+
+function copcEndpointUrl(endpoints: readonly HonuaSceneEndpoint[]): string | undefined {
+  const match = endpoints.find(
+    (endpoint) => endpoint.kind === "copc" || endpoint.format === "copc" || endpoint.servingFormat === "copc",
+  );
+  return match && isUsableSceneResourceUrl(match.url) ? match.url.trim() : undefined;
+}
+
+function terrainEndpointUrl(endpoints: readonly HonuaSceneEndpoint[]): string | undefined {
+  const match = endpoints.find(
+    (endpoint) =>
+      endpoint.kind === "quantized-mesh" ||
+      endpoint.format === "quantized-mesh" ||
+      endpoint.servingFormat === "quantized-mesh" ||
+      endpoint.contentKind === "terrain",
+  );
   return match && isUsableSceneResourceUrl(match.url) ? match.url.trim() : undefined;
 }
 
@@ -441,10 +588,24 @@ export function normalizeSceneResolution(raw: unknown): HonuaSceneResolution {
   const endpoints = readEndpoints(record.endpoints);
   const flat = readText(record.tilesetUrl) ?? readText(record.tileset_url);
   const tilesetUrl = (isUsableSceneResourceUrl(flat) ? flat.trim() : undefined) ?? tilesetEndpointUrl(endpoints);
+  const flatCopc = readText(record.copcUrl) ?? readText(record.copc_url);
+  const copcUrl = (isUsableSceneResourceUrl(flatCopc) ? flatCopc.trim() : undefined) ?? copcEndpointUrl(endpoints);
+  const flatTerrain = readText(record.terrainUrl) ?? readText(record.terrain_url);
+  const terrainUrl =
+    (isUsableSceneResourceUrl(flatTerrain) ? flatTerrain.trim() : undefined) ?? terrainEndpointUrl(endpoints);
+  const servingFormat =
+    readText(record.servingFormat) ?? readText(record.serving_format) ?? endpoints[0]?.servingFormat;
+  const contentKind = readText(record.contentKind) ?? readText(record.content_kind) ?? endpoints[0]?.contentKind;
+  const accessAffordance = readEndpointAccessAffordance(record.endpoints) ?? readAccessAffordance(record);
   const auth = readAuth(record.auth) ?? { requiresAuthentication: false, schemes: [] };
   return {
     sceneId,
     ...(tilesetUrl !== undefined ? { tilesetUrl } : {}),
+    ...(copcUrl !== undefined ? { copcUrl } : {}),
+    ...(terrainUrl !== undefined ? { terrainUrl } : {}),
+    ...(servingFormat !== undefined ? { servingFormat } : {}),
+    ...(contentKind !== undefined ? { contentKind } : {}),
+    ...(accessAffordance !== undefined ? { accessAffordance } : {}),
     endpoints,
     capabilities: readStringList(record.capabilities) ?? [],
     auth,
@@ -583,7 +744,7 @@ export function sceneToRuntimePrimitives(
 
 /**
  * Build the workspace layer states for a discovered scene (one per rendered
- * primitive), so a {@link module:scene-workspace/workspace.SceneWorkspace} can
+ * primitive), so a {@link module:scene-workspace/workspace.SceneStore} can
  * seed its layer list from the scene. Pure.
  */
 export function sceneLayerStates(scene: HonuaScene): SceneLayerState[] {

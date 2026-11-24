@@ -11,6 +11,8 @@ tags: [migration, migration-source-sdk, widgets, reference, generated]
 
 # Source SDK widget-removal survival guide
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 The source SDK here is Esri's ArcGIS Maps SDK for JavaScript. Module paths and release numbers identify that product; Honua is independent of Esri.
 
 Every classic source SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`) is deprecated as of source SDK 5.0 and is removed at 6.0 — **as early as Q1 2027**. If your app constructs any of these widgets, that code stops compiling and running when you take the 6.0 upgrade.

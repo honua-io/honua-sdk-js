@@ -2,9 +2,11 @@
 type: reference
 title: "Studio package parity: MCP, QGIS, and Console"
 description: "How an AI-generated map, dashboard or report keeps parity with the hand-authored package contracts, so generated output is a first-class package rather than a special case."
-resource: "https://www.npmjs.com/package/@honua/sdk-js"
+resource: "https://www.npmjs.com/package/@honua/app-platform"
 ---
 # Studio package parity: MCP, QGIS, and Console
+
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
 Status: experimental. This is the parity layer on top of the
 [package contracts](studio-package-contracts.md).
@@ -22,7 +24,7 @@ import {
   validatePackageProvenance,
   getPackageProvenance,
   chartWidgetToVegaLiteSpec,
-} from "@honua/sdk-js/studio";
+} from "@honua/app-platform/studio";
 ```
 
 ## Provenance carried consistently
@@ -49,7 +51,7 @@ same provenance shape as Console — there is no surface-specific variant.
 `validateStudioPackage(family, pkg, options)` validates a package of any family
 produced by an MCP client, the QGIS plugin, or the SDK, returning the unified
 `StudioPackageValidationResponse<T>`. For the `map` family it
-delegates to the established structural `validateMapPackage`; for the other
+delegates to the established structural `validateMapDocument`; for the other
 families it runs the shared base checks (identity field, `format`, lifecycle)
 plus provenance checks when an envelope is present. Pass
 `{ requireProvenance: true }` to make provenance mandatory.
@@ -108,7 +110,7 @@ one.
 ## Versioning
 
 Every new export is tagged `@experimental` and is subpath-only under
-`@honua/sdk-js/studio`, outside the SDK semver contract until the matching
+`@honua/app-platform/studio`, outside the SDK semver contract until the matching
 server contracts land. The provenance format follows the established
 `HONUA_X_PACKAGE_FORMAT_V1 = "honua_x_package.v1"` pattern
 (`HONUA_PACKAGE_PROVENANCE_FORMAT_V1 = "honua_package_provenance.v1"`).

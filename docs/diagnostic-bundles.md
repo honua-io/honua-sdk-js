@@ -6,6 +6,8 @@ resource: "honua://capability/ops.observability"
 ---
 # Sanitized diagnostic bundles (`honua doctor`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 `honua doctor` creates a local, bounded support artifact without uploading it. The command uses the canonical
 [`diagnostic-bundle.v1` JSON Schema](https://honua.io/schemas/diagnostic-bundle.v1.json), vendored byte-for-byte in
 `schemas/diagnostic-bundle.v1.json` and pinned to:

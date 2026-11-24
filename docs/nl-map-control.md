@@ -6,6 +6,8 @@ resource: "honua://capability/ai.agent-operations"
 ---
 # Natural-language map control (`@honua/sdk-js/nl-map-control`)
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 > **Experimental.** Symbols on this subpath are `@experimental` and may change
 > in any minor release before `1.0.0`.
 
@@ -66,7 +68,7 @@ import {
 } from "@honua/sdk-js/nl-map-control";
 
 const nl = createNlMapControl({
-  // Any HonuaAgentRuntime adapter: a HonuaController, a MapPackage runtime,
+  // Any HonuaAgentRuntime adapter: a HonuaController, a map document runtime,
   // or your own object over a MapLibre map.
   tools: { runtime },
   // Bring your own model. Any provider, any transport.

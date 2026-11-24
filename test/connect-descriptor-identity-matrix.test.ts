@@ -29,6 +29,9 @@
  * that behavior lives in `connect()`'s shared body rather than in any one
  * protocol adapter.
  */
+import { create } from "@bufbuild/protobuf";
+import { DescribeLayerResponseSchema } from "../src/gen/geospatial/v1/feature_service_pb.js";
+
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
@@ -41,9 +44,9 @@ import {
   type ConnectResolvedProtocol,
   connect,
 } from "../src/connect.js";
-import { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "../src/core/client.js";
+import { HonuaClient } from "../src/core/client.js";
 import { HonuaAbortError } from "../src/core/errors.js";
-import type { HonuaLayerMetadata, HonuaQueryResponse } from "../src/core/types.js";
+import type { HonuaLayerMetadata } from "../src/core/types.js";
 import { type SourceSchemaV2, connectWithSourceSchemaV2 } from "../src/source-schema.js";
 
 const WMS_CAPABILITIES_XML = readFileSync(
@@ -91,17 +94,6 @@ const PARCELS_LAYER: HonuaLayerMetadata = {
     { name: "NAME", type: "esriFieldTypeString" },
     { name: "AREA_SQM", type: "esriFieldTypeDouble" },
   ],
-};
-
-const PARCELS_PROBE_RESPONSE: HonuaQueryResponse = {
-  objectIdFieldName: "OBJECTID",
-  geometryType: "esriGeometryPolygon",
-  fields: [
-    { name: "OBJECTID", type: "esriFieldTypeOID" },
-    { name: "NAME", type: "esriFieldTypeString" },
-    { name: "AREA_SQM", type: "esriFieldTypeDouble" },
-  ],
-  features: [],
 };
 
 const GEOSERVICES_ENDPOINT = "https://example.test/rest/services/parcels/FeatureServer/0";
@@ -167,34 +159,29 @@ function geoservicesImageFetchHandler(metadata: unknown = PARCELS_IMAGE_METADATA
   }) as typeof fetch;
 }
 
-function grpcCapabilitiesEnvelope() {
-  return {
-    success: true,
-    data: {
-      compatibility: {
-        serverVersion: HONUA_MINIMUM_SUPPORTED_SERVER_VERSION,
-        releaseChannel: "stable",
-        controlPlaneApi: { major: 1, basePath: "/api/v1/admin", deprecated: false },
-        metadataSchemas: [],
-        features: {
-          metadataResources: true,
-          manifestExport: true,
-          manifestApply: true,
-          manifestDryRun: true,
-          manifestPrune: true,
-        },
+function grpcClientFixture() {
+  const fetchFn = vi.fn<typeof fetch>().mockRejectedValue(new Error("Unexpected REST request during native discovery"));
+  const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
+  const layer = vi.spyOn(client, "describeLayer").mockResolvedValue(
+    create(DescribeLayerResponseSchema, {
+      layer: {
+        serviceId: "parcels",
+        layerId: 0,
+        name: "Parcels",
+        objectIdField: "OBJECTID",
+        geometryType: 5,
+        spatialReference: { wkid: 4326 },
+        capabilities: { query: true },
+        fields: [
+          { definition: { name: "OBJECTID", fieldType: 2 } },
+          { definition: { name: "NAME", fieldType: 1, nullable: true } },
+          { definition: { name: "AREA_SQM", fieldType: 4, nullable: true } },
+          { definition: { name: "geometry", fieldType: 10, nullable: true } },
+        ],
       },
-    },
-  };
-}
-
-function grpcFetchHandler(): typeof fetch {
-  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = new URL(new Request(input, init).url);
-    if (url.pathname === "/api/v1/admin/capabilities") return json(grpcCapabilitiesEnvelope());
-    if (url.pathname === "/rest/services/parcels/FeatureServer/0") return json(PARCELS_LAYER);
-    throw new Error(`Unexpected gRPC fetch: ${url.pathname}`);
-  }) as typeof fetch;
+    }),
+  );
+  return { client, layer, fetchFn };
 }
 
 const PARCELS_ODATA_METADATA_XML = `<?xml version="1.0" encoding="utf-8"?>
@@ -549,12 +536,10 @@ const MATRIX_CASES: readonly MatrixCase[] = [
   {
     label: "grpc",
     build() {
-      const fetchFn = grpcFetchHandler();
-      const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
-      const queryFeatures = vi.spyOn(client, "queryFeatures").mockResolvedValue(PARCELS_PROBE_RESPONSE);
+      const { client, layer } = grpcClientFixture();
       return {
         options: { endpoint: GEOSERVICES_ENDPOINT, protocol: "grpc", client },
-        activity: () => (fetchFn as ReturnType<typeof vi.fn>).mock.calls.length + queryFeatures.mock.calls.length,
+        activity: () => layer.mock.calls.length,
       };
     },
   },
@@ -725,9 +710,7 @@ async function discoverParcelsSchemas() {
       clientOptions: { fetchFn: geoservicesMapFetchHandler() },
     }),
     (async () => {
-      const fetchFn = grpcFetchHandler();
-      const client = new HonuaClient({ baseUrl: "https://example.test", transport: "grpc-web", fetchFn });
-      vi.spyOn(client, "queryFeatures").mockResolvedValue(PARCELS_PROBE_RESPONSE);
+      const { client } = grpcClientFixture();
       return connectWithSourceSchemaV2({
         endpoint: GEOSERVICES_ENDPOINT,
         protocol: "grpc",
@@ -941,17 +924,20 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
         },
       };
 
-      for (const protocol of ["geoservices", "geoservicesMap", "grpc", "odata", "geoparquet"] as const) {
+      for (const protocol of ["geoservices", "geoservicesMap", "odata", "geoparquet"] as const) {
         expect(geometryCrsDefinition(schemas[protocol])).toEqual(expectedDefinition);
       }
     });
 
-    it("keeps gRPC's schemaV2 fingerprint byte-identical to raw GeoServices REST discovery of the same underlying layer document", async () => {
+    it("keeps native descriptor knowledge distinct from REST metadata in schema identity", async () => {
       const schemas = await discoverParcelsSchemas();
-      // Same transport-neutral identity, proven by the verified fingerprint —
-      // not by re-deriving field-by-field equality, which is exactly the
-      // sourceSchemaV2QueryContext() query-plan-identity guarantee.
-      expect(schemas.grpc.fingerprint).toBe(schemas.geoservices.fingerprint);
+      expect(schemas.grpc.fingerprint).not.toBe(schemas.geoservices.fingerprint);
+      expect(geometryCrsDefinition(schemas.grpc)).toMatchObject({
+        kind: "authority",
+        authority: "EPSG",
+        code: "4326",
+        definitionAxisOrder: { state: "unknown", reason: "missing" },
+      });
     });
 
     it("keeps gRPC's capability truth a verified fail-closed subset of raw GeoServices REST for the identical layer", async () => {
@@ -961,13 +947,7 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
         authorizationScopeFingerprint: "anonymous",
         clientOptions: { fetchFn: geoservicesFetchHandler() },
       });
-      const grpcFetchFn = grpcFetchHandler();
-      const grpcClient = new HonuaClient({
-        baseUrl: "https://example.test",
-        transport: "grpc-web",
-        fetchFn: grpcFetchFn,
-      });
-      vi.spyOn(grpcClient, "queryFeatures").mockResolvedValue(PARCELS_PROBE_RESPONSE);
+      const { client: grpcClient, fetchFn: grpcFetchFn } = grpcClientFixture();
       const grpcConnection = await connect({
         endpoint: GEOSERVICES_ENDPOINT,
         protocol: "grpc",
@@ -978,14 +958,12 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
       const restCapabilities = new Set([...restConnection.source().capabilities]);
       const grpcCapabilities = new Set([...grpcConnection.source().capabilities]);
       for (const capability of grpcCapabilities) expect(restCapabilities.has(capability)).toBe(true);
-      // gRPC has no pbf/sql/attachments RPC surface even though the identical
-      // REST metadata would advertise them.
+      // Only the capabilities advertised by the native descriptor are granted.
       expect(grpcCapabilities.has("pbf")).toBe(false);
       expect(grpcConnection.inspection.sources[0]!.descriptor.locator).toEqual(
         restConnection.inspection.sources[0]!.descriptor.locator,
       );
-      // Endpoint identity (the descriptor's protocol tag) still distinguishes
-      // them even though locator and schema identity are equal.
+      expect(grpcFetchFn).not.toHaveBeenCalled();
       expect(grpcConnection.inspection.protocol).toBe("grpc");
       expect(restConnection.inspection.protocol).toBe("geoservices-feature-service");
     });
@@ -1022,13 +1000,10 @@ describe("connect() — cross-protocol descriptor identity matrix (issue #555)",
     it("keeps Esri's Polygon/MultiPolygon ambiguity distinct from OData's and GeoParquet's unambiguous Polygon declaration", async () => {
       const schemas = await discoverParcelsSchemas();
 
-      // Esri's geometryType enum cannot distinguish single- from
-      // multi-part polygons at declaration time, so both GeoServices REST
-      // and gRPC (which reuses the identical REST-shaped metadata) report a
-      // "mixed" knowledge state.
+      // REST polygon metadata is ambiguous; the native descriptor carries an exact enum.
       const geoservicesGeometry = geometryKnowledge(schemas.geoservices);
       expect(geoservicesGeometry).toEqual({ state: "mixed", types: ["MultiPolygon", "Polygon"] });
-      expect(geometryKnowledge(schemas.grpc)).toEqual(geoservicesGeometry);
+      expect(geometryKnowledge(schemas.grpc)).toEqual({ state: "known", type: "Polygon" });
       expect(geometryKnowledge(schemas.geoservicesMap)).toEqual(geoservicesGeometry);
 
       // OData's Edm.GeographyPolygon and GeoParquet's declared geometry_types

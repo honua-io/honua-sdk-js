@@ -3,24 +3,36 @@ import fs from "node:fs";
 import test from "node:test";
 import { validateRecoveryRecord, validateRecoverySnapshot } from "../../scripts/lib/sealed-ancestor-recovery.mjs";
 
-const record = JSON.parse(fs.readFileSync("config/release-recoveries/js-sdk-v0.1.18.json", "utf8"));
-function fixture() {
-  const run = (id, sha, event, path = ".github/workflows/ci.yml") => ({ id, head_sha: sha, event, path, status: "completed", conclusion: "success", repository: { full_name: record.repository }, head_repository: { full_name: record.repository } });
-  const identity = { version: record.version, manifest: { ".": record.version, mcp: "0.1.19", "packages/create-honua-app": "0.1.9" }, lockVersion: record.version, lockRootVersion: record.version, nodeVersion: record.nodeVersion, engines: Array(3).fill(record.nodeEngine) };
+const readRecord = (tag) => JSON.parse(fs.readFileSync(`config/release-recoveries/${tag}.json`, "utf8"));
+const record = readRecord("js-sdk-v0.1.18");
+const sdkVerifiedRecord = readRecord("js-sdk-v0.4.0");
+function fixture(base = record) {
+  const run = (id, sha, event, path = ".github/workflows/ci.yml") => ({ id, head_sha: sha, event, path, status: "completed", conclusion: "success", repository: { full_name: base.repository }, head_repository: { full_name: base.repository } });
+  const identity = { version: base.version, manifest: { ".": base.version, mcp: "0.1.19", "packages/create-honua-app": "0.1.9" }, lockVersion: base.version, lockRootVersion: base.version, nodeVersion: base.nodeVersion, engines: Array(3).fill(base.nodeEngine) };
   return {
-    release: { id: record.releaseId, tag_name: record.tag, target_commitish: record.managedSource, draft: true, immutable: false },
+    release: { id: base.releaseId, tag_name: base.tag, target_commitish: base.managedSource, draft: true, immutable: false },
     currentTrunkContainsSource: true, managedContainsBase: true, baseContainsSource: true,
     subjects: ["chore(evidence): regenerate derived artifacts (evidence)"], paths: ["samples/dist/catalog.json"], existingTag: null,
     identities: Array.from({ length: 3 }, () => structuredClone(identity)),
-    strict: run(record.strictRunId, record.sealedSource, "workflow_dispatch"),
-    native: { ...run(record.nativeRunId, record.sealedSource, "pull_request"), run_attempt: 2 },
+    strict: run(base.strictRunId, base.sealedSource, "workflow_dispatch"),
+    native: { ...run(base.nativeRunId, base.sealedSource, "pull_request"), run_attempt: 2 },
     strictJobs: ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab"].map((name) => ({ name, conclusion: "success", steps: ["Unit tests with coverage", "Browser smoke suite", "Deterministic browser rendering benchmark"].map((name) => ({ name, conclusion: "success" })) })),
     nativeJobs: ["JS SDK", "MCP SDK", "Deterministic Benchmark Lab", "PR Fast (under 2 minutes)"].map((name) => ({ name, conclusion: "success", steps: ["Unit tests with coverage", "Browser smoke suite", "Deterministic browser rendering benchmark"].map((name) => ({ name, conclusion: "success" })) })),
-    generation: { ...run(record.generationRunId, record.generationBase, "workflow_dispatch", ".github/workflows/regenerate-derived-artifacts.yml"), head_branch: "trunk", conclusion: "failure" },
+    generation: { ...run(base.generationRunId, base.generationBase, "workflow_dispatch", ".github/workflows/regenerate-derived-artifacts.yml"), head_branch: "trunk", conclusion: "failure" },
     generationJobs: [{ name: "Regenerate + reseal on trunk", conclusion: "success", steps: [{ name: "Verify regenerated artifacts strictly", conclusion: "success" }] }],
-    artifact: { id: record.generationArtifactId, name: "derived-artifacts-bundle", expired: false, workflow_run: { id: record.generationRunId, head_sha: record.generationBase }, digest: `sha256:${record.generationArtifactSha256}` },
-    archiveDigest: record.generationArtifactSha256, bundleSource: record.sealedSource,
+    artifact: { id: base.generationArtifactId, name: "derived-artifacts-bundle", expired: false, workflow_run: { id: base.generationRunId, head_sha: base.generationBase }, digest: `sha256:${base.generationArtifactSha256}` },
+    archiveDigest: base.generationArtifactSha256, bundleSource: base.sealedSource,
   };
+}
+function sdkVerifiedFixture() {
+  const snapshot = fixture(sdkVerifiedRecord);
+  snapshot.native.run_attempt = 1;
+  snapshot.nativeJobs = [["JS SDK", "skipped"], ["MCP SDK", "skipped"], ["Deterministic Benchmark Lab", "success"], ["PR Fast (under 2 minutes)", "success"]]
+    .map(([name, conclusion]) => ({ name, conclusion, steps: [] }));
+  snapshot.verification = { ...snapshot.strict, id: sdkVerifiedRecord.sdkVerificationRunId, event: "pull_request", path: ".github/workflows/sdk-verification.yml" };
+  snapshot.verificationJobs = ["Admission", "SDK build (producer)", "Verify: core, types, style, coverage", "Verify: MCP", "Browser (map)", "Verify: merged unit coverage", "SDK verified"]
+    .map((name) => ({ name, conclusion: "success", steps: [] }));
+  return snapshot;
 }
 
 test("reviewed record accepts only the exact stable tag/source and owning repository", () => {
@@ -74,9 +86,39 @@ const refusals = {
   "corrupt archive": (s) => { s.archiveDigest = "f".repeat(64); },
   "different bundle source": (s) => { s.bundleSource = record.generationBase; },
 };
+test("engine floor above the pinned toolchain is refused", () => {
+  const request = { tag: sdkVerifiedRecord.tag, source: sdkVerifiedRecord.sealedSource, repository: sdkVerifiedRecord.repository };
+  assert.throws(() => validateRecoveryRecord({ ...sdkVerifiedRecord, nodeEngine: ">=22.24.0" }, request));
+  assert.throws(() => validateRecoveryRecord({ ...sdkVerifiedRecord, nodeEngine: "^22.12.0" }, request));
+});
+
 for (const [name, mutate] of Object.entries(refusals)) test(`refuses ${name}`, () => {
   const snapshot = fixture(); mutate(snapshot);
   assert.throws(() => validateRecoverySnapshot(record, snapshot));
+});
+
+test("SDK Verification record proves native SDK jobs through SDK Verification", () => {
+  validateRecoveryRecord(sdkVerifiedRecord, { tag: sdkVerifiedRecord.tag, source: sdkVerifiedRecord.sealedSource, repository: sdkVerifiedRecord.repository });
+  assert.equal(validateRecoverySnapshot(sdkVerifiedRecord, sdkVerifiedFixture()), sdkVerifiedRecord);
+});
+
+const sdkVerifiedRefusals = {
+  "missing SDK Verification run": (s) => { delete s.verification; },
+  "failed SDK Verification run": (s) => { s.verification.conclusion = "failure"; },
+  "SDK Verification on another source": (s) => { s.verification.head_sha = sdkVerifiedRecord.generationBase; },
+  "SDK Verification from another workflow": (s) => { s.verification.path = ".github/workflows/ci.yml"; },
+  "SDK Verification gate not passed": (s) => { s.verificationJobs.at(-1).conclusion = "skipped"; },
+  "SDK Verification graph switched off": (s) => { s.verificationJobs.forEach((job) => { if (!["Admission", "SDK verified"].includes(job.name)) job.conclusion = "skipped"; }); },
+  "SDK Verification without browser jobs": (s) => { s.verificationJobs = s.verificationJobs.filter((job) => !job.name.startsWith("Browser (")); },
+  "SDK Verification without MCP verification": (s) => { s.verificationJobs = s.verificationJobs.filter((job) => job.name !== "Verify: MCP"); },
+  "native JS SDK ran and failed": (s) => { s.nativeJobs[0].conclusion = "failure"; },
+  "native PR Fast skipped": (s) => { s.nativeJobs[3].conclusion = "skipped"; },
+  "strict JS SDK skipped": (s) => { s.strictJobs[0].conclusion = "skipped"; },
+  "engine differs from record": (s) => { s.identities[1].engines[0] = ">=22.23.3"; },
+};
+for (const [name, mutate] of Object.entries(sdkVerifiedRefusals)) test(`SDK Verification record refuses ${name}`, () => {
+  const snapshot = sdkVerifiedFixture(); mutate(snapshot);
+  assert.throws(() => validateRecoverySnapshot(sdkVerifiedRecord, snapshot));
 });
 
 test("workflow rechecks exact-source seal before creating or publishing an ancestor tag", () => {

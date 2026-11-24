@@ -1,5 +1,7 @@
 # Honua Safe Agent Workbench
 
+> **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](../../docs/native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
+
 This flagship demonstrates the difference between an agent proposing spatial work and the SDK authorizing an effect. The deterministic default requires no model, network, or credentials.
 
 <!-- sample-playground:start -->

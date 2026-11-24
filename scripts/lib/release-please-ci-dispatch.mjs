@@ -237,6 +237,9 @@ export async function dispatchReleasePleaseCi(input, request = githubRequest, wa
     headSha: current.headSha,
     runTitle: releasePleaseCiRunTitle(current.pullRequestNumber, current.headSha),
   };
+  if (input.expectedHeadSha !== undefined && expected.headSha !== input.expectedHeadSha) {
+    throw new Error("The current Release Please head is not the normalized head the refresh job reported.");
+  }
   await assertReleaseBranchHead(repository, expected.headSha, request);
 
   const initialRuns = await listCiWorkflowRuns(repository, request);

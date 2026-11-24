@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
+import { parse } from "yaml";
 
 import { tokenize } from "../../scripts/docs-executable-commands.mjs";
-import { candidateInvocations, classifyProbe, pinnedCommand, probeFor } from "../../scripts/docs-commands-registry.mjs";
+import { candidateInvocations, classifyProbe, loadCandidate, pinnedCommand, probeFor } from "../../scripts/docs-commands-registry.mjs";
+
+const root = path.resolve(import.meta.dirname, "../..");
 
 // The shape `config/installed-package-certification.v1.json` supplies, reduced
 // to the fields this lane reads.
@@ -89,4 +94,31 @@ test("a probe passes only on positive evidence that the right executable ran", (
     resolved: false,
   });
   assert.equal(classifyProbe({ error: new Error("spawn ENOENT"), exitCode: null, stderr: "", stdout: "" }, "honua").resolved, false);
+});
+
+test("the lane reads the installed-certification candidate input, never the legacy pin under a snapshot mode", async () => {
+  const legacy = await loadCandidate({ env: {} });
+  assert.deepEqual(legacy.source, { kind: "legacy-regression", path: "config/installed-package-certification.v1.json" });
+  assert.ok(legacy.names.has("@honua/mcp-server"));
+
+  // A snapshot selection puts the run in release-snapshot mode. Without the
+  // adopted release bytes it must fail closed rather than quietly certify the
+  // September pin.
+  await assert.rejects(loadCandidate({ env: { HONUA_INSTALLED_CANDIDATE_MODE: "release-snapshot" } }), /HONUA_RELEASE_REVIEWED_SHA/);
+  await assert.rejects(loadCandidate({ env: { HONUA_INSTALLED_CANDIDATE_MODE: "pinned-anything" } }), /unknown installed candidate input mode/);
+});
+
+test("the scheduled execute job selects the admitted candidate before running any documented command", async () => {
+  const workflow = parse(await readFile(path.join(root, ".github/workflows/documented-packages.yml"), "utf8"));
+  assert.equal(workflow.on.workflow_dispatch.inputs.candidate_mode.default, "current-release");
+  const steps = workflow.jobs.execute.steps;
+  const index = (predicate) => steps.findIndex(predicate);
+  const select = index((step) => step.run === "node scripts/select-installed-candidate.mjs");
+  const release = index((step) => step.with?.repository === "honua-io/honua-release");
+  const admit = index((step) => String(step.uses ?? "").startsWith("honua-io/honua-release/.github/actions/candidate-input@"));
+  const bind = index((step) => String(step.run ?? "").includes("HONUA_RELEASE_INPUT_DIRECTORY"));
+  const execute = index((step) => step.run === "npm run docs:commands:registry");
+  assert.ok(select >= 0 && select < release && release < admit && admit < bind && bind < execute,
+    "selection, release checkout, admission and binding must precede execution");
+  for (const gated of [steps[release], steps[admit], steps[bind]]) assert.equal(gated.if, "steps.candidate.outputs.mode == 'release-snapshot'");
 });
