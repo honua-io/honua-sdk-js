@@ -124,12 +124,15 @@ for (const [name, mutate] of Object.entries(sdkVerifiedRefusals)) test(`SDK Veri
 test("workflow rechecks exact-source seal before creating or publishing an ancestor tag", () => {
   const workflow = fs.readFileSync(".github/workflows/release-please.yml", "utf8");
   const seal = workflow.indexOf("- name: Recheck exact ancestor release seal");
+  const prepare = workflow.indexOf("- name: Prepare SDK release publication");
+  const mint = workflow.indexOf("- name: Mint SDK tag creation token");
   const dispatch = workflow.indexOf("- name: Dispatch package publish workflows");
-  assert.ok(seal > 0 && seal < dispatch);
+  assert.ok(0 < seal && seal < prepare && prepare < mint && mint < dispatch);
   assert.ok(workflow.includes('node scripts/release-seal.mjs check --expect-version "$RECOVERY_VERSION"'));
   assert.ok(workflow.includes('"${RECOVERY_SEAL_OUTCOME:-}" != "success"'));
-  const recovery = workflow.slice(workflow.indexOf('if [[ -n "${RECOVER_SEALED_SOURCE:-}" ]]'));
-  assert.ok(recovery.indexOf("node scripts/verify-sealed-ancestor-recovery.mjs") < recovery.indexOf('gh api --method POST'));
-  assert.ok(recovery.indexOf('recovery_tag_sha=') < recovery.indexOf('publish_sealed_draft'));
-  assert.ok(!recovery.includes('git push --force'));
+  const recovery = workflow.slice(workflow.indexOf('if [[ -n "${RECOVER_SEALED_SOURCE:-}" ]]'), mint);
+  const verify = recovery.indexOf("node scripts/verify-sealed-ancestor-recovery.mjs");
+  const plan = recovery.indexOf('prepare_sdk_publish "${tag}"');
+  assert.ok(0 < verify && verify < plan);
+  assert.ok(!recovery.includes("git push --force"));
 });
