@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { requireSecureCredentialEndpoint } from "../credential-endpoint.js";
 import { parseSourceRef, toSourceLocator } from "../neutral/source-ref.js";
 import { BedrockDriver, DeterministicDriver } from "./drivers/index.js";
 import { renderMarkdown } from "./report.js";
@@ -48,6 +49,7 @@ function smokeLayer(env: NodeJS.ProcessEnv) {
   if (env.HONUA_EVAL_BEDROCK !== "1") {
     throw new SmokeConfigurationError("HONUA_EVAL_BEDROCK must be set to 1 for the live smoke.");
   }
+  requireSecureCredentialEndpoint(baseUrl, "HONUA_BASE_URL");
   return { serviceId, layerId, baseUrl };
 }
 
