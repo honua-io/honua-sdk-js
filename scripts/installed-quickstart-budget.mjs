@@ -13,7 +13,7 @@ import { runNpmSync } from "./lib/npm-cli.mjs";
 import { verifyPreparedSdkArtifact } from "./lib/prepared-sdk-artifact.mjs";
 import { packedSdkFilename, assertComparisonDependencies, assertInstalledConsumerModules } from "./lib/installed-consumer-lock.mjs";
 import { INSTALLED_FIRST_MAP_BUDGET, firstMapVerdict } from "./lib/first-map-budget.mjs";
-import { readInstalledCandidateInput } from "./installed-candidate-input.mjs";
+import { readInstalledCandidateInput, readLegacyFirstMapSourceRevision } from "./installed-candidate-input.mjs";
 import { readFirstMapBuildResolution } from "./lib/first-map-build-resolution.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -33,7 +33,7 @@ assert.ok(!(localTarball && process.env.HONUA_INSTALLED_CANDIDATE_MODE === "rele
   "release-snapshot cannot be combined with --local-tarball");
 const candidate = await readInstalledCandidateInput();
 const legacyFixtureSha = !localTarball && !candidate.releaseInput
-  ? candidate.packages.find((entry) => entry.coordinate === candidate.package.coordinate).sourceRevision
+  ? await readLegacyFirstMapSourceRevision(candidate)
   : undefined;
 const work = await mkdtemp(path.join(tmpdir(), "honua-installed-first-map-"));
 const proveRegression = process.argv.includes("--prove-regression");
@@ -44,6 +44,7 @@ const previousMode = process.env.HONUA_SAMPLE_SDK_MODE;
 const previousDirectory = process.env.HONUA_SAMPLE_SDK_DIR;
 
 try {
+  const legacyBasemap = "/__honua-quickstart__/legacy-basemap-style.json";
   let exampleRoot = path.join(root, "examples/maplibre-quickstart");
   if (legacyFixtureSha) {
     const fixtureRoot = path.join(work, "legacy-fixture");
@@ -55,10 +56,18 @@ try {
       "examples/maplibre-quickstart", "examples/_kit/design", "examples/shared/maplibre-vite-worker.ts", "samples/fixtures/first-map/v2"], { cwd: root });
     execFileSync("tar", ["-xf", archive], { cwd: fixtureRoot });
     exampleRoot = path.join(fixtureRoot, "examples/maplibre-quickstart");
+    if (measureExecution) {
+      // Use a static URL that the checkout fixture server does not intercept.
+      await rename(path.join(exampleRoot, "public/__honua-quickstart__/basemap-style.json"),
+        path.join(exampleRoot, "public", legacyBasemap));
+    }
   }
   const fixtureDefines = measureExecution ? Object.fromEntries(Object.entries(
     (await import("../examples/maplibre-quickstart/mock-server.mjs")).FIXTURE_BUILD_ENV
   ).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)])) : {};
+  if (measureExecution && legacyFixtureSha) {
+    fixtureDefines["import.meta.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE"] = JSON.stringify(legacyBasemap);
+  }
   let packageIdentity = candidate.package;
   let packageSpec = candidate.package.version;
   let prepared;
