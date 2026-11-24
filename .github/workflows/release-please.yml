@@ -245,18 +245,8 @@ jobs:
           # are annotated and written to the job summary so the release log says
           # which tag, which commit, and what did not happen.
           RELEASE_FAILURE_TAG="(none)"
-          fail() {
-            local message="$1"
-            echo "::error title=Release blocked for ${RELEASE_FAILURE_TAG}::${message}"
-            {
-              echo "## Release blocked: \`${RELEASE_FAILURE_TAG}\`"
-              echo
-              echo "${message}"
-              echo
-              echo "Nothing was published for this tag."
-            } >> "${GITHUB_STEP_SUMMARY}"
-            exit 1
-          }
+          RELEASE_FAILURE_FOOTER="Nothing was published for this tag."
+          source ./scripts/report-release-failure.sh
 
           # Backstop for the aborts that are not routed through fail() by hand:
           # a `gh` call in a command substitution that errexit kills. Without
@@ -691,16 +681,8 @@ jobs:
           set -Eeuo pipefail
 
           RELEASE_FAILURE_TAG="${SDK_TAG:-(none)}"
-          fail() {
-            local message="$1"
-            echo "::error title=Release blocked for ${RELEASE_FAILURE_TAG}::${message}"
-            {
-              echo "## Release blocked: \`${RELEASE_FAILURE_TAG}\`"
-              echo
-              echo "${message}"
-            } >> "${GITHUB_STEP_SUMMARY}"
-            exit 1
-          }
+          RELEASE_FAILURE_FOOTER=""
+          source ./scripts/report-release-failure.sh
           trap 'fail "The release step failed at line ${LINENO}: ${BASH_COMMAND}."' ERR
 
           dispatch_tag_publish() {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -20,6 +20,8 @@ import "./release-please-lockfiles.test.mjs";
 // the seal-before-publish ordering are proven, not asserted about.
 
 const WORKFLOW = resolve(".github/workflows/release-please.yml");
+const GH_FIXTURE = resolve("test/fixtures/release-tag-seal-gh.sh");
+const FAILURE_REPORTER = resolve("scripts/report-release-failure.sh");
 const RELEASE_COMMIT = "1".repeat(40);
 const RESEALED_COMMIT = "2".repeat(40);
 // The commit an already-created release tag names, in the half-stranded case.
@@ -112,144 +114,7 @@ function runReleaseStep({
   writeFileSync(join(root, "run-list-ids"), `${runListIds.join("\n")}\n`);
   writeFileSync(join(root, "releases.json"), JSON.stringify(releases));
 
-  // A tiny `gh` that answers only the calls this step makes. Every unexpected
-  // call is fatal, so the test cannot pass by accident.
-  writeFileSync(
-    join(bin, "gh"),
-    `#!/usr/bin/env bash
-set -uo pipefail
-# Answer a scripted sequence, one entry per call, the last entry repeating.
-# "EMPTY" answers with nothing, which is how "no such run exists" is expressed.
-next_line() {
-  local seq="$1"
-  local idx_file="$2"
-  local idx
-  idx="$(cat "$idx_file" 2>/dev/null || echo 0)"
-  echo "$((idx + 1))" > "$idx_file"
-  local line
-  line="$(sed -n "$((idx + 1))p" "$seq")"
-  if [[ -z "$line" ]]; then line="$(tail -n 1 "$seq")"; fi
-  if [[ "$line" == "EMPTY" ]]; then return 0; fi
-  echo "$line"
-}
-ARGS="$*"
-if [[ "$ARGS" == *"--method POST"*"git/refs"* ]]; then
-  [[ "$GH_TOKEN" == "protected-tag-app" ]] || exit 96
-else
-  [[ "$GH_TOKEN" == "job-token" ]] || exit 97
-fi
-case "$ARGS" in
-  "run list"*)
-    entry="$(next_line "${root}/run-list-ids" "${root}/run-list-index")"
-    if [[ "$entry" == \\[* ]]; then
-      # Model \`gh run list\`: honour --branch, then evaluate --jq over the rows.
-      branch=""
-      jqexpr=""
-      prev=""
-      for a in "$@"; do
-        case "$prev" in
-          --branch) branch="$a" ;;
-          --jq) jqexpr="$a" ;;
-        esac
-        prev="$a"
-      done
-      rows="$entry"
-      if [[ -n "$branch" && "${runListHonoursBranchFlag ? "1" : "0"}" == "1" ]]; then
-        rows="$(jq -c --arg b "$branch" '[.[] | select(.headBranch == $b)]' <<<"$rows")"
-      fi
-      if [[ -n "$jqexpr" ]]; then
-        jq -r "$jqexpr" <<<"$rows"
-      else
-        echo "$rows"
-      fi
-    else
-      echo "$entry"
-    fi
-    ;;
-  "run view"*)
-    echo "view:$3" >> "${root}/observations"
-    conclusion="$(next_line "${root}/reseal-conclusions" "${root}/reseal-index")"
-    if [[ "$conclusion" == "ERROR" ]]; then exit 1; fi
-    echo "$conclusion"
-    ;;
-  "workflow run regenerate-derived-artifacts.yml"*) echo "reseal-dispatch" >> "${root}/trace" ;;
-  "run watch"*)
-    echo "watch:$3" >> "${root}/observations"
-    if [[ "${resealWatchFails ? "1" : "0"}" == "1" ]]; then exit 1; fi
-    ;;
-  *"git/ref/heads/trunk"*) echo "${RESEALED_COMMIT}" ;;
-  *"git/ref/tags/"*)
-    # The exact-ref lookup 404s for an absent tag, and real gh api prints
-    # that error body on stdout. The workflow must not use it.
-    echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/git/refs#get-a-reference","status":"404"}'
-    echo "gh: Not Found (HTTP 404)" >&2
-    exit 1
-    ;;
-  *"git/matching-refs/tags/"*)
-    # Answers the workflow's --jq selection: the sha when the tag exists,
-    # nothing (an empty list) when it does not.
-    if [[ "${strandedTagExists ? "1" : "0"}" == "1" ]]; then
-      echo "${SEALED_TAG_COMMIT}"
-    fi
-    ;;
-  *"contents/.github/workflows/publish-js-sdk.yml?ref=${RELEASE_COMMIT}"*) echo "${"a".repeat(40)}" ;;
-  *"contents/.github/workflows/publish-js-sdk.yml?ref="*)
-    echo "${(publisherPolicyMatches ? "a" : "b").repeat(40)}"
-    ;;
-  *"contents/package.json"*) echo "${trunkVersion}" ;;
-  # This call uses gh's own --jq .status, so the stub answers the resolved value.
-  *"compare/${SEALED_TAG_COMMIT}"*) echo "${tagAncestryStatus}" ;;
-  *"/releases --paginate"*)
-    # Evaluate the step's real resolve-by-tag jq against the release fixture.
-    jqexpr=""
-    prev=""
-    for a in "$@"; do
-      case "$prev" in --jq) jqexpr="$a" ;; esac
-      prev="$a"
-    done
-    jq -r "$jqexpr" "${root}/releases.json"
-    ;;
-  *"compare/"*)
-    echo '{"status":"ahead","merge_base_commit":{"sha":"${RELEASE_COMMIT}"},"files":[{"filename":"llms.txt"}]}'
-    ;;
-  *"--method POST"*"git/refs"*)
-    echo "tag-create" >> "${root}/trace"
-    if [[ "${tagCreateFails ? "1" : "0"}" == "1" ]]; then
-      echo "gh: Reference already exists (HTTP 422)" >&2
-      exit 1
-    fi
-    ;;
-  *"--method PATCH"*"/releases/"*)
-    echo "draft-publish" >> "${root}/trace"
-    if [[ "${publishDraftFails ? "1" : "0"}" == "1" ]]; then
-      echo "gh: Repository rule violations found" >&2
-      exit 1
-    fi
-    echo "${publishedDraftState}"
-    ;;
-  *"/releases/"*)
-    if [[ "${draftReadFails ? "1" : "0"}" == "1" ]]; then
-      echo "gh: Bad credentials (HTTP 401)" >&2
-      exit 1
-    fi
-    echo "${draftState}"
-    ;;
-  *"commits/${TAG}"*)
-    index="$(cat "${root}/tag-index" 2>/dev/null || echo 0)"
-    echo "$((index + 1))" > "${root}/tag-index"
-    sed -n "$((index + 1))p" "${root}/tag-resolves" || true
-    tail -n 1 "${root}/tag-resolves" > "${root}/tag-last"
-    if [[ -z "$(sed -n "$((index + 1))p" "${root}/tag-resolves")" ]]; then
-      cat "${root}/tag-last"
-    fi
-    ;;
-  "workflow run publish-js-sdk.yml"*) echo "npm-publish-dispatch" >> "${root}/trace" ;;
-  "workflow run first-map-release-smoke.yml"*) echo "smoke-dispatch" >> "${root}/trace" ;;
-  *) echo "unexpected gh call: $ARGS" >&2; exit 99 ;;
-esac
-`,
-    { mode: 0o755 },
-  );
+  copyFileSync(GH_FIXTURE, join(bin, "gh"));
   writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
   chmodSync(join(bin, "gh"), 0o755);
   chmodSync(join(bin, "sleep"), 0o755);
@@ -269,6 +134,23 @@ echo "ancestor-policy" >> "${root}/observations"
     ...process.env,
     PATH: `${bin}:${process.env.PATH}`,
     GH_TOKEN: "job-token",
+    RELEASE_FIXTURE_ROOT: root,
+    FIXTURE_RELEASE_COMMIT: RELEASE_COMMIT,
+    FIXTURE_RESEALED_COMMIT: RESEALED_COMMIT,
+    FIXTURE_SEALED_TAG_COMMIT: SEALED_TAG_COMMIT,
+    FIXTURE_TAG: TAG,
+    FIXTURE_PUBLISHER_POLICY: "a".repeat(40),
+    FIXTURE_SEALED_PUBLISHER_POLICY: (publisherPolicyMatches ? "a" : "b").repeat(40),
+    FIXTURE_TRUNK_VERSION: trunkVersion,
+    FIXTURE_TAG_ANCESTRY_STATUS: tagAncestryStatus,
+    FIXTURE_RUN_LIST_HONOURS_BRANCH_FLAG: String(Number(runListHonoursBranchFlag)),
+    FIXTURE_RESEAL_WATCH_FAILS: String(Number(resealWatchFails)),
+    FIXTURE_STRANDED_TAG_EXISTS: String(Number(strandedTagExists)),
+    FIXTURE_TAG_CREATE_FAILS: String(Number(tagCreateFails)),
+    FIXTURE_PUBLISH_DRAFT_FAILS: String(Number(publishDraftFails)),
+    FIXTURE_DRAFT_READ_FAILS: String(Number(draftReadFails)),
+    FIXTURE_DRAFT_STATE: draftState,
+    FIXTURE_PUBLISHED_DRAFT_STATE: publishedDraftState,
     GITHUB_SHA: RELEASE_COMMIT,
     GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
     GITHUB_STEP_SUMMARY: summary,
@@ -287,11 +169,15 @@ echo "ancestor-policy" >> "${root}/observations"
     MCP_TAG_NAME: "",
     CREATE_APP_TAG_NAME: "",
   };
-  const execute = (body, stepEnv) => execFileSync("bash", ["-c", body], {
-    encoding: "utf8",
-    env: stepEnv,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const execute = (body, stepEnv) => {
+    const fixtureScript = join(root, "workflow-step.sh");
+    writeFileSync(fixtureScript, body);
+    return execFileSync("bash", [fixtureScript], {
+      encoding: "utf8",
+      env: stepEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  };
   const readLines = (name) => readFileSync(join(root, name), "utf8").split("\n").filter(Boolean);
   const report = () => ({
     summary: readFileSync(summary, "utf8"),
@@ -583,14 +469,14 @@ test("a draft lookup failure is annotated before publication", () => {
 });
 
 test("the release step aborts under strict shell settings", () => {
+  const reporter = readFileSync(FAILURE_REPORTER, "utf8");
+  assert.match(reporter, /^fail\(\) \{$/mu);
+  assert.match(reporter, /^\s*exit 1$/mu);
   for (const name of ["Prepare SDK release publication", "Dispatch package publish workflows"]) {
     const block = runBlock(name);
     assert.match(block, /^set -Eeuo pipefail$/mu);
-    // Every abort path routes through fail(), which annotates and summarises, so
-    // the only `exit 1` left in the step is the one inside fail() itself, and the
-    // ERR trap catches the aborts errexit would otherwise report bare.
-    assert.equal((block.match(/^\s*exit 1$/gmu) ?? []).length, 1);
-    assert.match(block, /^\s*fail\(\) \{$/mu);
+    assert.doesNotMatch(block, /^\s*exit 1$/mu);
+    assert.match(block, /^source \.\/scripts\/report-release-failure\.sh$/mu);
     assert.match(block, /^\s*trap 'fail ".*"' ERR$/mu);
     assert.ok((block.match(/\bfail "/gu) ?? []).length >= 7, "every abort must be reported");
     // The release path must never write to an existing ref or an existing
