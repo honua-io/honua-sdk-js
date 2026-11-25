@@ -1,0 +1,67 @@
+{
+  "format": "honua.sdk.sample-evidence.v1",
+  "schemaVersion": 1,
+  "sampleId": "maplibre-quickstart",
+  "lane": "live",
+  "status": "executed",
+  "reason": null,
+  "observedAt": "2026-11-25T00:00:14.792Z",
+  "authMode": "anonymous",
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.5.1",
+    "gitCommit": "cb5d49760364bfb6cd756d0b215c75b1f2e18b03"
+  },
+  "source": {
+    "provider": "honua-demo",
+    "identity": "geoservices-feature-service:1",
+    "endpoint": "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1",
+    "deploymentVersion": null,
+    "dataVersion": null
+  },
+  "provenance": {
+    "sourceId": "geoservices-feature-service:1",
+    "observedAt": "2026-11-25T00:00:15.750Z",
+    "validAt": null,
+    "state": "live",
+    "attribution": "maui-parcels"
+  },
+  "semantics": {
+    "operation": "first-map-anonymous-public-endpoint",
+    "outcome": "map-popup-filter-plan-ready",
+    "itemCount": 5,
+    "assertions": [
+      "protocol=\"geoservices-feature-service\"",
+      "sourceId=\"1\"",
+      "attribution=\"maui-parcels\"",
+      "freshness=\"observed\"",
+      "cacheStatus=\"miss\"",
+      "degradationCount=0",
+      "planFingerprint=\"sha256:cbb32924538685137a0b7f3c56b9eb53670d108798757ee4d13ae2e923254c90\"",
+      "mode=\"Anonymous live\"",
+      "credentialsSent=false",
+      "unexpectedNetworkRequests=0",
+      "cleanupBudgetMet=true"
+    ]
+  },
+  "timing": {
+    "totalMs": 543,
+    "firstSuccessfulInteractionMs": 543
+  },
+  "degradation": {
+    "state": "none",
+    "reasons": []
+  },
+  "artifacts": [
+    {
+      "kind": "producer-generator",
+      "path": "scripts/first-map-live-evidence.mjs",
+      "sha256": "5ef2da2d1ecb90c65a120d6633b5afd7bff5493a8e4db15fcf6d2f901ad33375"
+    },
+    {
+      "kind": "live-screenshot",
+      "path": "samples/evidence/maplibre-quickstart/runs/1e8e162f-9b32-4625-903e-ab49fb9b80e2/artifacts/live-evidence.png",
+      "sha256": "2835c96a34577ae57ad3004b409962947880b516beac1d3fcbd6e7b8aabc8c13"
+    }
+  ]
+}
