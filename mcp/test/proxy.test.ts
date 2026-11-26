@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
+import { type JSONRPCMessage, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 import { createFixtureClient } from "../src/certification/fixture-client.js";
 import { createServer } from "../src/index.js";
@@ -408,6 +408,94 @@ describe("proxy option resolution (#1950)", () => {
   it("omits headers when no credentials are configured", () => {
     expect(buildUpstreamHeaders({ remoteUrl: "https://demo.honua.io/mcp" })).toEqual({});
   });
+});
+
+describe("proxy upstream HTTP error diagnostics", () => {
+  it.each([
+    {
+      status: 401,
+      headers: {},
+      expectedRetryable: false,
+      expectedRetryAfterSeconds: undefined,
+      expectedMessage: "Upstream MCP HTTP 401 (non-retryable)",
+    },
+    {
+      status: 403,
+      headers: {},
+      expectedRetryable: false,
+      expectedRetryAfterSeconds: undefined,
+      expectedMessage: "Upstream MCP HTTP 403 (non-retryable)",
+    },
+    {
+      status: 429,
+      headers: { "Retry-After": "15" },
+      expectedRetryable: true,
+      expectedRetryAfterSeconds: 15,
+      expectedMessage: "Upstream MCP HTTP 429 (retryable; retry after 15s)",
+    },
+    {
+      status: 503,
+      headers: { "Honua-Retryable": "false" },
+      expectedRetryable: false,
+      expectedRetryAfterSeconds: undefined,
+      expectedMessage: "Upstream MCP HTTP 503 (non-retryable)",
+    },
+  ])(
+    "emits a redacted JSON-RPC error notice before closing on upstream HTTP $status",
+    async ({ status, headers, expectedRetryable, expectedRetryAfterSeconds, expectedMessage }) => {
+      const secretBody = "secret-token-and-cookie-must-never-leak";
+      const server = createHttpServer((_req, res) => {
+        res.writeHead(status, { "content-type": "text/plain", ...headers });
+        res.end(secretBody);
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = (server.address() as AddressInfo).port;
+      const [clientTransport, bridgeTransport] = InMemoryTransport.createLinkedPair();
+      const received: JSONRPCMessage[] = [];
+      const closed = new Promise<void>((resolve) => {
+        clientTransport.onclose = resolve;
+      });
+      clientTransport.onmessage = (message) => {
+        received.push(message);
+      };
+      await clientTransport.start();
+      const upstream = await connectProxyTransport({ remoteUrl: `http://127.0.0.1:${port}/mcp` }, bridgeTransport);
+      try {
+        await clientTransport.send({
+          jsonrpc: "2.0",
+          id: 7,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "diag-test", version: "1.0.0" },
+          },
+        });
+        await closed;
+
+        expect(received).toEqual([
+          {
+            jsonrpc: "2.0",
+            id: 7,
+            error: {
+              code: -32603,
+              message: expectedMessage,
+              data: {
+                statusCode: status,
+                retryable: expectedRetryable,
+                ...(expectedRetryAfterSeconds !== undefined ? { retryAfterSeconds: expectedRetryAfterSeconds } : {}),
+              },
+            },
+          },
+        ]);
+        expect(JSON.stringify(received)).not.toContain(secretBody);
+      } finally {
+        await clientTransport.close();
+        await upstream.close();
+        await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      }
+    },
+  );
 });
 
 // The server drops a notification sent before the client's standalone SSE

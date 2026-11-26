@@ -313,7 +313,7 @@ export function isHonuaError(error: unknown): error is HonuaError {
   return isHonuaSdkError(error);
 }
 
-const HTTP_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const HTTP_RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
 const GRPC_RETRYABLE_CODES = new Set([4, 8, 10, 14]);
 const AUTH_ERROR_CODES = {
   interaction_required: "core.auth.interaction-required",
@@ -336,7 +336,8 @@ function httpFailureReceipt(
   const kind = isFailureKind(bodyKind) ? bodyKind : failureKindForHttp(classificationCode, statusCode);
   const code =
     stringValue(source?.machineCode) ?? stringValue(source?.code) ?? stringValue(root?.code) ?? defaultCode(kind);
-  const explicitRetryable = booleanValue(source?.retryable) ?? booleanValue(root?.retryable);
+  const headerRetryable = parseBoolean(firstMetadata(metadata, "honua-retryable", "honua-error-retryable"));
+  const explicitRetryable = booleanValue(source?.retryable) ?? booleanValue(root?.retryable) ?? headerRetryable;
   const retryAfterSeconds = numberValue(source?.retryAfterSeconds) ?? numberValue(root?.retryAfterSeconds);
   const headerDelay = parseRetryAfter(metadataGetter(options.responseHeaders));
   const correlationId =
@@ -548,8 +549,9 @@ function booleanValue(value: unknown): boolean | undefined {
 }
 
 function parseBoolean(value: string | undefined): boolean | undefined {
-  if (value === "true") return true;
-  if (value === "false") return false;
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
   return undefined;
 }
 

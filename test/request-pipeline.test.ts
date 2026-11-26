@@ -83,15 +83,25 @@ describe("request-pipeline: documented retry defaults (#954)", () => {
     expect([...DEFAULT_RETRYABLE_GRPC_CODES]).toEqual([4, 8, 10, 14]);
   });
 
-  it("never replays statuses that are only classified transient (408 / 500)", () => {
+  it("never replays statuses that are only classified transient (408) and keeps 500 non-retryable by default", () => {
     const options = normalizeRetryOptions({ maxRetries: 2 });
-    // 408 and 500 carry `core.http.transient` classification metadata. That
-    // metadata is descriptive: the loop reads `retryStatuses` only, so the
-    // narrower default set stays authoritative for request behavior.
-    for (const status of [408, 500]) {
-      expect(new HonuaHttpError(status, "transient", undefined).sdkCode).toBe("core.http.transient");
-      expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(false);
-    }
+    // 408 carries `core.http.transient` classification metadata, while 500 is
+    // non-retryable unless the server explicitly signals `Honua-Retryable: true`.
+    expect(new HonuaHttpError(408, "transient", undefined).sdkCode).toBe("core.http.transient");
+    expect(shouldRetryRequest(options, "GET", 0, 408, undefined)).toBe(false);
+
+    const plain500 = new HonuaHttpError(500, "internal", undefined);
+    expect(plain500.sdkCode).toBe("core.http.rejected");
+    expect(plain500.receipt.retryable).toBe(false);
+    expect(shouldRetryRequest(options, "GET", 0, 500, plain500)).toBe(false);
+
+    const retryable500 = new HonuaHttpError(500, "transient", undefined, {
+      responseHeaders: new Headers({ "Honua-Retryable": "true" }),
+    });
+    expect(retryable500.sdkCode).toBe("core.http.transient");
+    expect(retryable500.receipt.retryable).toBe(true);
+    expect(shouldRetryRequest(options, "GET", 0, 500, retryable500)).toBe(true);
+
     for (const status of DEFAULT_RETRY_STATUSES) {
       expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(true);
     }
@@ -154,6 +164,22 @@ describe("request-pipeline: shouldRetryRequest", () => {
   it("retries configured statuses only", () => {
     expect(shouldRetryRequest(retryWith(), "GET", 0, 503, undefined)).toBe(true);
     expect(shouldRetryRequest(retryWith(), "GET", 0, 400, undefined)).toBe(false);
+  });
+
+  it("respects Honua-Retryable headers on 503 CAPABILITY_UNAVAILABLE and 500 responses", () => {
+    const capabilityUnavailable = toHttpError(
+      503,
+      { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only default image" },
+      new Headers({ "Honua-Retryable": "false" }),
+    );
+    expect(capabilityUnavailable.receipt.retryable).toBe(false);
+    expect(capabilityUnavailable.sdkCode).toBe("core.http.rejected");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 503, capabilityUnavailable)).toBe(false);
+
+    const retryableInternal = toHttpError(500, { detail: "transient" }, new Headers({ "Honua-Retryable": "true" }));
+    expect(retryableInternal.receipt.retryable).toBe(true);
+    expect(retryableInternal.sdkCode).toBe("core.http.transient");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, retryableInternal)).toBe(true);
   });
 
   it("retries transient network and timeout errors", () => {

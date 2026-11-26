@@ -96,11 +96,32 @@ export function parseRetryAfterMs(response: Response): number | undefined {
   return parseRetryAfterHeaderMs(response.headers);
 }
 
+function parseExplicitHttpRetryable(error: HonuaHttpError): boolean | undefined {
+  const body = error.body;
+  if (typeof body === "object" && body !== null && !Array.isArray(body)) {
+    const root = body as Record<string, unknown>;
+    const nested =
+      typeof root.error === "object" && root.error !== null && !Array.isArray(root.error)
+        ? (root.error as Record<string, unknown>)
+        : undefined;
+    if (typeof nested?.retryable === "boolean") return nested.retryable;
+    if (typeof root.retryable === "boolean") return root.retryable;
+  }
+  const initial = error.receipt.protocolMetadata.initial;
+  const headerValue = initial["honua-retryable"]?.[0] ?? initial["honua-error-retryable"]?.[0];
+  const normalized = headerValue?.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return undefined;
+}
+
 /**
  * Decide whether a failed attempt should be retried. Idempotent/replay-safe
  * methods (GET/PUT/DELETE) are retried on the configured retry statuses or on
  * transient network/timeout errors; aborts are never retried. A protocol may
  * explicitly identify an immutable read-query POST as replay-safe too.
+ * Explicit `Honua-Retryable` response headers or body `retryable` flags
+ * override the default status list so non-retryable 503s are never retried.
  */
 export function shouldRetryRequest(
   retryOptions: NormalizedRetryOptions | undefined,
@@ -123,6 +144,12 @@ export function shouldRetryRequest(
   }
 
   if (statusCode !== undefined) {
+    if (error instanceof HonuaHttpError) {
+      const explicitRetryable = parseExplicitHttpRetryable(error);
+      if (explicitRetryable !== undefined) {
+        return explicitRetryable;
+      }
+    }
     return retryOptions.retryStatuses.has(statusCode);
   }
 

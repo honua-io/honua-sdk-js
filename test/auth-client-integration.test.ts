@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { InMemoryCredentialStore, bearerTokenAuth, oauth2 } from "../src/core/auth/index.js";
+import { mergeHeaders } from "../src/core/wire-shared.js";
 import { HonuaClient } from "../src/index.js";
 
 const TOKEN_ENDPOINT = "https://idp.example.test/token";
@@ -143,5 +144,86 @@ describe("cross-origin credential-leak guard extends to auth providers (REQ-003,
     });
 
     await expect(otherProvider.getCredentials()).rejects.toMatchObject({ code: "interaction_required" });
+  });
+});
+
+describe("mergeHeaders case-insensitive replacement and 401 auth refresh", () => {
+  it("overwrites earlier headers regardless of casing while keeping the latest key", () => {
+    expect(mergeHeaders({ authorization: "Bearer expired" }, { Authorization: "Bearer fresh" })).toEqual({
+      Authorization: "Bearer fresh",
+    });
+    expect(mergeHeaders(new Headers({ Authorization: "Bearer expired" }), { Authorization: "Bearer fresh" })).toEqual({
+      Authorization: "Bearer fresh",
+    });
+    expect(mergeHeaders({ "x-api-key": "old-key" }, { "X-API-Key": "new-key" })).toEqual({
+      "X-API-Key": "new-key",
+    });
+    expect(mergeHeaders([["X-API-Key", "old-key"]], { "x-api-key": "new-key" })).toEqual({
+      "x-api-key": "new-key",
+    });
+  });
+
+  it("replaces lowercase authorization without concatenating expired and fresh bearer tokens on 401 replay", async () => {
+    let calls = 0;
+    const seenAuthHeaders: (string | null)[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://api.example.test",
+      auth: {
+        async getCredentials(options) {
+          return {
+            bearerToken: options?.forceRefresh ? "fresh-token" : "expired-token",
+          };
+        },
+      },
+      fetchFn: async (_input, init) => {
+        calls += 1;
+        seenAuthHeaders.push(new Headers(init?.headers).get("authorization"));
+        if (calls === 1) {
+          return new Response(JSON.stringify({ detail: "expired" }), { status: 401 });
+        }
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await client.request({
+      path: "/rest/services",
+      method: "GET",
+      headers: new Headers({ Authorization: "Bearer expired-token" }),
+    });
+
+    expect(calls).toBe(2);
+    expect(seenAuthHeaders).toEqual(["Bearer expired-token", "Bearer fresh-token"]);
+  });
+
+  it("replaces mixed-case x-api-key cleanly on 401 replay", async () => {
+    let calls = 0;
+    const seenApiKeys: (string | null)[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://api.example.test",
+      auth: {
+        async getCredentials(options) {
+          return {
+            apiKey: options?.forceRefresh ? "fresh-api-key" : "expired-api-key",
+          };
+        },
+      },
+      fetchFn: async (_input, init) => {
+        calls += 1;
+        seenApiKeys.push(new Headers(init?.headers).get("x-api-key"));
+        if (calls === 1) {
+          return new Response(JSON.stringify({ detail: "expired" }), { status: 401 });
+        }
+        return new Response(JSON.stringify({ services: [] }), { status: 200 });
+      },
+    });
+
+    await client.request({
+      path: "/rest/services",
+      method: "GET",
+      headers: { "x-api-key": "expired-api-key" },
+    });
+
+    expect(calls).toBe(2);
+    expect(seenApiKeys).toEqual(["expired-api-key", "fresh-api-key"]);
   });
 });

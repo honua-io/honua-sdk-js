@@ -9,37 +9,51 @@
 
 import type { OgcMetadataRequest } from "./types.js";
 
+function appendHeaderEntries(headers: HeadersInit, setEntry: (key: string, value: string) => void): void {
+  if (headers instanceof Headers) {
+    for (const [key, value] of headers.entries()) {
+      setEntry(key, value);
+    }
+    return;
+  }
+
+  if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      setEntry(key, value);
+    }
+    return;
+  }
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    setEntry(key, String(value));
+  }
+}
+
 /**
  * Merge any number of `HeadersInit` values into a plain `Record<string,string>`,
- * with later entries overriding earlier ones. Accepts `Headers`, tuple arrays,
- * and plain objects; `undefined`/`null` object values are skipped.
+ * with later entries overriding earlier ones case-insensitively while preserving
+ * the latest casing. Accepts `Headers`, tuple arrays, and plain objects;
+ * `undefined`/`null` object values are skipped.
  */
 export function mergeHeaders(...headersList: Array<HeadersInit | undefined>): Record<string, string> {
   const merged: Record<string, string> = {};
+  const keysByLower = new Map<string, string>();
+  const setEntry = (key: string, value: string): void => {
+    const lower = key.toLowerCase();
+    const existing = keysByLower.get(lower);
+    if (existing !== undefined && existing !== key) {
+      delete merged[existing];
+    }
+    keysByLower.set(lower, key);
+    merged[key] = value;
+  };
+
   for (const headers of headersList) {
-    if (!headers) {
-      continue;
-    }
-
-    if (headers instanceof Headers) {
-      for (const [key, value] of headers.entries()) {
-        merged[key] = value;
-      }
-      continue;
-    }
-
-    if (Array.isArray(headers)) {
-      for (const [key, value] of headers) {
-        merged[key] = value;
-      }
-      continue;
-    }
-
-    for (const [key, value] of Object.entries(headers)) {
-      if (value === undefined || value === null) {
-        continue;
-      }
-      merged[key] = String(value);
+    if (headers) {
+      appendHeaderEntries(headers, setEntry);
     }
   }
   return merged;
