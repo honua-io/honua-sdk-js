@@ -195,6 +195,64 @@ async function selectExportFeature(page, harness, feature) {
   };
 }
 
+function expectSelectedParcel(selected, expectedId) {
+  expect(selected).toMatchObject({ ok: true, answeredBy: "geoparquet", geometryType: "MultiPolygon" });
+  expect(typeof selected.attributes.objectid).toBe("number");
+  expect(typeof selected.attributes.id).toBe("number");
+  expect(typeof selected.attributes.acres).toBe("number");
+  expect(selected.attributes.parcel_id).toBe(expectedId);
+}
+
+async function runColdExportPass(page, harness, collectionUrl) {
+  const cold = await openAndRenderExport(page, harness, collectionUrl);
+  expect(cold.opened.renderPath).toBe("visual");
+  expect(cold.opened.display).toMatchObject({ sourceLayer: "layer", promoteId: "parcel_id" });
+  expect(cold.opened.publicFields).toEqual(SERVER_EXPORT_PUBLIC_FIELDS);
+  expect(cold.map.distinctCount).toBeGreaterThanOrEqual(2);
+  const [firstFeature, secondFeature] = cold.map.features;
+  const coldSelect = await selectExportFeature(page, harness, firstFeature);
+  expectSelectedParcel(coldSelect.selected, firstFeature.properties.parcel_id);
+  const warmSelect = await selectExportFeature(page, harness, secondFeature);
+  expectSelectedParcel(warmSelect.selected, secondFeature.properties.parcel_id);
+  const bboxMark = harness.data.requests.length;
+  const bboxResult = await page.evaluate((bounds) => window.publicationHarness.queryBbox(bounds), cold.opened.display.bounds);
+  const bboxBytes = bytesSince(harness.data.requests, bboxMark);
+  expect(bboxResult).toMatchObject({ ok: true, answeredBy: "geoparquet" });
+  expect(bboxResult.featureCount).toBeGreaterThan(0);
+  await page.evaluate(() => window.publicationHarness.dispose());
+  return { cold, firstFeature, coldSelect, warmSelect, bboxResult, bboxBytes };
+}
+
+function formatExportMetrics({ headRequests, cold, coldSelect, warmSelect, bboxResult, bboxBytes, warm, warmReloadSelect }) {
+  return JSON.stringify(
+    {
+      exportId: SERVER_EXPORT_ID,
+      headRequests: headRequests.length,
+      cold: {
+        firstMapMs: cold.firstMapMs,
+        mapRenderMs: cold.mapRenderMs,
+        mapBytes: cold.mapBytes,
+        clickToAttributesMs: coldSelect.ms,
+        lookupBytes: coldSelect.bytes,
+        bboxQueryMs: Math.round(bboxResult.ms * 10) / 10,
+        bboxQueryBytes: bboxBytes,
+        bboxFeatureCount: bboxResult.featureCount,
+      },
+      warm: {
+        firstMapMs: warm.firstMapMs,
+        mapRenderMs: warm.mapRenderMs,
+        mapBytes: warm.mapBytes,
+        inSessionClickToAttributesMs: warmSelect.ms,
+        inSessionLookupBytes: warmSelect.bytes,
+        cachedReloadClickToAttributesMs: warmReloadSelect.ms,
+        cachedReloadLookupBytes: warmReloadSelect.bytes,
+      },
+    },
+    null,
+    2,
+  );
+}
+
 test("opens a server-generated Export across origins without HEAD, renders PMTiles, and resolves click-to-attributes cold and warm", async ({
   page,
 }, testInfo) => {
@@ -206,74 +264,19 @@ test("opens a server-generated Export across origins without HEAD, renders PMTil
   });
   try {
     const collectionUrl = `${harness.data.origin}${SERVER_EXPORT_PREFIX}/collection.json`;
-
-    const cold = await openAndRenderExport(page, harness, collectionUrl);
-    expect(cold.opened.renderPath).toBe("visual");
-    expect(cold.opened.display).toMatchObject({ sourceLayer: "layer", promoteId: "parcel_id" });
-    expect(cold.opened.publicFields).toEqual(SERVER_EXPORT_PUBLIC_FIELDS);
-    expect(cold.map.distinctCount).toBeGreaterThanOrEqual(2);
-
-    const [firstFeature, secondFeature] = cold.map.features;
-    const coldSelect = await selectExportFeature(page, harness, firstFeature);
-    expect(coldSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet", geometryType: "MultiPolygon" });
-    expect(typeof coldSelect.selected.attributes.objectid).toBe("number");
-    expect(typeof coldSelect.selected.attributes.id).toBe("number");
-    expect(typeof coldSelect.selected.attributes.acres).toBe("number");
-    expect(coldSelect.selected.attributes.parcel_id).toBe(firstFeature.properties.parcel_id);
-
-    const warmSelect = await selectExportFeature(page, harness, secondFeature);
-    expect(warmSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet", geometryType: "MultiPolygon" });
-    expect(typeof warmSelect.selected.attributes.acres).toBe("number");
-    expect(warmSelect.selected.attributes.parcel_id).toBe(secondFeature.properties.parcel_id);
-
-    const bboxMark = harness.data.requests.length;
-    const bboxResult = await page.evaluate((bounds) => window.publicationHarness.queryBbox(bounds), cold.opened.display.bounds);
-    const bboxBytes = bytesSince(harness.data.requests, bboxMark);
-    expect(bboxResult).toMatchObject({ ok: true, answeredBy: "geoparquet" });
-    expect(bboxResult.featureCount).toBeGreaterThan(0);
-    await page.evaluate(() => window.publicationHarness.dispose());
-
+    const coldPass = await runColdExportPass(page, harness, collectionUrl);
     const warm = await openAndRenderExport(page, harness, collectionUrl);
     expect(warm.map.distinctCount).toBeGreaterThanOrEqual(2);
-    const warmReloadSelect = await selectExportFeature(page, harness, firstFeature);
+    const warmReloadSelect = await selectExportFeature(page, harness, coldPass.firstFeature);
     expect(warmReloadSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet" });
     await page.evaluate(() => window.publicationHarness.dispose());
-
     const headRequests = harness.data.requests.filter((entry) => entry.method === "HEAD");
-    const errorResponses = harness.data.requests.filter((entry) => entry.status >= 400);
     expect(headRequests).toEqual([]);
-    expect(errorResponses).toEqual([]);
+    expect(harness.data.requests.filter((entry) => entry.status >= 400)).toEqual([]);
     expect(harness.engineRequests()).toEqual([]);
-
     await testInfo.attach("export-browser-metrics", {
       contentType: "application/json",
-      body: JSON.stringify(
-        {
-          exportId: SERVER_EXPORT_ID,
-          headRequests: headRequests.length,
-          cold: {
-            firstMapMs: cold.firstMapMs,
-            mapRenderMs: cold.mapRenderMs,
-            mapBytes: cold.mapBytes,
-            clickToAttributesMs: coldSelect.ms,
-            lookupBytes: coldSelect.bytes,
-            bboxQueryMs: Math.round(bboxResult.ms * 10) / 10,
-            bboxQueryBytes: bboxBytes,
-            bboxFeatureCount: bboxResult.featureCount,
-          },
-          warm: {
-            firstMapMs: warm.firstMapMs,
-            mapRenderMs: warm.mapRenderMs,
-            mapBytes: warm.mapBytes,
-            inSessionClickToAttributesMs: warmSelect.ms,
-            inSessionLookupBytes: warmSelect.bytes,
-            cachedReloadClickToAttributesMs: warmReloadSelect.ms,
-            cachedReloadLookupBytes: warmReloadSelect.bytes,
-          },
-        },
-        null,
-        2,
-      ),
+      body: formatExportMetrics({ ...coldPass, headRequests, warm, warmReloadSelect }),
     });
   } finally {
     await harness.close();

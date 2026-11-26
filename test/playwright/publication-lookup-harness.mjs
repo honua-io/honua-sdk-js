@@ -241,6 +241,17 @@ async function bundlePage(directory) {
   return output;
 }
 
+function appFiles(pageFile, harnessScript, extensionCache) {
+  return {
+    "/": pageFile,
+    "/harness.js": harnessScript,
+    "/maplibre-gl-worker.mjs": maplibreWorker,
+    "/duckdb/duckdb-eh.wasm": path.join(duckdbDist, "duckdb-eh.wasm"),
+    "/duckdb/duckdb-browser-eh.worker.js": path.join(duckdbDist, "duckdb-browser-eh.worker.js"),
+    [extensionPath]: extensionCache,
+  };
+}
+
 /**
  * @param {{ artifacts: Record<string, string>, workDirectory: string, artifactDelayMs?: number, artifactCors?: boolean, artifactCacheControl?: string, artifactRangeSupport?: "full" | "get-only" | "none", artifactHead?: boolean }} options
  *   artifacts maps a URL path on the artifact origin to a file on disk.
@@ -259,16 +270,7 @@ export async function startPublicationHarness({
   const pageFile = path.join(workDirectory, "index.html");
   writeFileSync(pageFile, PAGE);
   const harnessScript = await bundlePage(workDirectory);
-  const app = await startStaticRangeServer({
-    files: {
-      "/": pageFile,
-      "/harness.js": harnessScript,
-      "/maplibre-gl-worker.mjs": maplibreWorker,
-      "/duckdb/duckdb-eh.wasm": path.join(duckdbDist, "duckdb-eh.wasm"),
-      "/duckdb/duckdb-browser-eh.worker.js": path.join(duckdbDist, "duckdb-browser-eh.worker.js"),
-      [extensionPath]: extensionCache,
-    },
-  });
+  const app = await startStaticRangeServer({ files: appFiles(pageFile, harnessScript, extensionCache) });
   const data = await startStaticRangeServer({
     files: artifacts,
     delayMs: artifactDelayMs,
