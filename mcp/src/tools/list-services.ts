@@ -43,7 +43,10 @@ export async function execute(client: HonuaClient, input: Input) {
   const services = (response.services ?? []).filter((s) => s.type === "FeatureServer");
 
   if (!input.includeDetails) {
-    return jsonText(services.map((s) => ({ serviceId: s.name, type: s.type })));
+    return jsonText(
+      services.map((s) => ({ serviceId: s.name, type: s.type })),
+      { untrustedData: true },
+    );
   }
 
   const detailed = await mapWithConcurrency(services, METADATA_CONCURRENCY, async (s) => {
@@ -69,5 +72,5 @@ export async function execute(client: HonuaClient, input: Input) {
     }
   });
 
-  return jsonText(detailed);
+  return jsonText(detailed, { untrustedData: true });
 }

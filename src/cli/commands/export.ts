@@ -152,6 +152,12 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
     return;
   }
 
+  if (requirePublic && !getBoolean(parsed, "yes")) {
+    throw new ArgError(
+      `honua export --public publishes "${layer}" for anonymous public access. Re-run with --yes, or preview with --dry-run.`,
+    );
+  }
+
   const client = createAdminClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
   const created = unwrapResponse(

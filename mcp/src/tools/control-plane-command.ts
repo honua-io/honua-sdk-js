@@ -134,6 +134,24 @@ export async function execute(
   }
 }
 
+const DESTRUCTIVE_COMMAND_ID_PATTERN = /(?:^|[.-])(delete|remove|retire|revoke|drop|purge|destroy|rollback)(?:$|[.-])/i;
+
+/** Derive MCP tool annotations from a shared control-plane command declaration. */
+export function controlPlaneCommandAnnotations(command: HonuaAnyCommand) {
+  const isRead = command.mode === "read";
+  const destructiveHint = isRead
+    ? false
+    : typeof command.destructive === "boolean"
+      ? command.destructive
+      : DESTRUCTIVE_COMMAND_ID_PATTERN.test(command.id);
+  return {
+    readOnlyHint: isRead,
+    destructiveHint,
+    idempotentHint: true,
+    openWorldHint: true,
+  };
+}
+
 /**
  * Register one MCP tool per catalog command.
  *
@@ -141,20 +159,19 @@ export async function execute(
  * catalog stays read-only and Honua-server-free unless a host supplies a
  * control-plane runtime.
  */
-export function registerControlPlaneCommandTools(server: McpServer, host: ControlPlaneCommandMcpHost): void {
-  for (const command of Object.values(HONUA_COMMANDS) as readonly HonuaAnyCommand[]) {
+export function registerControlPlaneCommandTools(
+  server: McpServer,
+  host: ControlPlaneCommandMcpHost,
+  commands: readonly HonuaAnyCommand[] = Object.values(HONUA_COMMANDS) as readonly HonuaAnyCommand[],
+): void {
+  for (const command of commands) {
     server.registerTool(
       controlPlaneCommandToolName(command.id),
       {
         title: command.title,
         description: `${command.description} Runs the shared \`${command.id}\` control-plane command and returns its deterministic receipt; the receipt's auditKey matches the equivalent CLI, Studio, or direct-JS invocation.`,
         inputSchema: controlPlaneCommandToolSchema(command),
-        annotations: {
-          readOnlyHint: command.mode === "read",
-          destructiveHint: false,
-          idempotentHint: true,
-          openWorldHint: true,
-        },
+        annotations: controlPlaneCommandAnnotations(command),
       },
       async (args, extra) => execute(host, command, args as ControlPlaneCommandToolArgs, extra.signal),
     );

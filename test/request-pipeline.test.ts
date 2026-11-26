@@ -9,6 +9,7 @@ import {
   type NormalizedRetryOptions,
   connectErrorCode,
   createTimeoutSignal,
+  isAuthRefreshStatus,
   normalizeNetworkError,
   normalizeRetryOptions,
   normalizeTimeoutMs,
@@ -235,14 +236,29 @@ describe("request-pipeline: toHttpError", () => {
     expect(err.body).toEqual({ error: { message: "boom" } });
   });
 
-  it("falls back through message then detail", () => {
+  it("falls back through message, detail, then RFC 7807 ProblemDetails title", () => {
     expect(toHttpError(400, { message: "bad" }).message).toBe("HTTP 400: bad");
     expect(toHttpError(404, { detail: "missing" }).message).toBe("HTTP 404: missing");
+    expect(toHttpError(503, { title: "Service Unavailable", status: 503 }).message).toBe(
+      "HTTP 503: Service Unavailable",
+    );
+    expect(toHttpError(409, { detail: "   ", title: "Conflict" }).message).toBe("HTTP 409: Conflict");
   });
 
   it("uses a generic message for non-object or shapeless bodies", () => {
     expect(toHttpError(500, "oops").message).toBe("HTTP 500: Request failed");
     expect(toHttpError(500, {}).message).toBe("HTTP 500: Request failed");
+  });
+});
+
+describe("request-pipeline: isAuthRefreshStatus", () => {
+  it("recognizes HTTP 401/403 and GeoServices 498/499 token failures", () => {
+    for (const status of [401, 403, 498, 499]) {
+      expect(isAuthRefreshStatus(status)).toBe(true);
+    }
+    for (const status of [200, 400, 404, 429, 500, 503]) {
+      expect(isAuthRefreshStatus(status)).toBe(false);
+    }
   });
 });
 

@@ -144,7 +144,7 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     baseUrl: connection.baseUrl,
     apiKey: connection.apiKey,
     adminKey: connection.adminKey,
-    headers: connection.bearerToken ? { Authorization: `Bearer ${connection.bearerToken}` } : undefined,
+    bearerToken: connection.bearerToken,
   });
   if (!oneTimeSecret) {
     const result = await callDynamic(client, operationId, compactRequest(request));

@@ -2,9 +2,11 @@ import {
   HONUA_COMMANDS,
   HONUA_COMMAND_IDS,
   type HonuaCommandReceipt,
+  connectionTestCommand,
   createHonuaCommandRuntime,
   importCreateCommand,
   mapDocumentPublishCommand,
+  sceneRetireCommand,
 } from "@honua/app-platform/control-plane";
 import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -13,9 +15,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createServer } from "../../src/index.js";
 import {
+  controlPlaneCommandAnnotations,
   controlPlaneCommandToolName,
   controlPlaneCommandToolSchema,
   execute,
+  registerControlPlaneCommandTools,
 } from "../../src/tools/control-plane-command.js";
 
 afterEach(() => {
@@ -344,4 +348,38 @@ it("rejects nested publication authority through the actual MCP tool before the 
   } finally {
     await close();
   }
+});
+
+describe("control-plane command tool annotations", () => {
+  it("marks destructive and DELETE commands with destructiveHint=true while keeping read and create commands non-destructive", async () => {
+    expect(controlPlaneCommandAnnotations(connectionTestCommand)).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+    expect(controlPlaneCommandAnnotations(mapDocumentPublishCommand)).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+    });
+    expect(controlPlaneCommandAnnotations(sceneRetireCommand)).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+
+    const client = new HonuaClient({ baseUrl: "https://example.test", fetchFn: recorder().fetchFn });
+    const server = createServer(client);
+    registerControlPlaneCommandTools(server, { runtime: createHonuaCommandRuntime({ client }) }, [sceneRetireCommand]);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const mcp = new Client({ name: "annotations-probe", version: "1.0.0" });
+    await server.connect(serverTransport);
+    await mcp.connect(clientTransport);
+    try {
+      const tool = (await mcp.listTools()).tools.find(
+        (entry) => entry.name === controlPlaneCommandToolName("scene.retire"),
+      );
+      expect(tool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    } finally {
+      await mcp.close();
+      await server.close();
+    }
+  });
 });

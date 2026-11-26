@@ -111,6 +111,7 @@ export const sceneRetireCommand: HonuaCommand<SceneIdCommandInput, SceneRetireOu
   title: "Retire a scene",
   description: "Deactivate or retire a hosted scene dataset.",
   mode: "action",
+  destructive: true,
   resourceKind: "scene",
   inputSchema: {
     type: "object",

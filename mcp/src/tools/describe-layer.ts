@@ -125,13 +125,16 @@ export async function execute(client: HonuaClient, input: Input) {
           ? await describeOgcCollection(client, resolved)
           : describeFromDescriptorOnly(resolved);
 
-    return jsonText({
-      source: resolved.ref.ref,
-      protocol,
-      capabilities: [...resolved.source.capabilities].sort(),
-      ...envelope,
-      // Retained for clients written against the pre-#1005 shape.
-      id: resolved.descriptor.locator.layerId ?? resolved.ref.address,
-    });
+    return jsonText(
+      {
+        source: resolved.ref.ref,
+        protocol,
+        capabilities: [...resolved.source.capabilities].sort(),
+        ...envelope,
+        // Retained for clients written against the pre-#1005 shape.
+        id: resolved.descriptor.locator.layerId ?? resolved.ref.address,
+      },
+      { untrustedData: true },
+    );
   });
 }

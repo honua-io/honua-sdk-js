@@ -340,28 +340,28 @@ export function createTimeoutSignal(
   };
 }
 
+/** Status codes that trigger reactive credential refresh on replay-safe requests. */
+export function isAuthRefreshStatus(statusCode: number): boolean {
+  return statusCode === 401 || statusCode === 403 || statusCode === 498 || statusCode === 499;
+}
+
 /**
  * Map a non-OK HTTP response body into a {@link HonuaHttpError}, preferring the
- * server's structured error message (`error.message`, `message`, or `detail`)
- * and falling back to a generic message while preserving the raw body.
+ * server's structured error message (`error.message`, `message`, `detail`, or
+ * RFC 7807 `title`) and falling back to a generic message while preserving the
+ * raw body.
  */
 export function toHttpError(statusCode: number, body: unknown, responseHeaders?: Headers): HonuaHttpError {
   const options = responseHeaders ? { responseHeaders } : undefined;
-  const fallback = "Request failed";
-  if (isObject(body)) {
-    const error = body.error;
-    if (isObject(error) && typeof error.message === "string") {
-      return new HonuaHttpError(statusCode, error.message, body, options);
-    }
-    if (typeof body.message === "string") {
-      return new HonuaHttpError(statusCode, body.message, body, options);
-    }
-    if (typeof body.detail === "string") {
-      return new HonuaHttpError(statusCode, body.detail, body, options);
-    }
-  }
+  const message = extractHttpErrorMessage(body) ?? "Request failed";
+  return new HonuaHttpError(statusCode, message, body, options);
+}
 
-  return new HonuaHttpError(statusCode, fallback, body, options);
+function extractHttpErrorMessage(body: unknown): string | undefined {
+  if (!isObject(body)) return undefined;
+  const nestedError = isObject(body.error) ? body.error : undefined;
+  const candidates = [nestedError?.message, body.message, body.detail, body.title];
+  return candidates.find((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
 /** Preserve an HTTP-200 GeoServices error envelope without conflating its code with HTTP status. */
