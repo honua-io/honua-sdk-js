@@ -22,7 +22,8 @@ import type { HonuaProblemDetails } from "../types.js";
  * Failure classes a command can raise.
  *
  * - `validation` — input failed the command's declared JSON schema, or the
- *   server rejected the request shape (`400`/`422`).
+ *   server rejected the request shape, target, method, or payload size
+ *   (`400`/`404`/`405`/`413`/`422`).
  * - `conflict` — optimistic concurrency lost: a stale `If-Match` validator or
  *   Studio `generation` (`409`/`412`). Reload and retry.
  * - `authorization` — the caller is not permitted (`401`/`403`), or the caller
@@ -47,6 +48,7 @@ export interface HonuaCommandErrorOptions {
   readonly correlationId?: string;
   readonly idempotencyKey?: string;
   readonly statusCode?: number;
+  readonly retryAfterMs?: number;
   readonly problem?: HonuaProblemDetails;
   readonly issues?: readonly HonuaCommandValidationIssue[];
 }
@@ -60,6 +62,7 @@ export interface SerializedHonuaCommandError {
   readonly correlationId?: string;
   readonly idempotencyKey?: string;
   readonly statusCode?: number;
+  readonly retryAfterMs?: number;
   readonly issues?: readonly HonuaCommandValidationIssue[];
 }
 
@@ -75,6 +78,7 @@ export class HonuaCommandError extends Error {
   public readonly correlationId: string | undefined;
   public readonly idempotencyKey: string | undefined;
   public readonly statusCode: number | undefined;
+  public readonly retryAfterMs: number | undefined;
   public readonly problem: HonuaProblemDetails | undefined;
   public readonly issues: readonly HonuaCommandValidationIssue[] | undefined;
   /** `conflict` and `transport` are worth retrying; the rest are terminal. */
@@ -93,6 +97,7 @@ export class HonuaCommandError extends Error {
     this.correlationId = options.correlationId;
     this.idempotencyKey = options.idempotencyKey;
     this.statusCode = options.statusCode;
+    this.retryAfterMs = validRetryAfterMs(options.retryAfterMs);
     this.problem = options.problem;
     this.issues = options.issues;
     this.retryable = RETRYABLE_KINDS.has(kind);
@@ -108,6 +113,7 @@ export class HonuaCommandError extends Error {
       ...(this.correlationId ? { correlationId: this.correlationId } : {}),
       ...(this.idempotencyKey ? { idempotencyKey: this.idempotencyKey } : {}),
       ...(this.statusCode !== undefined ? { statusCode: this.statusCode } : {}),
+      ...(this.retryAfterMs !== undefined ? { retryAfterMs: this.retryAfterMs } : {}),
       ...(this.issues ? { issues: this.issues } : {}),
     };
   }
@@ -123,11 +129,15 @@ export function isHonuaCommandConflict(error: unknown): error is HonuaCommandErr
   return isHonuaCommandError(error) && error.kind === "conflict";
 }
 
+const VALIDATION_HTTP_STATUSES = new Set([400, 404, 405, 413, 422]);
+const AUTHORIZATION_HTTP_STATUSES = new Set([401, 403]);
+const CONFLICT_HTTP_STATUSES = new Set([409, 412, 428]);
+
 /** Map an HTTP status code onto the command taxonomy. */
 export function classifyCommandStatus(statusCode: number): HonuaCommandErrorKind {
-  if (statusCode === 400 || statusCode === 422) return "validation";
-  if (statusCode === 401 || statusCode === 403) return "authorization";
-  if (statusCode === 409 || statusCode === 412 || statusCode === 428) return "conflict";
+  if (VALIDATION_HTTP_STATUSES.has(statusCode)) return "validation";
+  if (AUTHORIZATION_HTTP_STATUSES.has(statusCode)) return "authorization";
+  if (CONFLICT_HTTP_STATUSES.has(statusCode)) return "conflict";
   return "transport";
 }
 
@@ -159,9 +169,11 @@ export function toHonuaCommandError(
   const statusCode = httpStatusOf(error);
   if (statusCode !== undefined) {
     const kind = classifyCommandStatus(statusCode);
+    const retryAfterMs = retryAfterMsOf(error);
     return new HonuaCommandError(kind, commandId, `Command ${commandId} failed with HTTP ${statusCode}.`, {
       ...base,
       statusCode,
+      ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
       ...(problemOf(error) ? { problem: problemOf(error) } : {}),
     });
   }
@@ -190,4 +202,16 @@ function problemOf(error: unknown): HonuaProblemDetails | undefined {
   if (typeof error !== "object" || error === null) return undefined;
   const problem = (error as { readonly problem?: unknown }).problem;
   return typeof problem === "object" && problem !== null ? (problem as HonuaProblemDetails) : undefined;
+}
+
+function validRetryAfterMs(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function retryAfterMsOf(error: unknown): number | undefined {
+  if (error instanceof HonuaHttpError) {
+    return validRetryAfterMs(error.receipt.retryAfterMs);
+  }
+  if (typeof error !== "object" || error === null) return undefined;
+  return validRetryAfterMs((error as { readonly retryAfterMs?: unknown }).retryAfterMs);
 }

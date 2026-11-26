@@ -308,10 +308,13 @@ describe("command error taxonomy", () => {
 
   it("classifies HTTP failures into the shared taxonomy", async () => {
     const cases = [
-      { status: 403, kind: "authorization" },
-      { status: 409, kind: "conflict" },
-      { status: 400, kind: "validation" },
-      { status: 503, kind: "transport" },
+      { status: 403, kind: "authorization", retryable: false },
+      { status: 404, kind: "validation", retryable: false },
+      { status: 405, kind: "validation", retryable: false },
+      { status: 409, kind: "conflict", retryable: true },
+      { status: 413, kind: "validation", retryable: false },
+      { status: 400, kind: "validation", retryable: false },
+      { status: 503, kind: "transport", retryable: true },
     ] as const;
     for (const scenario of cases) {
       const { fetchFn } = recorder(() => ({ status: scenario.status, body: { title: "nope" } }));
@@ -324,6 +327,7 @@ describe("command error taxonomy", () => {
         .catch((thrown: unknown) => thrown);
       expect(error).toBeInstanceOf(HonuaCommandError);
       expect((error as HonuaCommandError).kind).toBe(scenario.kind);
+      expect((error as HonuaCommandError).retryable).toBe(scenario.retryable);
       expect((error as HonuaCommandError).statusCode).toBe(scenario.status);
     }
   });
@@ -421,6 +425,32 @@ describe("command error taxonomy", () => {
     );
     expect(receipt.status).toBe("denied");
     expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
+  });
+});
+
+describe("command error retryAfterMs preservation", () => {
+  it("preserves Retry-After delay on HonuaCommandError and its JSON projection", async () => {
+    const { fetchFn } = recorder(() => ({
+      status: 429,
+      headers: { "Retry-After": "9" },
+      body: { title: "slow down" },
+    }));
+    const error = await runtimeFor(fetchFn)
+      .execute(
+        importCreateCommand,
+        { sourceKind: "geojson", sourceUrl: "https://example.test/a.geojson" },
+        { transport: "cli" },
+      )
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(HonuaCommandError);
+    expect((error as HonuaCommandError).retryAfterMs).toBe(9_000);
+    expect((error as HonuaCommandError).toJSON()).toMatchObject({
+      kind: "honua.command.error.v1",
+      errorKind: "transport",
+      statusCode: 429,
+      retryable: true,
+      retryAfterMs: 9_000,
+    });
   });
 });
 

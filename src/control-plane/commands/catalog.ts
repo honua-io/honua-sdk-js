@@ -44,7 +44,7 @@ import type {
   HonuaMapPublicationIntent,
   HonuaPublishMapDocumentResponse,
 } from "../types.js";
-import { HonuaCommandError } from "./errors.js";
+import { HonuaCommandError, classifyCommandStatus } from "./errors.js";
 import type { HonuaAnyCommand, HonuaCommand, HonuaCommandResourceRef } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -493,7 +493,8 @@ function unwrap<T>(
   trace: { readonly correlationId: string; readonly idempotencyKey: string },
 ): T {
   if (result.supported) return result.value;
-  throw new HonuaCommandError("transport", commandId, result.reason, {
+  const kind = result.statusCode !== undefined ? classifyCommandStatus(result.statusCode) : "transport";
+  throw new HonuaCommandError(kind, commandId, result.reason, {
     correlationId: trace.correlationId,
     idempotencyKey: trace.idempotencyKey,
     ...(result.statusCode !== undefined ? { statusCode: result.statusCode } : {}),

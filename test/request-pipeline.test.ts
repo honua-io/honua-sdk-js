@@ -83,13 +83,11 @@ describe("request-pipeline: documented retry defaults (#954)", () => {
     expect([...DEFAULT_RETRYABLE_GRPC_CODES]).toEqual([4, 8, 10, 14]);
   });
 
-  it("never replays statuses that are only classified transient (408 / 500)", () => {
+  it("never replays 408 or plain 500 by default", () => {
     const options = normalizeRetryOptions({ maxRetries: 2 });
-    // 408 and 500 carry `core.http.transient` classification metadata. That
-    // metadata is descriptive: the loop reads `retryStatuses` only, so the
-    // narrower default set stays authoritative for request behavior.
+    expect(new HonuaHttpError(408, "transient", undefined).sdkCode).toBe("core.http.transient");
+    expect(new HonuaHttpError(500, "internal", undefined).sdkCode).toBe("core.http.rejected");
     for (const status of [408, 500]) {
-      expect(new HonuaHttpError(status, "transient", undefined).sdkCode).toBe("core.http.transient");
       expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(false);
     }
     for (const status of DEFAULT_RETRY_STATUSES) {
@@ -160,6 +158,30 @@ describe("request-pipeline: shouldRetryRequest", () => {
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new HonuaNetworkError("boom", undefined))).toBe(true);
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new HonuaTimeoutError(100))).toBe(true);
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new Error("other"))).toBe(false);
+  });
+});
+
+describe("request-pipeline: Honua-Retryable header overrides", () => {
+  it("does not retry 503 CAPABILITY_UNAVAILABLE when Honua-Retryable is false", () => {
+    const error = toHttpError(
+      503,
+      { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only default image" },
+      new Headers({ "Honua-Retryable": "false" }),
+    );
+    expect(error.receipt.retryable).toBe(false);
+    expect(error.sdkCode).toBe("core.http.rejected");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 503, error)).toBe(false);
+  });
+
+  it("retries 500 only when Honua-Retryable is true", () => {
+    const plain = toHttpError(500, { detail: "internal" });
+    expect(plain.receipt.retryable).toBe(false);
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, plain)).toBe(false);
+
+    const retryable = toHttpError(500, { detail: "transient" }, new Headers({ "Honua-Retryable": "true" }));
+    expect(retryable.receipt.retryable).toBe(true);
+    expect(retryable.sdkCode).toBe("core.http.transient");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, retryable)).toBe(true);
   });
 });
 

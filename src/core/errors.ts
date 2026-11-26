@@ -313,13 +313,30 @@ export function isHonuaError(error: unknown): error is HonuaError {
   return isHonuaSdkError(error);
 }
 
-const HTTP_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const HTTP_RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504]);
 const GRPC_RETRYABLE_CODES = new Set([4, 8, 10, 14]);
 const AUTH_ERROR_CODES = {
   interaction_required: "core.auth.interaction-required",
   refresh_failed: "core.auth.refresh-failed",
   invalid_grant: "core.auth.invalid-grant",
 } as const satisfies Record<HonuaAuthErrorCode, `core.auth.${string}`>;
+
+/**
+ * Parse an explicit server retryability override from a parsed HTTP response
+ * body (`error.retryable` or root `retryable`) or normalized response headers
+ * (`honua-retryable` / `honua-error-retryable`). Returns `undefined` when no
+ * explicit directive is present so callers can apply status-based defaults.
+ */
+export function parseExplicitHttpRetryable(
+  body: unknown,
+  headers: Readonly<Record<string, readonly string[]>>,
+): boolean | undefined {
+  const root = isObject(body) ? body : undefined;
+  const protocolError = root && isObject(root.error) ? root.error : undefined;
+  const bodyRetryable = booleanValue(protocolError?.retryable) ?? booleanValue(root?.retryable);
+  if (bodyRetryable !== undefined) return bodyRetryable;
+  return parseBoolean(firstMetadata(headers, "honua-retryable", "honua-error-retryable"));
+}
 
 function httpFailureReceipt(
   statusCode: number,
@@ -336,7 +353,7 @@ function httpFailureReceipt(
   const kind = isFailureKind(bodyKind) ? bodyKind : failureKindForHttp(classificationCode, statusCode);
   const code =
     stringValue(source?.machineCode) ?? stringValue(source?.code) ?? stringValue(root?.code) ?? defaultCode(kind);
-  const explicitRetryable = booleanValue(source?.retryable) ?? booleanValue(root?.retryable);
+  const explicitRetryable = parseExplicitHttpRetryable(body, metadata);
   const retryAfterSeconds = numberValue(source?.retryAfterSeconds) ?? numberValue(root?.retryAfterSeconds);
   const headerDelay = parseRetryAfter(metadataGetter(options.responseHeaders));
   const correlationId =
@@ -548,8 +565,9 @@ function booleanValue(value: unknown): boolean | undefined {
 }
 
 function parseBoolean(value: string | undefined): boolean | undefined {
-  if (value === "true") return true;
-  if (value === "false") return false;
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
   return undefined;
 }
 

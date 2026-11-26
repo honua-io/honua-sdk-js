@@ -1,4 +1,10 @@
-import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import {
+  HonuaAbortError,
+  HonuaHttpError,
+  HonuaNetworkError,
+  HonuaTimeoutError,
+  parseExplicitHttpRetryable,
+} from "./errors.js";
 import { GRPC_CANCELED } from "./grpc-status.js";
 import type { HonuaRetryOptions, QueryMethod } from "./types.js";
 
@@ -101,6 +107,8 @@ export function parseRetryAfterMs(response: Response): number | undefined {
  * methods (GET/PUT/DELETE) are retried on the configured retry statuses or on
  * transient network/timeout errors; aborts are never retried. A protocol may
  * explicitly identify an immutable read-query POST as replay-safe too.
+ * Explicit `Honua-Retryable` response headers or body `retryable` flags
+ * override the default status list so non-retryable 503s are never retried.
  */
 export function shouldRetryRequest(
   retryOptions: NormalizedRetryOptions | undefined,
@@ -123,7 +131,11 @@ export function shouldRetryRequest(
   }
 
   if (statusCode !== undefined) {
-    return retryOptions.retryStatuses.has(statusCode);
+    const explicit =
+      error instanceof HonuaHttpError
+        ? parseExplicitHttpRetryable(error.body, error.receipt.protocolMetadata.initial)
+        : undefined;
+    return explicit ?? retryOptions.retryStatuses.has(statusCode);
   }
 
   return error instanceof HonuaNetworkError || error instanceof HonuaTimeoutError;
