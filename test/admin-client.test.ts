@@ -264,3 +264,38 @@ it("enforces bearerToken against per-call overrides and refreshes pluggable OIDC
   await oidcClient.call("listAdminApiKeys", {});
   expect(seenHeaders).toEqual(["Bearer expired-oidc", "Bearer refreshed-oidc"]);
 });
+
+function stalledJsonResponse(): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"data":'));
+    },
+  });
+  return new Response(stream, { status: 200, headers: { "content-type": "application/json" } });
+}
+
+it("aborts a stalled response body when timeoutMs expires", async () => {
+  const client = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    timeoutMs: 25,
+    retry: { maxRetries: 0 },
+    fetchFn: async () => stalledJsonResponse(),
+  });
+  await expect(client.call("listAdminApiKeys", {})).rejects.toMatchObject({ name: "HonuaTimeoutError" });
+});
+
+it("aborts a stalled response body when the caller signal is aborted", async () => {
+  const controller = new AbortController();
+  const client = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    timeoutMs: 5_000,
+    retry: { maxRetries: 0 },
+    fetchFn: async () => {
+      queueMicrotask(() => controller.abort());
+      return stalledJsonResponse();
+    },
+  });
+  await expect(client.call("listAdminApiKeys", { signal: controller.signal })).rejects.toMatchObject({
+    name: "HonuaAbortError",
+  });
+});

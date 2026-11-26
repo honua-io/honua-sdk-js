@@ -238,7 +238,7 @@ import type {
   StacSearchRequest,
 } from "./types.js";
 import { HonuaWfs } from "./wfs.js";
-import { mergeHeaders } from "./wire-shared.js";
+import { authHeadersFromCredentials, awaitAbortable, mergeHeaders, normalizeAuthCredentials } from "./wire-shared.js";
 import type { WmsCapabilities } from "./wms-capabilities.js";
 import type {
   HonuaWmsFeatureInfoResponse,
@@ -2679,30 +2679,6 @@ function cloneRequestContext(request: HonuaRequestContext): HonuaRequestContext 
   };
 }
 
-function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-  const pending = Promise.resolve(value);
-  if (!signal) return pending;
-  if (signal.aborted) {
-    void pending.catch(() => undefined);
-    return Promise.reject(new HonuaAbortError());
-  }
-  return new Promise<T>((resolve, reject) => {
-    let settled = false;
-    const finish = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      signal.removeEventListener("abort", abort);
-      callback();
-    };
-    const abort = () => finish(() => reject(new HonuaAbortError()));
-    signal.addEventListener("abort", abort, { once: true });
-    pending.then(
-      (result) => finish(() => resolve(result)),
-      (error: unknown) => finish(() => reject(error)),
-    );
-  });
-}
-
 interface PreservedResponseSemantics {
   readonly url: string;
   readonly type: Response["type"];
@@ -2763,34 +2739,6 @@ function normalizeAuthRefreshSkewMs(value: number | undefined): number {
   return Math.max(0, Math.trunc(value));
 }
 
-function normalizeAuthCredentials(
-  value: HonuaAuthCredentials | string | null | undefined,
-): HonuaAuthCredentials | undefined {
-  if (typeof value === "string") {
-    return value.length > 0 ? { bearerToken: value } : undefined;
-  }
-  if (!value) {
-    return undefined;
-  }
-  const credentials: HonuaAuthCredentials = {};
-  if (typeof value.apiKey === "string" && value.apiKey.length > 0) {
-    credentials.apiKey = value.apiKey;
-  }
-  if (typeof value.bearerToken === "string" && value.bearerToken.length > 0) {
-    credentials.bearerToken = value.bearerToken;
-  }
-  if (typeof value.authorization === "string" && value.authorization.length > 0) {
-    credentials.authorization = value.authorization;
-  }
-  if (value.expiresAt !== undefined) {
-    credentials.expiresAt = value.expiresAt;
-  }
-  if (!credentials.apiKey && !credentials.bearerToken && !credentials.authorization) {
-    return undefined;
-  }
-  return credentials;
-}
-
 function normalizeAuthExpiresAtMs(expiresAt: HonuaAuthCredentials["expiresAt"]): number | undefined {
   if (expiresAt === undefined) {
     return undefined;
@@ -2814,19 +2762,6 @@ function isAuthCredentialsExpiring(cached: CachedAuthCredentials, skewMs: number
 
 function resolveAuthRefreshReason(cached: CachedAuthCredentials | undefined): HonuaAuthRefreshReason {
   return cached ? "expired" : "initial";
-}
-
-function authHeadersFromCredentials(credentials: HonuaAuthCredentials): Record<string, string> | undefined {
-  const headers: Record<string, string> = {};
-  if (credentials.apiKey) {
-    headers["X-API-Key"] = credentials.apiKey;
-  }
-  if (credentials.authorization) {
-    headers.Authorization = credentials.authorization;
-  } else if (credentials.bearerToken) {
-    headers.Authorization = `Bearer ${credentials.bearerToken}`;
-  }
-  return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
 function createMetadataCacheState(

@@ -13,14 +13,13 @@ import {
   sleep,
   toHttpError,
 } from "../core/request-pipeline.js";
-import type {
-  HonuaAuthCredentials,
-  HonuaAuthCredentialsProvider,
-  HonuaAuthProvider,
-  HonuaRetryOptions,
-  QueryMethod,
-} from "../core/types.js";
-import { mergeHeaders } from "../core/wire-shared.js";
+import type { HonuaAuthCredentialsProvider, HonuaAuthProvider, HonuaRetryOptions, QueryMethod } from "../core/types.js";
+import {
+  authHeadersFromCredentials,
+  awaitAbortable,
+  mergeHeaders,
+  normalizeAuthCredentials,
+} from "../core/wire-shared.js";
 import type { operations } from "./generated/admin-api.js";
 import { ADMIN_API_BASE_PATH, ADMIN_OPERATIONS, type AdminOperationId } from "./generated/admin-operations.js";
 
@@ -238,14 +237,18 @@ export class HonuaAdminClient {
 
   async #initialAuthHeaders(): Promise<Record<string, string> | undefined> {
     if (!this.#auth) return undefined;
-    const raw = await this.#auth.getCredentials({ reason: "initial", forceRefresh: false });
-    return adminAuthHeadersFromResult(raw);
+    const normalized = normalizeAuthCredentials(
+      await this.#auth.getCredentials({ reason: "initial", forceRefresh: false }),
+    );
+    return normalized ? authHeadersFromCredentials(normalized) : undefined;
   }
 
   async #refreshAuthHeaders(): Promise<Record<string, string> | undefined> {
     if (!this.#auth) return undefined;
-    const raw = await this.#auth.getCredentials({ reason: "unauthorized", forceRefresh: true });
-    return adminAuthHeadersFromResult(raw);
+    const normalized = normalizeAuthCredentials(
+      await this.#auth.getCredentials({ reason: "unauthorized", forceRefresh: true }),
+    );
+    return normalized ? authHeadersFromCredentials(normalized) : undefined;
   }
 
   async #tryRefreshHeaders(headers: Headers, statusCode: number, method: QueryMethod): Promise<Headers | undefined> {
@@ -269,8 +272,7 @@ export class HonuaAdminClient {
     for (let attempt = 0; ; attempt += 1) {
       const attemptOutcome = await this.#runAttempt({ ...spec, headers, attempt });
       if (attemptOutcome.kind === "retry") continue;
-      const { response } = attemptOutcome;
-      const data = await readResponse(response);
+      const { response, data } = attemptOutcome;
       if (response.ok) return { operationId: spec.operationId, data: data as AdminOperationResponse<Id>, response };
 
       const refreshedHeaders = refreshedAuth
@@ -297,8 +299,11 @@ export class HonuaAdminClient {
     readonly body: BodyInit | null;
     readonly signal?: AbortSignal;
     readonly attempt: number;
-  }): Promise<{ readonly kind: "response"; readonly response: Response } | { readonly kind: "retry" }> {
+  }): Promise<
+    { readonly kind: "response"; readonly response: Response; readonly data: unknown } | { readonly kind: "retry" }
+  > {
     const timeout = createTimeoutSignal(spec.signal, this.#timeoutMs);
+    let activeResponse: Response | undefined;
     try {
       const response = await this.#fetchWithSafeRedirects(spec.url, {
         method: spec.method,
@@ -306,14 +311,14 @@ export class HonuaAdminClient {
         body: spec.body,
         signal: timeout.signal,
       });
-      return { kind: "response", response };
+      activeResponse = response;
+      const data = await awaitAbortable(readResponse(response), timeout.signal);
+      return { kind: "response", response, data };
     } catch (error) {
-      if (error instanceof AdminRedirectPolicyError) throw error;
-      const normalized = timeout.didTimeout
-        ? new HonuaTimeoutError(this.#timeoutMs ?? 0)
-        : error instanceof HonuaAbortError || error instanceof HonuaTimeoutError || error instanceof HonuaNetworkError
-          ? error
-          : normalizeNetworkError(error);
+      if (timeout.signal?.aborted) {
+        void activeResponse?.body?.cancel().catch(() => undefined);
+      }
+      const normalized = normalizeAttemptError(error, timeout, this.#timeoutMs);
       if (shouldRetryRequest(this.#retryOptions, spec.method, spec.attempt, undefined, normalized)) {
         await sleep(resolveRetryDelayMs(this.#retryOptions, spec.attempt), spec.signal);
         return { kind: "retry" };
@@ -438,22 +443,6 @@ function normalizeAdminAuth(
   return typeof auth === "function" ? { getCredentials: auth } : auth;
 }
 
-function nonEmptyCredential(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function adminAuthHeadersFromResult(
-  raw: HonuaAuthCredentials | string | null | undefined,
-): Record<string, string> | undefined {
-  if (typeof raw === "string") return raw.length > 0 ? { Authorization: `Bearer ${raw}` } : undefined;
-  if (!raw) return undefined;
-  const apiKey = nonEmptyCredential(raw.apiKey);
-  const bearer = nonEmptyCredential(raw.bearerToken);
-  const authorization = nonEmptyCredential(raw.authorization) ?? (bearer ? `Bearer ${bearer}` : undefined);
-  if (!apiKey && !authorization) return undefined;
-  return { ...(apiKey ? { "X-API-Key": apiKey } : {}), ...(authorization ? { Authorization: authorization } : {}) };
-}
-
 function encodeBody(
   value: unknown,
   contentType: string | undefined,
@@ -500,6 +489,24 @@ function toFormData(value: unknown): FormData {
 function formValue(value: unknown): string | Blob {
   if (value instanceof Blob) return value;
   return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function normalizeAttemptError(
+  error: unknown,
+  timeout: { readonly didTimeout: boolean },
+  timeoutMs: number | undefined,
+): unknown {
+  if (timeout.didTimeout) return new HonuaTimeoutError(timeoutMs ?? 0);
+  if (
+    error instanceof AdminRedirectPolicyError ||
+    error instanceof SyntaxError ||
+    error instanceof HonuaAbortError ||
+    error instanceof HonuaTimeoutError ||
+    error instanceof HonuaNetworkError
+  ) {
+    return error;
+  }
+  return normalizeNetworkError(error);
 }
 
 async function readResponse(response: Response): Promise<unknown> {
