@@ -318,6 +318,7 @@ export class HonuaAdminClient {
       if (timeout.signal?.aborted) {
         void activeResponse?.body?.cancel().catch(() => undefined);
       }
+      if (error instanceof AdminRedirectPolicyError) throw error;
       const normalized = normalizeAttemptError(error, timeout, this.#timeoutMs);
       if (shouldRetryRequest(this.#retryOptions, spec.method, spec.attempt, undefined, normalized)) {
         await sleep(resolveRetryDelayMs(this.#retryOptions, spec.attempt), spec.signal);
@@ -498,7 +499,6 @@ function normalizeAttemptError(
 ): unknown {
   if (timeout.didTimeout) return new HonuaTimeoutError(timeoutMs ?? 0);
   if (
-    error instanceof AdminRedirectPolicyError ||
     error instanceof SyntaxError ||
     error instanceof HonuaAbortError ||
     error instanceof HonuaTimeoutError ||
