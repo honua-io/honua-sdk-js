@@ -22,9 +22,19 @@ interface PublicationOptions {
   readonly timeoutMs: number;
 }
 
+function isHttpUrl(value: string | undefined): boolean {
+  if (!value?.trim()) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function publicPublication(record: ExportRecord): ExportRecord {
   if (record.message) throw new Error(`Export ${record.id} failed: ${record.message}`);
-  if (record.status !== "ready" || !record.currentVersion || !record.publicUrl) {
+  if (record.status !== "ready" || !record.currentVersion || !isHttpUrl(record.publicUrl)) {
     throw new Error(
       `Export ${record.id} is not public: ${record.notPublicReason ?? `publication status is ${record.status}`}.`,
     );

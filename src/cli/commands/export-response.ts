@@ -28,12 +28,20 @@ export interface ApiResponse<T> {
   readonly message?: string;
 }
 
+function problemMessage(problem: unknown): string | undefined {
+  if (typeof problem !== "object" || problem === null) return undefined;
+  const candidate = (problem as { readonly message?: unknown }).message;
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : undefined;
+}
+
 export function unwrapResponse<T>(
   result:
     | { readonly supported: true; readonly value: ApiResponse<T> }
-    | { readonly supported: false; readonly reason: string },
+    | { readonly supported: false; readonly reason: string; readonly problem?: unknown },
 ): T {
-  if (!result.supported) throw new Error(result.reason);
+  if (!result.supported) {
+    throw new Error(problemMessage(result.problem) ?? result.reason);
+  }
   if (!result.value?.success || result.value.data == null) {
     throw new Error(result.value?.message ?? "The server returned an invalid export response.");
   }
