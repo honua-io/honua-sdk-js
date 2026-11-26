@@ -149,23 +149,26 @@ export async function execute(client: HonuaClient, input: Input) {
     }
 
     const sources = Object.values(families).flatMap((family) => family.sources);
-    return jsonText({
-      sources,
-      sourceCount: sources.length,
-      families: Object.fromEntries(
-        Object.entries(families).map(([name, outcome]) => [
-          name,
-          {
-            available: outcome.available,
-            ...(outcome.reason ? { reason: outcome.reason } : {}),
-            count: outcome.sources.length,
-          },
-        ]),
-      ),
-      guidance:
-        sources.length > 0
-          ? "Pass a `source` value verbatim to honua_describe_layer / honua_query_features / honua_count_features / honua_get_extent / honua_statistics."
-          : 'No source catalog is published here. Address a known source directly, e.g. source="ogc-features:<collectionId>", "stac:<collectionId>", "wfs:<typeName>", "odata:<entitySet>", or "geoservices-feature-service:<serviceId>/<layerId>".',
-    });
+    return jsonText(
+      {
+        sources,
+        sourceCount: sources.length,
+        families: Object.fromEntries(
+          Object.entries(families).map(([name, outcome]) => [
+            name,
+            {
+              available: outcome.available,
+              ...(outcome.reason ? { reason: outcome.reason } : {}),
+              count: outcome.sources.length,
+            },
+          ]),
+        ),
+        guidance:
+          sources.length > 0
+            ? "Pass a `source` value verbatim to honua_describe_layer / honua_query_features / honua_count_features / honua_get_extent / honua_statistics."
+            : 'No source catalog is published here. Address a known source directly, e.g. source="ogc-features:<collectionId>", "stac:<collectionId>", "wfs:<typeName>", "odata:<entitySet>", or "geoservices-feature-service:<serviceId>/<layerId>".',
+      },
+      { untrustedData: true },
+    );
   });
 }

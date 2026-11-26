@@ -33,6 +33,7 @@ export {
 } from "./nl-map-control.js";
 export {
   CONTROL_PLANE_COMMAND_TOOL_PREFIX,
+  controlPlaneCommandAnnotations,
   controlPlaneCommandToolName,
   controlPlaneCommandToolSchema,
   registerControlPlaneCommandTools,
@@ -371,7 +372,7 @@ export function createBootstrapServer(options: SkillExposureOptions = {}): McpSe
 function registerLocalInstallTool(server: McpServer): void {
   server.tool(
     "honua_admin_install_local",
-    "Install the manifest-pinned Honua Server, PostGIS, and Redis on this laptop, wait for readiness, bootstrap a scoped admin key, and write proxy MCP configuration. Requires confirm=true.",
+    "Install the manifest-pinned Honua Server and PostGIS on this laptop, wait for readiness, bootstrap a scoped admin key, and write proxy MCP configuration. Requires confirm=true.",
     adminInstallLocal.schema.shape,
     { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     async (args) => adminInstallLocal.execute(adminInstallLocal.schema.parse(args)),

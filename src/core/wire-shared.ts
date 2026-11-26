@@ -7,7 +7,8 @@
  * @module
  */
 
-import type { OgcMetadataRequest } from "./types.js";
+import { HonuaAbortError } from "./errors.js";
+import type { HonuaAuthCredentials, OgcMetadataRequest } from "./types.js";
 
 function appendHeaderEntries(headers: HeadersInit, setEntry: (key: string, value: string) => void): void {
   if (headers instanceof Headers) {
@@ -99,4 +100,64 @@ export function responseExceededTransferLimit(response: unknown): boolean {
     response !== null &&
     (response as { exceededTransferLimit?: unknown }).exceededTransferLimit === true
   );
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/** Normalize a credential provider result into a canonical credential bag. */
+export function normalizeAuthCredentials(
+  value: HonuaAuthCredentials | string | null | undefined,
+): HonuaAuthCredentials | undefined {
+  if (typeof value === "string") {
+    return value.length > 0 ? { bearerToken: value } : undefined;
+  }
+  if (!value) return undefined;
+  const apiKey = nonEmptyString(value.apiKey);
+  const bearerToken = nonEmptyString(value.bearerToken);
+  const authorization = nonEmptyString(value.authorization);
+  if (!apiKey && !bearerToken && !authorization) return undefined;
+  return {
+    ...(apiKey ? { apiKey } : {}),
+    ...(bearerToken ? { bearerToken } : {}),
+    ...(authorization ? { authorization } : {}),
+    ...(value.expiresAt !== undefined ? { expiresAt: value.expiresAt } : {}),
+  };
+}
+
+/** Project normalized auth credentials onto outgoing request headers. */
+export function authHeadersFromCredentials(credentials: HonuaAuthCredentials): Record<string, string> | undefined {
+  const authorization =
+    credentials.authorization ?? (credentials.bearerToken ? `Bearer ${credentials.bearerToken}` : undefined);
+  if (!credentials.apiKey && !authorization) return undefined;
+  return {
+    ...(credentials.apiKey ? { "X-API-Key": credentials.apiKey } : {}),
+    ...(authorization ? { Authorization: authorization } : {}),
+  };
+}
+
+/** Race a promise against an optional AbortSignal, rejecting with HonuaAbortError on abort. */
+export function awaitAbortable<T>(value: T | Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  const pending = Promise.resolve(value);
+  if (!signal) return pending;
+  if (signal.aborted) {
+    void pending.catch(() => undefined);
+    return Promise.reject(new HonuaAbortError());
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(new HonuaAbortError()));
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(
+      (result) => finish(() => resolve(result)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
 }

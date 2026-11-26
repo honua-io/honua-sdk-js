@@ -8,6 +8,7 @@ vi.mock("../src/control-plane/generated/admin-operations.js", async (importOrigi
   ADMIN_RELEASE_CONTRACT_COMPATIBLE: true,
 }));
 
+import { withLegacyRedisCompose } from "../src/local-install-legacy.js";
 import { installHonuaLocal, renderLocalCompose } from "../src/local-install.js";
 
 const directories: string[] = [];
@@ -305,4 +306,19 @@ describe("local installer file and project safety", () => {
     expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain("HONUA_COMPOSE_PROJECT=honua-local");
     expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain("POSTGRES_PASSWORD=original");
   });
+});
+
+it("upgrades a prior Redis-bearing installer compose to zero-Redis while preserving credentials", async () => {
+  const directory = temporaryDirectory();
+  await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+  const composeFile = path.join(directory, "compose.yaml");
+  const current = readFileSync(composeFile, "utf8");
+  const envFile = path.join(directory, ".env");
+  const originalEnv = readFileSync(envFile, "utf8");
+  writeFileSync(composeFile, withLegacyRedisCompose(current));
+  await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+  const upgraded = readFileSync(composeFile, "utf8");
+  expect(upgraded).toBe(current);
+  expect(upgraded).not.toContain("redis");
+  expect(readFileSync(envFile, "utf8")).toBe(originalEnv);
 });

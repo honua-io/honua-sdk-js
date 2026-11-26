@@ -209,3 +209,90 @@ describe("401 replay replaces mixed-case auth headers cleanly", () => {
     expect(seen).toEqual(["expired-api-key", "fresh-api-key"]);
   });
 });
+
+it.each([498, 499])("refreshes auth and replays on HTTP-200 GeoServices code %i", async (code) => {
+  let calls = 0;
+  const seenAuth: (string | null)[] = [];
+  const client = new HonuaClient({
+    baseUrl: "https://api.example.test",
+    auth: {
+      async getCredentials(options) {
+        return { bearerToken: options?.forceRefresh ? "fresh-token" : "stale-token" };
+      },
+    },
+    fetchFn: async (_input, init) => {
+      calls += 1;
+      seenAuth.push(new Headers(init?.headers).get("authorization"));
+      if (calls === 1) return Response.json({ error: { code, message: "Token expired" } }, { status: 200 });
+      return Response.json({ features: [{ attributes: { OBJECTID: 1 } }] }, { status: 200 });
+    },
+  });
+
+  const result = await client.queryFeatures({ serviceId: "Parks", layerId: 0 });
+  expect(calls).toBe(2);
+  expect(seenAuth).toEqual(["Bearer stale-token", "Bearer fresh-token"]);
+  expect(result.features).toHaveLength(1);
+});
+
+it("retries HTTP-200 GeoServices 429 and 503 envelopes respecting Retry-After", async () => {
+  let calls = 0;
+  const client = new HonuaClient({
+    baseUrl: "https://api.example.test",
+    retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 10 },
+    fetchFn: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return Response.json(
+          { error: { code: 429, message: "Too many requests" } },
+          { status: 200, headers: { "Retry-After": "0" } },
+        );
+      }
+      if (calls === 2) {
+        return Response.json({ error: { code: 503, message: "Temporarily unavailable" } }, { status: 200 });
+      }
+      return Response.json({ features: [{ attributes: { OBJECTID: 7 } }] }, { status: 200 });
+    },
+  });
+
+  const result = await client.queryFeatures({ serviceId: "Parks", layerId: 0 });
+  expect(calls).toBe(3);
+  expect(result.features).toHaveLength(1);
+});
+
+it("honors Honua-Retryable false and true on HTTP-200 GeoServices envelopes", async () => {
+  let nonRetryableCalls = 0;
+  const nonRetryableClient = new HonuaClient({
+    baseUrl: "https://api.example.test",
+    retry: { maxRetries: 3, baseDelayMs: 1, maxDelayMs: 10 },
+    fetchFn: async () => {
+      nonRetryableCalls += 1;
+      return Response.json(
+        { error: { code: 503, message: "Capability unavailable" } },
+        { status: 200, headers: { "Honua-Retryable": "false" } },
+      );
+    },
+  });
+  await expect(nonRetryableClient.queryFeatures({ serviceId: "Parks", layerId: 0 })).rejects.toMatchObject({
+    statusCode: 503,
+  });
+  expect(nonRetryableCalls).toBe(1);
+
+  let explicitRetryCalls = 0;
+  const explicitRetryClient = new HonuaClient({
+    baseUrl: "https://api.example.test",
+    retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 10 },
+    fetchFn: async () => {
+      explicitRetryCalls += 1;
+      if (explicitRetryCalls === 1) {
+        return Response.json(
+          { error: { code: 500, message: "Transient backend fault" } },
+          { status: 200, headers: { "Honua-Retryable": "true" } },
+        );
+      }
+      return Response.json({ id: 0, name: "Parks" }, { status: 200 });
+    },
+  });
+  const metadata = await explicitRetryClient.getLayerMetadata("Parks", 0);
+  expect(explicitRetryCalls).toBe(2);
+  expect(metadata.name).toBe("Parks");
+});

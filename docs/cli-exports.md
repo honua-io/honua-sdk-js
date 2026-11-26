@@ -18,7 +18,7 @@ Submission returns the server's accepted job without waiting. To require public
 publication and wait for its result:
 
 ```bash
-honua export maui-parcels/1 --id maui-parcels --public --timeout-ms 600000
+honua export maui-parcels/1 --id maui-parcels --public --yes --timeout-ms 600000
 ```
 
 The server checks source eligibility, anonymous access, and the public copy.

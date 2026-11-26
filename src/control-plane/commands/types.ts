@@ -222,6 +222,8 @@ export interface HonuaCommand<TInput, TOutput> {
   readonly title: string;
   readonly description: string;
   readonly mode: HonuaCommandMode;
+  /** True when the command deletes, retires, revokes, or otherwise irreversibly mutates state. */
+  readonly destructive?: boolean;
   /** Resource kind this command addresses; used for the receipt's `resourceRef`. */
   readonly resourceKind: string;
   readonly inputSchema: HonuaCommandJsonSchema;

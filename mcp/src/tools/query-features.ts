@@ -52,16 +52,19 @@ export async function execute(client: HonuaClient, input: Input, signal?: AbortS
     const returnGeometry = input.returnGeometry ?? true;
     const degraded = projectDegraded(result.degraded);
 
-    return jsonText({
-      source: resolved.ref.ref,
-      protocol: resolved.descriptor.protocol,
-      returnedCount: result.features.length,
-      features: projectFeatures(result, { returnGeometry, geometryFormat }),
-      geometryFormat: returnGeometry ? geometryFormat : null,
-      exceededTransferLimit: result.exceededTransferLimit,
-      totalCount: result.totalCount ?? null,
-      fields: result.fields ?? null,
-      ...(degraded ? { degraded } : {}),
-    });
+    return jsonText(
+      {
+        source: resolved.ref.ref,
+        protocol: resolved.descriptor.protocol,
+        returnedCount: result.features.length,
+        features: projectFeatures(result, { returnGeometry, geometryFormat }),
+        geometryFormat: returnGeometry ? geometryFormat : null,
+        exceededTransferLimit: result.exceededTransferLimit,
+        totalCount: result.totalCount ?? null,
+        fields: result.fields ?? null,
+        ...(degraded ? { degraded } : {}),
+      },
+      { untrustedData: true },
+    );
   });
 }

@@ -37,7 +37,7 @@ function tempDirectory(): string {
 }
 
 describe("local Honua installer", () => {
-  it("renders the manifest-pinned server, PostGIS, and Redis", () => {
+  it("renders the manifest-pinned server and PostGIS without Redis", () => {
     const quickstart = renderLocalCompose({ profile: "quickstart" });
     expect(LOCAL_INSTALL_SERVER_IMAGE).toContain("@sha256:");
     expect(quickstart).toContain("pgrouting/pgrouting:17-3.5-3.7.3");
@@ -49,7 +49,9 @@ describe("local Honua installer", () => {
     expect(LOCAL_POSTGIS_BOOTSTRAP_SQL).toContain("CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public");
     expect(LOCAL_POSTGIS_BOOTSTRAP_SQL).toContain("n.nspname <> 'public'");
     expect(quickstart).toContain("service_completed_successfully");
-    expect(quickstart).toContain("redis:7.4-alpine");
+    expect(quickstart).not.toContain("redis");
+    expect(quickstart).not.toContain("ConnectionStrings__Redis");
+    expect(quickstart).not.toContain("redis_data");
     expect(quickstart).toContain("image: ${HONUA_SERVER_IMAGE}");
   });
 

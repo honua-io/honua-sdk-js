@@ -62,12 +62,15 @@ export async function execute(client: HonuaClient, input: Input, signal?: AbortS
     });
 
     const degraded = projectDegraded(result.degraded);
-    return jsonText({
-      source: resolved.ref.ref,
-      protocol: resolved.descriptor.protocol,
-      statistic: alias,
-      statistics: (result.aggregateRows ?? []).map((attributes) => ({ attributes })),
-      ...(degraded ? { degraded } : {}),
-    });
+    return jsonText(
+      {
+        source: resolved.ref.ref,
+        protocol: resolved.descriptor.protocol,
+        statistic: alias,
+        statistics: (result.aggregateRows ?? []).map((attributes) => ({ attributes })),
+        ...(degraded ? { degraded } : {}),
+      },
+      { untrustedData: true },
+    );
   });
 }

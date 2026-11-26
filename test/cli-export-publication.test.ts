@@ -24,12 +24,22 @@ const publicUrl = "https://data.honua.example/maui-parcels/v2/collection.json";
 const pending = { ...record, status: "running", jobId: "job-2" };
 const published = { ...pending, status: "ready", currentVersion: "v2", publicUrl };
 
+it("requires --yes before submitting a --public export unless --dry-run is set", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  const cap = captureOutput();
+  expect(await run(["export", "maui-parcels/1", "--id", exportId, "--public"], options)).toBe(2);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(cap.stdout()).toBe("");
+  expect(cap.stderr()).toContain("Re-run with --yes");
+});
+
 it("waits for the submitted job and snapshots confirmed public publication", async () => {
   const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => response(published));
   fetchMock.mockResolvedValueOnce(response(pending, 202));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--id", exportId, "--public"], options)).toBe(0);
+  expect(await run(["export", "maui-parcels/1", "--id", exportId, "--public", "--yes"], options)).toBe(0);
   expect(fetchMock).toHaveBeenCalledTimes(2);
   const [url, init] = fetchMock.mock.calls[0]!;
   expect(String(url)).toBe("https://honua.example/api/v1/admin/exports");
@@ -52,7 +62,7 @@ it("returns only the confirmed publication as JSON", async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce(response(pending, 202)).mockResolvedValueOnce(response(published));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public", "--json"], options)).toBe(0);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes", "--json"], options)).toBe(0);
   expect(JSON.parse(cap.stdout())).toEqual(published);
 });
 
@@ -63,7 +73,7 @@ it("snapshots server refusal instead of claiming signed-in output is public", as
     vi.fn().mockResolvedValueOnce(response(pending, 202)).mockResolvedValueOnce(response(refused)),
   );
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
   expect(cap.stdout()).toBe("");
   expect(cap.stderr()).toMatchInlineSnapshot(`
     "error: Export maui-parcels is not public: Source requires authenticated access.
@@ -81,7 +91,7 @@ it.each([
 ])("does not report unconfirmed publication: %j", async (result) => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(response(pending, 202)).mockResolvedValueOnce(response(result)));
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
   expect(cap.stdout()).toBe("");
   expect(cap.stderr()).not.toBe("");
 });
@@ -90,7 +100,7 @@ it("preserves authorization refusal without polling", async () => {
   const fetchMock = vi.fn(async () => Response.json({ message: "Forbidden" }, { status: 403 }));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(cap.stdout()).toBe("");
 });
@@ -102,7 +112,7 @@ it("preserves authorization refusal while checking publication", async () => {
     .mockResolvedValueOnce(Response.json({ message: "Forbidden" }, { status: 403 }));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(cap.stdout()).toBe("");
 });
@@ -111,7 +121,7 @@ it("refuses to follow an unidentified submitted job", async () => {
   const fetchMock = vi.fn(async () => response({ ...pending, jobId: undefined }, 202));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(cap.stderr()).toContain("did not identify the submitted export job");
 });
@@ -129,7 +139,7 @@ it("aborts an in-flight status request at the publication deadline", async () =>
     );
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  const result = run(["export", "maui-parcels/1", "--public", "--timeout-ms", "100"], options);
+  const result = run(["export", "maui-parcels/1", "--public", "--yes", "--timeout-ms", "100"], options);
   await vi.advanceTimersByTimeAsync(100);
   expect(await result).toBe(1);
   expect(cap.stdout()).toBe("");
@@ -145,7 +155,7 @@ it("polls running jobs without treating an old public version as success", async
     .mockResolvedValueOnce(response(published));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  const result = run(["export", "maui-parcels/1", "--public"], options);
+  const result = run(["export", "maui-parcels/1", "--public", "--yes"], options);
   await vi.advanceTimersByTimeAsync(0);
   expect(cap.stdout()).toBe("");
   await vi.advanceTimersByTimeAsync(1_000);
@@ -160,7 +170,7 @@ it("bounds polling and explains that a timed-out job can still finish", async ()
     vi.fn(async () => response(pending)),
   );
   const cap = captureOutput();
-  const result = run(["export", "maui-parcels/1", "--public", "--timeout-ms", "100"], options);
+  const result = run(["export", "maui-parcels/1", "--public", "--yes", "--timeout-ms", "100"], options);
   await vi.advanceTimersByTimeAsync(100);
   expect(await result).toBe(1);
   expect(cap.stdout()).toBe("");
@@ -175,7 +185,7 @@ it.each(["0", "-1", "0.5", "NaN", "2147483648"])(
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     captureOutput();
-    expect(await run(["export", "maui-parcels/1", "--public", "--timeout-ms", timeout], options)).toBe(2);
+    expect(await run(["export", "maui-parcels/1", "--public", "--yes", "--timeout-ms", timeout], options)).toBe(2);
     expect(fetchMock).not.toHaveBeenCalled();
   },
 );
@@ -198,18 +208,21 @@ it("prefers --admin-key for /api/v1/admin/exports and refuses non-loopback HTTP"
   fetchMock.mockResolvedValueOnce(response(pending, 202));
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public", "--admin-key", "root-key"], {
-    baseUrl: "https://honua.example",
-    apiKey: "scoped-key",
-  });
+  const code = await run(
+    ["export", "maui-parcels/1", "--id", exportId, "--public", "--yes", "--admin-key", "root-key"],
+    {
+      baseUrl: "https://honua.example",
+      apiKey: "scoped-key",
+    },
+  );
   expect(code).toBe(0);
   expect(observedKey).toBe("root-key");
   expect(cap.stderr()).toBe("");
 
   const insecureCap = captureOutput();
-  expect(await run(["export", "maui-parcels/1", "--public"], { baseUrl: "http://remote.example", apiKey: "k" })).toBe(
-    1,
-  );
+  expect(
+    await run(["export", "maui-parcels/1", "--public", "--yes"], { baseUrl: "http://remote.example", apiKey: "k" }),
+  ).toBe(1);
   expect(insecureCap.stderr()).toContain("requires HTTPS");
 });
 
@@ -226,7 +239,7 @@ it("preserves caller bearer token without substituting HONUA_ADMIN_KEY", async (
   fetchMock.mockResolvedValueOnce(response(pending, 202));
   vi.stubGlobal("fetch", fetchMock);
   captureOutput();
-  const code = await run(["export", "maui-parcels/1", "--public"], {
+  const code = await run(["export", "maui-parcels/1", "--public", "--yes"], {
     baseUrl: "https://honua.example",
     bearerToken: "caller-token",
   });
@@ -241,7 +254,7 @@ it("surfaces the server's 404 failure message verbatim", async () => {
   );
   vi.stubGlobal("fetch", fetchMock);
   const cap = captureOutput();
-  expect(await run(["export", "missing-svc/1", "--public"], options)).toBe(1);
+  expect(await run(["export", "missing-svc/1", "--public", "--yes"], options)).toBe(1);
   expect(cap.stdout()).toBe("");
   expect(cap.stderr()).toContain("The source is not a routable Layer of that Service.");
 });
@@ -257,7 +270,7 @@ it.each(["javascript:alert(1)", "   ", "/relative/collection.json"])(
         .mockResolvedValueOnce(response({ ...published, publicUrl: badUrl })),
     );
     const cap = captureOutput();
-    expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+    expect(await run(["export", "maui-parcels/1", "--public", "--yes"], options)).toBe(1);
     expect(cap.stdout()).toBe("");
     expect(cap.stderr()).toContain("is not public");
   },
@@ -316,7 +329,7 @@ it("completes server-confirmed public publication over loopback HTTP with admin 
   }));
   try {
     const cap = captureOutput();
-    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public"], {
+    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public", "--yes"], {
       baseUrl: srv.origin,
       adminKey: "admin-secret",
     });
@@ -345,7 +358,7 @@ it.each([
   }));
   try {
     const cap = captureOutput();
-    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public"], {
+    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public", "--yes"], {
       baseUrl: srv.origin,
       adminKey: "admin-secret",
     });
