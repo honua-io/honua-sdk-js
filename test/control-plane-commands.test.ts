@@ -330,39 +330,6 @@ describe("command error taxonomy", () => {
       expect((error as HonuaCommandError).retryable).toBe(scenario.retryable);
       expect((error as HonuaCommandError).statusCode).toBe(scenario.status);
     }
-
-    const rateLimited = new HonuaCommandError("transport", "import.create", "throttled", {
-      statusCode: 429,
-      retryAfterMs: 12_000,
-    });
-    expect(rateLimited.retryAfterMs).toBe(12_000);
-    expect(rateLimited.toJSON()).toMatchObject({
-      kind: "honua.command.error.v1",
-      errorKind: "transport",
-      statusCode: 429,
-      retryable: true,
-      retryAfterMs: 12_000,
-    });
-
-    const { fetchFn: throttledFetch } = recorder(() => ({
-      status: 429,
-      headers: { "Retry-After": "9" },
-      body: { title: "slow down" },
-    }));
-    const throttledError = await runtimeFor(throttledFetch)
-      .execute(
-        importCreateCommand,
-        { sourceKind: "geojson", sourceUrl: "https://example.test/a.geojson" },
-        { transport: "cli" },
-      )
-      .catch((thrown: unknown) => thrown);
-    expect(throttledError).toBeInstanceOf(HonuaCommandError);
-    expect((throttledError as HonuaCommandError).retryAfterMs).toBe(9_000);
-    expect((throttledError as HonuaCommandError).toJSON()).toMatchObject({
-      statusCode: 429,
-      retryable: true,
-      retryAfterMs: 9_000,
-    });
   });
 
   it("surfaces an aborted signal as a cancelled command error", async () => {
@@ -458,6 +425,32 @@ describe("command error taxonomy", () => {
     );
     expect(receipt.status).toBe("denied");
     expect(receipt.resourceRef).toEqual({ type: "connection", id: "conn-1" });
+  });
+});
+
+describe("command error retryAfterMs preservation", () => {
+  it("preserves Retry-After delay on HonuaCommandError and its JSON projection", async () => {
+    const { fetchFn } = recorder(() => ({
+      status: 429,
+      headers: { "Retry-After": "9" },
+      body: { title: "slow down" },
+    }));
+    const error = await runtimeFor(fetchFn)
+      .execute(
+        importCreateCommand,
+        { sourceKind: "geojson", sourceUrl: "https://example.test/a.geojson" },
+        { transport: "cli" },
+      )
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(HonuaCommandError);
+    expect((error as HonuaCommandError).retryAfterMs).toBe(9_000);
+    expect((error as HonuaCommandError).toJSON()).toMatchObject({
+      kind: "honua.command.error.v1",
+      errorKind: "transport",
+      statusCode: 429,
+      retryable: true,
+      retryAfterMs: 9_000,
+    });
   });
 });
 

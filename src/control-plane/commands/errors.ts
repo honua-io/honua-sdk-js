@@ -129,13 +129,15 @@ export function isHonuaCommandConflict(error: unknown): error is HonuaCommandErr
   return isHonuaCommandError(error) && error.kind === "conflict";
 }
 
+const VALIDATION_HTTP_STATUSES = new Set([400, 404, 405, 413, 422]);
+const AUTHORIZATION_HTTP_STATUSES = new Set([401, 403]);
+const CONFLICT_HTTP_STATUSES = new Set([409, 412, 428]);
+
 /** Map an HTTP status code onto the command taxonomy. */
 export function classifyCommandStatus(statusCode: number): HonuaCommandErrorKind {
-  if (statusCode === 400 || statusCode === 404 || statusCode === 405 || statusCode === 413 || statusCode === 422) {
-    return "validation";
-  }
-  if (statusCode === 401 || statusCode === 403) return "authorization";
-  if (statusCode === 409 || statusCode === 412 || statusCode === 428) return "conflict";
+  if (VALIDATION_HTTP_STATUSES.has(statusCode)) return "validation";
+  if (AUTHORIZATION_HTTP_STATUSES.has(statusCode)) return "authorization";
+  if (CONFLICT_HTTP_STATUSES.has(statusCode)) return "conflict";
   return "transport";
 }
 

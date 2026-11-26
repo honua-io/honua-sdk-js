@@ -321,6 +321,23 @@ const AUTH_ERROR_CODES = {
   invalid_grant: "core.auth.invalid-grant",
 } as const satisfies Record<HonuaAuthErrorCode, `core.auth.${string}`>;
 
+/**
+ * Parse an explicit server retryability override from a parsed HTTP response
+ * body (`error.retryable` or root `retryable`) or normalized response headers
+ * (`honua-retryable` / `honua-error-retryable`). Returns `undefined` when no
+ * explicit directive is present so callers can apply status-based defaults.
+ */
+export function parseExplicitHttpRetryable(
+  body: unknown,
+  headers: Readonly<Record<string, readonly string[]>>,
+): boolean | undefined {
+  const root = isObject(body) ? body : undefined;
+  const protocolError = root && isObject(root.error) ? root.error : undefined;
+  const bodyRetryable = booleanValue(protocolError?.retryable) ?? booleanValue(root?.retryable);
+  if (bodyRetryable !== undefined) return bodyRetryable;
+  return parseBoolean(firstMetadata(headers, "honua-retryable", "honua-error-retryable"));
+}
+
 function httpFailureReceipt(
   statusCode: number,
   body: unknown,
@@ -336,8 +353,7 @@ function httpFailureReceipt(
   const kind = isFailureKind(bodyKind) ? bodyKind : failureKindForHttp(classificationCode, statusCode);
   const code =
     stringValue(source?.machineCode) ?? stringValue(source?.code) ?? stringValue(root?.code) ?? defaultCode(kind);
-  const headerRetryable = parseBoolean(firstMetadata(metadata, "honua-retryable", "honua-error-retryable"));
-  const explicitRetryable = booleanValue(source?.retryable) ?? booleanValue(root?.retryable) ?? headerRetryable;
+  const explicitRetryable = parseExplicitHttpRetryable(body, metadata);
   const retryAfterSeconds = numberValue(source?.retryAfterSeconds) ?? numberValue(root?.retryAfterSeconds);
   const headerDelay = parseRetryAfter(metadataGetter(options.responseHeaders));
   const correlationId =

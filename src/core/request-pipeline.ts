@@ -1,4 +1,10 @@
-import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "./errors.js";
+import {
+  HonuaAbortError,
+  HonuaHttpError,
+  HonuaNetworkError,
+  HonuaTimeoutError,
+  parseExplicitHttpRetryable,
+} from "./errors.js";
 import { GRPC_CANCELED } from "./grpc-status.js";
 import type { HonuaRetryOptions, QueryMethod } from "./types.js";
 
@@ -96,25 +102,6 @@ export function parseRetryAfterMs(response: Response): number | undefined {
   return parseRetryAfterHeaderMs(response.headers);
 }
 
-function parseExplicitHttpRetryable(error: HonuaHttpError): boolean | undefined {
-  const body = error.body;
-  if (typeof body === "object" && body !== null && !Array.isArray(body)) {
-    const root = body as Record<string, unknown>;
-    const nested =
-      typeof root.error === "object" && root.error !== null && !Array.isArray(root.error)
-        ? (root.error as Record<string, unknown>)
-        : undefined;
-    if (typeof nested?.retryable === "boolean") return nested.retryable;
-    if (typeof root.retryable === "boolean") return root.retryable;
-  }
-  const initial = error.receipt.protocolMetadata.initial;
-  const headerValue = initial["honua-retryable"]?.[0] ?? initial["honua-error-retryable"]?.[0];
-  const normalized = headerValue?.trim().toLowerCase();
-  if (normalized === "true") return true;
-  if (normalized === "false") return false;
-  return undefined;
-}
-
 /**
  * Decide whether a failed attempt should be retried. Idempotent/replay-safe
  * methods (GET/PUT/DELETE) are retried on the configured retry statuses or on
@@ -144,13 +131,11 @@ export function shouldRetryRequest(
   }
 
   if (statusCode !== undefined) {
-    if (error instanceof HonuaHttpError) {
-      const explicitRetryable = parseExplicitHttpRetryable(error);
-      if (explicitRetryable !== undefined) {
-        return explicitRetryable;
-      }
-    }
-    return retryOptions.retryStatuses.has(statusCode);
+    const explicit =
+      error instanceof HonuaHttpError
+        ? parseExplicitHttpRetryable(error.body, error.receipt.protocolMetadata.initial)
+        : undefined;
+    return explicit ?? retryOptions.retryStatuses.has(statusCode);
   }
 
   return error instanceof HonuaNetworkError || error instanceof HonuaTimeoutError;

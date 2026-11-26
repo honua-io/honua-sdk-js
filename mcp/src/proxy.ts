@@ -145,30 +145,45 @@ function createObservingFetch(onHttpError: (diagnostic: UpstreamHttpDiagnostic) 
   };
 }
 
+function formatUpstreamDiagnosticMessage(diagnostic: UpstreamHttpDiagnostic): string {
+  const retryText = diagnostic.retryable ? "retryable" : "non-retryable";
+  const delayText = diagnostic.retryAfterSeconds !== undefined ? `; retry after ${diagnostic.retryAfterSeconds}s` : "";
+  return `Upstream MCP HTTP ${diagnostic.statusCode} (${retryText}${delayText})`;
+}
+
 function buildUpstreamDiagnostic(
   error: unknown,
   lastHttpFailure: UpstreamHttpDiagnostic | undefined,
 ): { readonly message: string; readonly data: UpstreamHttpDiagnostic } {
-  const errorStatus =
-    error instanceof StreamableHTTPError && typeof error.code === "number" && error.code >= 100
-      ? error.code
-      : undefined;
+  const errorStatus = error instanceof StreamableHTTPError && error.code && error.code >= 100 ? error.code : undefined;
   const statusCode = errorStatus ?? lastHttpFailure?.statusCode;
   if (statusCode === undefined) {
     return { message: "Upstream MCP transport error", data: { retryable: false } };
   }
   const matched = lastHttpFailure?.statusCode === statusCode ? lastHttpFailure : undefined;
-  const retryable = matched?.retryable ?? resolveUpstreamRetryable(statusCode, null);
-  const retryAfterSeconds = matched?.retryAfterSeconds;
-  const retryText = retryable ? "retryable" : "non-retryable";
-  const delayText = retryAfterSeconds !== undefined ? `; retry after ${retryAfterSeconds}s` : "";
+  const data: UpstreamHttpDiagnostic = {
+    statusCode,
+    retryable: matched?.retryable ?? resolveUpstreamRetryable(statusCode, null),
+    ...(matched?.retryAfterSeconds !== undefined ? { retryAfterSeconds: matched.retryAfterSeconds } : {}),
+  };
+  return { message: formatUpstreamDiagnosticMessage(data), data };
+}
+
+function createUpstreamFailureMessage(
+  id: string | number | undefined,
+  diagnostic: { readonly message: string; readonly data: UpstreamHttpDiagnostic },
+): JSONRPCMessage {
+  if (id !== undefined) {
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: ErrorCode.InternalError, message: diagnostic.message, data: diagnostic.data },
+    };
+  }
   return {
-    message: `Upstream MCP HTTP ${statusCode} (${retryText}${delayText})`,
-    data: {
-      statusCode,
-      retryable,
-      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-    },
+    jsonrpc: "2.0",
+    method: "notifications/message",
+    params: { level: "error", logger: "honua-mcp-proxy", data: { message: diagnostic.message, ...diagnostic.data } },
   };
 }
 
@@ -261,46 +276,21 @@ export async function connectProxyTransport(
     if (pendingErrorTimer !== undefined) clearTimeout(pendingErrorTimer);
     await Promise.all([downstream.close().catch(() => {}), upstream.close().catch(() => {})]);
   };
-  // Reply before closing so the caller learns why its session ended. The
-  // message is the proxy's own; nothing from upstream is echoed.
-  const refuse = (
-    id: string | number | undefined,
-    error: { readonly code: ErrorCode; readonly message: string; readonly data?: UpstreamHttpDiagnostic },
-  ) => {
+  const sendAndClose = (notice: JSONRPCMessage | undefined) => {
     if (closed || refused) return;
     refused = true;
-    const reply = id === undefined ? Promise.resolve() : downstream.send({ jsonrpc: "2.0", id, error });
+    const reply = notice ? downstream.send(notice) : Promise.resolve();
     void reply.catch(() => {}).finally(() => shutdown());
   };
-  const reportUpstreamFailure = (id: string | number | undefined, error: unknown) => {
-    if (closed || refused) return;
-    const diagnostic = buildUpstreamDiagnostic(error, lastHttpFailure);
-    if (id !== undefined) {
-      refuse(id, { code: ErrorCode.InternalError, message: diagnostic.message, data: diagnostic.data });
-      return;
-    }
-    refused = true;
-    const notice: JSONRPCMessage = {
-      jsonrpc: "2.0",
-      method: "notifications/message",
-      params: { level: "error", logger: "honua-mcp-proxy", data: { message: diagnostic.message, ...diagnostic.data } },
-    };
-    void downstream
-      .send(notice)
-      .catch(() => {})
-      .finally(() => shutdown());
-  };
+  const refuse = (id: string | number | undefined, code: ErrorCode, message: string) =>
+    sendAndClose(id === undefined ? undefined : { jsonrpc: "2.0", id, error: { code, message } });
+  const reportUpstreamFailure = (id: string | number | undefined, error: unknown) =>
+    sendAndClose(createUpstreamFailureMessage(id, buildUpstreamDiagnostic(error, lastHttpFailure)));
   const handshake = setTimeout(
-    () => refuse(initializeId, { code: ErrorCode.RequestTimeout, message: "Proxy initialization timed out" }),
+    () => refuse(initializeId, ErrorCode.RequestTimeout, "Proxy initialization timed out"),
     bridge.initializeTimeoutMs ?? INITIALIZE_TIMEOUT_MS,
   );
-  downstream.onclose = upstream.onclose = () => {
-    void shutdown();
-  };
-  // HTTP/SSE errors can contain credential-bearing response bodies. Emit only
-  // redacted status/retryability diagnostics before closing both transports.
-  // Defer onerror by a macrotask so a request-scoped send() rejection can claim
-  // its JSON-RPC request id first while background SSE failures still close.
+  downstream.onclose = upstream.onclose = () => void shutdown();
   upstream.onerror = (error) => {
     if (closed || refused || pendingErrorTimer !== undefined) return;
     pendingErrorTimer = setTimeout(() => {
@@ -312,39 +302,26 @@ export async function connectProxyTransport(
     if (closed || refused) return;
     let forwarded: JSONRPCMessage = message;
     const isInitialize = isJSONRPCRequest(message) && message.method === "initialize";
-    if (isJSONRPCRequest(message) && message.method === "initialize") {
-      if (initializeSeen) {
-        refuse(message.id, { code: ErrorCode.InvalidRequest, message: "Duplicate initialize is not permitted" });
-        return;
-      }
+    if (isInitialize) {
+      if (initializeSeen) return refuse(message.id, ErrorCode.InvalidRequest, "Duplicate initialize is not permitted");
       try {
         forwarded = upstreamInitialize(message);
       } catch {
-        refuse(message.id, {
-          code: ErrorCode.InvalidRequest,
-          message: "Invalid initialize request or workflow view selector",
-        });
-        return;
+        return refuse(message.id, ErrorCode.InvalidRequest, "Invalid initialize request or workflow view selector");
       }
       initializeSeen = true;
       initializeId = message.id;
     } else if (!initializeSeen) {
-      refuse(isJSONRPCRequest(message) ? message.id : undefined, {
-        code: ErrorCode.InvalidRequest,
-        message: "Initialize must be the first request",
-      });
-      return;
+      return refuse(
+        isJSONRPCRequest(message) ? message.id : undefined,
+        ErrorCode.InvalidRequest,
+        "Initialize must be the first request",
+      );
     }
     const sending = initialized.then(() => upstream.send(forwarded));
-    // HTTP POSTs may otherwise overtake initialize (which establishes the
-    // session) or the initialized notification. Await their acceptance before
-    // subsequent traffic, while allowing later tool calls and cancellation
-    // notifications to proceed concurrently.
     if (isInitialize || isInitializedNotification(message)) initialized = sending;
     const requestId = isJSONRPCRequest(message) ? message.id : undefined;
-    void sending.catch((error: unknown) => {
-      reportUpstreamFailure(requestId, error);
-    });
+    void sending.catch((error: unknown) => reportUpstreamFailure(requestId, error));
   };
   upstream.onmessage = (message) => {
     if (
@@ -359,9 +336,7 @@ export async function connectProxyTransport(
         downstream.setProtocolVersion?.(message.result.protocolVersion);
       }
     }
-    void downstream.send(message).catch(() => {
-      void shutdown();
-    });
+    void downstream.send(message).catch(() => void shutdown());
   };
   try {
     await upstream.start();

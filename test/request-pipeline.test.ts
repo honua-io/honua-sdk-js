@@ -83,25 +83,13 @@ describe("request-pipeline: documented retry defaults (#954)", () => {
     expect([...DEFAULT_RETRYABLE_GRPC_CODES]).toEqual([4, 8, 10, 14]);
   });
 
-  it("never replays statuses that are only classified transient (408) and keeps 500 non-retryable by default", () => {
+  it("never replays 408 or plain 500 by default", () => {
     const options = normalizeRetryOptions({ maxRetries: 2 });
-    // 408 carries `core.http.transient` classification metadata, while 500 is
-    // non-retryable unless the server explicitly signals `Honua-Retryable: true`.
     expect(new HonuaHttpError(408, "transient", undefined).sdkCode).toBe("core.http.transient");
-    expect(shouldRetryRequest(options, "GET", 0, 408, undefined)).toBe(false);
-
-    const plain500 = new HonuaHttpError(500, "internal", undefined);
-    expect(plain500.sdkCode).toBe("core.http.rejected");
-    expect(plain500.receipt.retryable).toBe(false);
-    expect(shouldRetryRequest(options, "GET", 0, 500, plain500)).toBe(false);
-
-    const retryable500 = new HonuaHttpError(500, "transient", undefined, {
-      responseHeaders: new Headers({ "Honua-Retryable": "true" }),
-    });
-    expect(retryable500.sdkCode).toBe("core.http.transient");
-    expect(retryable500.receipt.retryable).toBe(true);
-    expect(shouldRetryRequest(options, "GET", 0, 500, retryable500)).toBe(true);
-
+    expect(new HonuaHttpError(500, "internal", undefined).sdkCode).toBe("core.http.rejected");
+    for (const status of [408, 500]) {
+      expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(false);
+    }
     for (const status of DEFAULT_RETRY_STATUSES) {
       expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(true);
     }
@@ -166,26 +154,34 @@ describe("request-pipeline: shouldRetryRequest", () => {
     expect(shouldRetryRequest(retryWith(), "GET", 0, 400, undefined)).toBe(false);
   });
 
-  it("respects Honua-Retryable headers on 503 CAPABILITY_UNAVAILABLE and 500 responses", () => {
-    const capabilityUnavailable = toHttpError(
-      503,
-      { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only default image" },
-      new Headers({ "Honua-Retryable": "false" }),
-    );
-    expect(capabilityUnavailable.receipt.retryable).toBe(false);
-    expect(capabilityUnavailable.sdkCode).toBe("core.http.rejected");
-    expect(shouldRetryRequest(retryWith(), "GET", 0, 503, capabilityUnavailable)).toBe(false);
-
-    const retryableInternal = toHttpError(500, { detail: "transient" }, new Headers({ "Honua-Retryable": "true" }));
-    expect(retryableInternal.receipt.retryable).toBe(true);
-    expect(retryableInternal.sdkCode).toBe("core.http.transient");
-    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, retryableInternal)).toBe(true);
-  });
-
   it("retries transient network and timeout errors", () => {
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new HonuaNetworkError("boom", undefined))).toBe(true);
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new HonuaTimeoutError(100))).toBe(true);
     expect(shouldRetryRequest(retryWith(), "GET", 0, undefined, new Error("other"))).toBe(false);
+  });
+});
+
+describe("request-pipeline: Honua-Retryable header overrides", () => {
+  it("does not retry 503 CAPABILITY_UNAVAILABLE when Honua-Retryable is false", () => {
+    const error = toHttpError(
+      503,
+      { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only default image" },
+      new Headers({ "Honua-Retryable": "false" }),
+    );
+    expect(error.receipt.retryable).toBe(false);
+    expect(error.sdkCode).toBe("core.http.rejected");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 503, error)).toBe(false);
+  });
+
+  it("retries 500 only when Honua-Retryable is true", () => {
+    const plain = toHttpError(500, { detail: "internal" });
+    expect(plain.receipt.retryable).toBe(false);
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, plain)).toBe(false);
+
+    const retryable = toHttpError(500, { detail: "transient" }, new Headers({ "Honua-Retryable": "true" }));
+    expect(retryable.receipt.retryable).toBe(true);
+    expect(retryable.sdkCode).toBe("core.http.transient");
+    expect(shouldRetryRequest(retryWith(), "GET", 0, 500, retryable)).toBe(true);
   });
 });
 

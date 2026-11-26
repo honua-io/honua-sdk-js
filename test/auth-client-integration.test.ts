@@ -147,7 +147,33 @@ describe("cross-origin credential-leak guard extends to auth providers (REQ-003,
   });
 });
 
-describe("mergeHeaders case-insensitive replacement and 401 auth refresh", () => {
+async function runMixedCaseAuthReplay(config: {
+  readonly initialHeaders: HeadersInit;
+  readonly headerName: string;
+  readonly credentials: (forceRefresh: boolean) => { bearerToken?: string; apiKey?: string };
+}): Promise<(string | null)[]> {
+  let calls = 0;
+  const observed: (string | null)[] = [];
+  const client = new HonuaClient({
+    baseUrl: "https://api.example.test",
+    auth: {
+      async getCredentials(options) {
+        return config.credentials(options?.forceRefresh === true);
+      },
+    },
+    fetchFn: async (_input, init) => {
+      calls += 1;
+      observed.push(new Headers(init?.headers).get(config.headerName));
+      return calls === 1
+        ? new Response(JSON.stringify({ detail: "expired" }), { status: 401 })
+        : new Response(JSON.stringify({ services: [] }), { status: 200 });
+    },
+  });
+  await client.request({ path: "/rest/services", method: "GET", headers: config.initialHeaders });
+  return observed;
+}
+
+describe("mergeHeaders case-insensitive replacement", () => {
   it("overwrites earlier headers regardless of casing while keeping the latest key", () => {
     expect(mergeHeaders({ authorization: "Bearer expired" }, { Authorization: "Bearer fresh" })).toEqual({
       Authorization: "Bearer fresh",
@@ -162,68 +188,24 @@ describe("mergeHeaders case-insensitive replacement and 401 auth refresh", () =>
       "x-api-key": "new-key",
     });
   });
+});
 
-  it("replaces lowercase authorization without concatenating expired and fresh bearer tokens on 401 replay", async () => {
-    let calls = 0;
-    const seenAuthHeaders: (string | null)[] = [];
-    const client = new HonuaClient({
-      baseUrl: "https://api.example.test",
-      auth: {
-        async getCredentials(options) {
-          return {
-            bearerToken: options?.forceRefresh ? "fresh-token" : "expired-token",
-          };
-        },
-      },
-      fetchFn: async (_input, init) => {
-        calls += 1;
-        seenAuthHeaders.push(new Headers(init?.headers).get("authorization"));
-        if (calls === 1) {
-          return new Response(JSON.stringify({ detail: "expired" }), { status: 401 });
-        }
-        return new Response(JSON.stringify({ services: [] }), { status: 200 });
-      },
+describe("401 replay replaces mixed-case auth headers cleanly", () => {
+  it("replaces authorization without concatenating expired and fresh bearer tokens", async () => {
+    const seen = await runMixedCaseAuthReplay({
+      initialHeaders: new Headers({ Authorization: "Bearer expired-token" }),
+      headerName: "authorization",
+      credentials: (refresh) => ({ bearerToken: refresh ? "fresh-token" : "expired-token" }),
     });
-
-    await client.request({
-      path: "/rest/services",
-      method: "GET",
-      headers: new Headers({ Authorization: "Bearer expired-token" }),
-    });
-
-    expect(calls).toBe(2);
-    expect(seenAuthHeaders).toEqual(["Bearer expired-token", "Bearer fresh-token"]);
+    expect(seen).toEqual(["Bearer expired-token", "Bearer fresh-token"]);
   });
 
-  it("replaces mixed-case x-api-key cleanly on 401 replay", async () => {
-    let calls = 0;
-    const seenApiKeys: (string | null)[] = [];
-    const client = new HonuaClient({
-      baseUrl: "https://api.example.test",
-      auth: {
-        async getCredentials(options) {
-          return {
-            apiKey: options?.forceRefresh ? "fresh-api-key" : "expired-api-key",
-          };
-        },
-      },
-      fetchFn: async (_input, init) => {
-        calls += 1;
-        seenApiKeys.push(new Headers(init?.headers).get("x-api-key"));
-        if (calls === 1) {
-          return new Response(JSON.stringify({ detail: "expired" }), { status: 401 });
-        }
-        return new Response(JSON.stringify({ services: [] }), { status: 200 });
-      },
+  it("replaces lowercase x-api-key cleanly on 401 replay", async () => {
+    const seen = await runMixedCaseAuthReplay({
+      initialHeaders: { "x-api-key": "expired-api-key" },
+      headerName: "x-api-key",
+      credentials: (refresh) => ({ apiKey: refresh ? "fresh-api-key" : "expired-api-key" }),
     });
-
-    await client.request({
-      path: "/rest/services",
-      method: "GET",
-      headers: { "x-api-key": "expired-api-key" },
-    });
-
-    expect(calls).toBe(2);
-    expect(seenApiKeys).toEqual(["expired-api-key", "fresh-api-key"]);
+    expect(seen).toEqual(["expired-api-key", "fresh-api-key"]);
   });
 });
