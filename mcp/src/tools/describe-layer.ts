@@ -131,7 +131,6 @@ export async function execute(client: HonuaClient, input: Input) {
         protocol,
         capabilities: [...resolved.source.capabilities].sort(),
         ...envelope,
-        // Retained for clients written against the pre-#1005 shape.
         id: resolved.descriptor.locator.layerId ?? resolved.ref.address,
       },
       { untrustedData: true },

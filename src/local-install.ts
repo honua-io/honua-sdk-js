@@ -21,6 +21,7 @@ import {
   ADMIN_RELEASE_OPERATION_COUNT,
   ADMIN_RELEASE_SERVER_SHA,
 } from "./control-plane/generated/admin-operations.js";
+import { withLegacyRedisCompose } from "./local-install-legacy.js";
 import { verifyPrivateFile, writePrivateFileAtomic } from "./private-file.js";
 import { resolveExecutableFromPath } from "./process-executable.js";
 
@@ -1506,38 +1507,6 @@ async function verifyInstallFiles(
   if (env.HONUA_COMPOSE_PROJECT && !/^honua-local(?:-[a-f0-9]{24})?$/.test(env.HONUA_COMPOSE_PROJECT)) {
     throw new Error("Invalid installer compose project identity in .env.");
   }
-}
-
-function withLegacyRedisCompose(compose: string): string {
-  return compose
-    .replace(
-      '    restart: "no"\n  honua:\n',
-      '    restart: "no"\n' +
-        "  redis:\n" +
-        "    image: redis:7.4-alpine\n" +
-        '    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]\n' +
-        "    volumes:\n" +
-        "      - redis_data:/data\n" +
-        "    healthcheck:\n" +
-        '      test: ["CMD", "redis-cli", "ping"]\n' +
-        "      interval: 5s\n" +
-        "      timeout: 3s\n" +
-        "      retries: 20\n" +
-        "    restart: unless-stopped\n" +
-        "  honua:\n",
-    )
-    .replace(
-      "      HONUA_ADMIN_PASSWORD: ${HONUA_ADMIN_PASSWORD}\n",
-      "      ConnectionStrings__Redis: redis:6379\n      HONUA_ADMIN_PASSWORD: ${HONUA_ADMIN_PASSWORD}\n",
-    )
-    .replace(
-      "      postgis-bootstrap:\n        condition: service_completed_successfully\n    volumes:\n",
-      "      postgis-bootstrap:\n        condition: service_completed_successfully\n      redis:\n        condition: service_healthy\n    volumes:\n",
-    )
-    .replace(
-      "volumes:\n  postgres_data:\n  honua_storage:\n",
-      "volumes:\n  postgres_data:\n  redis_data:\n  honua_storage:\n",
-    );
 }
 
 async function readEnvText(filePath: string): Promise<string> {

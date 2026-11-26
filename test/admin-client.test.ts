@@ -179,89 +179,88 @@ describe("generated admin REST client", () => {
     const client = new HonuaAdminClient({ baseUrl: "https://example.test", fetchFn: async () => new Response() });
     await expect(client.call("getConnection", {} as never)).rejects.toThrow(/Missing required.*id/);
   });
+});
 
-  it("enforces per-attempt timeouts with HonuaTimeoutError", async () => {
-    const client = new HonuaAdminClient({
-      baseUrl: "https://example.test",
-      timeoutMs: 15,
-      retry: { maxRetries: 0 },
-      fetchFn: (_input, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-          });
-        }),
-    });
-
-    await expect(client.call("listAdminApiKeys", {})).rejects.toMatchObject({ name: "HonuaTimeoutError" });
+it("enforces per-attempt timeouts with HonuaTimeoutError", async () => {
+  const client = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    timeoutMs: 15,
+    retry: { maxRetries: 0 },
+    fetchFn: (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const abortError = new Error("Aborted");
+          abortError.name = "AbortError";
+          reject(abortError);
+        });
+      }),
   });
+  await expect(client.call("listAdminApiKeys", {})).rejects.toMatchObject({ name: "HonuaTimeoutError" });
+});
 
-  it("retries transient GET failures honoring Honua-Retryable and Retry-After", async () => {
-    let calls = 0;
-    const retryClient = new HonuaAdminClient({
-      baseUrl: "https://example.test",
-      retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 10 },
-      fetchFn: async () => {
-        calls += 1;
-        if (calls === 1) {
-          return Response.json({ title: "Too Many Requests" }, { status: 429, headers: { "Retry-After": "0" } });
-        }
-        return Response.json({ data: [] });
-      },
-    });
-    await retryClient.call("listAdminApiKeys", {});
-    expect(calls).toBe(2);
-
-    let nonRetryableCalls = 0;
-    const nonRetryableClient = new HonuaAdminClient({
-      baseUrl: "https://example.test",
-      retry: { maxRetries: 3, baseDelayMs: 1, maxDelayMs: 10 },
-      fetchFn: async () => {
-        nonRetryableCalls += 1;
-        return Response.json(
-          { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only" },
-          { status: 503, headers: { "Honua-Retryable": "false" } },
-        );
-      },
-    });
-    await expect(nonRetryableClient.call("listAdminApiKeys", {})).rejects.toBeInstanceOf(HonuaAdminApiError);
-    expect(nonRetryableCalls).toBe(1);
+it("retries transient GET 429 honoring Retry-After and stops on Honua-Retryable: false 503", async () => {
+  let calls = 0;
+  const retryClient = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 10 },
+    fetchFn: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return Response.json({ title: "Too Many Requests" }, { status: 429, headers: { "Retry-After": "0" } });
+      }
+      return Response.json({ data: [] });
+    },
   });
+  await retryClient.call("listAdminApiKeys", {});
+  expect(calls).toBe(2);
 
-  it("enforces bearerToken and refreshes pluggable OIDC auth on 401", async () => {
-    let observedAuth: string | null = null;
-    const bearerClient = new HonuaAdminClient({
-      baseUrl: "https://example.test",
-      bearerToken: "operator-jwt",
-      fetchFn: async (_input, init) => {
-        observedAuth = new Headers(init?.headers).get("authorization");
-        return Response.json({ data: [] });
-      },
-    });
-    await bearerClient.call("listAdminApiKeys", { headers: { authorization: "Bearer spoofed" } } as never);
-    expect(observedAuth).toBe("Bearer operator-jwt");
-
-    let authCalls = 0;
-    const seenHeaders: (string | null)[] = [];
-    const oidcClient = new HonuaAdminClient({
-      baseUrl: "https://example.test",
-      retry: { maxRetries: 0 },
-      auth: {
-        async getCredentials(context) {
-          return { bearerToken: context.forceRefresh ? "refreshed-oidc" : "expired-oidc" };
-        },
-      },
-      fetchFn: async (_input, init) => {
-        authCalls += 1;
-        seenHeaders.push(new Headers(init?.headers).get("authorization"));
-        return authCalls === 1
-          ? Response.json({ title: "Unauthorized" }, { status: 401 })
-          : Response.json({ data: [] }, { status: 200 });
-      },
-    });
-    await oidcClient.call("listAdminApiKeys", {});
-    expect(seenHeaders).toEqual(["Bearer expired-oidc", "Bearer refreshed-oidc"]);
+  let nonRetryableCalls = 0;
+  const nonRetryableClient = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    retry: { maxRetries: 3, baseDelayMs: 1, maxDelayMs: 10 },
+    fetchFn: async () => {
+      nonRetryableCalls += 1;
+      return Response.json(
+        { code: "CAPABILITY_UNAVAILABLE", detail: "PostGIS-only" },
+        { status: 503, headers: { "Honua-Retryable": "false" } },
+      );
+    },
   });
+  await expect(nonRetryableClient.call("listAdminApiKeys", {})).rejects.toBeInstanceOf(HonuaAdminApiError);
+  expect(nonRetryableCalls).toBe(1);
+});
+
+it("enforces bearerToken against per-call overrides and refreshes pluggable OIDC auth on 401", async () => {
+  let observedAuth: string | null = null;
+  const bearerClient = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    bearerToken: "operator-jwt",
+    fetchFn: async (_input, init) => {
+      observedAuth = new Headers(init?.headers).get("authorization");
+      return Response.json({ data: [] });
+    },
+  });
+  await bearerClient.call("listAdminApiKeys", { headers: { authorization: "Bearer spoofed" } } as never);
+  expect(observedAuth).toBe("Bearer operator-jwt");
+
+  let authCalls = 0;
+  const seenHeaders: (string | null)[] = [];
+  const oidcClient = new HonuaAdminClient({
+    baseUrl: "https://example.test",
+    retry: { maxRetries: 0 },
+    auth: {
+      async getCredentials(context) {
+        return { bearerToken: context.forceRefresh ? "refreshed-oidc" : "expired-oidc" };
+      },
+    },
+    fetchFn: async (_input, init) => {
+      authCalls += 1;
+      seenHeaders.push(new Headers(init?.headers).get("authorization"));
+      return authCalls === 1
+        ? Response.json({ title: "Unauthorized" }, { status: 401 })
+        : Response.json({ data: [] }, { status: 200 });
+    },
+  });
+  await oidcClient.call("listAdminApiKeys", {});
+  expect(seenHeaders).toEqual(["Bearer expired-oidc", "Bearer refreshed-oidc"]);
 });

@@ -340,9 +340,11 @@ export function createTimeoutSignal(
   };
 }
 
+const AUTH_REFRESH_STATUSES: ReadonlySet<number> = new Set([401, 403, 498, 499]);
+
 /** Status codes that trigger reactive credential refresh on replay-safe requests. */
 export function isAuthRefreshStatus(statusCode: number): boolean {
-  return statusCode === 401 || statusCode === 403 || statusCode === 498 || statusCode === 499;
+  return AUTH_REFRESH_STATUSES.has(statusCode);
 }
 
 /**

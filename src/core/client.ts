@@ -48,6 +48,7 @@ import {
   applyServiceEditsOverGrpc,
   queryRelatedRecordsOverGrpc,
 } from "./grpc-native-calls.js";
+import { GeoServicesEnvelopeFailure, recoverHttpFailure } from "./http-failure-recovery.js";
 import { createNativeAttachments } from "./native-attachments.js";
 import { HonuaOdataEntitySet } from "./odata.js";
 import { type OgcApiLayoutMode, honuaFacadeFeaturesLayout, resolveOgcEndpointLayout } from "./ogc-endpoint-layout.js";
@@ -1346,7 +1347,7 @@ export class HonuaClient {
               },
             }
           : {}),
-      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
+      finalize: async ({ response, runAfter, deadlineSignal }) => {
         const candidate = options.prepareResponse ? await options.prepareResponse(response, deadlineSignal) : response;
         const prepared = candidate === response ? response : preserveResponseSemantics(candidate, response);
         await runAfter(prepared);
@@ -1407,7 +1408,7 @@ export class HonuaClient {
       // stale-if-error fallback on a terminal network or HTTP failure.
       onTerminalError: (error) => this.staleMetadataFallback(cached, metadataOptions, error),
       // 304 Not Modified: revalidate the cached entry without re-parsing a body.
-      shortCircuit: async (response, _durationMs, _currentRequest, runAfter) => {
+      shortCircuit: async ({ response, runAfter }) => {
         if (response.status !== 304 || !cached || bypass) {
           return undefined;
         }
@@ -1432,7 +1433,7 @@ export class HonuaClient {
           ),
         };
       },
-      finalize: async (response, _durationMs, _currentRequest, runAfter, deadlineSignal) => {
+      finalize: async ({ response, runAfter, deadlineSignal }) => {
         const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           metadataOptions.maxResponseBytes,
@@ -2020,12 +2021,12 @@ export class HonuaClient {
       deadlineThroughFinalize: true,
       readOnlyQuery: policy?.readOnlyQuery,
       redirect: policy?.readOnlyQuery ? "preserve-method" : undefined,
-      finalize: async (response, _durationMs, _currentRequest, runAfter) => {
+      finalize: async ({ response, runAfter }) => {
         // Parse the original body directly when no after-interceptor will read
         // it; only clone when an interceptor needs an independent copy.
         const body = await parseSuccessfulJsonBody(this.hasAfterInterceptors() ? response.clone() : response);
 
-        // GeoServices/Esri services return HTTP 200 with a top-level `{error}`
+        // GeoServices services return HTTP 200 with a top-level `{error}`
         // envelope on failure (bad WHERE, invalid outFields, edit failures, …).
         // Surface these through the unified error model instead of handing the
         // failure envelope back as a "successful" response object.
@@ -2038,6 +2039,24 @@ export class HonuaClient {
         return body;
       },
     });
+  }
+
+  private async decodePbfOrFallbackJson(spec: {
+    readonly response: Response;
+    readonly path: string;
+    readonly params: URLSearchParams;
+    readonly fallbackSignal: AbortSignal | undefined;
+    readonly deadlineSignal: AbortSignal | undefined;
+  }): Promise<unknown> {
+    try {
+      const buffer = await readBoundedResponseBytes(spec.response, Number.MAX_SAFE_INTEGER, spec.deadlineSignal);
+      return decodePbfQueryResponse(buffer);
+    } catch (error) {
+      if (spec.deadlineSignal?.aborted) throw error;
+      spec.params.set("f", "json");
+      const jsonPath = `${stripQuery(spec.path)}?${spec.params.toString()}`;
+      return this.requestJson("GET", jsonPath, undefined, spec.fallbackSignal);
+    }
   }
 
   /**
@@ -2062,33 +2081,18 @@ export class HonuaClient {
     return this.executeRequest<unknown>(request, {
       callerSignal,
       deadlineThroughFinalize: true,
-      finalize: async (response, _durationMs, currentRequest, runAfter, deadlineSignal) => {
-        // If the server returned PBF, decode it; on decode failure (including
-        // Z/M geometry the fast path can't handle) retry as f=json.
+      finalize: async ({ response, request: currentRequest, runAfter, deadlineSignal }) => {
         if (isPbfResponse(response)) {
           await runAfter();
-          try {
-            const buffer = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
-            return decodePbfQueryResponse(buffer);
-          } catch (error) {
-            if (deadlineSignal?.aborted) throw error;
-            params.set("f", "json");
-            const jsonPath = `${stripQuery(path)}?${params.toString()}`;
-            return this.requestJson(
-              "GET",
-              jsonPath,
-              undefined,
-              deadlineSignal ?? callerSignal ?? currentRequest.init.signal ?? undefined,
-            );
-          }
+          return this.decodePbfOrFallbackJson({
+            response,
+            path,
+            params,
+            deadlineSignal,
+            fallbackSignal: deadlineSignal ?? callerSignal ?? currentRequest.init.signal ?? undefined,
+          });
         }
 
-        // Server returned JSON despite the PBF request (e.g. error or
-        // unsupported). GeoServices reports query failures (bad WHERE, invalid
-        // outFields, expired token => code 498/499) as HTTP 200 application/json
-        // even when f=pbf was requested. Detect the `{error}` envelope here so
-        // preferBinary callers retry, refresh auth, or throw a normalized
-        // HonuaHttpError identically to the JSON path.
         const body = await parseSuccessfulJsonBody(
           this.hasAfterInterceptors() ? response.clone() : response,
           undefined,
@@ -2157,7 +2161,7 @@ export class HonuaClient {
         const contentType = response.headers.get("content-type") ?? acceptHeader;
         return text ? { raw: text, contentType } : {};
       },
-      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
+      finalize: async ({ response, runAfter, deadlineSignal }) => {
         if (options?.maxResponseBytes === undefined) {
           await runAfter();
           const text = new TextDecoder().decode(
@@ -2204,7 +2208,7 @@ export class HonuaClient {
     return this.executeRequest<{ bytes: Uint8Array; contentType: string; empty: boolean }>(request, {
       callerSignal,
       deadlineThroughFinalize: true,
-      finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
+      finalize: async ({ response, runAfter, deadlineSignal }) => {
         await runAfter();
         const bytes = await readBoundedResponseBytes(response, Number.MAX_SAFE_INTEGER, deadlineSignal);
         return {
@@ -2239,38 +2243,7 @@ export class HonuaClient {
    * - `onTerminalError` (optional) yields a fallback value instead of throwing
    *   on a terminal network/HTTP error, e.g. stale-if-error metadata.
    */
-  private async executeRequest<T>(
-    initialRequest: HonuaRequestContext,
-    options: {
-      callerSignal?: AbortSignal;
-      okStatuses?: readonly number[];
-      redirect?: "safe-follow" | "error" | "manual" | "preserve-method";
-      readOnlyQuery?: true;
-      beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
-      beforeReplay?: (
-        request: Readonly<HonuaRequestContext>,
-        statusCode: number | undefined,
-        reason: "authentication" | "retry",
-      ) => void | Promise<void>;
-      deadlineThroughFinalize?: boolean;
-      streamResponse?: boolean;
-      errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
-      shortCircuit?: (
-        response: Response,
-        durationMs: number,
-        request: HonuaRequestContext,
-        runAfter: (preparedResponse?: Response) => Promise<void>,
-      ) => Promise<{ value: T } | undefined>;
-      onTerminalError?: (error: unknown) => T | undefined;
-      finalize: (
-        response: Response,
-        durationMs: number,
-        request: HonuaRequestContext,
-        runAfter: (preparedResponse?: Response) => Promise<void>,
-        deadlineSignal: AbortSignal | undefined,
-      ) => Promise<T>;
-    },
-  ): Promise<T> {
+  private async executeRequest<T>(initialRequest: HonuaRequestContext, options: ExecuteRequestOptions<T>): Promise<T> {
     let request = await this.applyBeforeInterceptors(initialRequest);
     // A before-interceptor that changes the endpoint/method or supplies a
     // streaming body cannot inherit this narrow read-query replay permission.
@@ -2347,8 +2320,6 @@ export class HonuaClient {
       };
       const awaitDeadlineOwned = async <R>(operation: Promise<R>): Promise<R> => {
         const owned = operation.catch(async (error: unknown) => {
-          // The outer deadline catch decides retry, stale fallback, and the
-          // normalized terminal error. A discarded attempt must not notify.
           if (timeout.signal?.aborted || error instanceof GeoServicesEnvelopeFailure) throw error;
           const notification = beginTerminalErrorNotification(error, performance.now() - startTime);
           if (notification.claimed) {
@@ -2372,53 +2343,40 @@ export class HonuaClient {
           throw error;
         }
       };
-
-      try {
-        if (options.shortCircuit) {
-          const pending = options.shortCircuit(response, durationMs, currentRequest, runAfter);
-          const shorted = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(pending) : pending);
-          if (shorted) return shorted.value;
+      const settleHttpFailure = async (
+        httpError: HonuaHttpError,
+      ): Promise<{ readonly replay: true } | { readonly replay: false; readonly value: T }> => {
+        const recovery = await recoverHttpFailure({
+          request,
+          response,
+          httpError,
+          attempt,
+          refreshedAuth,
+          readOnlyQuery,
+          retryOptions: this.retryOptions,
+          hasAuthProvider: Boolean(this.authProvider),
+          retrySignal,
+          cloneRequest: cloneRequestContext,
+          refreshAuth: (req, status, ro) => this.refreshReplaySafeRequestAuth(req, status, ro),
+          sleepBeforeRetry: (att, res, sig) => this.sleepBeforeRetry(att, res, sig),
+          beforeReplay: options.beforeReplay,
+        });
+        if (recovery.action === "auth-refresh") {
+          request = recovery.request;
+          refreshedAuth = true;
+          return { replay: true };
         }
-
-        const handleTerminalHttpError = async (httpError: HonuaHttpError): Promise<T> => {
-          const fallback = options.onTerminalError?.(httpError);
-          if (fallback !== undefined) return fallback;
-          if (options.deadlineThroughFinalize) {
-            return await awaitDeadlineOwned<T>(Promise.reject(httpError));
-          }
-          await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
-          throw httpError;
-        };
-
-        if (!response.ok && !options.okStatuses?.includes(response.status)) {
-          const errorBodyRead = options.errorBody
-            ? options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
-            : parseResponseBody(response.clone());
-          // A custom fetchFn can return a non-OK body that ignores init.signal.
-          // Race that read with the same deadline as a successful body.
-          const body = options.deadlineThroughFinalize
-            ? await awaitAbortable(errorBodyRead, timeout.signal)
-            : await errorBodyRead;
-          const httpError = toHttpError(response.status, body, response.headers);
-          const recovery = await this.recoverFromHttpFailure({
-            request,
-            response,
-            httpError,
-            attempt,
-            refreshedAuth,
-            readOnlyQuery,
-            retrySignal,
-            beforeReplay: options.beforeReplay,
-          });
-          if (recovery.action === "auth-refresh") {
-            request = recovery.request;
-            refreshedAuth = true;
-            continue;
-          }
-          if (recovery.action === "retry") continue;
-          return await handleTerminalHttpError(httpError);
+        if (recovery.action === "retry") return { replay: true };
+        const fallback = options.onTerminalError?.(httpError);
+        if (fallback !== undefined) return { replay: false, value: fallback };
+        if (options.deadlineThroughFinalize) {
+          return { replay: false, value: await awaitDeadlineOwned<T>(Promise.reject(httpError)) };
         }
+        await this.applyErrorInterceptors({ request: cloneRequestContext(request), error: httpError, durationMs });
+        throw httpError;
+      };
 
+      const finalizeOkResponse = async (): Promise<T> => {
         const ownedResponse = options.streamResponse
           ? responseWithDeadline(
               response,
@@ -2427,62 +2385,73 @@ export class HonuaClient {
               () => (timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError()),
             )
           : undefined;
-        const preparedResponse = ownedResponse?.response ?? response;
         cancelDeadlineResponse = ownedResponse?.cancel;
-        const finalized = options.finalize(preparedResponse, durationMs, currentRequest, runAfter, timeout.signal);
-        let result: T;
-        try {
-          result = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
-        } catch (error) {
-          if (!(error instanceof GeoServicesEnvelopeFailure) || timeout.signal?.aborted) throw error;
-          const envelopeError = error.error;
-          const recovery = await this.recoverFromHttpFailure({
-            request,
-            response,
-            httpError: envelopeError,
-            attempt,
-            refreshedAuth,
-            readOnlyQuery,
-            retrySignal,
-            beforeReplay: options.beforeReplay,
-          });
-          if (recovery.action === "auth-refresh") {
-            request = recovery.request;
-            refreshedAuth = true;
-            continue;
-          }
-          if (recovery.action === "retry") continue;
-          return await handleTerminalHttpError(envelopeError);
-        }
+        const finalized = options.finalize({
+          response: ownedResponse?.response ?? response,
+          durationMs,
+          request: currentRequest,
+          runAfter,
+          deadlineSignal: timeout.signal,
+        });
+        const value = await (options.deadlineThroughFinalize ? awaitDeadlineOwned(finalized) : finalized);
         bodyOwnsDeadline = options.streamResponse === true && response.body !== null;
-        return result;
-      } catch (error) {
+        return value;
+      };
+      const readErrorResponseBody = async (): Promise<unknown> => {
+        const read = options.errorBody
+          ? options.errorBody(response, options.deadlineThroughFinalize ? timeout.signal : undefined)
+          : parseResponseBody(response.clone());
+        return options.deadlineThroughFinalize ? await awaitAbortable(read, timeout.signal) : await read;
+      };
+      const runResponseAttempt = async (): Promise<
+        { readonly replay: true } | { readonly replay: false; readonly value: T }
+      > => {
+        try {
+          const shortPending = options.shortCircuit?.({ response, durationMs, request: currentRequest, runAfter });
+          const shorted = shortPending
+            ? await (options.deadlineThroughFinalize ? awaitDeadlineOwned(shortPending) : shortPending)
+            : undefined;
+          if (shorted) return { replay: false, value: shorted.value };
+          if (!response.ok && !options.okStatuses?.includes(response.status)) {
+            return await settleHttpFailure(
+              toHttpError(response.status, await readErrorResponseBody(), response.headers),
+            );
+          }
+          return { replay: false, value: await finalizeOkResponse() };
+        } catch (error) {
+          if (error instanceof GeoServicesEnvelopeFailure && !timeout.signal?.aborted) {
+            return await settleHttpFailure(error.error);
+          }
+          return await handleFinalizeDeadlineError(error);
+        } finally {
+          if (options.deadlineThroughFinalize && !bodyOwnsDeadline) {
+            timeout.dispose();
+            cancelDeadlineResponse?.();
+          }
+        }
+      };
+      const handleFinalizeDeadlineError = async (
+        error: unknown,
+      ): Promise<{ readonly replay: true } | { readonly replay: false; readonly value: T }> => {
         if (!options.deadlineThroughFinalize || !timeout.signal?.aborted) throw error;
         const terminalError = timeout.didTimeout ? new HonuaTimeoutError(this.timeoutMs ?? 0) : new HonuaAbortError();
-        // A body-read or finalize deadline is the same transient failure as a
-        // timeout inside fetch. Replay-safe requests re-enter the retry policy.
-        // Caller cancellation is never retried. Interceptors run only once the
-        // attempt is terminal, so a later successful retry does not observe it.
         if (
           timeout.didTimeout &&
           shouldRetryRequest(this.retryOptions, request.method, attempt, undefined, terminalError, readOnlyQuery)
         ) {
           await options.beforeReplay?.(cloneRequestContext(request), undefined, "retry");
           await this.sleepBeforeRetry(attempt, undefined, retrySignal);
-          continue;
+          return { replay: true };
         }
-        if (timeout.didTimeout) {
-          const fallback = options.onTerminalError?.(terminalError);
-          if (fallback !== undefined) return fallback;
-        }
+        const fallback = timeout.didTimeout ? options.onTerminalError?.(terminalError) : undefined;
+        if (fallback !== undefined) return { replay: false, value: fallback };
         beginTerminalErrorNotification(terminalError, performance.now() - startTime);
         throw terminalError;
-      } finally {
-        if (options.deadlineThroughFinalize && !bodyOwnsDeadline) {
-          timeout.dispose();
-          cancelDeadlineResponse?.();
-        }
-      }
+      };
+
+      const attemptOutcome = await runResponseAttempt();
+      if (attemptOutcome.replay) continue;
+      return attemptOutcome.value;
     }
   }
 
@@ -2563,40 +2532,6 @@ export class HonuaClient {
     );
   }
 
-  private async recoverFromHttpFailure(context: {
-    readonly request: HonuaRequestContext;
-    readonly response: Response;
-    readonly httpError: HonuaHttpError;
-    readonly attempt: number;
-    readonly refreshedAuth: boolean;
-    readonly readOnlyQuery: boolean;
-    readonly retrySignal: AbortSignal | undefined;
-    readonly beforeReplay?: (
-      request: Readonly<HonuaRequestContext>,
-      statusCode: number | undefined,
-      reason: "authentication" | "retry",
-    ) => void | Promise<void>;
-  }): Promise<
-    | { readonly action: "auth-refresh"; readonly request: HonuaRequestContext }
-    | { readonly action: "retry" }
-    | { readonly action: "terminal" }
-  > {
-    const { request, response, httpError, attempt, refreshedAuth, readOnlyQuery, retrySignal, beforeReplay } = context;
-    const statusCode = httpError.statusCode;
-    const canReplay = DEFAULT_RETRY_METHODS.has(request.method) || readOnlyQuery;
-    if (!refreshedAuth && isAuthRefreshStatus(statusCode) && this.authProvider && canReplay) {
-      await beforeReplay?.(cloneRequestContext(request), statusCode, "authentication");
-      const refreshed = await this.refreshReplaySafeRequestAuth(request, statusCode, readOnlyQuery);
-      if (refreshed) return { action: "auth-refresh", request: refreshed };
-    }
-    if (shouldRetryRequest(this.retryOptions, request.method, attempt, statusCode, httpError, readOnlyQuery)) {
-      await beforeReplay?.(cloneRequestContext(request), statusCode, "retry");
-      await this.sleepBeforeRetry(attempt, response, retrySignal);
-      return { action: "retry" };
-    }
-    return { action: "terminal" };
-  }
-
   private async refreshReplaySafeRequestAuth(
     request: HonuaRequestContext,
     statusCode: number,
@@ -2625,8 +2560,34 @@ export class HonuaClient {
   }
 }
 
-class GeoServicesEnvelopeFailure {
-  public constructor(public readonly error: HonuaHttpError) {}
+interface ExecuteRequestOptions<T> {
+  callerSignal?: AbortSignal;
+  okStatuses?: readonly number[];
+  redirect?: "safe-follow" | "error" | "manual" | "preserve-method";
+  readOnlyQuery?: true;
+  beforeAttempt?: (request: Readonly<HonuaRequestContext>, attempt: number) => void | Promise<void>;
+  beforeReplay?: (
+    request: Readonly<HonuaRequestContext>,
+    statusCode: number | undefined,
+    reason: "authentication" | "retry",
+  ) => void | Promise<void>;
+  deadlineThroughFinalize?: boolean;
+  streamResponse?: boolean;
+  errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
+  shortCircuit?: (context: {
+    readonly response: Response;
+    readonly durationMs: number;
+    readonly request: HonuaRequestContext;
+    readonly runAfter: (preparedResponse?: Response) => Promise<void>;
+  }) => Promise<{ value: T } | undefined>;
+  onTerminalError?: (error: unknown) => T | undefined;
+  finalize: (context: {
+    readonly response: Response;
+    readonly durationMs: number;
+    readonly request: HonuaRequestContext;
+    readonly runAfter: (preparedResponse?: Response) => Promise<void>;
+    readonly deadlineSignal: AbortSignal | undefined;
+  }) => Promise<T>;
 }
 
 /**

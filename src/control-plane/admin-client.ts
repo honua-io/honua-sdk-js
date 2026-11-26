@@ -207,7 +207,7 @@ export class HonuaAdminClient {
     const url = new URL(`${this.#baseUrl}${this.#basePath}${path}`);
     appendQuery(url, request.query as Record<string, unknown> | undefined);
 
-    const authHeaders = await this.#resolveAuthHeaders(false);
+    const authHeaders = await this.#initialAuthHeaders();
     const headers = new Headers(this.#composeHeaders(request.headers as HeadersInit | undefined, authHeaders));
     const body = encodeBody(
       request.body,
@@ -236,12 +236,15 @@ export class HonuaAdminClient {
     return mergeHeaders(this.#baseHeaders, perCallHeaders, providerHeaders, enforced);
   }
 
-  async #resolveAuthHeaders(forceRefresh: boolean): Promise<Record<string, string> | undefined> {
+  async #initialAuthHeaders(): Promise<Record<string, string> | undefined> {
     if (!this.#auth) return undefined;
-    const raw = await this.#auth.getCredentials({
-      reason: forceRefresh ? "unauthorized" : "initial",
-      forceRefresh,
-    });
+    const raw = await this.#auth.getCredentials({ reason: "initial", forceRefresh: false });
+    return adminAuthHeadersFromResult(raw);
+  }
+
+  async #refreshAuthHeaders(): Promise<Record<string, string> | undefined> {
+    if (!this.#auth) return undefined;
+    const raw = await this.#auth.getCredentials({ reason: "unauthorized", forceRefresh: true });
     return adminAuthHeadersFromResult(raw);
   }
 
@@ -249,7 +252,7 @@ export class HonuaAdminClient {
     if (!this.#auth || !isAuthRefreshStatus(statusCode) || !DEFAULT_RETRY_METHODS.has(method)) {
       return undefined;
     }
-    const refreshed = await this.#resolveAuthHeaders(true);
+    const refreshed = await this.#refreshAuthHeaders();
     return refreshed ? new Headers(mergeHeaders(headers, refreshed)) : undefined;
   }
 
@@ -435,21 +438,20 @@ function normalizeAdminAuth(
   return typeof auth === "function" ? { getCredentials: auth } : auth;
 }
 
+function nonEmptyCredential(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 function adminAuthHeadersFromResult(
   raw: HonuaAuthCredentials | string | null | undefined,
 ): Record<string, string> | undefined {
-  if (typeof raw === "string") {
-    return raw.length > 0 ? { Authorization: `Bearer ${raw}` } : undefined;
-  }
+  if (typeof raw === "string") return raw.length > 0 ? { Authorization: `Bearer ${raw}` } : undefined;
   if (!raw) return undefined;
-  const headers: Record<string, string> = {};
-  if (typeof raw.apiKey === "string" && raw.apiKey.length > 0) headers["X-API-Key"] = raw.apiKey;
-  if (typeof raw.authorization === "string" && raw.authorization.length > 0) {
-    headers.Authorization = raw.authorization;
-  } else if (typeof raw.bearerToken === "string" && raw.bearerToken.length > 0) {
-    headers.Authorization = `Bearer ${raw.bearerToken}`;
-  }
-  return Object.keys(headers).length > 0 ? headers : undefined;
+  const apiKey = nonEmptyCredential(raw.apiKey);
+  const bearer = nonEmptyCredential(raw.bearerToken);
+  const authorization = nonEmptyCredential(raw.authorization) ?? (bearer ? `Bearer ${bearer}` : undefined);
+  if (!apiKey && !authorization) return undefined;
+  return { ...(apiKey ? { "X-API-Key": apiKey } : {}), ...(authorization ? { Authorization: authorization } : {}) };
 }
 
 function encodeBody(

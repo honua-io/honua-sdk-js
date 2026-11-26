@@ -8,6 +8,7 @@ vi.mock("../src/control-plane/generated/admin-operations.js", async (importOrigi
   ADMIN_RELEASE_CONTRACT_COMPATIBLE: true,
 }));
 
+import { withLegacyRedisCompose } from "../src/local-install-legacy.js";
 import { installHonuaLocal, renderLocalCompose } from "../src/local-install.js";
 
 const directories: string[] = [];
@@ -118,50 +119,6 @@ describe("local installer file and project safety", () => {
     writeFileSync(composeFile, current.replace("pg_isready -h 127.0.0.1", "pg_isready"));
     await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
     expect(readFileSync(composeFile, "utf8")).toBe(current);
-    expect(readFileSync(envFile, "utf8")).toBe(originalEnv);
-  });
-
-  it("upgrades a prior Redis-bearing installer compose to the zero-Redis compose while preserving credentials", async () => {
-    const directory = temporaryDirectory();
-    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
-    const composeFile = path.join(directory, "compose.yaml");
-    const current = readFileSync(composeFile, "utf8");
-    const envFile = path.join(directory, ".env");
-    const originalEnv = readFileSync(envFile, "utf8");
-    const legacyRedisCompose = current
-      .replace(
-        '    restart: "no"\n  honua:\n',
-        '    restart: "no"\n' +
-          "  redis:\n" +
-          "    image: redis:7.4-alpine\n" +
-          '    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]\n' +
-          "    volumes:\n" +
-          "      - redis_data:/data\n" +
-          "    healthcheck:\n" +
-          '      test: ["CMD", "redis-cli", "ping"]\n' +
-          "      interval: 5s\n" +
-          "      timeout: 3s\n" +
-          "      retries: 20\n" +
-          "    restart: unless-stopped\n" +
-          "  honua:\n",
-      )
-      .replace(
-        "      HONUA_ADMIN_PASSWORD: ${HONUA_ADMIN_PASSWORD}\n",
-        "      ConnectionStrings__Redis: redis:6379\n      HONUA_ADMIN_PASSWORD: ${HONUA_ADMIN_PASSWORD}\n",
-      )
-      .replace(
-        "      postgis-bootstrap:\n        condition: service_completed_successfully\n    volumes:\n",
-        "      postgis-bootstrap:\n        condition: service_completed_successfully\n      redis:\n        condition: service_healthy\n    volumes:\n",
-      )
-      .replace(
-        "volumes:\n  postgres_data:\n  honua_storage:\n",
-        "volumes:\n  postgres_data:\n  redis_data:\n  honua_storage:\n",
-      );
-    writeFileSync(composeFile, legacyRedisCompose);
-    await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
-    const upgraded = readFileSync(composeFile, "utf8");
-    expect(upgraded).toBe(current);
-    expect(upgraded).not.toContain("redis");
     expect(readFileSync(envFile, "utf8")).toBe(originalEnv);
   });
 
@@ -349,4 +306,19 @@ describe("local installer file and project safety", () => {
     expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain("HONUA_COMPOSE_PROJECT=honua-local");
     expect(readFileSync(path.join(directory, ".env"), "utf8")).toContain("POSTGRES_PASSWORD=original");
   });
+});
+
+it("upgrades a prior Redis-bearing installer compose to zero-Redis while preserving credentials", async () => {
+  const directory = temporaryDirectory();
+  await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+  const composeFile = path.join(directory, "compose.yaml");
+  const current = readFileSync(composeFile, "utf8");
+  const envFile = path.join(directory, ".env");
+  const originalEnv = readFileSync(envFile, "utf8");
+  writeFileSync(composeFile, withLegacyRedisCompose(current));
+  await expect(installHonuaLocal({ directory }, { run: failAtUp })).rejects.toThrow(/deliberate stop/);
+  const upgraded = readFileSync(composeFile, "utf8");
+  expect(upgraded).toBe(current);
+  expect(upgraded).not.toContain("redis");
+  expect(readFileSync(envFile, "utf8")).toBe(originalEnv);
 });
