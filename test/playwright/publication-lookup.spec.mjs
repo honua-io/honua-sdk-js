@@ -7,6 +7,14 @@ import { expect, test } from "@playwright/test";
 import { startPublicationHarness } from "./publication-lookup-harness.mjs";
 
 const fixture = fileURLToPath(new URL("../fixtures/publication/maui-parcels/", import.meta.url));
+const serverExportFixture = fileURLToPath(new URL("../fixtures/export/honua-server-v1/", import.meta.url));
+const SERVER_EXPORT_ID = "scol2636-x2636-6c79f78d";
+const SERVER_EXPORT_PREFIX = `/exports/${SERVER_EXPORT_ID}/20261123T141255Z-d24e032d`;
+const serverExportArtifacts = {
+  [`${SERVER_EXPORT_PREFIX}/collection.json`]: path.join(serverExportFixture, "collection.json"),
+  [`${SERVER_EXPORT_PREFIX}/${SERVER_EXPORT_ID}.parquet`]: path.join(serverExportFixture, `${SERVER_EXPORT_ID}.parquet`),
+  [`${SERVER_EXPORT_PREFIX}/${SERVER_EXPORT_ID}.pmtiles`]: path.join(serverExportFixture, `${SERVER_EXPORT_ID}.pmtiles`),
+};
 const artifacts = {
   "/maui/descriptor.json": path.join(fixture, "descriptor.json"),
   "/maui/parcels.parquet": path.join(fixture, "parcels.parquet"),
@@ -144,6 +152,129 @@ test("a host without byte ranges is refused before the engine reads the file", a
     expect(harness.engineRequests()).toEqual([]);
     const refusedOperations = 2;
     expect(parquetReads(harness)).toHaveLength(refusedOperations);
+  } finally {
+    await harness.close();
+  }
+});
+
+const SERVER_EXPORT_PUBLIC_FIELDS = [
+  ["objectid", "integer"],
+  ["id", "integer"],
+  ["parcel_id", "string"],
+  ["zone", "string"],
+  ["acres", "number"],
+  ["owner_note", "string"],
+];
+
+function bytesSince(requests, mark) {
+  return requests.slice(mark).reduce((total, entry) => total + entry.bytes, 0);
+}
+
+async function openAndRenderExport(page, harness, collectionUrl) {
+  await page.goto(`${harness.app.origin}/`);
+  const mark = harness.data.requests.length;
+  const started = performance.now();
+  const opened = await page.evaluate((url) => window.publicationHarness.openExport(url), collectionUrl);
+  const map = await page.evaluate((display) => window.publicationHarness.renderExportMap(display), opened.display);
+  return {
+    opened,
+    map,
+    firstMapMs: Math.round(performance.now() - started),
+    mapRenderMs: Math.round(map.ms),
+    mapBytes: bytesSince(harness.data.requests, mark),
+  };
+}
+
+async function selectExportFeature(page, harness, feature) {
+  const mark = harness.data.requests.length;
+  const selected = await page.evaluate((candidate) => window.publicationHarness.select(candidate), feature);
+  return {
+    selected,
+    ms: Math.round(selected.ms * 10) / 10,
+    bytes: bytesSince(harness.data.requests, mark),
+  };
+}
+
+test("opens a server-generated Export across origins without HEAD, renders PMTiles, and resolves click-to-attributes cold and warm", async ({
+  page,
+}, testInfo) => {
+  const harness = await startPublicationHarness({
+    artifacts: serverExportArtifacts,
+    workDirectory,
+    artifactHead: false,
+    artifactCacheControl: "public, max-age=3600, immutable",
+  });
+  try {
+    const collectionUrl = `${harness.data.origin}${SERVER_EXPORT_PREFIX}/collection.json`;
+
+    const cold = await openAndRenderExport(page, harness, collectionUrl);
+    expect(cold.opened.renderPath).toBe("visual");
+    expect(cold.opened.display).toMatchObject({ sourceLayer: "layer", promoteId: "parcel_id" });
+    expect(cold.opened.publicFields).toEqual(SERVER_EXPORT_PUBLIC_FIELDS);
+    expect(cold.map.distinctCount).toBeGreaterThanOrEqual(2);
+
+    const [firstFeature, secondFeature] = cold.map.features;
+    const coldSelect = await selectExportFeature(page, harness, firstFeature);
+    expect(coldSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet", geometryType: "MultiPolygon" });
+    expect(typeof coldSelect.selected.attributes.objectid).toBe("number");
+    expect(typeof coldSelect.selected.attributes.id).toBe("number");
+    expect(typeof coldSelect.selected.attributes.acres).toBe("number");
+    expect(coldSelect.selected.attributes.parcel_id).toBe(firstFeature.properties.parcel_id);
+
+    const warmSelect = await selectExportFeature(page, harness, secondFeature);
+    expect(warmSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet", geometryType: "MultiPolygon" });
+    expect(typeof warmSelect.selected.attributes.acres).toBe("number");
+    expect(warmSelect.selected.attributes.parcel_id).toBe(secondFeature.properties.parcel_id);
+
+    const bboxMark = harness.data.requests.length;
+    const bboxResult = await page.evaluate((bounds) => window.publicationHarness.queryBbox(bounds), cold.opened.display.bounds);
+    const bboxBytes = bytesSince(harness.data.requests, bboxMark);
+    expect(bboxResult).toMatchObject({ ok: true, answeredBy: "geoparquet" });
+    expect(bboxResult.featureCount).toBeGreaterThan(0);
+    await page.evaluate(() => window.publicationHarness.dispose());
+
+    const warm = await openAndRenderExport(page, harness, collectionUrl);
+    expect(warm.map.distinctCount).toBeGreaterThanOrEqual(2);
+    const warmReloadSelect = await selectExportFeature(page, harness, firstFeature);
+    expect(warmReloadSelect.selected).toMatchObject({ ok: true, answeredBy: "geoparquet" });
+    await page.evaluate(() => window.publicationHarness.dispose());
+
+    const headRequests = harness.data.requests.filter((entry) => entry.method === "HEAD");
+    const errorResponses = harness.data.requests.filter((entry) => entry.status >= 400);
+    expect(headRequests).toEqual([]);
+    expect(errorResponses).toEqual([]);
+    expect(harness.engineRequests()).toEqual([]);
+
+    await testInfo.attach("export-browser-metrics", {
+      contentType: "application/json",
+      body: JSON.stringify(
+        {
+          exportId: SERVER_EXPORT_ID,
+          headRequests: headRequests.length,
+          cold: {
+            firstMapMs: cold.firstMapMs,
+            mapRenderMs: cold.mapRenderMs,
+            mapBytes: cold.mapBytes,
+            clickToAttributesMs: coldSelect.ms,
+            lookupBytes: coldSelect.bytes,
+            bboxQueryMs: Math.round(bboxResult.ms * 10) / 10,
+            bboxQueryBytes: bboxBytes,
+            bboxFeatureCount: bboxResult.featureCount,
+          },
+          warm: {
+            firstMapMs: warm.firstMapMs,
+            mapRenderMs: warm.mapRenderMs,
+            mapBytes: warm.mapBytes,
+            inSessionClickToAttributesMs: warmSelect.ms,
+            inSessionLookupBytes: warmSelect.bytes,
+            cachedReloadClickToAttributesMs: warmReloadSelect.ms,
+            cachedReloadLookupBytes: warmReloadSelect.bytes,
+          },
+        },
+        null,
+        2,
+      ),
+    });
   } finally {
     await harness.close();
   }
