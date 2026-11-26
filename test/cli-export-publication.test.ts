@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterEach, expect, it, vi } from "vitest";
 import { run } from "../src/cli/main.js";
 import { captureOutput } from "./helpers/cli-output.js";
@@ -6,6 +8,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const options = { baseUrl: "https://honua.example", apiKey: "test-key" };
@@ -184,4 +187,172 @@ it("previews public publication without transport", async () => {
   expect(await run(["export", "maui-parcels/1", "--public", "--dry-run", "--json"], options)).toBe(0);
   expect(JSON.parse(cap.stdout())).toMatchObject({ requirePublic: true, status: "dry-run", payload: { source } });
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it("prefers --admin-key for /api/v1/admin/exports and refuses non-loopback HTTP", async () => {
+  let observedKey: string | null = null;
+  const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    observedKey = new Headers(init?.headers).get("X-API-Key");
+    return response(published);
+  });
+  fetchMock.mockResolvedValueOnce(response(pending, 202));
+  vi.stubGlobal("fetch", fetchMock);
+  const cap = captureOutput();
+  const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public", "--admin-key", "root-key"], {
+    baseUrl: "https://honua.example",
+    apiKey: "scoped-key",
+  });
+  expect(code).toBe(0);
+  expect(observedKey).toBe("root-key");
+  expect(cap.stderr()).toBe("");
+
+  const insecureCap = captureOutput();
+  expect(await run(["export", "maui-parcels/1", "--public"], { baseUrl: "http://remote.example", apiKey: "k" })).toBe(
+    1,
+  );
+  expect(insecureCap.stderr()).toContain("requires HTTPS");
+});
+
+it("preserves caller bearer token without substituting HONUA_ADMIN_KEY", async () => {
+  vi.stubEnv("HONUA_ADMIN_KEY", "env-admin-key");
+  let observedAuth: string | null = null;
+  let observedKey: string | null = null;
+  const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    observedAuth = headers.get("Authorization");
+    observedKey = headers.get("X-API-Key");
+    return response(published);
+  });
+  fetchMock.mockResolvedValueOnce(response(pending, 202));
+  vi.stubGlobal("fetch", fetchMock);
+  captureOutput();
+  const code = await run(["export", "maui-parcels/1", "--public"], {
+    baseUrl: "https://honua.example",
+    bearerToken: "caller-token",
+  });
+  expect(code).toBe(0);
+  expect(observedAuth).toBe("Bearer caller-token");
+  expect(observedKey).toBeNull();
+});
+
+it("surfaces the server's 404 failure message verbatim", async () => {
+  const fetchMock = vi.fn(async () =>
+    Response.json({ success: false, message: "The source is not a routable Layer of that Service." }, { status: 404 }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  const cap = captureOutput();
+  expect(await run(["export", "missing-svc/1", "--public"], options)).toBe(1);
+  expect(cap.stdout()).toBe("");
+  expect(cap.stderr()).toContain("The source is not a routable Layer of that Service.");
+});
+
+it.each(["javascript:alert(1)", "   ", "/relative/collection.json"])(
+  "rejects non-http publicUrl %s fail-closed",
+  async (badUrl) => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(pending, 202))
+        .mockResolvedValueOnce(response({ ...published, publicUrl: badUrl })),
+    );
+    const cap = captureOutput();
+    expect(await run(["export", "maui-parcels/1", "--public"], options)).toBe(1);
+    expect(cap.stdout()).toBe("");
+    expect(cap.stderr()).toContain("is not public");
+  },
+);
+
+function sendJson(
+  res: import("node:http").ServerResponse,
+  reply: { readonly status: number; readonly body: unknown; readonly headers?: Record<string, string> },
+) {
+  res.writeHead(reply.status, { "content-type": "application/json", ...reply.headers });
+  res.end(JSON.stringify(reply.body));
+}
+
+async function startExportServer(finalRecord: (origin: string) => Record<string, unknown>) {
+  let getCount = 0;
+  const server = createServer((req, res) => {
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    if (req.headers["x-api-key"] !== "admin-secret") {
+      return sendJson(res, { status: 403, body: { success: false, message: "Forbidden" } });
+    }
+    if (req.method === "POST" && req.url === "/api/v1/admin/exports") {
+      return sendJson(res, {
+        status: 202,
+        headers: { location: `/api/v1/admin/exports/${exportId}` },
+        body: {
+          success: true,
+          message: "Export started; a new Version appears when the job completes.",
+          data: {
+            ...pending,
+            notPublicReason: "The public data path is not enabled for Exports on this installation.",
+          },
+        },
+      });
+    }
+    if (req.method === "GET" && req.url === `/api/v1/admin/exports/${exportId}`) {
+      getCount += 1;
+      return sendJson(res, { status: 200, body: { success: true, data: finalRecord(origin) } });
+    }
+    return sendJson(res, { status: 404, body: { success: false, message: "Not found" } });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return {
+    origin,
+    getCount: () => getCount,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+it("completes server-confirmed public publication over loopback HTTP with admin key", async () => {
+  const srv = await startExportServer((origin) => ({
+    ...published,
+    collectionUrl: `${origin}/api/v1/exports/${exportId}/v2/collection.json`,
+    updatedAt: "2026-11-25T20:00:00Z",
+    versions: [{ version: "v2", featureCount: 48, artifacts: [] }],
+  }));
+  try {
+    const cap = captureOutput();
+    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public"], {
+      baseUrl: srv.origin,
+      adminKey: "admin-secret",
+    });
+    expect(code).toBe(0);
+    expect(srv.getCount()).toBe(1);
+    expect(cap.stdout()).toContain("Export published");
+    expect(cap.stdout()).toContain(`publicUrl:      ${publicUrl}`);
+    expect(cap.stdout()).toContain(`collectionUrl:  ${srv.origin}/api/v1/exports/${exportId}/v2/collection.json`);
+    expect(cap.stderr()).toBe("");
+  } finally {
+    await srv.close();
+  }
+});
+
+it.each([
+  "stays on signed-in routes: anonymous read is not allowed",
+  "stays on signed-in routes: row filter",
+  "stays on signed-in routes: hidden field",
+])("fails closed over loopback HTTP when server reports eligibility refusal: %s", async (reason) => {
+  const srv = await startExportServer((origin) => ({
+    ...pending,
+    status: "ready",
+    currentVersion: "v2",
+    collectionUrl: `${origin}/api/v1/exports/${exportId}/v2/collection.json`,
+    notPublicReason: reason,
+  }));
+  try {
+    const cap = captureOutput();
+    const code = await run(["export", "maui-parcels/1", "--id", exportId, "--public"], {
+      baseUrl: srv.origin,
+      adminKey: "admin-secret",
+    });
+    expect(code).toBe(1);
+    expect(cap.stdout()).toBe("");
+    expect(cap.stderr()).toBe(`error: Export ${exportId} is not public: ${reason}.\n`);
+  } finally {
+    await srv.close();
+  }
 });

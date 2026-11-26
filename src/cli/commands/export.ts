@@ -13,7 +13,7 @@
 import { createHonuaControlPlane } from "../../control-plane/index.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString } from "../args.js";
-import { createClient } from "../client.js";
+import { createAdminClient } from "../client.js";
 import type { CommandContext } from "../command.js";
 import { printLine, renderDetail, renderJson, renderTable } from "../output.js";
 import { publicationTimeout, waitForPublicPublication } from "./export-publication.js";
@@ -38,7 +38,7 @@ function sourceLabel(source: ExportSource): string {
 }
 
 async function listExports(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
-  const client = createClient(ctx);
+  const client = createAdminClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
   const response = unwrapResponse(
     await controlPlane.raw<ApiResponse<ExportListResponse>>({ method: "GET", path: "/exports" }),
@@ -97,7 +97,7 @@ async function removeExport(exportId: string | undefined, parsed: ParsedArgs, ct
     );
   }
 
-  const client = createClient(ctx);
+  const client = createAdminClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
   const removed = unwrapResponse(await controlPlane.raw<ApiResponse<ExportRecord>>({ method: "DELETE", path }));
   if (getBoolean(parsed, "json")) {
@@ -152,7 +152,7 @@ async function createExport(layer: string, parsed: ParsedArgs, ctx: CommandConte
     return;
   }
 
-  const client = createClient(ctx);
+  const client = createAdminClient(ctx);
   const controlPlane = createHonuaControlPlane({ client });
   const created = unwrapResponse(
     await controlPlane.raw<ApiResponse<ExportRecord>>({ method: "POST", path: "/exports", body: payload }),

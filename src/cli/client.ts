@@ -10,12 +10,24 @@ import { type HonuaCommandRuntime, assertAdminBaseUrl, createHonuaCommandRuntime
 import { HonuaClient } from "../core/client.js";
 import { HonuaGeocodingClient } from "../geocoding/index.js";
 import { HonuaStudioLifecycleClient } from "../studio/lifecycle-client.js";
-import { type ResolveOptions, resolveConnection } from "./config.js";
+import { type ResolveOptions, resolveAdminConnection, resolveConnection } from "./config.js";
 
 /** Build a {@link HonuaClient} from CLI flags / env / saved config. */
 export function createClient(options: ResolveOptions = {}): HonuaClient {
   const { baseUrl, apiKey, bearerToken } = resolveConnection(options);
   return new HonuaClient({ baseUrl, apiKey, bearerToken });
+}
+
+/**
+ * Build a {@link HonuaClient} for admin endpoints (`/api/v1/admin/*`).
+ * Resolves `--admin-key` / `HONUA_ADMIN_KEY` / profile `adminKey` with fallback to
+ * `--api-key`, preserves caller bearer tokens without overriding them, and enforces
+ * HTTPS or exact loopback HTTP before sending credentials.
+ */
+export function createAdminClient(options: ResolveOptions & { adminKey?: string } = {}): HonuaClient {
+  const { baseUrl, adminKey, apiKey, bearerToken } = resolveAdminConnection(options);
+  assertAdminBaseUrl(baseUrl);
+  return new HonuaClient({ baseUrl, apiKey: bearerToken ? undefined : (adminKey ?? apiKey), bearerToken });
 }
 
 /**
