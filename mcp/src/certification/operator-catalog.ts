@@ -363,10 +363,10 @@ export function buildOperatorTools(): OperatorTool[] {
       sampleOutput: { publishedServiceId: "svc-pub-001", uri: "honua://services/svc-pub-001" },
     },
     {
-      name: "honua_create_map_package",
-      title: "Create map package",
-      description: "Compose a map package from an intent and inputs.",
-      inputSchema: vendoredInputSchema("honua_create_map_package"),
+      name: "honua_create_map",
+      title: "Create map",
+      description: "Compose a map from an intent and inputs.",
+      inputSchema: vendoredInputSchema("honua_create_map"),
       outputSchema: OBJECT_SCHEMA({ mapPackageId: { type: "string" }, uri: { type: "string" } }, [
         "mapPackageId",
         "uri",
@@ -375,10 +375,10 @@ export function buildOperatorTools(): OperatorTool[] {
       sampleOutput: { mapPackageId: "map-001", uri: "honua://maps/map-001" },
     },
     {
-      name: "honua_create_app_package",
-      title: "Create app package",
-      description: "Compose an app package from an intent and inputs.",
-      inputSchema: vendoredInputSchema("honua_create_app_package"),
+      name: "honua_create_app",
+      title: "Create app",
+      description: "Compose an app from an intent and inputs.",
+      inputSchema: vendoredInputSchema("honua_create_app"),
       outputSchema: OBJECT_SCHEMA({ appPackageId: { type: "string" }, uri: { type: "string" } }, [
         "appPackageId",
         "uri",

@@ -12,7 +12,7 @@ tags: [cli, admin, reference, generated]
 
 > **Native application path:** [gRPC for live data and edits; PMTiles, GeoParquet and COG through the CDN](native-data-paths.md). Start there for browser gRPC-Web setup, signed private URLs and regeneration after changes. OGC API and GeoServices REST examples below are compatibility workflows.
 
-Generated from `honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a` (396 REST operations).
+Generated from `honua-io/honua-server@786dc6e3094dab77dd2a8c98d297524e97bd3980` (456 REST operations).
 
 Every operation is available through `honua admin api <operationId>`. The grouped spelling
 `honua admin <group> <operationId>` adds an intentional workflow namespace without forking
@@ -26,7 +26,7 @@ parameters, or fragments are rejected, and redirects are never followed.
 `--dry-run` preserves request structure but replaces credential-bearing header,
 query, and nested body values with `[REDACTED]`.
 
-The six one-time-secret operations (`createAdminApiKey`, `rotateAdminApiKey`, `registerOAuthClient`, `createEmbedKey`, `issueAdminOperatorBearer`, `rotateEmbedKey`) fail closed unless
+The 7 one-time-secret operations (`createAdminApiKey`, `rotateAdminApiKey`, `registerOAuthClient`, `createAdminPasswordBearer`, `createEmbedKey`, `issueAdminOperatorBearer`, `rotateEmbedKey`) fail closed unless
 `--secret-output <new-private-file>` is supplied. The CLI atomically creates that file with
 private permissions, refuses overwrite/reuse, and prints only allowlisted resource metadata plus
 the sink path and SHA-256 digest; plaintext material is never written to stdout or stderr.
@@ -39,10 +39,12 @@ must be rotated or reconciled rather than silently reused.
 | Operation ID | Method | Path | Summary |
 | --- | --- | --- | --- |
 | `createConnection` | `POST` | `/connections` | Create Secure Connection |
+| `createObjectStorageConnectionSetup` | `POST` | `/connections/object-storage/setup` | Start an Object Storage Connection |
 | `deleteConnection` | `DELETE` | `/connections/{id}` | Delete Secure Connection |
 | `getConnection` | `GET` | `/connections/{id}` | Get Secure Connection |
 | `getConnections` | `GET` | `/connections` | List Secure Connections |
 | `getConnectionTables` | `GET` | `/connections/{id}/tables` | Get Connection Tables |
+| `listConnectionObjects` | `GET` | `/connections/{id}/objects` | Browse Connection Objects |
 | `rotateConnectionEncryptionKey` | `POST` | `/connections/encryption/rotate-key` | Rotate Encryption Key |
 | `testConnection` | `POST` | `/connections/{id}/test` | Test Saved Connection |
 | `testDraftConnection` | `POST` | `/connections/test` | Test Draft Connection |
@@ -54,19 +56,23 @@ must be rotated or reconciled rather than silently reused.
 
 | Operation ID | Method | Path | Summary |
 | --- | --- | --- | --- |
+| `cancelCompatibilityImportJob` | `POST` | `/imports/jobs/{jobId}/cancel` | Cancel an Import Job (Compatibility Route) |
 | `cancelGeoServerImportJob` | `POST` | `/import/geoserver/jobs/{jobId}/cancel` | Cancel GeoServer Import Job |
 | `cancelGeoservicesImportJob` | `POST` | `/import/geoservices/jobs/{jobId}/cancel` | Cancel GeoServices Import Job |
 | `cancelImportJob` | `POST` | `/import/jobs/{jobId}/cancel` | Cancel an Import Job |
 | `cancelImportUpload` | `POST` | `/import/uploads/{uploadId}/cancel` | Cancel Import Upload |
+| `compatibilityImportFileFromUrl` | `POST` | `/imports` | Import a Geospatial File from a URL (Compatibility Route) |
 | `deleteImportedRaster` | `DELETE` | `/import/raster/{rasterId}` | Delete Imported Raster |
 | `discoverGeoServerService` | `POST` | `/import/geoserver/discover` | Discover GeoServer Service |
 | `discoverGeoservicesService` | `POST` | `/import/geoservices/discover` | Discover GeoServices Service |
 | `exportOgcTileCache` | `POST` | `/import/ogc-tiles/export` | Export OGC WMTS Tile Cache |
 | `getActiveImportJobs` | `GET` | `/import/jobs` | List Active Import Jobs |
-| `getArcGisMigrationManifest` | `GET` | `/import/arcgis/migrations/{runId}/manifest` | Get ArcGIS Migration Manifest |
-| `getArcGisMigrationParity` | `GET` | `/import/arcgis/migrations/{runId}/parity` | Get ArcGIS Migration Parity |
+| `getCompatibilityActiveImportJobs` | `GET` | `/imports/jobs` | List Active Import Jobs (Compatibility Route) |
+| `getCompatibilityImportJobStatus` | `GET` | `/imports/jobs/{jobId}` | Get Import Job Status (Compatibility Route) |
 | `getGeoServerImportJob` | `GET` | `/import/geoserver/jobs/{jobId}` | Get GeoServer Import Job |
 | `getGeoservicesImportJob` | `GET` | `/import/geoservices/jobs/{jobId}` | Get GeoServices Import Job |
+| `getGeoServicesMigrationManifest` | `GET` | `/import/geoservices-rest/migrations/{runId}/manifest` | Get ArcGIS Migration Manifest |
+| `getGeoServicesMigrationParity` | `GET` | `/import/geoservices-rest/migrations/{runId}/parity` | Get ArcGIS Migration Parity |
 | `getImportFormats` | `GET` | `/import/formats` | Get Supported Import Formats |
 | `getImportJobStatus` | `GET` | `/import/jobs/{jobId}` | Get Import Job Status |
 | `getImportLimits` | `GET` | `/import/limits` | Get Import Limits |
@@ -79,13 +85,13 @@ must be rotated or reconciled rather than silently reused.
 | `importRasterFile` | `POST` | `/import/raster` | Import Raster File |
 | `importTileCachePackage` | `POST` | `/import/tile-package` | Import Tile Cache Package |
 | `listActiveImportUploads` | `GET` | `/import/uploads` | List Active Import Uploads |
-| `listArcGisMigrationRuns` | `GET` | `/import/arcgis/migrations` | List ArcGIS Migration Runs |
 | `listGeoServerImportJobs` | `GET` | `/import/geoserver/jobs` | List GeoServer Import Jobs |
 | `listGeoservicesImportJobs` | `GET` | `/import/geoservices/jobs` | List GeoServices Import Jobs |
+| `listGeoServicesMigrationRuns` | `GET` | `/import/geoservices-rest/migrations` | List ArcGIS Migration Runs |
 | `previewImportFile` | `POST` | `/import/preview` | Preview a Geospatial File |
 | `previewImportFileFromUrl` | `POST` | `/import/preview-url` | Preview a Geospatial File from a URL |
-| `recordArcGisMigrationManifest` | `POST` | `/import/arcgis/migrations/{runId}/manifest` | Record ArcGIS Migration Manifest |
-| `recordArcGisMigrationParity` | `POST` | `/import/arcgis/migrations/{runId}/parity` | Record ArcGIS Migration Parity |
+| `recordGeoServicesMigrationManifest` | `POST` | `/import/geoservices-rest/migrations/{runId}/manifest` | Record ArcGIS Migration Manifest |
+| `recordGeoServicesMigrationParity` | `POST` | `/import/geoservices-rest/migrations/{runId}/parity` | Record ArcGIS Migration Parity |
 | `scanMigrationSource` | `POST` | `/import/scan` | Scan Migration Source |
 | `startGeoServerImport` | `POST` | `/import/geoserver/start` | Start GeoServer Import |
 | `startGeoservicesImport` | `POST` | `/import/geoservices/start` | Start GeoServices Import |
@@ -93,6 +99,7 @@ must be rotated or reconciled rather than silently reused.
 | `startOgcWfsImport` | `POST` | `/import/ogc-wfs/start` | Start OGC WFS Import |
 | `updateImportedRaster` | `PATCH` | `/import/raster/{rasterId}` | Update Imported Raster |
 | `uploadImportFile` | `POST` | `/import/upload` | Upload and Import a Geospatial File |
+| `uploadImportFileFromObjectStore` | `POST` | `/import/upload-object` | Import a Geospatial File from Object Storage |
 | `uploadImportFileFromUrl` | `POST` | `/import/upload-url` | Import a Geospatial File from a URL |
 | `validateToolboxTranslation` | `POST` | `/import/toolbox/translation/validate` | Validate a Translated Toolbox Manifest |
 
@@ -106,38 +113,51 @@ must be rotated or reconciled rather than silently reused.
 | `createFieldWorkflowExport` | `POST` | `/field-workflows/exports` | Create Field Export |
 | `decideFieldWorkflowSubmission` | `POST` | `/field-workflows/submissions/{submissionId}/decision` | Decide Field Submission |
 | `deleteFieldMaskPolicy` | `DELETE` | `/field-mask-policies/{id}` | Delete Field-Mask Policy |
-| `exportLayerSldStyle` | `GET` | `/metadata/layers/{layerId}/style/export-sld` | Export Layer Style as SLD |
-| `exportServiceLayer` | `GET` | `/services/{serviceName}/layers/{layerId}/export` | Export Layer Data |
-| `getAdminLayerDrawingInfo` | `GET` | `/metadata/layers/{layerId}/drawing-info` | Get Layer Drawing Info |
-| `getAdminLayerFields` | `GET` | `/metadata/layers/{layerId}/fields` | Get Layer Field Configuration |
-| `getAdminLayerFilter` | `GET` | `/metadata/layers/{layerId}/filter` | Get Layer Permanent Filter |
-| `getAdminLayerPopupInfo` | `GET` | `/metadata/layers/{layerId}/popup-info` | Get Layer Popup Info |
-| `getAdminLayerRelationships` | `GET` | `/metadata/layers/{layerId}/relationships` | Get Layer Relationships |
-| `getAdminLayerStyle` | `GET` | `/metadata/layers/{layerId}/style` | Get Layer Style |
-| `getAdminLayerValidation` | `GET` | `/metadata/layers/{layerId}/validation` | Validate Layer Metadata |
+| `exportLayerSldStyle` | `GET` | `/metadata/layers/{storageLayerId}/style/export-sld` | Export Layer Style as SLD |
+| `exportServiceLayer` | `GET` | `/services/{serviceName}/layers/{serviceLayerIndex}/export` | Export Layer Data |
+| `getAdminLayerDiscovery` | `GET` | `/metadata/layers/{storageLayerId}/discovery` | Read title, description and keywords |
+| `getAdminLayerDisplay` | `GET` | `/metadata/layers/{storageLayerId}/display` | Get Layer Display |
+| `getAdminLayerDrawingInfo` | `GET` | `/metadata/layers/{storageLayerId}/drawing-info` | Get Layer Drawing Info |
+| `getAdminLayerFields` | `GET` | `/metadata/layers/{storageLayerId}/fields` | Get Layer Field Configuration |
+| `getAdminLayerFilter` | `GET` | `/metadata/layers/{storageLayerId}/filter` | Get Layer Permanent Filter |
+| `getAdminLayerMetadataHistory` | `GET` | `/metadata/layers/{storageLayerId}/history` | List layer metadata field edit history |
+| `getAdminLayerPopupInfo` | `GET` | `/metadata/layers/{storageLayerId}/popup-info` | Get Layer Popup Info |
+| `getAdminLayerRelationships` | `GET` | `/metadata/layers/{storageLayerId}/relationships` | Get Layer Relationships |
+| `getAdminLayerSpatial` | `GET` | `/metadata/layers/{storageLayerId}/spatial` | Get Layer Spatial |
+| `getAdminLayerStyle` | `GET` | `/metadata/layers/{storageLayerId}/style` | Get Layer Style |
+| `getAdminLayerValidation` | `GET` | `/metadata/layers/{storageLayerId}/validation` | Validate Layer Metadata |
 | `getFieldMaskPolicy` | `GET` | `/field-mask-policies/{id}` | Get Field-Mask Policy |
 | `getFieldWorkflowSubmission` | `GET` | `/field-workflows/submissions/{submissionId}` | Get Field Submission |
-| `getLayerShareTrafficSeries` | `GET` | `/services/{serviceName}/layers/{layerId}/share/traffic/series` | Get Layer Share Traffic Series |
-| `getLayerShareTrafficSummary` | `GET` | `/services/{serviceName}/layers/{layerId}/share/traffic` | Get Layer Share Traffic Summary |
+| `getLayerMetadata` | `GET` | `/services/{serviceName}/layers/{serviceLayerIndex}/metadata` | Get Layer Metadata |
+| `getLayerPublishJobStatus` | `GET` | `/connections/{id}/layers/jobs/{jobId}` | Get Layer Publication Job Status |
+| `getLayerShareTrafficSeries` | `GET` | `/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic/series` | Get Layer Share Traffic Series |
+| `getLayerShareTrafficSummary` | `GET` | `/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic` | Get Layer Share Traffic Summary |
 | `getPublishedLayers` | `GET` | `/connections/{id}/layers` | List Published Layers |
-| `importLayerSldStyle` | `POST` | `/metadata/layers/{layerId}/style/import-sld` | Import SLD Layer Style |
+| `goLiveFormDraft` | `POST` | `/forms/{formId}/versions/{formVersion}/publish` | Publish Form Draft |
+| `importLayerSldStyle` | `POST` | `/metadata/layers/{storageLayerId}/style/import-sld` | Import SLD Layer Style |
 | `listFieldMaskPolicies` | `GET` | `/field-mask-policies` | List Field-Mask Policies |
 | `listFieldWorkflowExports` | `GET` | `/field-workflows/exports` | List Field Exports |
 | `listFieldWorkflowSubmissions` | `GET` | `/field-workflows/submissions` | List Field Submissions |
-| `publishFormPackageVersion` | `POST` | `/forms/packages/{formId}/versions/{packageVersion}/publish` | Publish Form Package Version |
+| `publishCogArtifact` | `POST` | `/raster-artifacts/cog` | Publish Layer Raster As COG |
+| `publishGpProcessRelease` | `POST` | `/gp/process-releases` | Publish gp process release |
 | `publishLayer` | `POST` | `/connections/{id}/layers` | Publish Layer |
+| `publishMap` | `POST` | `/maps` | Publish Map |
 | `refreshConnectionLayerExtents` | `POST` | `/connections/{id}/layers/extents/refresh` | Refresh Layer Extents |
-| `refreshConnectionLayerFeatures` | `POST` | `/connections/{id}/layers/{layerId}/features/refresh` | Refresh Layer Feature Snapshot |
-| `setAdminLayerDrawingInfo` | `PUT` | `/metadata/layers/{layerId}/drawing-info` | Set Layer Drawing Info |
-| `setAdminLayerPopupInfo` | `PUT` | `/metadata/layers/{layerId}/popup-info` | Set Layer Popup Info |
-| `setAdminLayerRelationships` | `PUT` | `/metadata/layers/{layerId}/relationships` | Set Layer Relationships |
-| `setLayerEnabled` | `PUT` | `/connections/{id}/layers/{layerId}/enabled` | Set Layer Enabled |
+| `refreshConnectionLayerFeatures` | `POST` | `/connections/{id}/layers/{storageLayerId}/features/refresh` | Refresh Layer Feature Snapshot |
+| `setAdminLayerDisplay` | `PUT` | `/metadata/layers/{storageLayerId}/display` | Update Layer Display |
+| `setAdminLayerDrawingInfo` | `PUT` | `/metadata/layers/{storageLayerId}/drawing-info` | Set Layer Drawing Info |
+| `setAdminLayerPopupInfo` | `PUT` | `/metadata/layers/{storageLayerId}/popup-info` | Set Layer Popup Info |
+| `setAdminLayerRelationships` | `PUT` | `/metadata/layers/{storageLayerId}/relationships` | Set Layer Relationships |
+| `setAdminLayerRelationshipsBatch` | `PUT` | `/metadata/layers/relationships/batch` | Replace Layer Relationship Sets Atomically |
+| `setAdminLayerSpatial` | `PUT` | `/metadata/layers/{storageLayerId}/spatial` | Update Layer Spatial |
+| `setLayerEnabled` | `PUT` | `/connections/{id}/layers/{storageLayerId}/enabled` | Set Layer Enabled |
 | `setServiceLayersEnabled` | `PUT` | `/connections/{id}/layers/enabled` | Set Service Layers Enabled |
-| `suggestLayerStyle` | `POST` | `/metadata/layers/{layerId}/suggest-style` | Suggest Layer Style |
-| `updateAdminLayerFields` | `PUT` | `/metadata/layers/{layerId}/fields` | Update Layer Field Configuration |
-| `updateAdminLayerFilter` | `PUT` | `/metadata/layers/{layerId}/filter` | Update Layer Permanent Filter |
-| `updateAdminLayerStyle` | `PUT` | `/metadata/layers/{layerId}/style` | Update Layer Style |
-| `updateLayerMetadata` | `PUT` | `/services/{serviceName}/layers/{layerId}/metadata` | Update Layer Metadata |
+| `suggestLayerStyle` | `POST` | `/metadata/layers/{storageLayerId}/suggest-style` | Suggest Layer Style |
+| `updateAdminLayerDiscovery` | `PUT` | `/metadata/layers/{storageLayerId}/discovery` | Replace title, description and keywords |
+| `updateAdminLayerFields` | `PUT` | `/metadata/layers/{storageLayerId}/fields` | Update Layer Field Configuration |
+| `updateAdminLayerFilter` | `PUT` | `/metadata/layers/{storageLayerId}/filter` | Update Layer Permanent Filter |
+| `updateAdminLayerStyle` | `PUT` | `/metadata/layers/{storageLayerId}/style` | Update Layer Style |
+| `updateLayerMetadata` | `PUT` | `/services/{serviceName}/layers/{serviceLayerIndex}/metadata` | Update Layer Metadata |
 
 ## configure
 
@@ -151,28 +171,43 @@ must be rotated or reconciled rather than silently reused.
 | `cancelMigrationRun` | `POST` | `/migration/runs/{runId}/cancel` | Cancel Migration Run |
 | `completeMigrationRun` | `POST` | `/migration/runs/{runId}/complete` | Record Migration Run Completed |
 | `createAdminAuthAuthorizeUrl` | `POST` | `/auth/providers/{providerKey}/authorize-url` | Create Admin Auth Authorize Url |
+| `createAdminPasswordBearer` | `POST` | `/auth/password-token` | Sign In Browser Administrator Bearer |
+| `createAdminPasswordSession` | `POST` | `/auth/session` | Sign In Browser Administrator Session |
 | `createAlertRule` | `POST` | `/alerts/rules` | Create Alert Rule |
 | `createAlertZone` | `POST` | `/alerts/zones` | Create Alert Zone |
 | `createEmbedKey` | `POST` | `/embed/keys` | Create Embed Key |
-| `createFormPackageDraft` | `POST` | `/forms/packages` | Create Form Package Draft |
+| `createExport` | `POST` | `/exports` | Export a Layer as files |
+| `createFolder` | `POST` | `/folders` | createFolder |
+| `createFormDraft` | `POST` | `/forms` | Create Form Draft |
 | `createInvestigation` | `POST` | `/investigations` | Create Investigation |
 | `createShareExport` | `POST` | `/share/exports` | Create Share Export Definition |
 | `deactivateSceneDataset` | `DELETE` | `/scenes/{id}` | Deactivate Scene Dataset |
+| `deleteAgentAuthorityCeiling` | `DELETE` | `/agent-authority` | Delete Agent Authority Ceiling |
 | `deleteAlertRule` | `DELETE` | `/alerts/rules/{ruleId}` | Delete Alert Rule |
 | `deleteAlertZone` | `DELETE` | `/alerts/zones/{zoneId}` | Delete Alert Zone |
+| `deleteExport` | `DELETE` | `/exports/{exportId}` | Unpublish Export |
+| `deleteFolder` | `DELETE` | `/folders/{id}` | deleteFolder |
 | `deleteNetworkDataset` | `DELETE` | `/network-datasets/{id}` | Delete Network Dataset |
 | `deleteShareExport` | `DELETE` | `/share/exports/{exportId}` | Delete Share Export Definition |
 | `disconnectFeatureStreamSession` | `DELETE` | `/streaming/features/sessions/{sessionId}` | Disconnect a feature stream session |
 | `discoverExternalService` | `POST` | `/external-services/discover` | Discover External Service |
 | `evaluateResidencyPolicy` | `POST` | `/compliance/residency/evaluate` | Evaluate Residency Policy |
 | `exportComplianceReport` | `GET` | `/compliance/report` | Export Compliance Report |
+| `exportFormXlsForm` | `GET` | `/forms/{formId}/export` | Export Form As XLSForm |
 | `generateScene` | `POST` | `/scenes/generate` | Generate Scene From Feature Layer |
 | `getAdminAuthConfig` | `GET` | `/auth/config` | Get Admin Auth Configuration |
 | `getAdminAuthLogoutUrl` | `GET` | `/auth/providers/{providerKey}/logout-url` | Get Admin Auth Logout Url |
 | `getAdminAuthSession` | `GET` | `/auth/session` | Get Admin Auth Session |
+| `getAdminBrowserCsrfToken` | `GET` | `/auth/csrf` | Get Browser Session CSRF Token |
 | `getAdminCapabilities` | `GET` | `/capabilities` | Get Admin Capabilities |
+| `GetAdminLive` | `GET` | `/live` | Stream administrator live events |
+| `getAdminMetadataHistory` | `GET` | `/metadata/history` | List metadata field edit history |
+| `getAdminMetadataSchemas` | `GET` | `/metadata/schemas` | Read per-environment custom metadata field schemas |
 | `getAdminOpenApi` | `GET` | `/openapi.json` | Get Admin OpenAPI Specification |
+| `getAdminServiceDiscovery` | `GET` | `/services/{serviceName}/discovery` | Read title, description and keywords |
+| `getAdminServiceMetadataHistory` | `GET` | `/services/{serviceName}/history` | List service metadata field edit history |
 | `getAdminVersion` | `GET` | `/version` | Get Admin Version Info |
+| `getAgentAuthorityCeiling` | `GET` | `/agent-authority` | Get Agent Authority Ceiling |
 | `getAlertRule` | `GET` | `/alerts/rules/{ruleId}` | Get Alert Rule |
 | `getAlertZone` | `GET` | `/alerts/zones/{zoneId}` | Get Alert Zone |
 | `getCloudRaster` | `GET` | `/cloud-rasters/{id}` | Get Cloud Raster |
@@ -180,9 +215,10 @@ must be rotated or reconciled rather than silently reused.
 | `getConsoleJob` | `GET` | `/jobs/{jobId}` | Get Console Job Detail |
 | `getConsoleJobActions` | `GET` | `/jobs/{jobId}/actions` | Get Console Job Actions |
 | `getConsoleJobArtifacts` | `GET` | `/jobs/{jobId}/artifacts` | Get Console Job Artifacts |
+| `getConsoleJobDiagnostics` | `GET` | `/jobs/{jobId}/diagnostics` | Get Console Job Diagnostics |
 | `getConsoleJobLogs` | `GET` | `/jobs/{jobId}/logs` | Get Console Job Logs |
 | `getConsoleJobSteps` | `GET` | `/jobs/{jobId}/steps` | Get Console Job Steps |
-| `getCurrentFormPackage` | `GET` | `/forms/packages/{formId}` | Get Current Form Package |
+| `getCurrentForm` | `GET` | `/forms/{formId}` | Get Current Form |
 | `getEmbedKey` | `GET` | `/embed/keys/{id}` | Get Embed Key |
 | `getEmbedUsage` | `GET` | `/embed/usage` | Query Embed Usage |
 | `getEnhancedExceptionStatistics` | `GET` | `/performance/enhanced/exceptions/statistics` | Get exception statistics |
@@ -192,8 +228,9 @@ must be rotated or reconciled rather than silently reused.
 | `getEnhancedRecentExceptions` | `GET` | `/performance/enhanced/exceptions/recent` | Get recent exceptions |
 | `getEnhancedResourceTracking` | `GET` | `/performance/enhanced/resources/tracking` | Get resource tracking statistics |
 | `getEnhancedSlowQueries` | `GET` | `/performance/enhanced/database/slow-queries` | Get recent slow queries |
+| `getExport` | `GET` | `/exports/{exportId}` | Get Export |
 | `getFeatureOverview` | `GET` | `/features` | Get Feature Overview |
-| `getFormPackageVersion` | `GET` | `/forms/packages/{formId}/versions/{packageVersion}` | Get Form Package Version |
+| `getFormVersion` | `GET` | `/forms/{formId}/versions/{formVersion}` | Get Form Version |
 | `getGeocodingProviders` | `GET` | `/geocoding/providers` | Get Geocoding Providers |
 | `getGeoprocessingToolUsageRanking` | `GET` | `/geoprocessing/tools/usage-ranking` | Get geoprocessing tool usage ranking |
 | `getIdentityProviders` | `GET` | `/identity/providers` | Get Identity Providers |
@@ -208,7 +245,9 @@ must be rotated or reconciled rather than silently reused.
 | `getMultidimCoverageScanJob` | `GET` | `/multidim-coverages/jobs/{jobId}` | Get Multidimensional Coverage Scan Job |
 | `getNetworkDataset` | `GET` | `/network-datasets/{id}` | Get Network Dataset |
 | `getNetworkTopologyRebuildAttempt` | `GET` | `/network-datasets/{id}/generations/{generation}/rebuild/{attempt}` | Get Topology Rebuild Attempt |
+| `getSceneAsset` | `GET` | `/scenes/assets/{sceneId}` | Get a scene asset |
 | `getSceneDataset` | `GET` | `/scenes/{id}` | Get Scene Dataset |
+| `getSceneJob` | `GET` | `/scenes/jobs/{jobId}` | Get a scene job |
 | `getServiceReplica` | `GET` | `/services/{serviceId}/replicas/{replicaId}` | Get Service Replica |
 | `getServiceReplicaConflict` | `GET` | `/services/{serviceId}/replicas/{replicaId}/conflicts/{conflictId}` | Get Replica Conflict |
 | `getServiceSettings` | `GET` | `/services/{serviceName}/settings` | Get Service Settings |
@@ -217,8 +256,11 @@ must be rotated or reconciled rather than silently reused.
 | `getShareTrafficSeries` | `GET` | `/share/traffic/series` | Get Aggregate Share Traffic Series |
 | `getShareTrafficSummary` | `GET` | `/share/traffic` | Get Aggregate Share Traffic Summary |
 | `getZarrStore` | `GET` | `/zarr-stores/{id}` | Get Zarr Store |
+| `importFormXlsForm` | `POST` | `/forms/import` | Import Form From XLSForm |
 | `importGeocoderReferenceData` | `POST` | `/geocoding/reference-data/import` | Import Geocoder Reference Data |
+| `ingestArchiveScene` | `POST` | `/scenes/ingest/archive` | Import a pre-tiled 3D Tiles ZIP or 3TZ archive |
 | `ingestCityGmlScene` | `POST` | `/scenes/ingest/citygml` | Ingest CityGML Scene |
+| `ingestModelScene` | `POST` | `/scenes/ingest/model` | Import a georeferenced GLB, embedded glTF, or OBJ model |
 | `ingestPointCloudScene` | `POST` | `/scenes/ingest/pointcloud` | Ingest Point Cloud Scene |
 | `issueAdminOperatorBearer` | `POST` | `/auth/bearer` | Issue Console Operator Bearer |
 | `listAlertChannelStates` | `GET` | `/alerts/channels` | List Alert Channel States |
@@ -228,10 +270,12 @@ must be rotated or reconciled rather than silently reused.
 | `listCloudRasters` | `GET` | `/cloud-rasters` | List Cloud Rasters |
 | `listConsoleJobs` | `GET` | `/jobs` | List Console Jobs |
 | `listEmbedKeys` | `GET` | `/embed/keys` | List Embed Keys |
+| `listExports` | `GET` | `/exports` | List Exports |
 | `listFeatureStreamSessions` | `GET` | `/streaming/features/sessions` | List feature stream sessions |
 | `listFederationSources` | `GET` | `/federation/sources` | List Federated Sources |
-| `listFormPackages` | `GET` | `/forms/packages` | List Form Packages |
-| `listFormPackageVersions` | `GET` | `/forms/packages/{formId}/versions` | List Form Package Versions |
+| `listFolders` | `GET` | `/folders` | listFolders |
+| `listForms` | `GET` | `/forms` | List Forms |
+| `listFormVersions` | `GET` | `/forms/{formId}/versions` | List Form Versions |
 | `listInvestigations` | `GET` | `/investigations` | List Investigations |
 | `listMigrationPerformanceEvidenceHistory` | `GET` | `/migration/performance-evidence/history` | List Migration Performance Evidence History |
 | `listMigrationRuns` | `GET` | `/migration/runs` | List Migration Runs |
@@ -239,7 +283,9 @@ must be rotated or reconciled rather than silently reused.
 | `listNetworkDatasets` | `GET` | `/network-datasets` | List Network Datasets |
 | `listNetworkTopologyGenerations` | `GET` | `/network-datasets/{id}/generations` | List Topology Generations |
 | `listNetworkTopologyPromotions` | `GET` | `/network-datasets/{id}/promotions` | List Topology Promotions |
+| `listSceneAssets` | `GET` | `/scenes/assets` | List scene assets |
 | `listSceneDatasets` | `GET` | `/scenes` | List Scene Datasets |
+| `listSceneJobs` | `GET` | `/scenes/jobs` | List scene jobs |
 | `listServiceReplicaConflicts` | `GET` | `/services/{serviceId}/replicas/{replicaId}/conflicts` | List Replica Conflicts |
 | `listServiceReplicas` | `GET` | `/services/{serviceId}/replicas` | List Service Replicas |
 | `listServices` | `GET` | `/services` | List Services |
@@ -247,6 +293,7 @@ must be rotated or reconciled rather than silently reused.
 | `listShareExports` | `GET` | `/share/exports` | List Share Export Definitions |
 | `listZarrStores` | `GET` | `/zarr-stores` | List Zarr Stores |
 | `logoutAdminAuthSession` | `POST` | `/auth/logout` | Logout Admin Auth Session |
+| `moveService` | `PUT` | `/services/{serviceName}/folder` | moveService |
 | `pauseAlertChannel` | `POST` | `/alerts/channels/{channel}/pause` | Pause Alert Channel |
 | `pauseShareExport` | `POST` | `/share/exports/{exportId}/pause` | Pause Share Export Definition |
 | `planFederationSourceQuery` | `GET` | `/federation/sources/{id}/plan` | Plan Federated Query |
@@ -266,7 +313,7 @@ must be rotated or reconciled rather than silently reused.
 | `registerZarrStore` | `POST` | `/zarr-stores` | Register Zarr Store |
 | `removeInvestigationLink` | `DELETE` | `/investigations/{investigationId}/links/{linkId}` | Remove Investigation Link |
 | `removeInvestigationPin` | `DELETE` | `/investigations/{investigationId}/pins/{pinId}` | Remove Investigation Pin |
-| `reopenFormPackageVersion` | `POST` | `/forms/packages/{formId}/versions/{packageVersion}/reopen` | Reopen Form Package Version |
+| `reopenFormVersion` | `POST` | `/forms/{formId}/versions/{formVersion}/reopen` | Reopen Form Version |
 | `replayFeatureChangeEvents` | `GET` | `/feature-events/replay` | Replay feature-change events |
 | `requestAdminAuthToken` | `POST` | `/auth/providers/{providerKey}/token` | Request Admin Auth Token |
 | `resetFeatureStreamConformanceSource` | `POST` | `/streaming/conformance/reset` | Reset the controlled-conformance source |
@@ -279,6 +326,8 @@ must be rotated or reconciled rather than silently reused.
 | `rotateComplianceEncryptionKey` | `POST` | `/compliance/encryption/rotate-key` | Advance Compliance Key-Version Posture |
 | `rotateEmbedKey` | `POST` | `/embed/keys/{id}/rotate` | Rotate Embed Key |
 | `scanEnhancedResourceLeaks` | `POST` | `/performance/enhanced/resources/scan-leaks` | Scan for resource leaks |
+| `SearchCoordinateSystemsV1` | `GET` | `/coordinate-systems` | Search Coordinate Systems |
+| `setAgentAuthorityCeiling` | `PUT` | `/agent-authority` | Set Agent Authority Ceiling |
 | `setAlertRuleEnabled` | `PUT` | `/alerts/rules/{ruleId}/enabled` | Set Alert Rule Enabled State |
 | `submitNetworkTopologyRebuild` | `POST` | `/network-datasets/{id}/generations/{generation}/rebuild` | Submit Topology Rebuild |
 | `testAlertRule` | `POST` | `/alerts/rules/test` | Test Alert Rule |
@@ -287,9 +336,12 @@ must be rotated or reconciled rather than silently reused.
 | `unregisterCloudRaster` | `DELETE` | `/cloud-rasters/{id}` | Unregister Cloud Raster |
 | `unregisterMultidimCoverage` | `DELETE` | `/multidim-coverages/{id}` | Unregister Multidimensional Coverage |
 | `unregisterZarrStore` | `DELETE` | `/zarr-stores/{id}` | Unregister Zarr Store |
+| `updateAdminMetadataSchemas` | `PUT` | `/metadata/schemas` | Replace per-environment custom metadata field schemas |
+| `updateAdminServiceDiscovery` | `PUT` | `/services/{serviceName}/discovery` | Replace title, description and keywords |
 | `updateAlertRule` | `PUT` | `/alerts/rules/{ruleId}` | Update Alert Rule |
 | `updateAlertZone` | `PUT` | `/alerts/zones/{zoneId}` | Update Alert Zone |
-| `updateFormPackageDraft` | `PUT` | `/forms/packages/{formId}/versions/{packageVersion}` | Update Form Package Draft |
+| `updateFolder` | `PATCH` | `/folders/{id}` | updateFolder |
+| `updateFormDraft` | `PUT` | `/forms/{formId}/versions/{formVersion}` | Update Form Draft |
 | `updateInvestigation` | `PATCH` | `/investigations/{investigationId}` | Update Investigation |
 | `updateNetworkDataset` | `PUT` | `/network-datasets/{id}` | Update Network Dataset |
 | `updateSceneDataset` | `PUT` | `/scenes/{id}` | Update Scene Dataset |
@@ -298,7 +350,7 @@ must be rotated or reconciled rather than silently reused.
 | `updateServiceProtocols` | `PUT` | `/services/{serviceName}/protocols` | Update Service Protocols |
 | `updateServiceTimeInfo` | `PUT` | `/services/{serviceName}/timeinfo` | Update Service Time Info |
 | `updateShareExport` | `PUT` | `/share/exports/{exportId}` | Replace Share Export Definition |
-| `validateFormPackageVersion` | `POST` | `/forms/packages/{formId}/versions/{packageVersion}/validate` | Validate Form Package Version |
+| `validateFormDraft` | `POST` | `/forms/{formId}/versions/{formVersion}/validate` | Validate Form Draft |
 | `validatePackage` | `POST` | `/packages/validate` | Validate Package |
 
 ## secure
@@ -345,8 +397,10 @@ must be rotated or reconciled rather than silently reused.
 | `listManagedUsers` | `GET` | `/users` | List Users |
 | `listOAuthClients` | `GET` | `/oauth-clients` | List OAuth Clients |
 | `listOAuthScopes` | `GET` | `/oauth-scopes` | List OAuth Scopes |
+| `listOidcProviderRevisions` | `GET` | `/oidc/providers/{id}/revisions` | List OIDC provider revisions |
 | `listOidcProviders` | `GET` | `/oidc/providers` | List OIDC Providers |
 | `listRateLimitPolicies` | `GET` | `/rate-limits` | List Rate Limit Policies |
+| `listRateLimitPolicyRevisions` | `GET` | `/rate-limits/{id}/revisions` | List rate limit policy revisions |
 | `listRlsPolicies` | `GET` | `/rls-policies` | List RLS Policies |
 | `listRoles` | `GET` | `/roles` | List Roles |
 | `listTenants` | `GET` | `/tenants` | List Tenants |
@@ -358,6 +412,9 @@ must be rotated or reconciled rather than silently reused.
 | `setRolePermissions` | `PUT` | `/roles/{id}/permissions` | Set Role Permissions |
 | `suspendTenant` | `POST` | `/tenants/{tenantId}/suspend` | Suspend Tenant |
 | `testOidcProvider` | `POST` | `/oidc/providers/{id}/test` | Test OIDC Provider Connection |
+| `undoOidcProviderChange` | `POST` | `/oidc/providers/{id}/undo` | Undo latest OIDC provider change |
+| `undoRateLimitPolicyChange` | `POST` | `/rate-limits/{id}/undo` | Undo latest rate limit policy change |
+| `updateAdminApiKeyRestrictions` | `PATCH` | `/api-keys/{id}/restrictions` | Update Admin API Key Restrictions |
 | `updateClientCertificatePrincipalMapping` | `PUT` | `/security/client-certificates/profiles/{profileId}/mappings/{mappingId}` | Update Client Certificate Principal Mapping |
 | `updateClientCertificateTrustProfile` | `PUT` | `/security/client-certificates/profiles/{profileId}` | Update Client Certificate Trust Profile |
 | `updateManagedUserRoles` | `PUT` | `/users/{id}/roles` | Update User Roles |
@@ -370,6 +427,7 @@ must be rotated or reconciled rather than silently reused.
 
 | Operation ID | Method | Path | Summary |
 | --- | --- | --- | --- |
+| `activateGpProcessRelease` | `POST` | `/gp/process-releases/bindings/{process}/activate` | Activate gp process release |
 | `approveCoordinatedReleaseGate` | `POST` | `/metadata/coordinated-releases/operations/{operationId}/approve/{gate}` | Approve Coordinated Release Gate |
 | `convergePlatformRelease` | `POST` | `/platform-release/converge` | Converge Platform Release |
 | `createCoordinatedReleaseOperation` | `POST` | `/metadata/coordinated-releases/operations` | Create Coordinated Release Operation |
@@ -379,10 +437,14 @@ must be rotated or reconciled rather than silently reused.
 | `getCoordinatedReleaseOperation` | `GET` | `/metadata/coordinated-releases/{packageId}/operation` | Get Coordinated Release Operation |
 | `getDeployOperation` | `GET` | `/deploy/operations/{operationId}` | Get Deploy Operation |
 | `getDeployPreflight` | `GET` | `/deploy/preflight` | Get Deploy Preflight |
+| `getGpProcessBinding` | `GET` | `/gp/process-releases/bindings/{process}` | Get gp process binding |
+| `getGpProcessRelease` | `GET` | `/gp/process-releases/{digest}` | Get gp process release |
 | `getMetadataReleaseGitOpsManifest` | `GET` | `/metadata/release-packages/{packageId}/gitops-manifest` | Get Metadata Release GitOps Manifest |
 | `getMetadataReleaseOperationByPackageId` | `GET` | `/metadata/releases/{packageId}/operation` | Get Metadata Release Operation |
 | `getMetadataReleasePackage` | `GET` | `/metadata/release-packages/{packageId}` | Get Metadata Release Package |
 | `listDeployOperations` | `GET` | `/deploy/operations` | List Deploy Operations |
+| `listGpProcessBindings` | `GET` | `/gp/process-releases/bindings` | List gp process bindings |
+| `listGpProcessReleases` | `GET` | `/gp/process-releases` | List gp process releases |
 | `listMetadataReleasePackages` | `GET` | `/metadata/release-packages` | List Metadata Release Packages |
 | `planDeployOperation` | `POST` | `/deploy/plan` | Plan Deploy Operation |
 | `prevalidateMetadataReleasePackageCompatibility` | `POST` | `/metadata/prevalidate` | Prevalidate Metadata Release Package Compatibility |
@@ -391,6 +453,7 @@ must be rotated or reconciled rather than silently reused.
 | `rollbackDeployOperation` | `POST` | `/deploy/operations/{operationId}/rollback` | Rollback Deploy Operation |
 | `rollbackNetworkTopologyGeneration` | `POST` | `/network-datasets/{id}/rollback` | Roll Back Topology Generation |
 | `submitDeployOperation` | `POST` | `/deploy/operations/{operationId}/submit` | Submit Deploy Operation |
+| `submitGpProcessReleaseJob` | `POST` | `/gp/process-releases/bindings/{process}/jobs` | Submit a release-bound custom-code job |
 
 ## operate
 
@@ -398,11 +461,11 @@ must be rotated or reconciled rather than silently reused.
 | --- | --- | --- | --- |
 | `acknowledgeObservabilityAlert` | `POST` | `/observability/alerts/{eventId}/acknowledge` | Acknowledge Observability Alert |
 | `approveOperationProposal` | `POST` | `/proposals/{id}/approve` | Approve Operation Proposal |
+| `attestObservabilityAuditGap` | `POST` | `/observability/audit/gap-attestations` | Attest Audit Chain Downgrade Gap |
 | `cancelOperation` | `POST` | `/operations/{operationId}/cancel` | Cancel Operation |
 | `cancelTileOperationJob` | `POST` | `/tile-operations/jobs/{jobId}/cancel` | Cancel Tile Operation Job |
 | `disconnectOperationsStreamingSubscriber` | `DELETE` | `/operations/streaming/subscribers/{subscriberId}` | Disconnect Streaming Subscriber |
 | `discoverConfiguration` | `GET` | `/configuration/discover` | Discover Configuration |
-| `evictTileCache` | `POST` | `/tile-operations/evict` | Evict Tile Cache |
 | `exportObservabilityAudit` | `GET` | `/observability/audit/export` | Export Audit Trail (SIEM) |
 | `getAdminCacheStatus` | `GET` | `/cache/status` | Get cache health status |
 | `getAlertRuleHealth` | `GET` | `/alerts/rules/{ruleId}/health` | Get Alert Rule Health |
@@ -414,7 +477,6 @@ must be rotated or reconciled rather than silently reused.
 | `getDatabaseQueryCacheStatistics` | `GET` | `/performance/database/query-cache/statistics` | Get prepared statement cache statistics |
 | `getEnhancedCacheEffectiveness` | `GET` | `/performance/enhanced/cache/effectiveness` | Get cache effectiveness metrics |
 | `getEnhancedCacheStatistics` | `GET` | `/performance/enhanced/cache/statistics` | Get query-result cache statistics |
-| `getLicenseCapacityState` | `GET` | `/license/capacity` | Get License Capacity State |
 | `getLicenseEntitlements` | `GET` | `/license/entitlements` | Get License Entitlements |
 | `getLicenseFeatures` | `GET` | `/license/features` | Get License Feature Entitlements |
 | `getLicenseStatus` | `GET` | `/license` | Get License Status |
@@ -423,7 +485,6 @@ must be rotated or reconciled rather than silently reused.
 | `getOperationProposal` | `GET` | `/proposals/{id}` | Get Operation Proposal |
 | `getOperationsByType` | `GET` | `/operations/type/{operationType}` | Get Operations By Type |
 | `getOperationsCacheHealth` | `GET` | `/operations/cache/health` | Get Cache Health |
-| `getOperationsCacheRedisMetrics` | `GET` | `/operations/cache/redis` | Get Redis Connection Metrics |
 | `getOperationsCacheStatistics` | `GET` | `/operations/cache/statistics` | Get Cache Statistics |
 | `getOperationsGeocodingConfiguration` | `GET` | `/operations/geocoding/configuration` | Get Geocoding Configuration |
 | `getOperationsGeocodingProviders` | `GET` | `/operations/geocoding/providers` | Get Geocoding Provider Status |
@@ -432,10 +493,10 @@ must be rotated or reconciled rather than silently reused.
 | `getOpsAutonomySettings` | `GET` | `/observability/autonomy/settings` | Get Ops Autonomy Settings |
 | `getOpsHealthHistory` | `GET` | `/observability/ops-health/history` | Get Ops Health History |
 | `getOpsHealthSnapshot` | `GET` | `/observability/ops-health` | Get Ops Health Snapshot |
+| `getOpsIncidentContext` | `GET` | `/observability/incidents/{incidentId}` | Get Persisted Ops Incident Context |
 | `getPlatformLicenseStatus` | `GET` | `/license/status` | Get Platform License Status |
 | `getRecentErrors` | `GET` | `/observability/errors` | Get Recent Errors |
 | `getTelemetryStatus` | `GET` | `/observability/telemetry` | Get Telemetry Status |
-| `getTileCacheInventory` | `GET` | `/tile-operations/cache/inventory` | Inventory Generated Tile Cache |
 | `getTileOperationJob` | `GET` | `/tile-operations/jobs/{jobId}` | Get Tile Operation Job Status |
 | `invalidateAdminCache` | `POST` | `/cache/invalidate` | Invalidate cached responses by scope |
 | `invalidateEnhancedQueryResultCache` | `DELETE` | `/performance/enhanced/cache/invalidate` | Invalidate query-result cache entries |
@@ -454,7 +515,6 @@ must be rotated or reconciled rather than silently reused.
 | `rejectOperationProposal` | `POST` | `/proposals/{id}/reject` | Reject Operation Proposal |
 | `resolveObservabilityAlert` | `POST` | `/observability/alerts/{eventId}/resolve` | Resolve Observability Alert |
 | `retryTileOperationJob` | `POST` | `/tile-operations/jobs/{jobId}/retry` | Retry Tile Operation Job |
-| `setLicenseCapacitySurgeMode` | `POST` | `/license/capacity/surge` | Set License Surge Mode |
 | `setOpsAutonomyPolicy` | `PUT` | `/observability/autonomy/policies/{rule}` | Set Ops Autonomy Policy |
 | `setOpsAutonomySettings` | `PUT` | `/observability/autonomy/settings` | Set Ops Autonomy Settings |
 | `startTileOperationJob` | `POST` | `/tile-operations/jobs` | Start Tile Operation Job |

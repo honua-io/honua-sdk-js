@@ -63,7 +63,7 @@ describe("complete Admin MCP default-roster transport parity", () => {
     });
 
     expect(seen).toEqual([undefined, "page-2", "page-3"]);
-    expect(tools).toHaveLength(432);
+    expect(tools).toHaveLength(489);
   });
 
   it("fails closed when a server repeats a tools/list cursor", async () => {
@@ -151,20 +151,20 @@ describe("complete Admin MCP default-roster transport parity", () => {
     );
   });
 
-  it("certifies the exact 47 + 385 = 432 roster, schemas, annotations, and provenance", () => {
+  it("certifies the exact 47 + 442 = 489 roster, schemas, annotations, and provenance", () => {
     const catalog = defaultCatalog();
     expect(certifyAdminCatalogParity(catalog, structuredClone(catalog))).toEqual({
       schemaVersion: "honua.admin-mcp-parity.v1",
       family: "honua_admin_*",
-      expectedTools: 385,
+      expectedTools: 442,
       expectedStaticTools: 47,
-      expectedTotalTools: 432,
-      directTools: 385,
-      proxiedTools: 385,
+      expectedTotalTools: 489,
+      directTools: 442,
+      proxiedTools: 442,
       directStaticTools: 47,
       proxiedStaticTools: 47,
-      directTotalTools: 432,
-      proxiedTotalTools: 432,
+      directTotalTools: 489,
+      proxiedTotalTools: 489,
       coverageSha256: ADMIN_MCP_COVERAGE_SHA256,
       exclusionRosterSha256: ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
       contractServerSha: ADMIN_MCP_CONTRACT_SERVER_SHA,
@@ -183,7 +183,7 @@ describe("complete Admin MCP default-roster transport parity", () => {
     const receipt = certifyAdminCatalogParity(direct, proxied);
     expect(receipt.pass).toBe(false);
     expect(receipt.differences).toEqual(
-      expect.arrayContaining([expect.stringContaining("expected 385"), expect.stringContaining("descriptor differs")]),
+      expect.arrayContaining([expect.stringContaining("expected 442"), expect.stringContaining("descriptor differs")]),
     );
   });
 

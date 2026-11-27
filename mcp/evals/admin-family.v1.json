@@ -2,28 +2,28 @@
   "schemaVersion": "honua.admin-family-scorecard.v1",
   "recordedAt": "2026-08-20",
   "family": "honua_admin_*",
-  "restOperationCount": 396,
-  "expectedPublishedTools": 385,
-  "expectedExcludedOperations": 11,
+  "restOperationCount": 456,
+  "expectedPublishedTools": 442,
+  "expectedExcludedOperations": 14,
   "defaultStaticToolCount": 47,
-  "expectedDefaultTotalTools": 432,
+  "expectedDefaultTotalTools": 489,
   "adminApi": {
     "repository": "honua-io/honua-server",
-    "sha": "07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a",
-    "sha256": "65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511"
+    "sha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
+    "sha256": "9c882e79efe9a87a05096ea369eb30d577993bd79b4026f367ad1e9f46b44d6f"
   },
   "adminMcpCoverage": {
     "path": "config/admin-mcp-coverage.v1.json",
-    "sha256": "0b24f61feefe18177e0abc76c491b2c86827b30a5dd45092a595cd595376f088",
-    "exclusionRosterSha256": "d93bdf6c31e6c532d5483b08315fed5decdd8f5cc56900e59e45be2eddb2fb6f",
+    "sha256": "492898e4ce300a3ba13e22948d57001a5e5e1ee37d58da7689feb8adc7f2a660",
+    "exclusionRosterSha256": "49af9b41c46b47c1a6d63034775bea73420ff352c107e852dec1fc8ddcc98cdc",
     "serverSha": null,
-    "reviewServerSha": "c810ef3df29269527d4eceb26151921c8c5d5eab",
+    "reviewServerSha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
     "status": "review-head-validated-awaiting-merged-trunk-pin"
   },
   "releaseCandidate": {
     "status": "compatible",
-    "serverSha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
-    "restOperationCount": 403
+    "serverSha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
+    "restOperationCount": 456
   },
   "checks": [
     {

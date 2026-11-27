@@ -1,9 +1,37 @@
 // GENERATED FILE - DO NOT EDIT.
-// Source: honua-io/honua-server@07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a/docs/developer/api-specs/admin-api.json
-// SHA-256: 65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511; operations: 396
+// Source: honua-io/honua-server@786dc6e3094dab77dd2a8c98d297524e97bd3980/docs/developer/api-specs/admin-api.json
+// SHA-256: 9c882e79efe9a87a05096ea369eb30d577993bd79b4026f367ad1e9f46b44d6f; operations: 456
 // Regenerate with: npm run admin-client:generate
 
 export type paths = {
+    readonly "/agent-authority": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Agent Authority Ceiling
+         * @description Returns the stored authority ceiling for an agent principal. An agent with no stored ceiling may run read-only operations; its state-changing operations become proposals that need one human approval.
+         */
+        readonly get: operations["getAgentAuthorityCeiling"];
+        /**
+         * Set Agent Authority Ceiling
+         * @description Creates or replaces the authority ceiling for an agent principal. Operations outside an enabled ceiling are denied to that agent; setting Enabled to false revokes the agent's authority. Agent callers cannot change ceilings directly: the request becomes a proposal for human approval.
+         */
+        readonly put: operations["setAgentAuthorityCeiling"];
+        readonly post?: never;
+        /**
+         * Delete Agent Authority Ceiling
+         * @description Removes the stored ceiling, returning the agent to the default (read-only operations direct, state-changing operations by approved proposal). Agent callers cannot delete ceilings directly.
+         */
+        readonly delete: operations["deleteAgentAuthorityCeiling"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/alerts/channels": {
         readonly parameters: {
             readonly query?: never;
@@ -165,7 +193,7 @@ export type paths = {
         };
         /**
          * List Alert Rule Events
-         * @description List the trigger events raised by one alert rule, newest first, with cursor paging. Part of the geofence alerting surface, which is capability-gated: the whole route family returns 404 when alerts.geofence is experimental-disabled.
+         * @description List the trigger events raised by one alert rule, newest first, with cursor paging. Part of the Preview geofence alerting surface: when alerts.geofence is not opted in, the whole route family is not registered and requests return an ordinary unmatched-route 404 without an experimental-disabled problem reason.
          */
         readonly get: operations["listAlertRuleEvents"];
         readonly put?: never;
@@ -312,6 +340,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/api-keys/{id}/restrictions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        /**
+         * Update Admin API Key Restrictions
+         * @description Replaces the referrer and IP restrictions on an existing server-managed API key. Each list replaces that restriction entirely; null or empty removes it. The key secret is unchanged and is not returned. Requires the same full-admin credential authority as create, rotate and revoke.
+         */
+        readonly patch: operations["updateAdminApiKeyRestrictions"];
+        readonly trace?: never;
+    };
     readonly "/api-keys/{id}/revoke": {
         readonly parameters: {
             readonly query?: never;
@@ -392,6 +440,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/auth/csrf": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Browser Session CSRF Token
+         * @description Issues an antiforgery request token for browser administrator sign-in and sets the matching HttpOnly, Secure, SameSite=Strict antiforgery cookie. Send the token in the `X-Honua-CSRF` header on `POST /auth/session`. HTTPS only. The successful response is `no-store` and is not wrapped in the standard admin envelope.
+         */
+        readonly get: operations["getAdminBrowserCsrfToken"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/auth/logout": {
         readonly parameters: {
             readonly query?: never;
@@ -406,6 +474,26 @@ export type paths = {
          * @description Terminates the caller's admin session: the stored session is removed and both the authenticated-session and pending-session cookies are cleared. Takes no request body. When the ended session maps to a configured provider that advertises an `end_session_endpoint`, the response carries the provider logout URL (including `post_logout_redirect_uri` and, when available, `id_token_hint`) so the client can complete single logout; otherwise `logoutUrl` is null.
          */
         readonly post: operations["logoutAdminAuthSession"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/auth/password-token": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Sign In Browser Administrator Bearer
+         * @description Exchanges the built-in administrator password for a short-lived (30 minute) operator bearer, for browser clients served from an explicitly allowed CORS origin that cannot use the session cookie. HTTPS only; the `Origin` header must be an explicitly configured CORS origin and the request must not carry an admin session cookie. Rate limited to 5 requests per minute. The response is `no-store` and is not wrapped in the standard admin envelope.
+         */
+        readonly post: operations["createAdminPasswordBearer"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -485,7 +573,11 @@ export type paths = {
          */
         readonly get: operations["getAdminAuthSession"];
         readonly put?: never;
-        readonly post?: never;
+        /**
+         * Sign In Browser Administrator Session
+         * @description Signs a browser administrator in with the built-in administrator password and sets a 30-minute HttpOnly, Secure admin session cookie. HTTPS only. The request must be same-origin and carry the antiforgery request token from `GET /auth/csrf` in the `X-Honua-CSRF` header together with its antiforgery cookie. Any existing session for the caller is replaced. Rate limited to 5 requests per minute. Responses from the handler are `no-store`.
+         */
+        readonly post: operations["createAdminPasswordSession"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -907,7 +999,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Publish Layer
-         * @description Publish a PostGIS table as a layer
+         * @description Publish a PostGIS table as a layer. Publications at or under the configured asynchronous row threshold return 201. Larger publications return 202 with a polling URL when a background runner is available; hosts without a compatible runner return a typed 503 refusal.
          */
         readonly post: operations["publishLayer"];
         readonly delete?: never;
@@ -916,7 +1008,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/connections/{id}/layers/{layerId}/enabled": {
+    readonly "/connections/{id}/layers/{storageLayerId}/enabled": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -936,7 +1028,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/connections/{id}/layers/{layerId}/features/refresh": {
+    readonly "/connections/{id}/layers/{storageLayerId}/features/refresh": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -990,6 +1082,46 @@ export type paths = {
          * @description Recomputes catalog extents for every published layer in a service on the given connection, then invalidates the affected service/layer catalog cache entries. The handler runs pending database migrations first; a failed migration returns 400. The operator approval gate is evaluated before any work (denial returns 401 or 403). No request body is required.
          */
         readonly post: operations["refreshConnectionLayerExtents"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/connections/{id}/layers/jobs/{jobId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Layer Publication Job Status
+         * @description Returns publication progress visible to the current tenant and connection. Unknown jobs and jobs outside that tenant or connection return 404. A completed job includes its committed layer identifier.
+         */
+        readonly get: operations["getLayerPublishJobStatus"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/connections/{id}/objects": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Browse Connection Objects
+         * @description Lists one folder level (delimiter '/') under an object storage connection, up to 200 entries, with each object's kind detected from its first bytes.
+         */
+        readonly get: operations["listConnectionObjects"];
+        readonly put?: never;
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1096,6 +1228,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/connections/object-storage/setup": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Start an Object Storage Connection
+         * @description Mints a single-use external id, bound to the caller, for the customer role that will grant Honua read-only access to one bucket prefix, with an optional CloudFormation quick-create link.
+         */
+        readonly post: operations["createObjectStorageConnectionSetup"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/connections/test": {
         readonly parameters: {
             readonly query?: never;
@@ -1110,6 +1262,26 @@ export type paths = {
          * @description Test a draft connection request before saving
          */
         readonly post: operations["testDraftConnection"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/coordinate-systems": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Search Coordinate Systems
+         * @description Search the configured coordinate-system catalog by name or code. Results include display names, units and areas when available.
+         */
+        readonly get: operations["SearchCoordinateSystemsV1"];
+        readonly put?: never;
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1359,6 +1531,54 @@ export type paths = {
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/exports": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List Exports
+         * @description Lists every Export with its status and current Version. An Export is a Layer published as cloud-native files: immutable Versions, each a PMTiles and a GeoParquet file described by one STAC collection document. Responses use the admin envelope `{success, data, message}`.
+         */
+        readonly get: operations["listExports"];
+        readonly put?: never;
+        /**
+         * Export a Layer as files
+         * @description Starts an export job for a Layer and returns 202 with the Export in status `running` and the job id. The Export id defaults to the Layer's name as a slug and the identity field to the Layer's object id. A new immutable Version becomes current when the job completes; earlier Versions are kept. An agent's call files a proposal that a person approves.
+         */
+        readonly post: operations["createExport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/exports/{exportId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Export
+         * @description Returns one Export with its Versions, the signed-in URLs of each Version's collection document and files, and why it is not public.
+         */
+        readonly get: operations["getExport"];
+        readonly put?: never;
+        readonly post?: never;
+        /**
+         * Unpublish Export
+         * @description Stops serving the Export by removing its current-Version pointer and returns it in status `unpublished`. Version files are kept. An agent's call files a proposal that a person approves.
+         */
+        readonly delete: operations["deleteExport"];
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -1636,31 +1856,43 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages": {
+    readonly "/folders": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        /**
-         * List Form Packages
-         * @description Lists every server-owned form package family with its current draft and current published version numbers. Responses are marked `no-store`.
-         */
-        readonly get: operations["listFormPackages"];
+        /** listFolders */
+        readonly get: operations["listFolders"];
         readonly put?: never;
-        /**
-         * Create Form Package Draft
-         * @description Creates a new draft form package version from the supplied package document. The server assigns `formId` when the document omits it and returns the persisted version with an `ETag` for subsequent optimistic-concurrency updates. The action is audited as `forms.package.save_draft`.
-         */
-        readonly post: operations["createFormPackageDraft"];
+        /** createFolder */
+        readonly post: operations["createFolder"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}": {
+    readonly "/folders/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        /** deleteFolder */
+        readonly delete: operations["deleteFolder"];
+        readonly options?: never;
+        readonly head?: never;
+        /** updateFolder */
+        readonly patch: operations["updateFolder"];
+        readonly trace?: never;
+    };
+    readonly "/forms": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1668,10 +1900,34 @@ export type paths = {
             readonly cookie?: never;
         };
         /**
-         * Get Current Form Package
-         * @description Returns the current draft version of a form package, falling back to the current published version when no draft exists. Returns `404` when neither exists.
+         * List Forms
+         * @description Lists every server-owned Form with its current Draft and Released version numbers. Responses are marked `no-store`.
          */
-        readonly get: operations["getCurrentFormPackage"];
+        readonly get: operations["listForms"];
+        readonly put?: never;
+        /**
+         * Create Form Draft
+         * @description Creates a new Form Draft from the supplied Form document. The server assigns `formId` when the document omits it and returns the persisted version with an `ETag` for subsequent optimistic-concurrency updates. The action is audited as `forms.package.save_draft`.
+         */
+        readonly post: operations["createFormDraft"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/forms/{formId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Current Form
+         * @description Returns the current Form Draft, falling back to the Released version when no Draft exists. Returns `404` when neither exists.
+         */
+        readonly get: operations["getCurrentForm"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -1680,7 +1936,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}/versions": {
+    readonly "/forms/{formId}/export": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1688,10 +1944,10 @@ export type paths = {
             readonly cookie?: never;
         };
         /**
-         * List Form Package Versions
-         * @description Lists every persisted version of a form package family. Returns an empty array for an unknown `formId`.
+         * Export Form As XLSForm
+         * @description Exports the current Released Form Version as an XLSForm workbook. Drafts are not exported. Submit, attachment, privacy and offline policies are server configuration and are not part of the workbook. A Form whose fields carry behavior XLSForm cannot represent returns `422` with diagnostics instead of a workbook that omits it.
          */
-        readonly get: operations["listFormPackageVersions"];
+        readonly get: operations["exportFormXlsForm"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -1700,7 +1956,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}/versions/{packageVersion}": {
+    readonly "/forms/{formId}/versions": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1708,15 +1964,11 @@ export type paths = {
             readonly cookie?: never;
         };
         /**
-         * Get Form Package Version
-         * @description Returns a single form package version (draft, published, or archived) by version number.
+         * List Form Versions
+         * @description Lists every persisted Form Version. Returns an empty array for an unknown `formId`.
          */
-        readonly get: operations["getFormPackageVersion"];
-        /**
-         * Update Form Package Draft
-         * @description Replaces the package document of an existing draft version. An `If-Match` header carrying the draft's current ETag is required; omitting it returns `428 Precondition Required`. A missing draft, a non-editable version, or a stale ETag all return `409 Conflict`. The action is audited as `forms.package.update_draft`.
-         */
-        readonly put: operations["updateFormPackageDraft"];
+        readonly get: operations["listFormVersions"];
+        readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
@@ -1724,7 +1976,31 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}/versions/{packageVersion}/publish": {
+    readonly "/forms/{formId}/versions/{formVersion}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Form Version
+         * @description Returns a single Form Version (Draft, Released, or archived) by version number.
+         */
+        readonly get: operations["getFormVersion"];
+        /**
+         * Update Form Draft
+         * @description Replaces the Form document of an existing Draft. An `If-Match` header carrying the draft's current ETag is required; omitting it returns `428 Precondition Required`. A missing draft, a non-editable version, or a stale ETag all return `409 Conflict`. The action is audited as `forms.package.update_draft`.
+         */
+        readonly put: operations["updateFormDraft"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/forms/{formId}/versions/{formVersion}/publish": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1734,17 +2010,17 @@ export type paths = {
         readonly get?: never;
         readonly put?: never;
         /**
-         * Publish Form Package Version
-         * @description Validates and publishes a draft package version as an immutable published version. When validation fails, the stored validation result is returned with `400` and the failure is audited. Publishing a version that is not a draft returns `409 Conflict`. The action is audited as `forms.package.publish`.
+         * Publish Form Draft
+         * @description Validates a Form Draft and makes it the immutable Released version. When validation fails, the stored validation result is returned with `400` and the failure is audited. Publishing a version that is not a draft returns `409 Conflict`. The action is audited as `forms.package.publish`.
          */
-        readonly post: operations["publishFormPackageVersion"];
+        readonly post: operations["goLiveFormDraft"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}/versions/{packageVersion}/reopen": {
+    readonly "/forms/{formId}/versions/{formVersion}/reopen": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1754,17 +2030,17 @@ export type paths = {
         readonly get?: never;
         readonly put?: never;
         /**
-         * Reopen Form Package Version
-         * @description Creates a new editable draft version from an existing published package version. The new draft records the version it was reopened from. Returns `404` when the published version does not exist. The action is audited as `forms.package.reopen`.
+         * Reopen Form Version
+         * @description Creates a new editable Form Draft from an existing Released version. The new draft records the version it was reopened from. Returns `404` when the Released version does not exist. The action is audited as `forms.package.reopen`.
          */
-        readonly post: operations["reopenFormPackageVersion"];
+        readonly post: operations["reopenFormVersion"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/forms/packages/{formId}/versions/{packageVersion}/validate": {
+    readonly "/forms/{formId}/versions/{formVersion}/validate": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -1774,10 +2050,30 @@ export type paths = {
         readonly get?: never;
         readonly put?: never;
         /**
-         * Validate Form Package Version
-         * @description Validates a package version against the target layer schema and package policy, returning the validation result. When the version is a draft, the result is also stored on the draft. This route always returns `200` with the validation result, even when the package is invalid.
+         * Validate Form Draft
+         * @description Validates a Form Version against the target Layer schema and Form policy, returning the validation result. When the version is a draft, the result is also stored on the draft. This route always returns `200` with the validation result, even when the Form is invalid.
          */
-        readonly post: operations["validateFormPackageVersion"];
+        readonly post: operations["validateFormDraft"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/forms/import": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Import Form From XLSForm
+         * @description Imports an XLSForm workbook (`survey`, `choices` and `settings` sheets) as a new Form Draft bound to the target service layer. Questions bind to the layer attribute of the same name; numeric questions become `integer` or `number` by that attribute type. Import never publishes. A workbook with an unsupported question type, structure or cell returns `400` with one diagnostic per blocking cell and creates no Draft. The action is audited as `forms.package.import_xlsform`.
+         */
+        readonly post: operations["importFormXlsForm"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1844,6 +2140,109 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/gp/process-releases": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List gp process releases */
+        readonly get: operations["listGpProcessReleases"];
+        readonly put?: never;
+        /** Publish gp process release */
+        readonly post: operations["publishGpProcessRelease"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/gp/process-releases/{digest}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get gp process release */
+        readonly get: operations["getGpProcessRelease"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/gp/process-releases/bindings": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List gp process bindings */
+        readonly get: operations["listGpProcessBindings"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/gp/process-releases/bindings/{process}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get gp process binding */
+        readonly get: operations["getGpProcessBinding"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/gp/process-releases/bindings/{process}/activate": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Activate gp process release */
+        readonly post: operations["activateGpProcessRelease"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/gp/process-releases/bindings/{process}/jobs": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /** Submit a release-bound custom-code job */
+        readonly post: operations["submitGpProcessReleaseJob"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/identity/providers": {
         readonly parameters: {
             readonly query?: never;
@@ -1878,74 +2277,6 @@ export type paths = {
         readonly get: operations["testIdentityProviderConnectivity"];
         readonly put?: never;
         readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/import/arcgis/migrations": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * List ArcGIS Migration Runs
-         * @description Returns a page of ArcGIS migration run summaries that have persisted manifest (and optionally parity) evidence. Results are newest-first. `pageSize` is clamped to a maximum of 100.
-         */
-        readonly get: operations["listArcGisMigrationRuns"];
-        readonly put?: never;
-        readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/import/arcgis/migrations/{runId}/manifest": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * Get ArcGIS Migration Manifest
-         * @description Returns the persisted migration manifest artifact for an ArcGIS migration run. The response body is the artifact itself and is not wrapped in a success/data admin envelope.
-         */
-        readonly get: operations["getArcGisMigrationManifest"];
-        readonly put?: never;
-        /**
-         * Record ArcGIS Migration Manifest
-         * @description Persists the manifest evidence artifact produced by the ArcGIS migration planning pipeline against the supplied run id, creating or replacing the run record. Returns the stored run record.
-         */
-        readonly post: operations["recordArcGisMigrationManifest"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/import/arcgis/migrations/{runId}/parity": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * Get ArcGIS Migration Parity
-         * @description Returns the persisted post-apply parity artifact for an ArcGIS migration run. Responds 404 when the run is unknown and, separately, when the run has a manifest but no parity artifact yet.
-         */
-        readonly get: operations["getArcGisMigrationParity"];
-        readonly put?: never;
-        /**
-         * Record ArcGIS Migration Parity
-         * @description Persists the post-apply parity artifact for an ArcGIS migration run. The manifest for the run must already be recorded; otherwise the request is rejected with 409. `parity.classification` must be one of pass, warn, or fail (case-insensitive). Returns the stored parity artifact.
-         */
-        readonly post: operations["recordArcGisMigrationParity"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -2066,6 +2397,74 @@ export type paths = {
          * @description Queues a background GeoServer configuration import. Non-dry-run imports require `applyMode=true` as an explicit operator acknowledgement that the reviewed migration manifest will be applied to the Honua catalog. Queued jobs must supply credentials as secret references (`passwordSecretReference`, `honuaApiKeySecretReference`); inline `password`/`honuaApiKey` values are rejected. Requires the `import.geoserver` license entitlement.
          */
         readonly post: operations["startGeoServerImport"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/import/geoservices-rest/migrations": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List ArcGIS Migration Runs
+         * @description Returns a page of ArcGIS migration run summaries that have persisted manifest (and optionally parity) evidence. Results are newest-first. `pageSize` is clamped to a maximum of 100.
+         */
+        readonly get: operations["listGeoServicesMigrationRuns"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/import/geoservices-rest/migrations/{runId}/manifest": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get ArcGIS Migration Manifest
+         * @description Returns the persisted migration manifest artifact for an ArcGIS migration run. The response body is the artifact itself and is not wrapped in a success/data admin envelope.
+         */
+        readonly get: operations["getGeoServicesMigrationManifest"];
+        readonly put?: never;
+        /**
+         * Record ArcGIS Migration Manifest
+         * @description Persists the manifest evidence artifact produced by the ArcGIS migration planning pipeline against the supplied run id, creating or replacing the run record. Returns the stored run record.
+         */
+        readonly post: operations["recordGeoServicesMigrationManifest"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/import/geoservices-rest/migrations/{runId}/parity": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get ArcGIS Migration Parity
+         * @description Returns the persisted post-apply parity artifact for an ArcGIS migration run. Responds 404 when the run is unknown and, separately, when the run has a manifest but no parity artifact yet.
+         */
+        readonly get: operations["getGeoServicesMigrationParity"];
+        readonly put?: never;
+        /**
+         * Record ArcGIS Migration Parity
+         * @description Persists the post-apply parity artifact for an ArcGIS migration run. The manifest for the run must already be recorded; otherwise the request is rejected with 409. `parity.classification` must be one of pass, warn, or fail (case-insensitive). Returns the stored parity artifact.
+         */
+        readonly post: operations["recordGeoServicesMigrationParity"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -2507,7 +2906,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Scan Migration Source
-         * @description Scan a supported GeoServer REST or ArcGIS GeoServices REST source and return a deterministic migration inventory artifact. The response body is the artifact itself and is not wrapped in a success/data admin envelope. A 200 response can still carry scanCompleteness.status = failed when the scanner produced an artifact but could not complete discovery cleanly. GeoServer uses that failed-artifact path for transport, timeout, auth-related, and other discovery failures; GeoServices also uses it for auth-related and source-reported ArcGIS discovery errors, while transport and timeout failures still surface as 502/504. Pass the export=json query parameter to receive the artifact as an indented JSON attachment suitable for committing to a migration project repository.
+         * @description Scan a supported GeoServer REST or ArcGIS GeoServices REST source and return a deterministic migration inventory artifact. The response body is the artifact itself and is not wrapped in a success/data admin envelope. A 200 response can still carry scanCompleteness.status = failed when the scanner produced an artifact but could not complete discovery cleanly. GeoServer uses that failed-artifact path for transport, timeout, auth-related, and other discovery failures; GeoServices also uses it for auth-related and source-reported ArcGIS discovery errors, while transport and timeout failures still surface as 502/504. Pass the export=json query parameter to receive the artifact as an indented JSON attachment suitable for committing to a migration project repository. With artifactSet=all, returns inventory, manifest and parityEvidence; GeoServices manifest identities include the selected importPlan and public target folder/name.
          */
         readonly post: operations["scanMigrationSource"];
         readonly delete?: never;
@@ -2570,6 +2969,26 @@ export type paths = {
          * @description Streams one supported geospatial file into PostgreSQL. Small imports complete synchronously; large imports return a durable background job when shared file storage and the job service are configured.
          */
         readonly post: operations["uploadImportFile"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/import/upload-object": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Import a Geospatial File from Object Storage
+         * @description Imports one supported object through an object storage connection. The key must lie under the connection prefix; raw s3:// sources are refused. Large objects return a background job without an in-request download.
+         */
+        readonly post: operations["uploadImportFileFromObjectStore"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -2650,6 +3069,86 @@ export type paths = {
         readonly get: operations["getImportUploadProgress"];
         readonly put?: never;
         readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/imports": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Import a Geospatial File from a URL (Compatibility Route)
+         * @description Compatibility route for clients using the plural imports resource name. It shares the downloader, validator, queue, and progress store with /import/upload-url.
+         */
+        readonly post: operations["compatibilityImportFileFromUrl"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/imports/jobs": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List Active Import Jobs (Compatibility Route)
+         * @description Compatibility route for clients using the plural imports resource name. Returns the active background import jobs.
+         */
+        readonly get: operations["getCompatibilityActiveImportJobs"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/imports/jobs/{jobId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Import Job Status (Compatibility Route)
+         * @description Compatibility route for clients using the plural imports resource name. Returns progress and result metadata for one background import job.
+         */
+        readonly get: operations["getCompatibilityImportJobStatus"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/imports/jobs/{jobId}/cancel": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Cancel an Import Job (Compatibility Route)
+         * @description Compatibility route for clients using the plural imports resource name. Requests cancellation of one active background import job.
+         */
+        readonly post: operations["cancelCompatibilityImportJob"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -2884,6 +3383,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/jobs/{jobId}/diagnostics": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Console Job Diagnostics
+         * @description Returns the authorized honua.job-diagnostics/v1 projection, including release provenance, lifecycle, attempts, worker liveness, sanitized failures and steps, bounded events, artifact availability, and explicit missing or truncated evidence. Unknown and unreadable jobs both return 404. Responses use Cache-Control: no-store.
+         */
+        readonly get: operations["getConsoleJobDiagnostics"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/jobs/{jobId}/logs": {
         readonly parameters: {
             readonly query?: never;
@@ -2953,7 +3472,7 @@ export type paths = {
         };
         /**
          * Get License Status
-         * @description Returns the active runtime license snapshot. Empty LicensePath reports Community mode with isValid=true; invalid configured files report Community mode with isValid=false and a validationState.
+         * @description Returns the runtime license status. Licensing:Mode=Disabled reports mode=disabled, edition=Unlicensed-2026.1, validationState=Disabled, isValid=true, all entitlements active and no expiry. Enabled licensing retains Community defaults and validates configured paid licenses.
          */
         readonly get: operations["getLicenseStatus"];
         readonly put?: never;
@@ -2962,46 +3481,6 @@ export type paths = {
          * @description Uploads raw signed license-envelope bytes when Licensing:AllowAdminUpload=true and Licensing:LicensePath is configured. Rejected uploads return 400 and do not replace the active snapshot.
          */
         readonly post: operations["uploadLicense"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/license/capacity": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * Get License Capacity State
-         * @description Returns the current license capacity meter state: band state, licensed capacity terms, current and rolling p95 serving units, burst ceiling and multiplier, sustained-growth grace clock, enforcement/Redis-coordination flags, local instance role and topology, live/production/excluded instance counts, surge state, warning thresholds, and operator-facing messages.
-         */
-        readonly get: operations["getLicenseCapacityState"];
-        readonly put?: never;
-        readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/license/capacity/surge": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /**
-         * Set License Surge Mode
-         * @description Declares or clears operator surge mode on the license capacity meter and returns the recomputed capacity state. While surge mode is active, p95 samples are masked and surge days are drawn from the annual allowance. A missing request body returns 400.
-         */
-        readonly post: operations["setLicenseCapacitySurgeMode"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -3057,7 +3536,7 @@ export type paths = {
         };
         /**
          * Get Platform License Status
-         * @description Returns the same active license status contract as GET /api/v1/admin/license.
+         * @description Returns the runtime license status. Licensing:Mode=Disabled reports mode=disabled, edition=Unlicensed-2026.1, validationState=Disabled, isValid=true, all entitlements active and no expiry. Enabled licensing retains Community defaults and validates configured paid licenses.
          */
         readonly get: operations["getPlatformLicenseStatus"];
         readonly put?: never;
@@ -3082,6 +3561,46 @@ export type paths = {
          * @description Platform-admin upload alias for the same runtime validator used by startup load and POST /api/v1/admin/license. Returns a compact upload-result response.
          */
         readonly post: operations["uploadLicenseFile"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/live": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Stream administrator live events
+         * @description Requires administrator authorization. Streams server-sent events for selected admin topics. A status frame precedes events; heartbeat comments keep the connection active. Supply Last-Event-ID to resume within the 24-hour replay window. On a reset frame, refresh the corresponding REST state. Slow consumers may be disconnected; reconnect using the last processed event ID.
+         */
+        readonly get: operations["GetAdminLive"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/maps": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Publish Map
+         * @description Creates a Studio Map draft, saves an immutable version, and creates its publication request.
+         */
+        readonly post: operations["publishMap"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -3139,7 +3658,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Approve Coordinated Release Gate
-         * @description Approves the container-swap or data-affecting gate so the coordinated-release conductor can advance past it. The request body is optional and only carries an operator reason.
+         * @description Approves the exact reviewed container-swap or data-affecting gate so the coordinated-release conductor can advance. The optional request body carries only an operator reason. Requires one authorized human in a verified interactive browser session established by password sign-in or OIDC code/PKCE and the private X-Honua-Approval-Capability from a fresh review of this target version and plan. The requester may approve. API keys, ordinary bearers and MCP tokens cannot approve and receive 403. A changed or expired review requires a fresh review; unavailable approval authority returns 503.
          */
         readonly post: operations["approveCoordinatedReleaseGate"];
         readonly delete?: never;
@@ -3208,7 +3727,69 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/drawing-info": {
+    readonly "/metadata/history": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List metadata field edit history
+         * @description Returns field-level metadata edit history across items, optionally filtered by item kind, item id, and field path prefix.
+         */
+        readonly get: operations["getAdminMetadataHistory"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/{storageLayerId}/discovery": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read title, description and keywords
+         * @description Layer IDs are global storage layer IDs, not service-local publication identifiers. Layer changes affect the shared resource and every listed publication. Other metadata is preserved. Service names address all protocol services with that logical name. Writes require the ETag returned by GET and reject stale revisions with 409.
+         */
+        readonly get: operations["getAdminLayerDiscovery"];
+        /**
+         * Replace title, description and keywords
+         * @description Layer IDs are global storage layer IDs, not service-local publication identifiers. Layer changes affect the shared resource and every listed publication. Other metadata is preserved. Service names address all protocol services with that logical name. Writes require the ETag returned by GET and reject stale revisions with 409.
+         */
+        readonly put: operations["updateAdminLayerDiscovery"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/{storageLayerId}/display": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get Layer Display */
+        readonly get: operations["getAdminLayerDisplay"];
+        /** Update Layer Display */
+        readonly put: operations["setAdminLayerDisplay"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/{storageLayerId}/drawing-info": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3232,7 +3813,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/fields": {
+    readonly "/metadata/layers/{storageLayerId}/fields": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3256,7 +3837,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/filter": {
+    readonly "/metadata/layers/{storageLayerId}/filter": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3280,7 +3861,27 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/popup-info": {
+    readonly "/metadata/layers/{storageLayerId}/history": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List layer metadata field edit history
+         * @description Returns field-level metadata edit history for the storage layer's shared resource.
+         */
+        readonly get: operations["getAdminLayerMetadataHistory"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/{storageLayerId}/popup-info": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3304,7 +3905,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/relationships": {
+    readonly "/metadata/layers/{storageLayerId}/relationships": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3313,12 +3914,12 @@ export type paths = {
         };
         /**
          * Get Layer Relationships
-         * @description Returns the relationships persisted on the layer's Metadata v2 resource, with each related resource resolved back to its global layer id (`-1` when the related resource has no numeric publication).
+         * @description Returns persisted relationships, retaining composite metadata and resolving related resources to global storage-layer ids (-1 if no storage handle exists).
          */
         readonly get: operations["getAdminLayerRelationships"];
         /**
          * Set Layer Relationships
-         * @description Replaces the full relationship set on the layer's Metadata v2 resource. At most 64 relationships are accepted; each requires a unique id, a name, an origin field that exists on this layer, an existing related layer id, and a destination field that exists on the related layer. Cardinality must be `one-to-one`, `one-to-many`, or `many-to-many`. Any violation returns 400 and nothing is written.
+         * @description Replaces the full relationship set on the layer's Metadata v2 resource. At most 64 relationships are accepted; each requires a unique id, a name, an origin field that exists on this layer, an existing related layer id, and a destination field that exists on the related layer. Cardinality must be `one-to-one`, `one-to-many`, or `many-to-many`. Any violation returns 400 and nothing is written. Composite mappings must remain reciprocal and read-only; use the batch operation to establish both ends together. Layer ids are global storage handles, not service-local indexes.
          */
         readonly put: operations["setAdminLayerRelationships"];
         readonly post?: never;
@@ -3328,7 +3929,25 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/style": {
+    readonly "/metadata/layers/{storageLayerId}/spatial": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get Layer Spatial */
+        readonly get: operations["getAdminLayerSpatial"];
+        /** Update Layer Spatial */
+        readonly put: operations["setAdminLayerSpatial"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/{storageLayerId}/style": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3354,7 +3973,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/style/export-sld": {
+    readonly "/metadata/layers/{storageLayerId}/style/export-sld": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3374,7 +3993,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/style/import-sld": {
+    readonly "/metadata/layers/{storageLayerId}/style/import-sld": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3394,7 +4013,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/suggest-style": {
+    readonly "/metadata/layers/{storageLayerId}/suggest-style": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3414,7 +4033,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/metadata/layers/{layerId}/validation": {
+    readonly "/metadata/layers/{storageLayerId}/validation": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -3427,6 +4046,26 @@ export type paths = {
          */
         readonly get: operations["getAdminLayerValidation"];
         readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/layers/relationships/batch": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /**
+         * Replace Layer Relationship Sets Atomically
+         * @description Replaces complete relationship sets on 1 to 64 distinct, explicitly selected resources in one canonical graph commit. All layer ids are global storage handles; ambiguous or retired targets are rejected. Composite mappings require both reciprocal sets and read-only resources. The entire candidate is validated before saving; invalid batches make no changes. Concurrent ETag conflicts trigger fresh resolution and validation, with a 409 after five conflicts. Unspecified resources are preserved. Repeating a batch does not append duplicate relationships. Catalog caches for affected storage layers are invalidated after saving.
+         */
+        readonly put: operations["setAdminLayerRelationshipsBatch"];
         readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
@@ -3549,6 +4188,30 @@ export type paths = {
          * @description Submits an additive metadata-release layer-evolution lifecycle operation. The server builds a reversible add-column script that adds `newFieldName` as a nullable column on `resourceSemanticId`; when `scriptId` is omitted it defaults to `add-{newFieldName}`. Reads for the created operation use `GET /deploy/operations/{operationId}`.
          */
         readonly post: operations["createMetadataReleaseOperation"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/metadata/schemas": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read per-environment custom metadata field schemas
+         * @description Returns the active custom metadata field schema definitions and current ETag for the environment.
+         */
+        readonly get: operations["getAdminMetadataSchemas"];
+        /**
+         * Replace per-environment custom metadata field schemas
+         * @description Replaces the environment's custom metadata field schema definitions. Requires the ETag returned by GET and rejects stale revisions with 409.
+         */
+        readonly put: operations["updateAdminMetadataSchemas"];
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -3802,7 +4465,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Refresh Multidimensional Coverage Metadata
-         * @description Dispatches an asynchronous GDAL metadata scan for the registration and returns 202 with the queued job id and a `statusUrl` to poll. Requires the `raster.multidim-coverage` entitlement; returns 503 when the Redis-backed execution-job substrate is unavailable. The request body is ignored.
+         * @description Dispatches an asynchronous GDAL metadata scan for the registration and returns 202 with the queued job id and a `statusUrl` to poll. Requires the `raster.multidim-coverage` entitlement; returns 503 when the PostgreSQL-backed execution-job substrate is unavailable. The request body is ignored.
          */
         readonly post: operations["refreshMultidimCoverage"];
         readonly delete?: never;
@@ -3820,7 +4483,7 @@ export type paths = {
         };
         /**
          * Get Multidimensional Coverage Scan Job
-         * @description Returns the status of a GDAL metadata scan job. On first observation of a succeeded job the scanned metadata is materialized onto the registration (idempotent) and the refreshed registration is embedded in `coverage`. Requires the `raster.multidim-coverage` entitlement; returns 503 when the Redis-backed execution-job substrate is unavailable.
+         * @description Returns the status of a GDAL metadata scan job. On first observation of a succeeded job the scanned metadata is materialized onto the registration (idempotent) and the refreshed registration is embedded in `coverage`. Requires the `raster.multidim-coverage` entitlement; returns 503 when the PostgreSQL-backed execution-job substrate is unavailable.
          */
         readonly get: operations["getMultidimCoverageScanJob"];
         readonly put?: never;
@@ -4259,6 +4922,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/observability/audit/gap-attestations": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Attest Audit Chain Downgrade Gap
+         * @description Append a keyed declaration for the contiguous run of unhashed audit rows that a release without the hash chain appended after a rollback. The server derives the anchor row, gap bounds, row count and resume row from the stored rows; gapFirstAuditId must be the first row that verification reports as broken. Existing rows are never rewritten or re-hashed. Verification then accepts exactly the declared rows, reports them as attestedGapRows, and accepts the declaration only when its own row verifies under the configured chain key. Returns 409 when no chain key is configured or the stored rows do not show a downgrade gap at that row. The declaration is itself an audit row with action audit.chain.gap_attested. Requires admin write access.
+         */
+        readonly post: operations["attestObservabilityAuditGap"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/observability/audit/verify": {
         readonly parameters: {
             readonly query?: never;
@@ -4418,9 +5101,29 @@ export type paths = {
         readonly put?: never;
         /**
          * Propose Ops Finding Action
-         * @description Route a finding's recommended fix through the operation-approval gateway. The server materializes the execution payload from the finding id, so no request body is accepted. Depending on gateway policy the action is either executed directly or raised as a proposal awaiting approval. Requires admin write access.
+         * @description Route a finding's recommended fix through the operation-approval gateway. The server materializes the execution payload from the finding id. An optional body may carry rootProvisioningOperationId from a verified DevOps handoff; an empty body remains valid. Depending on gateway policy the action is either executed directly or raised as a proposal awaiting approval. Requires admin write access.
          */
         readonly post: operations["proposeOpsFinding"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/observability/incidents/{incidentId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get Persisted Ops Incident Context
+         * @description Read an incident episode and bounded immutable evidence with an ops:read or full admin credential. The authority is fixed by the server to platform; caller authority input is ignored. Missing or truncated evidence remains explicit. This read cannot authorize actions or establish current health, impact or cause. Responses bypass output caching.
+         */
+        readonly get: operations["getOpsIncidentContext"];
+        readonly put?: never;
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -4579,6 +5282,26 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/oidc/providers/{id}/revisions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List OIDC provider revisions
+         * @description Returns settings history metadata without stored values or credentials. Requires PostgreSQL-backed settings.
+         */
+        readonly get: operations["listOidcProviderRevisions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/oidc/providers/{id}/test": {
         readonly parameters: {
             readonly query?: never;
@@ -4593,6 +5316,26 @@ export type paths = {
          * @description Runs a connectivity test against a stored OIDC provider and returns whether it is reachable together with a status message and the time of the test. Takes no request body.
          */
         readonly post: operations["testOidcProvider"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/oidc/providers/{id}/undo": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Undo latest OIDC provider change
+         * @description Atomically undoes the newest settings change when expectedRevisionId still matches. Requires PostgreSQL-backed settings. Deleted providers cannot be recreated through undo; create them again so limits and entitlements are checked.
+         */
+        readonly post: operations["undoOidcProviderChange"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -4688,7 +5431,7 @@ export type paths = {
         };
         /**
          * Get Cache Health
-         * @description Reports cache service health, fallback state, and the effective cache configuration. Redis server info is included only when a Redis connection multiplexer is registered.
+         * @description Reports the health and effective configuration of the cache on the node that serves the request.
          */
         readonly get: operations["getOperationsCacheHealth"];
         readonly put?: never;
@@ -4710,29 +5453,9 @@ export type paths = {
         readonly put?: never;
         /**
          * Invalidate Cache
-         * @description Invalidates cached entries. Exactly one scope is selected, in precedence order: `keyPattern` (pattern removal), `scope` of `ogc-metadata` or `all`, `serviceId` plus `layerId` (layer scope), then `serviceId` alone (service catalog scope). At least one of `keyPattern`, `serviceId` or `scope` must be supplied.
+         * @description Invalidates cached entries. Exactly one scope is selected, in precedence order: `keyPattern` (pattern removal), `scope` of `ogc-metadata` or `all`, `serviceId` plus `layerId` (layer scope), then `serviceId` alone (service catalog scope). At least one of `keyPattern`, `serviceId` or `scope` must be supplied. Caches are per node: only the node that receives the request is cleared, and other nodes serve their entries until they expire.
          */
         readonly post: operations["invalidateOperationsCache"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/operations/cache/redis": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * Get Redis Connection Metrics
-         * @description Returns Redis connection state and server info. When no Redis connection multiplexer is registered the call still succeeds with `isConfigured` and `isConnected` both false.
-         */
-        readonly get: operations["getOperationsCacheRedisMetrics"];
-        readonly put?: never;
-        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -4748,7 +5471,7 @@ export type paths = {
         };
         /**
          * Get Cache Statistics
-         * @description Returns aggregate cache hit/miss/eviction counters with per-cache-type breakdowns plus backend storage metrics (local key count, Redis DB size and memory usage).
+         * @description Returns cache hit/miss/eviction counters with per-cache-type breakdowns and the local and distributed key counts for the node that serves the request.
          */
         readonly get: operations["getOperationsCacheStatistics"];
         readonly put?: never;
@@ -5170,7 +5893,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Converge Platform Release
-         * @description Converges every configured serving deploy target onto the declared platform-release serving artifact. Co-versioning is validated first: an undeclared or invalid `ControlPlane:PlatformRelease` returns 400. Each target is classified as `already-converged` (last-applied revision matches; never actuated), `skipped-pinned` (config pins a different artifact, which cannot be cleared at runtime), `operation-created`, `unknown-treated-divergent`, or `blocked`. Deploys are routed through the guardrail gateway, so a target may yield a proposal id instead of an operation id. Geoprocessing worker images are deliberately not deployed here. When durable control-plane storage is not configured the gateway is absent and the call returns 503.
+         * @description Converges every configured serving deploy target onto the declared platform-release serving artifact. Co-versioning is validated first: an undeclared or invalid `ControlPlane:PlatformRelease` returns 400. Each target is classified as `already-converged` (last-applied revision matches; never actuated), `skipped-pinned` (config pins a different artifact, which cannot be cleared at runtime), `operation-created`, `unknown-treated-divergent`, or `blocked`. Deploys are routed through the guardrail gateway, so a target may yield a proposal id instead of an operation id. Geoprocessing worker images are deliberately not deployed here. An optional `targetVersion` asserts the release the caller expects; when it does not name the declared release (after trimming, case folding, stripping a leading `honua-`/`v`, and treating a zero patch as absent) the call returns 409 with `code: platform_release_version_mismatch` and actuates nothing. When durable control-plane storage is not configured the gateway is absent and the call returns 503.
          */
         readonly post: operations["convergePlatformRelease"];
         readonly delete?: never;
@@ -5230,7 +5953,7 @@ export type paths = {
         readonly put?: never;
         /**
          * Approve Operation Proposal
-         * @description Approves the proposal and applies the underlying operation through the gateway. API keys require full admin authority or the narrow `admin:approve` grant; operator-bearer callers use RBAC `approve`. Separation of duties is enforced: the requester of a proposal cannot approve it. A proposal that cannot be applied in its current state returns 409. Takes no request body.
+         * @description Approves the exact reviewed proposal and applies its underlying operation through the gateway. Requires one authorized human in a verified interactive browser session established by password sign-in or OIDC code/PKCE and the private X-Honua-Approval-Capability from a fresh review of this target version and plan. The requester may approve. API keys, ordinary bearers and MCP tokens cannot approve and receive 403. A changed or expired review requires a fresh review; unavailable approval authority returns 503. A proposal state conflict returns 409. Takes no request body.
          */
         readonly post: operations["approveOperationProposal"];
         readonly delete?: never;
@@ -5250,9 +5973,29 @@ export type paths = {
         readonly put?: never;
         /**
          * Reject Operation Proposal
-         * @description Rejects the proposal with a required reason. API keys require full admin authority or the narrow `admin:approve` grant; operator-bearer callers use RBAC `approve`. A missing or blank reason returns 400; a proposal that cannot be rejected in its current state returns 409.
+         * @description Rejects the proposal with a required reason. The caller must hold `approve` authority and use a verified interactive Console session; API keys, bearer tokens and MCP requests receive 403 and the refusal is audited as `human_session_required`. A missing or blank reason returns 400; a proposal that cannot be rejected in its current state returns 409.
          */
         readonly post: operations["rejectOperationProposal"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/raster-artifacts/cog": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Publish Layer Raster As COG
+         * @description Exports the publication layer's primary raster as a Cloud Optimized GeoTIFF and stores it under the deterministic object key `cog/{layerId}/{rasterId}.tif`, tagged with the publish operation and the COG media type. Desktop clients (GDAL `/vsicurl`, ArcGIS Pro) read it through `GET|HEAD /api/v1/rasters/cog/{artifactId}`. The proxy checks the current source publication, binding and access policy before serving each request; authorized HEAD responses carry the real length and ranged GETs return 206. Publishing again for the same layer overwrites the same key. A layer with no raster is 400, an unknown or unroutable layer is 404, and an export or upload failure is 500.
+         */
+        readonly post: operations["publishCogArtifact"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -5306,6 +6049,46 @@ export type paths = {
          * @description Deletes a rate limit policy. The success envelope carries a message and a null `data`.
          */
         readonly delete: operations["deleteRateLimitPolicy"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/rate-limits/{id}/revisions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List rate limit policy revisions
+         * @description Returns settings history metadata without stored values or credentials. Requires PostgreSQL-backed settings.
+         */
+        readonly get: operations["listRateLimitPolicyRevisions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/rate-limits/{id}/undo": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Undo latest rate limit policy change
+         * @description Atomically undoes the newest settings change when expectedRevisionId still matches. Requires PostgreSQL-backed settings.
+         */
+        readonly post: operations["undoRateLimitPolicyChange"];
+        readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
         readonly patch?: never;
@@ -5527,6 +6310,40 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/scenes/assets": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** List scene assets */
+        readonly get: operations["listSceneAssets"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/scenes/assets/{sceneId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /** Get a scene asset */
+        readonly get: operations["getSceneAsset"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/scenes/generate": {
         readonly parameters: {
             readonly query?: never;
@@ -5538,9 +6355,29 @@ export type paths = {
         readonly put?: never;
         /**
          * Generate Scene From Feature Layer
-         * @description Generates a 3D Tiles tileset from a published feature layer and registers the resulting scene dataset. Generation runs synchronously inside the request; the response carries the routable tileset URL plus feature/tile counts. Returns 404 when the source layer does not exist, 409 when the derived scene id collides with an existing registration, and 503 when the generation pipeline is temporarily unavailable.
+         * @description Generates a 3D Tiles tileset from a published feature layer and registers the resulting scene dataset. Runs synchronously by default; the response carries the routable tileset URL plus feature/tile counts. Request experimental async execution in the query or JSON body, or send Prefer: respond-async. Returns 404 when the source layer does not exist, 409 when the derived scene id collides with an existing registration, and 503 when the generation pipeline is temporarily unavailable or experimental async is disabled. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs and uses a bounded queue on the admitting instance. If capacity is exhausted, the server returns 429 with Retry-After.
          */
         readonly post: operations["generateScene"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/scenes/ingest/archive": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Import a pre-tiled 3D Tiles ZIP or 3TZ archive
+         * @description Runs synchronously by default. Request experimental async execution with async=true or Prefer: respond-async. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs and uses a bounded queue on the admitting instance. If capacity is exhausted, the server returns 429 with Retry-After.
+         */
+        readonly post: operations["ingestArchiveScene"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -5558,9 +6395,29 @@ export type paths = {
         readonly put?: never;
         /**
          * Ingest CityGML Scene
-         * @description Uploads a CityGML document (multipart/form-data, `file` field, 64 MiB maximum) and converts it into a Building Scene Layer 3D Tiles tileset, registering the result as a servable scene. Enterprise-gated: an authenticated operator without the `scene.bim-ingest` entitlement receives 402.
+         * @description Uploads a CityGML document (multipart/form-data, `file` field, 64 MiB maximum) and converts it into a Building Scene Layer 3D Tiles tileset, registering the result as a servable scene. Enterprise-gated: an authenticated operator without the `scene.bim-ingest` entitlement receives 402. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs and uses a bounded queue on the admitting instance. If capacity is exhausted, the server returns 429 with Retry-After.
          */
         readonly post: operations["ingestCityGmlScene"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/scenes/ingest/model": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        /**
+         * Import a georeferenced GLB, embedded glTF, or OBJ model
+         * @description Runs synchronously by default. Request experimental async execution with async=true or Prefer: respond-async. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs and uses a bounded queue on the admitting instance. If capacity is exhausted, the server returns 429 with Retry-After.
+         */
+        readonly post: operations["ingestModelScene"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -5578,9 +6435,49 @@ export type paths = {
         readonly put?: never;
         /**
          * Ingest Point Cloud Scene
-         * @description Uploads a LAS/LAZ/COPC point cloud (multipart/form-data, `file` field, 256 MiB maximum) and converts it into a 3D Tiles point tileset (`.pnts` quadtree), registering the result as a servable scene. Compressed input and projected source CRSs are dispatched to the out-of-tree point-cloud translate worker when one is configured; without a compatible worker the request fails explicitly with 400. Enterprise-gated: an operator without the `scene.pointcloud-ingest` entitlement receives 402.
+         * @description Uploads a LAS/LAZ/COPC point cloud (multipart/form-data, `file` field, 256 MiB maximum) and converts it into a 3D Tiles point tileset (`.pnts` quadtree), registering the result as a servable scene. Compressed input and projected source CRSs are dispatched to the out-of-tree point-cloud translate worker when one is configured; without a compatible worker the request fails explicitly with 400. Enterprise-gated: an operator without the `scene.pointcloud-ingest` entitlement receives 402. Set servingFormat to copc to register a validated COPC upload directly for HTTP range reads. This mode requires a COPC source and returns 409 for LAS/LAZ requiring conversion. Direct COPC ingest is synchronous. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs and uses a bounded queue on the admitting instance. If capacity is exhausted, the server returns 429 with Retry-After.
          */
         readonly post: operations["ingestPointCloudScene"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/scenes/jobs": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List scene jobs
+         * @description Lists jobs admitted by this server instance. Job state is held in memory and is lost on restart. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs.
+         */
+        readonly get: operations["listSceneJobs"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/scenes/jobs/{jobId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Get a scene job
+         * @description Poll the same server instance that accepted the job. Completed job records are held in memory and lost on restart. Experimental async requires the server setting SceneGeneration:EnableExperimentalAsyncJobs.
+         */
+        readonly get: operations["getSceneJob"];
+        readonly put?: never;
+        readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -5736,7 +6633,7 @@ export type paths = {
         };
         /**
          * List Services
-         * @description List available services with enabled protocol metadata.
+         * @description List one page of services with enabled protocol metadata. layerTotal counts layers for every match, including services outside the page.
          */
         readonly get: operations["listServices"];
         readonly put?: never;
@@ -5867,7 +6764,68 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/services/{serviceName}/layers/{layerId}/export": {
+    readonly "/services/{serviceName}/discovery": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * Read title, description and keywords
+         * @description Layer IDs are global storage layer IDs, not service-local publication identifiers. Layer changes affect the shared resource and every listed publication. Other metadata is preserved. Service names address all protocol services with that logical name. Writes require the ETag returned by GET and reject stale revisions with 409.
+         */
+        readonly get: operations["getAdminServiceDiscovery"];
+        /**
+         * Replace title, description and keywords
+         * @description Layer IDs are global storage layer IDs, not service-local publication identifiers. Layer changes affect the shared resource and every listed publication. Other metadata is preserved. Service names address all protocol services with that logical name. Writes require the ETag returned by GET and reject stale revisions with 409.
+         */
+        readonly put: operations["updateAdminServiceDiscovery"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/services/{serviceName}/folder": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        /** moveService */
+        readonly put: operations["moveService"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/services/{serviceName}/history": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List service metadata field edit history
+         * @description Returns field-level metadata edit history for the logical service.
+         */
+        readonly get: operations["getAdminServiceMetadataHistory"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/services/{serviceName}/layers/{serviceLayerIndex}/export": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -5876,7 +6834,7 @@ export type paths = {
         };
         /**
          * Export Layer Data
-         * @description Exports layer features as CSV, Shapefile (zipped), GeoPackage, or a licensed plugin-contributed output format. Small exports stream the file directly with a `Content-Disposition` attachment header. When more than 50,000 features match and a built-in format is requested, the export is queued as a background job and a 202 with a status URL is returned instead.
+         * @description Exports layer features as CSV, Shapefile (zipped), GeoPackage, GeoParquet, or a licensed plugin-contributed output format. Small exports stream the file directly with a `Content-Disposition` attachment header. When more than 50,000 features match and a built-in format is requested, the export is queued as a background job and a 202 with a status URL is returned instead.
          */
         readonly get: operations["exportServiceLayer"];
         readonly put?: never;
@@ -5887,14 +6845,18 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/services/{serviceName}/layers/{layerId}/metadata": {
+    readonly "/services/{serviceName}/layers/{serviceLayerIndex}/metadata": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
-        readonly get?: never;
+        /**
+         * Get Layer Metadata
+         * @description Read persisted editing, source governance, access policy and temporal metadata for the service layer.
+         */
+        readonly get: operations["getLayerMetadata"];
         /**
          * Update Layer Metadata
          * @description Patch layer-level access policy and temporal metadata for a service layer.
@@ -5907,7 +6869,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/services/{serviceName}/layers/{layerId}/share/traffic": {
+    readonly "/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -5927,7 +6889,7 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/services/{serviceName}/layers/{layerId}/share/traffic/series": {
+    readonly "/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic/series": {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -6387,46 +7349,6 @@ export type paths = {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/tile-operations/cache/inventory": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        /**
-         * Inventory Generated Tile Cache
-         * @description Returns tracked generated-tile counts, bytes, and per-zoom coverage. Optional service and gridset filters bound the inventory without scanning object storage.
-         */
-        readonly get: operations["getTileCacheInventory"];
-        readonly put?: never;
-        readonly post?: never;
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/tile-operations/evict": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        /**
-         * Evict Tile Cache
-         * @description Runs a synchronous size-quota / LRU eviction sweep over the live Redis tile-key index, dropping least-recently-used tiles above the configured `TileOptions:Eviction` quota. When eviction is disabled or no live tile-key index is available the sweep is a no-op that returns 200 with `Enabled=false` and zero counts. No request body is required.
-         */
-        readonly post: operations["evictTileCache"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
     readonly "/tile-operations/jobs": {
         readonly parameters: {
             readonly query?: never;
@@ -6436,13 +7358,13 @@ export type paths = {
         };
         /**
          * List Tile Operation Jobs
-         * @description Lists tile operation jobs. By default only active (queued/processing) jobs are returned; pass `activeOnly=false` to include completed, failed, and cancelled jobs. Response property names are PascalCase.
+         * @description Lists tile operation jobs. By default only active (queued/processing) jobs are returned; pass `activeOnly=false` to include completed, failed, and cancelled jobs. Response property names are camelCase.
          */
         readonly get: operations["listTileOperationJobs"];
         readonly put?: never;
         /**
          * Start Tile Operation Job
-         * @description Queues a tile operation for asynchronous execution and returns 202 with the job id and status/cancel URLs. `operation` is required; `seed`/`warm` require `layerId` or `serviceId`; `archive` and `publish` require `layerId`; `bbox`, when supplied, must contain exactly four values `[minLon, minLat, maxLon, maxLat]` and `minZoom` must not exceed `maxZoom`. When a batch tile-cache backend is configured the job is submitted through the execution-job/batch path, otherwise through the in-process worker. Response property names are PascalCase.
+         * @description Queues a tile operation for asynchronous execution and returns 202 with the job id and status/cancel URLs. `operation` is required; `seed`/`warm` require `layerId` or `serviceId`; `archive` and `publish` require `layerId`; `bbox`, when supplied, must contain exactly four values `[minLon, minLat, maxLon, maxLat]` and `minZoom` must not exceed `maxZoom`. Every operation is submitted as a TileCache execution job, run once by whichever node claims it, on the configured batch backend or the `local` job worker. Response property names are camelCase.
          */
         readonly post: operations["startTileOperationJob"];
         readonly delete?: never;
@@ -6460,7 +7382,7 @@ export type paths = {
         };
         /**
          * Get Tile Operation Job Status
-         * @description Returns progress and status details for a tile operation job. Response property names are PascalCase and `Status` is the numeric `OperationStatus` value.
+         * @description Returns progress and status details for a tile operation job. Response property names are camelCase and `status` is the numeric `OperationStatus` value.
          */
         readonly get: operations["getTileOperationJob"];
         readonly put?: never;
@@ -6604,7 +7526,7 @@ export type paths = {
         };
         /**
          * Get Admin Version Info
-         * @description Returns server version, metadata API version, and current server time.
+         * @description Returns server version, metadata API version, current server time, and the identity of the server instance that answered.
          */
         readonly get: operations["getAdminVersion"];
         readonly put?: never;
@@ -6715,7 +7637,7 @@ export type components = {
              * @description Linked resource kind. Parsed case-insensitively; numeric tokens are rejected.
              * @enum {string}
              */
-            readonly resourceKind: "alert" | "job" | "release" | "changeSet";
+            readonly resourceKind: "alert" | "job" | "release" | "changeSet" | "incident";
         };
         /** @description Body for pinning an Operate event to an investigation. */
         readonly AddInvestigationPinRequest: {
@@ -6723,7 +7645,7 @@ export type components = {
              * @description Event kind. Parsed case-insensitively; numeric tokens are rejected.
              * @enum {string}
              */
-            readonly eventKind: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log";
+            readonly eventKind: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log" | "incident";
             /**
              * @description Source-prefixed event reference (e.g. alert:42).
              * @example alert:42
@@ -6741,6 +7663,11 @@ export type components = {
             readonly canAuthenticate: boolean;
             /** Format: uuid */
             readonly id: string;
+            /**
+             * @description `agent` when the key carries the `agent` grant, otherwise `standard`.
+             * @enum {string}
+             */
+            readonly kind?: "standard" | "agent";
             readonly name: string;
             /** @description Distinct effective grant labels assigned to the key, including `admin:approve` when present; grant names are not folded into an access-level alias. */
             readonly permissions: readonly string[];
@@ -6748,6 +7675,10 @@ export type components = {
             readonly status: "active" | "expired" | "revoked";
         };
         readonly AdminApiKeyResponse: {
+            /** @description Normalized CIDR ranges the client address must fall in; omitted when the key has no IP restriction. */
+            readonly allowedIpRanges?: readonly string[];
+            /** @description Normalized origin patterns the request must match; omitted when the key has no referrer restriction. */
+            readonly allowedReferrers?: readonly string[];
             /** Format: date-time */
             readonly createdAt: string;
             readonly createdBy?: string | null;
@@ -6757,6 +7688,11 @@ export type components = {
             readonly id: string;
             /** @description Non-secret prefix used to recognize the key. */
             readonly keyPrefix: string;
+            /**
+             * @description `agent` when the key carries the `agent` grant, otherwise `standard`.
+             * @enum {string}
+             */
+            readonly kind?: "standard" | "agent";
             /** Format: date-time */
             readonly lastUsedAt?: string | null;
             readonly name: string;
@@ -6857,6 +7793,10 @@ export type components = {
         };
         readonly AdminCapabilitiesResponse: {
             readonly compatibility?: components["schemas"]["AdminCompatibilityMetadata"];
+            /** @description Same map as compatibility.contractVersions: every contract this server serves, name to exact version, as declared in eng/release/component-versions.v1.json. */
+            readonly contractVersions?: {
+                readonly [key: string]: string;
+            };
             /** @description Whether manifest apply dry-run is supported */
             readonly manifestDryRunSupported?: boolean;
             /** @description Whether manifest apply prune is supported */
@@ -6867,6 +7807,10 @@ export type components = {
             readonly metadataApiVersions?: readonly string[];
             /** @description Supported metadata resource kinds */
             readonly resourceKinds?: readonly ("Service" | "Layer" | "Relationship" | "Style" | "Connection")[];
+            /** @description Same map as compatibility.schemaVersions: schema name to exact version, as declared in eng/release/component-versions.v1.json. */
+            readonly schemaVersions?: {
+                readonly [key: string]: string;
+            };
         };
         readonly AdminCompatibilityFeatureFlags: {
             /** @description Whether manifest apply is supported */
@@ -6881,6 +7825,10 @@ export type components = {
             readonly metadataResources: boolean;
         };
         readonly AdminCompatibilityMetadata: {
+            /** @description Every contract this server serves, name to exact version, keyed like eng/release/component-versions.v1.json (admin, metadata, geoservices, ogc, stac, grpc). The server refuses to start when its embedded declaration differs from the versions it serves, so this map is the whole advertised contract set. */
+            readonly contractVersions?: {
+                readonly [key: string]: string;
+            };
             readonly controlPlaneApi: components["schemas"]["AdminControlPlaneApiCompatibility"];
             readonly features: components["schemas"]["AdminCompatibilityFeatureFlags"];
             /** @description Supported metadata schema versions and their deprecation markers */
@@ -6890,6 +7838,10 @@ export type components = {
              * @enum {string}
              */
             readonly releaseChannel: "stable" | "lts" | "preview" | "alpha" | "beta" | "rc" | "nightly" | "dev";
+            /** @description Schema name to exact version, as declared in eng/release/component-versions.v1.json. The database schema version is derived by the release resolver from the migrations and is not advertised here. */
+            readonly schemaVersions?: {
+                readonly [key: string]: string;
+            };
             /** @description Server version reported by the runtime build */
             readonly serverVersion: string;
         };
@@ -6903,6 +7855,10 @@ export type components = {
              * @description Supported control-plane API major
              */
             readonly major: number;
+        };
+        readonly AdminCsrfResponse: {
+            /** @description Antiforgery request token to send in the `X-Honua-CSRF` header. */
+            readonly requestToken: string;
         };
         readonly AdminMetadataSchemaCompatibility: {
             /** @description Whether the metadata schema version is deprecated */
@@ -6926,7 +7882,27 @@ export type components = {
             /** @default Bearer */
             readonly tokenType?: string;
         };
+        readonly AdminPasswordSignInRequest: {
+            /** @description Built-in administrator password. */
+            readonly password: string;
+        };
+        /** @description Identity of the server instance (replica) that answered. The id equals the Honua-Instance response header. */
+        readonly AdminServerInstance: {
+            /** @description Stable instance id for the life of the server process */
+            readonly id: string;
+            /**
+             * @description Source the id was resolved from
+             * @enum {string}
+             */
+            readonly source: "configuration" | "aws-lambda" | "aws-ecs-task" | "aws-ecs-container" | "hostname" | "machine-name" | "generated";
+            /**
+             * Format: date-time
+             * @description When the instance resolved its identity (process start, UTC)
+             */
+            readonly startedAt: string;
+        };
         readonly AdminVersionResponse: {
+            readonly instance?: components["schemas"]["AdminServerInstance"];
             /** @description Metadata API version supported by the server */
             readonly metadataApiVersion: string;
             /**
@@ -6936,6 +7912,24 @@ export type components = {
             readonly serverTime: string;
             /** @description Server version string */
             readonly version: string;
+        };
+        /** @description Upper bound on what an agent principal may do. Enum fields are serialized as integers. */
+        readonly AgentAuthorityCeiling: {
+            readonly AllowedOperationIds?: readonly string[];
+            /** @default true */
+            readonly Enabled?: boolean;
+            /**
+             * @description 0 None, 1 ResourceScope, 2 ServiceScope, 3 DeploymentScope.
+             * @enum {integer}
+             */
+            readonly MaximumBlastRadius?: 0 | 1 | 2 | 3;
+            /**
+             * @description 0 ReadOnly, 1 CreatesMetadata, 2 MutatesMetadata, 3 MutatesData, 4 DestroysState.
+             * @enum {integer}
+             */
+            readonly MaximumSideEffect?: 0 | 1 | 2 | 3 | 4;
+            readonly PrincipalId: string;
+            readonly TenantId?: string | null;
         };
         readonly AlertChannelValidationResponse: {
             /** @description Canonical channel name. */
@@ -7589,6 +8583,13 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
+        readonly ApiResponseLayerDisplayResponse: {
+            readonly data?: components["schemas"]["LayerDisplayResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
         readonly ApiResponseLayerExtentRefreshSummary: {
             readonly data?: components["schemas"]["LayerExtentRefreshSummary"];
             readonly message?: string | null;
@@ -7619,10 +8620,39 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
+        readonly ApiResponseLayerPublishAccepted: {
+            readonly data?: components["schemas"]["LayerPublishAcceptedResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ApiResponseLayerPublishJobStatus: {
+            readonly data?: components["schemas"]["LayerPublishJobStatusResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        /** @description Relationship sets from the atomically committed graph snapshot. */
+        readonly ApiResponseLayerRelationshipBatchResponse: {
+            readonly data?: components["schemas"]["LayerRelationshipBatchResponse"];
+            readonly message?: string | null;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
         /** @description Standard admin envelope wrapping a layer's relationships. */
         readonly ApiResponseLayerRelationshipResponse: {
             readonly data?: components["schemas"]["LayerRelationshipResponse"];
             readonly message?: string | null;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ApiResponseLayerSpatialResponse: {
+            readonly data?: components["schemas"]["LayerSpatialResponse"];
+            readonly message?: string;
             readonly success?: boolean;
             /** Format: date-time */
             readonly timestamp?: string;
@@ -7644,13 +8674,6 @@ export type components = {
         /** @description Standard admin envelope wrapping a layer validation result. */
         readonly ApiResponseLayerValidationResponse: {
             readonly data?: components["schemas"]["LayerValidationResponse"];
-            readonly message?: string | null;
-            readonly success?: boolean;
-            /** Format: date-time */
-            readonly timestamp?: string;
-        };
-        readonly ApiResponseLicenseCapacitySnapshot: {
-            readonly data?: components["schemas"]["LicenseCapacitySnapshot"];
             readonly message?: string | null;
             readonly success?: boolean;
             /** Format: date-time */
@@ -7732,6 +8755,20 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
+        readonly ApiResponseObjectStorageBrowseResponse: {
+            readonly data?: components["schemas"]["ObjectStorageBrowseResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ApiResponseObjectStorageSetupResponse: {
+            readonly data?: components["schemas"]["ObjectStorageSetupResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
         readonly ApiResponseOidcProviderResponse: {
             readonly data?: components["schemas"]["OidcProviderResponse"];
             readonly message?: string;
@@ -7788,13 +8825,6 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
-        readonly ApiResponseOpsRedisConnectionMetricsResponse: {
-            readonly data?: components["schemas"]["OpsRedisConnectionMetricsResponse"];
-            readonly message?: string | null;
-            readonly success?: boolean;
-            /** Format: date-time */
-            readonly timestamp?: string;
-        };
         readonly ApiResponseOpsStreamingSubscriberListResponse: {
             readonly data?: components["schemas"]["OpsStreamingSubscriberListResponse"];
             readonly message?: string | null;
@@ -7805,6 +8835,13 @@ export type components = {
         readonly ApiResponsePackageReviewResponse: {
             readonly data?: components["schemas"]["PackageReviewResponse"];
             readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ApiResponsePublishedLayerPage: {
+            readonly data?: components["schemas"]["PublishedLayerPage"];
+            readonly message?: string | null;
             readonly success?: boolean;
             /** Format: date-time */
             readonly timestamp?: string;
@@ -7914,6 +8951,13 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
+        readonly ApiResponseServiceListPage: {
+            readonly data?: components["schemas"]["ServiceListPage"];
+            readonly message?: string | null;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
         readonly ApiResponseServiceSettingsResponse: {
             readonly data?: components["schemas"]["ServiceSettingsResponse"];
             readonly message?: string;
@@ -7921,8 +8965,15 @@ export type components = {
             /** Format: date-time */
             readonly timestamp?: string;
         };
-        readonly ApiResponseServiceSummaryArray: {
-            readonly data?: readonly components["schemas"]["ServiceSummary"][];
+        readonly ApiResponseSettingsRevisionResponse: {
+            readonly data?: components["schemas"]["SettingsRevisionResponse"];
+            readonly message?: string;
+            readonly success?: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ApiResponseSettingsRevisionResponseArray: {
+            readonly data?: readonly components["schemas"]["SettingsRevisionResponse"][];
             readonly message?: string;
             readonly success?: boolean;
             /** Format: date-time */
@@ -8154,6 +9205,46 @@ export type components = {
              * @description Image width; null until metadata is scanned.
              */
             readonly width?: number | null;
+        };
+        readonly CogArtifactDescriptor: {
+            /**
+             * @description Deterministic object key, `cog/{layerId}/{rasterId}.tif`; also the `{artifactId}` of the range proxy.
+             * @example cog/0/1.tif
+             */
+            readonly artifactId: string;
+            /** Format: int32 */
+            readonly bandCount: number;
+            /** @example image/tiff; application=geotiff; profile=cloud-optimized */
+            readonly contentType: string;
+            /** Format: int32 */
+            readonly height: number;
+            /** Format: int32 */
+            readonly layerId: number;
+            /** Format: date-time */
+            readonly publishedAt: string;
+            /**
+             * Format: int64
+             * @description Identifier of the layer's primary raster.
+             */
+            readonly rasterId: number;
+            /** Format: int64 */
+            readonly sizeBytes: number;
+            /** Format: int32 */
+            readonly srid?: number | null;
+            /**
+             * @description Root-relative range proxy path `/api/v1/rasters/cog/{artifactId}`.
+             * @example /api/v1/rasters/cog/cog/0/1.tif
+             */
+            readonly url: string;
+            /** Format: int32 */
+            readonly width: number;
+        };
+        readonly CogArtifactPublishRequest: {
+            /**
+             * Format: int32
+             * @description Publication layer index whose primary raster is exported.
+             */
+            readonly layerId: number;
         };
         readonly ColumnInfo: {
             /** @description Column data type */
@@ -8446,6 +9537,10 @@ export type components = {
             readonly timestamp?: string;
         };
         readonly ConnectionSummary: {
+            /** @description Object storage: bucket name. */
+            readonly bucket?: string;
+            /** @description Object storage: true for the installation's own read-only data and public prefixes. */
+            readonly builtIn?: boolean;
             /**
              * Format: uuid
              * @description Unique connection identifier
@@ -8468,6 +9563,8 @@ export type components = {
             readonly host?: string;
             /** @description Whether connection is active */
             readonly isActive?: boolean;
+            /** @description object-storage for S3 connections; omitted for database connections. */
+            readonly kind?: string;
             /**
              * Format: date-time
              * @description Last health check timestamp
@@ -8480,6 +9577,12 @@ export type components = {
              * @description Database port
              */
             readonly port?: number;
+            /** @description Object storage: key prefix the connection is limited to. */
+            readonly prefix?: string;
+            /** @description Object storage: AWS region. */
+            readonly region?: string;
+            /** @description Object storage: customer role assumed for reads; omitted for built-in connections. */
+            readonly roleArn?: string;
             /**
              * @description SSL mode
              * @enum {string}
@@ -8515,7 +9618,7 @@ export type components = {
         };
         readonly ConsoleJobActionDescriptor: {
             readonly allowed?: boolean;
-            /** @description Operator-facing reason when the advertised action is currently disabled, such as execute permission required, job queue unavailable, job backend unavailable, job backend retry capability unavailable, job backend does not support retry, retry budget exhausted, or not retryable. */
+            /** @description Operator-facing reason when the advertised action is currently disabled, such as execute permission required, cancellation requested; waiting for the worker to stop, job queue unavailable, job backend unavailable, job backend retry capability unavailable, job backend does not support retry, retry budget exhausted, or not retryable. */
             readonly disabledReason?: string | null;
             readonly href: string;
             /** @enum {string} */
@@ -8575,9 +9678,160 @@ export type components = {
             readonly stages: readonly components["schemas"]["ConsoleJobStage"][];
             readonly warnings: readonly string[];
         };
+        readonly ConsoleJobDiagnosticArtifacts: {
+            /** Format: int32 */
+            readonly availableCount: number;
+            /** Format: int32 */
+            readonly expiredCount: number;
+            readonly items: readonly components["schemas"]["ConsoleJobArtifact"][];
+            readonly state: string;
+            /** Format: int32 */
+            readonly unavailableCount: number;
+        };
+        readonly ConsoleJobDiagnosticAttempt: {
+            /** Format: int32 */
+            readonly maxAttempts: number;
+            /** Format: date-time */
+            readonly nextRetryAt?: string | null;
+            /** Format: int32 */
+            readonly number: number;
+            readonly retry: components["schemas"]["ConsoleJobDiagnosticRetry"];
+        };
+        readonly ConsoleJobDiagnosticEvents: {
+            readonly firstCursor?: string | null;
+            readonly items: readonly components["schemas"]["ConsoleJobLogEntry"][];
+            /** Format: int32 */
+            readonly limit: number;
+            /** @enum {string} */
+            readonly mode?: "tail" | "page";
+            readonly nextCursor?: string | null;
+            readonly state: string;
+            /** Format: int32 */
+            readonly totalCount: number;
+            readonly truncated: boolean;
+        };
+        readonly ConsoleJobDiagnosticEvidence: {
+            readonly missing: readonly string[];
+            readonly notes: readonly string[];
+            readonly truncated: readonly string[];
+        };
+        readonly ConsoleJobDiagnosticFailure: {
+            readonly classification: string;
+            readonly errorCode?: string | null;
+            readonly message: string;
+            /** Format: int32 */
+            readonly nativeExitCode?: number | null;
+            /** Format: date-time */
+            readonly occurredAt?: string | null;
+            readonly phase?: string | null;
+            readonly recovery: string;
+            readonly stderrExcerpt?: string | null;
+            /** Format: int32 */
+            readonly stepOrdinal?: number | null;
+        };
+        readonly ConsoleJobDiagnosticIdentity: {
+            readonly backend: string;
+            /** Format: int32 */
+            readonly contractVersion: number;
+            readonly definitionId?: string | null;
+            readonly kind: string;
+            readonly priority: string;
+            readonly providerOperationId?: string | null;
+            readonly queue?: string | null;
+            readonly requestedBy?: string | null;
+            readonly resourceRefs: readonly string[];
+            readonly runtimeProfile?: string | null;
+            readonly targetKind: string;
+            readonly workloadId?: string | null;
+            readonly workloadName: string;
+        };
+        readonly ConsoleJobDiagnosticLifecycle: {
+            /** Format: date-time */
+            readonly cancellationRequestedAt?: string | null;
+            /** Format: date-time */
+            readonly claimedAt?: string | null;
+            /** Format: date-time */
+            readonly completedAt?: string | null;
+            /** Format: date-time */
+            readonly createdAt: string;
+            readonly currentPhase?: string | null;
+            /** Format: int64 */
+            readonly durationMs?: number | null;
+            /** Format: int64 */
+            readonly executionMs?: number | null;
+            /** Format: double */
+            readonly percentComplete?: number | null;
+            readonly phase: string;
+            /** Format: int64 */
+            readonly queueDelayMs?: number | null;
+            readonly status: string;
+            readonly timingSource: string;
+            /** Format: date-time */
+            readonly updatedAt: string;
+        };
+        readonly ConsoleJobDiagnosticRelease: {
+            readonly bindingVersion?: string | null;
+            readonly changeSetId?: string | null;
+            readonly dependencyLockDigest?: string | null;
+            readonly dependencyManifest?: string | null;
+            readonly entrypoint?: string | null;
+            readonly environment?: string | null;
+            readonly lockDigest?: string | null;
+            readonly missing: readonly string[];
+            readonly planId?: string | null;
+            readonly processDefinitions: readonly string[];
+            readonly processRelease?: string | null;
+            readonly processVersion?: string | null;
+            readonly releaseId?: string | null;
+            readonly runtime?: string | null;
+            readonly serverVersion: string;
+            readonly sourceRef?: string | null;
+            readonly sourceRepository?: string | null;
+            readonly state: string;
+            readonly workerImage?: string | null;
+            readonly workflowVersion?: string | null;
+        };
+        readonly ConsoleJobDiagnosticRetry: {
+            readonly allowed: boolean;
+            readonly disabledReason?: string | null;
+            readonly requiresApproval: boolean;
+            readonly wouldRepeat: string;
+        };
+        readonly ConsoleJobDiagnostics: {
+            readonly artifacts: components["schemas"]["ConsoleJobDiagnosticArtifacts"];
+            readonly attempt: components["schemas"]["ConsoleJobDiagnosticAttempt"];
+            readonly correlationId?: string | null;
+            readonly events: components["schemas"]["ConsoleJobDiagnosticEvents"];
+            readonly evidence: components["schemas"]["ConsoleJobDiagnosticEvidence"];
+            readonly failure?: components["schemas"]["ConsoleJobDiagnosticFailure"] | null;
+            /** Format: date-time */
+            readonly generatedAt: string;
+            readonly identity: components["schemas"]["ConsoleJobDiagnosticIdentity"];
+            readonly jobId: string;
+            readonly lifecycle: components["schemas"]["ConsoleJobDiagnosticLifecycle"];
+            readonly links: components["schemas"]["ConsoleJobLinks"];
+            readonly release: components["schemas"]["ConsoleJobDiagnosticRelease"];
+            /** @enum {string} */
+            readonly schema: "honua.job-diagnostics/v1";
+            readonly steps: readonly components["schemas"]["ConsoleJobStep"][];
+            readonly traceId?: string | null;
+            readonly view: string;
+            readonly worker: components["schemas"]["ConsoleJobDiagnosticWorker"];
+        };
+        readonly ConsoleJobDiagnosticWorker: {
+            readonly claimedBy?: string | null;
+            /** Format: double */
+            readonly heartbeatIntervalSeconds: number;
+            /** Format: double */
+            readonly heartbeatTimeoutSeconds: number;
+            /** Format: date-time */
+            readonly lastHeartbeatAt?: string | null;
+            readonly liveness: string;
+            readonly livenessReason: string;
+        };
         readonly ConsoleJobFailure: {
             /** @enum {string} */
-            readonly classification: "execution_failed" | "cancelled";
+            readonly classification: "execution_failed" | "worker_lost" | "timeout" | "cancelled";
             readonly message: string;
         };
         /** @enum {string} */
@@ -8680,6 +9934,11 @@ export type components = {
             readonly startedAt: string;
             /** @description Step status. */
             readonly status: string;
+            /**
+             * @description Whether durationMs comes from the harness monotonic clock or is inferred from log timestamps.
+             * @enum {string}
+             */
+            readonly timingSource?: "measured" | "inferred";
         };
         /** @description Sanitized artifact reference attached to a job step. */
         readonly ConsoleJobStepArtifact: {
@@ -8697,12 +9956,24 @@ export type components = {
         readonly ConsoleJobStepsResponse: {
             /** @description Job correlation id, also echoed in the X-Correlation-Id header. */
             readonly correlationId?: string | null;
+            /**
+             * Format: int32
+             * @description Number of earliest entries removed by the retained-log bound.
+             */
+            readonly droppedCount?: number;
             /** @description Durable execution job identifier. */
             readonly jobId: string;
             /** @description Current job state. */
             readonly state: string;
             /** @description Ordered step timeline. */
             readonly steps: readonly components["schemas"]["ConsoleJobStep"][];
+            /**
+             * Format: int32
+             * @description Total appended log entries, including entries removed by retention bounds.
+             */
+            readonly totalCount?: number;
+            /** @description True when the returned timeline omits earlier entries. */
+            readonly truncated?: boolean;
         };
         readonly ConsoleJobSummary: {
             /** Format: int32 */
@@ -8836,28 +10107,58 @@ export type components = {
              */
             readonly step: "Preflight" | "Backup" | "ContainerRollout" | "MetadataAndSchema" | "Smoke" | "Promote" | "Complete" | "RollingBack" | "Failed";
         };
+        readonly CoordinateSystemEntry: {
+            readonly area: string | null;
+            /** Format: int32 */
+            readonly code: number;
+            readonly name: string;
+            readonly unit: string | null;
+        };
+        readonly CoordinateSystemSearchResult: {
+            /** @description Whether more matches exist beyond this response limit. */
+            readonly hasMore: boolean;
+            readonly items: readonly components["schemas"]["CoordinateSystemEntry"][];
+        };
         readonly CreateAdminApiKeyRequest: {
+            /** @description Optional client IP allow-list. When set, a request using the key is accepted only from an address inside one of the ranges, as resolved behind the configured trusted proxies (ForwardedHeaders:KnownProxies). Entries are CIDR ranges or single addresses; a CIDR with bits set past its prefix is rejected. */
+            readonly allowedIpRanges?: readonly string[] | null;
+            /** @description Optional origin allow-list. When set, a request using the key is accepted only if its Origin header (or, when absent, its Referer reduced to scheme://host[:port]) matches an entry; a request with neither header is refused. Entries are origins without a path; a leading `*.` label matches any subdomain but not the bare domain. Recommended for keys used from browsers or in the `token` query parameter. Not a substitute for IP restrictions: non-browser clients can set these headers. */
+            readonly allowedReferrers?: readonly string[] | null;
             /**
              * Format: date-time
              * @description Optional UTC expiration time.
              */
             readonly expiresAt?: string | null;
+            /**
+             * @description Key type, lowercase. An `agent` key always carries the `agent` grant, which is added when missing. Omitted, the type follows the grants. An API key issued to an agent caller, or from a proposal an agent made, is always an agent key, and `standard` is refused for it.
+             * @enum {string}
+             */
+            readonly kind?: "standard" | "agent";
             /** @description Human-readable key name used in operator audit and list views. */
             readonly name: string;
             /**
-             * @description Permission labels assigned to the key. Admin grants are `admin:read` (safe-method reads), `admin:approve` (read plus proposal approve/reject only), `admin:write`/`admin:manage` (write), and `admin:*` (full admin). Layer-scoped write grants use write:{service} or write:{service}/{layer}. The focused Console recipe is [`admin:read`, `admin:approve`].
+             * @description Permission labels assigned to the key. Admin grants are `admin:read` (safe-method reads), `admin:approve` (read; approving or rejecting a proposal also requires a verified interactive human session, and approval a private review capability), `admin:write`/`admin:manage` (write), and `admin:*` (full admin). Layer-scoped write grants use write:{service} or write:{service}/{layer}. Data read grants use read:{service}, read:{service}/{layer}, read:{service}/* (every layer of the service) or read:* (every service); a key without a full-admin grant reads no service or layer data without a matching read grant, and wildcards are rejected on write grants. The recommended agent key is [`admin:read`, `admin:write`, `read:*`]. The focused proposal-reading recipe is [`admin:read`, `admin:approve`]; an API key cannot approve or reject a proposal.
              * @default []
              */
             readonly permissions?: readonly string[];
         };
         /** @description Provide either password or secretReference/secretType. Do not provide both. */
         readonly CreateConnectionRequest: {
+            /** @description Object storage: S3 bucket name. */
+            readonly bucket?: string;
             /** @description Database name */
             readonly databaseName: string;
             /** @description Optional connection description */
             readonly description?: string;
+            /** @description Object storage: the external id returned by the setup endpoint. Single use; it cannot be changed later. */
+            readonly externalId?: string;
             /** @description Database host or IP address */
             readonly host: string;
+            /**
+             * @description object-storage creates an S3 connection from bucket, prefix, region, roleArn and externalId; other fields are ignored.
+             * @enum {string}
+             */
+            readonly kind?: "database" | "object-storage";
             /** @description Connection display name */
             readonly name: string;
             /** @description Database password (managed encrypted storage) */
@@ -8867,6 +10168,12 @@ export type components = {
              * @default 5432
              */
             readonly port?: number;
+            /** @description Object storage: key prefix the connection is limited to. */
+            readonly prefix?: string;
+            /** @description Object storage: AWS region of the bucket. */
+            readonly region?: string;
+            /** @description Object storage: arn:aws:iam::<account>:role/honua-connection-*. */
+            readonly roleArn?: string;
             /** @description External secret manager reference */
             readonly secretReference?: string;
             /** @description Secret provider type (required with secretReference) */
@@ -8893,6 +10200,8 @@ export type components = {
             readonly correlationId?: string | null;
             /** @description Currently observed container image/revision before the upgrade. */
             readonly currentImage?: string | null;
+            /** @description Fields the data-populate workload writes. Required with dataPopulateWorkloadId; the release is rejected before mutation unless every field is the new nullable field. */
+            readonly dataPopulateFields?: readonly string[] | null;
             /** @description Optional ETL/data-populate workload id dispatched after the schema change. */
             readonly dataPopulateWorkloadId?: string | null;
             /** @description Desired container image/revision the rollout converges to. */
@@ -8962,6 +10271,8 @@ export type components = {
         readonly CreateMetadataReleaseOperationRequest: {
             /** @description Correlation id propagated from upstream systems. */
             readonly correlationId?: string | null;
+            /** @description Fields the data-populate workload writes. Required with dataPopulateWorkloadId; the release is rejected before mutation unless every field is the new nullable field. */
+            readonly dataPopulateFields?: readonly string[] | null;
             /** @description Optional ETL/data-populate workload identifier dispatched after the schema change. */
             readonly dataPopulateWorkloadId?: string | null;
             /** @description Desired Git revision, tag, or ref for the metadata release. */
@@ -8978,6 +10289,8 @@ export type components = {
             readonly reason?: string | null;
             /** @description Semantic identifier of the resource/layer being evolved and smoke-checked. */
             readonly resourceSemanticId: string;
+            /** @description Verified provisioning root from the DevOps handoff (urn:honua:provisioning: plus 32 lowercase hex digits). Omit when the release is not federated. */
+            readonly rootProvisioningOperationId?: string | null;
             /** @description Stable script identifier for the additive change; defaults to add-{newFieldName}. */
             readonly scriptId?: string | null;
             /** @description Target environment whose current graph snapshot is the rollback target. */
@@ -9075,6 +10388,8 @@ export type components = {
             readonly providerOperationId?: string;
             readonly reason?: string;
             readonly requestedBy?: string;
+            /** @description Verified provisioning root from the DevOps handoff (urn:honua:provisioning: plus 32 lowercase hex digits). Null when the operation was not federated. */
+            readonly rootProvisioningOperationId?: string | null;
             readonly status: string;
             readonly target?: components["schemas"]["DeployPlanTargetResponse"];
             /** Format: date-time */
@@ -9119,6 +10434,8 @@ export type components = {
             readonly prUrl?: string | null;
             /** @description Rollback plan for the release, when computed. */
             readonly rollbackPlan?: components["schemas"]["DeployOpsMetadataRollbackPlanResponse"] | null;
+            /** @description Verified provisioning root from the DevOps handoff. Matches the top-level field on the operation. */
+            readonly rootProvisioningOperationId?: string | null;
             /** @description Target environment for the release. */
             readonly targetEnvironment?: string;
             /** @description Warnings. */
@@ -9200,6 +10517,8 @@ export type components = {
             readonly reason?: string | null;
             /** @description Principal that requested the operation (or api-key:{id} for API-key auth). */
             readonly requestedBy?: string | null;
+            /** @description Verified provisioning root from the DevOps handoff (urn:honua:provisioning: plus 32 lowercase hex digits). Null when the operation was not federated. */
+            readonly rootProvisioningOperationId?: string | null;
             /**
              * @description Workflow operation status.
              * @enum {string}
@@ -9294,6 +10613,24 @@ export type components = {
             /** @description Non-fatal warnings from the compatibility check */
             readonly warnings?: readonly string[];
         };
+        readonly DeployPreflightDatabaseSessionSettings: {
+            /** @description Why verification is unavailable, when it is */
+            readonly message?: string;
+            /**
+             * @description Database:SessionSettings:Mode. connection: the server sets lock_timeout, statement_timeout, idle_in_transaction_session_timeout (and search_path when Database:Schema is set) on every connection. role-defaults: no session SET; the database role's defaults apply, so RDS Proxy can multiplex
+             * @enum {string}
+             */
+            readonly mode: "connection" | "role-defaults";
+            /** @description ALTER ROLE statements an operator runs to align the role defaults; the server never runs them */
+            readonly remediation?: readonly string[];
+            /** @description Database role whose defaults were verified */
+            readonly role?: string;
+            /**
+             * @description Startup verification of the role defaults against Limits:Connections (role-defaults mode only)
+             * @enum {string}
+             */
+            readonly verification: "not-applicable" | "pending" | "verified" | "mismatch" | "unavailable";
+        };
         readonly DeployPreflightMigration: {
             /** @description Scripts previously executed against the database but no longer discovered by the current binary */
             readonly executedButNotDiscoveredScripts: readonly string[];
@@ -9323,6 +10660,7 @@ export type components = {
         };
         readonly DeployPreflightResponse: {
             readonly databaseCompatibility?: components["schemas"]["DeployPreflightDatabaseCompatibility"];
+            readonly databaseSessionSettings?: components["schemas"]["DeployPreflightDatabaseSessionSettings"];
             /** @description Configured Honua deployment mode. Only present when includeDiagnostics=true. */
             readonly deploymentMode?: string;
             /** @description Current ASP.NET host environment. Only present when includeDiagnostics=true. */
@@ -9344,6 +10682,30 @@ export type components = {
             readonly serverVersion?: string;
             /** @description Top-level coordinated deployment status for this instance */
             readonly status: string;
+        };
+        readonly DiscoveryMetadataEnvelope: {
+            readonly data?: components["schemas"]["DiscoveryMetadataResponse"];
+            readonly success?: boolean;
+        };
+        readonly DiscoveryMetadataResponse: {
+            readonly affectedPublications?: readonly components["schemas"]["DiscoveryPublicationImpact"][];
+            readonly description?: string | null;
+            readonly entityId?: string;
+            readonly etag?: string;
+            readonly keywords?: readonly string[];
+            readonly title?: string | null;
+        };
+        readonly DiscoveryMetadataUpdateRequest: {
+            readonly description?: string | null;
+            /** @description Optimistic concurrency token supplied by the caller from the current layer discovery metadata. */
+            readonly etag: string;
+            readonly keywords?: readonly string[];
+            readonly title?: string | null;
+        };
+        readonly DiscoveryPublicationImpact: {
+            readonly identifier?: string;
+            readonly publicationId?: string;
+            readonly serviceName?: string;
         };
         /** @description Embed key metadata without plaintext key material. */
         readonly EmbedKeyResponse: {
@@ -9461,6 +10823,91 @@ export type components = {
              * @description Response timestamp
              */
             readonly timestamp?: string;
+        };
+        readonly Export: {
+            /**
+             * Format: uri
+             * @description Absolute signed-in URL of the current Version's collection document.
+             */
+            readonly collectionUrl?: string | null;
+            readonly currentVersion?: string | null;
+            readonly id: string;
+            readonly jobId?: string | null;
+            /** @description The newest export job's error when it failed. */
+            readonly message?: string | null;
+            readonly notPublicReason?: string | null;
+            /**
+             * Format: uri
+             * @description Absolute public URL of the collection document; null while the Export is signed-in only.
+             */
+            readonly publicUrl?: string | null;
+            readonly source: components["schemas"]["ExportSource"];
+            /** @enum {string} */
+            readonly status: "running" | "ready" | "failed" | "unpublished";
+            readonly title: string;
+            /** Format: date-time */
+            readonly updatedAt?: string | null;
+            readonly versions: readonly components["schemas"]["ExportVersion"][];
+        };
+        readonly ExportArtifact: {
+            /** Format: int64 */
+            readonly bytes?: number | null;
+            /** Format: uri */
+            readonly href: string;
+            /** @enum {string} */
+            readonly kind: "collection" | "geoparquet" | "pmtiles";
+        };
+        readonly ExportCreateRequest: {
+            /** @description Defaults to the Layer's name as a slug. */
+            readonly exportId?: string;
+            /** @description Feature identity field shared by both artifacts; defaults to the Layer's declared text key, or its object id. */
+            readonly identityField?: string;
+            /** @description Maximum tiles to render for the PMTiles archive; defaults to the server's local tile ceiling. */
+            readonly maxTiles?: number | null;
+            readonly maxZoom?: number;
+            readonly minZoom?: number;
+            readonly source: components["schemas"]["ExportSource"];
+        };
+        readonly ExportEnvelope: {
+            readonly data?: components["schemas"]["Export"];
+            readonly message?: string | null;
+            readonly success: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ExportFailureEnvelope: {
+            readonly data?: unknown;
+            readonly message?: string | null;
+            readonly success: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ExportListEnvelope: {
+            readonly data?: {
+                readonly items: readonly components["schemas"]["Export"][];
+            };
+            readonly message?: string | null;
+            readonly success: boolean;
+            /** Format: date-time */
+            readonly timestamp?: string;
+        };
+        readonly ExportSource: {
+            /**
+             * @description Source kind; only `layer` today.
+             * @enum {string}
+             */
+            readonly kind?: "layer";
+            readonly layerId?: number;
+            readonly name?: string;
+            readonly serviceId?: string;
+        };
+        readonly ExportVersion: {
+            readonly artifacts: readonly components["schemas"]["ExportArtifact"][];
+            /** Format: date-time */
+            readonly createdAt?: string | null;
+            /** Format: int64 */
+            readonly featureCount?: number | null;
+            readonly version: string;
         };
         /** @description Credentials for a protected external service. Used transiently for the discovery request only; never persisted. */
         readonly ExternalServiceDiscoverCredentials: {
@@ -10028,6 +11475,10 @@ export type components = {
             /** @description Sanitized validation payload captured at submission time, when present. Any JSON value; null when absent. */
             readonly validation?: unknown;
         };
+        readonly FolderRequest: {
+            readonly name?: string;
+            readonly title?: string | null;
+        };
         /** @description Package attachment policy. */
         readonly FormsAttachmentPolicy: {
             /** @description Allowed MIME types. Wildcards such as `image/*` are supported. */
@@ -10084,6 +11535,12 @@ export type components = {
         };
         /** @description Single field or attachment control definition in a package. */
         readonly FormsFieldDefinition: {
+            /** @description Expression in the package expression language that computes the field value. */
+            readonly calculatedExpression?: string;
+            /** @description Constraint expression in the package expression language; a value is accepted only when it evaluates true. */
+            readonly constraintExpression?: string;
+            /** @description Message reported when the constraint expression rejects a value. */
+            readonly constraintMessage?: string;
             /** @description Default value encoded as JSON. Any JSON value. */
             readonly defaultValue?: unknown;
             readonly domain?: components["schemas"]["FormsFieldDomainDefinition"];
@@ -10097,6 +11554,8 @@ export type components = {
             readonly private?: boolean;
             /** @description Whether clients should render the control read-only. */
             readonly readOnly?: boolean;
+            /** @description Relevance expression in the package expression language; the field applies only when it evaluates true. */
+            readonly relevanceExpression?: string;
             /** @description Whether a submission must provide a value. */
             readonly required?: boolean;
             /** @description Section id containing this field. */
@@ -10138,6 +11597,8 @@ export type components = {
             readonly attachmentPolicy?: components["schemas"]["FormsAttachmentPolicy"];
             /** @description Package description. */
             readonly description?: string | null;
+            /** @description Language of the field expressions, such as `xlsform` for imported workbooks. Validation and publish reject packages that carry expressions until an evaluation policy for the language is registered. */
+            readonly expressionLanguage?: string;
             /** @description Field definitions, including target-field bindings. */
             readonly fields?: readonly components["schemas"]["FormsFieldDefinition"][];
             /** @description Stable package identifier. Generated by the server when omitted on create. */
@@ -10313,8 +11774,37 @@ export type components = {
             /** @description Rule type such as minLength, maxLength, min, max, or regex. */
             readonly type?: string | null;
         };
+        /** @description One workbook cell that blocks an XLSForm import or export. */
+        readonly FormsXlsFormDiagnostic: {
+            /** @description XLSForm column name, such as `type` or `name`. */
+            readonly column?: string;
+            /** @description Why the cell cannot be converted. */
+            readonly message?: string;
+            /** @description One-based spreadsheet row number, counting the header row. */
+            readonly row?: number;
+            /** @description Worksheet name: `survey`, `choices`, `settings`, or `workbook` for archive-level problems. */
+            readonly sheet?: string;
+        };
+        /** @description Problem document that lists every workbook cell blocking an XLSForm import or export. */
+        readonly FormsXlsFormProblem: {
+            /** @description Request correlation identifier. */
+            readonly correlationId?: string;
+            /** @description Human-readable explanation. */
+            readonly detail?: string;
+            readonly diagnostics?: readonly components["schemas"]["FormsXlsFormDiagnostic"][];
+            /** @description Request path the problem occurred on. */
+            readonly instance?: string;
+            /** @description HTTP status code. */
+            readonly status?: number;
+            /** @description Short problem title. */
+            readonly title?: string;
+            /** @description Problem type URI. */
+            readonly type?: string;
+        };
         /** @description Body for generating a 3D Tiles tileset from a published feature layer. */
         readonly GenerateSceneRequest: {
+            /** @description Queue generation and return a job reference. */
+            readonly async?: boolean;
             /**
              * Format: int32
              * @description Optional cache max-age applied to the registered scene dataset. Forwarded verbatim; negative values are rejected by the generation executor.
@@ -10512,6 +12002,144 @@ export type components = {
         readonly GitOpsMetadataReleaseTarget: {
             readonly environment: string;
         };
+        readonly GpProcessBindingActivateRequest: {
+            /** Format: int32 */
+            readonly expectedBindingVersion?: number;
+            readonly lockDigest?: string;
+            readonly operation?: string | null;
+            readonly targets?: readonly components["schemas"]["GpProcessBindingTargetRequest"][];
+        };
+        readonly GpProcessBindingListResponse: {
+            readonly bindings?: readonly components["schemas"]["GpProcessBindingResponse"][];
+        };
+        readonly GpProcessBindingRefusedResponse: {
+            readonly binding?: components["schemas"]["GpProcessBindingResponse"];
+            readonly details?: readonly string[];
+            readonly reasons?: readonly string[];
+        };
+        readonly GpProcessBindingResponse: {
+            /** Format: date-time */
+            readonly activatedAt?: string | null;
+            readonly activatedBy?: string | null;
+            /** Format: int32 */
+            readonly bindingVersion?: number;
+            readonly lockDigest?: string | null;
+            readonly operation?: string | null;
+            readonly previousLockDigest?: string | null;
+            readonly process?: string;
+            readonly scheduleReconciliation?: string;
+            /** Format: int32 */
+            readonly serverContractVersion?: number;
+            readonly supportedTargets?: readonly string[];
+            readonly targets?: readonly components["schemas"]["GpProcessBindingTargetResponse"][];
+        };
+        readonly GpProcessBindingTargetRequest: {
+            readonly jobDefinitionArn?: string | null;
+            readonly kind?: string;
+        };
+        readonly GpProcessBindingTargetResponse: {
+            readonly image?: string;
+            readonly jobDefinitionArn?: string | null;
+            readonly kind?: string;
+        };
+        readonly GpProcessReleaseJobRequest: {
+            readonly declaredScope?: readonly {
+                /**
+                 * @default read
+                 * @enum {string}
+                 */
+                readonly access?: "read" | "write";
+                readonly layerId?: string | null;
+                readonly serviceId: string;
+            }[];
+            readonly params: {
+                readonly [key: string]: unknown;
+            };
+        };
+        readonly GpProcessReleaseJobResponse: {
+            readonly artifactsUrl: string;
+            readonly diagnosticsUrl: string;
+            readonly jobId: string;
+            readonly statusUrl: string;
+        };
+        readonly GpProcessReleaseListResponse: {
+            readonly releases?: readonly components["schemas"]["GpProcessReleaseResponse"][];
+        };
+        /**
+         * GP process release lock v1
+         * @description Immutable identity of one geoprocessing process release: the exact source, dependency lock, runtime image, workflow version, configuration references, targets, artifacts and validation receipts that a deployment activates. Generated once by `honua-gp-devkit release` (honua-server#6221); promoted and rolled back by digest, never rebuilt.
+         */
+        readonly GpProcessReleaseLock: {
+            readonly artifacts: readonly {
+                readonly name: string;
+                readonly sha256: string;
+                readonly sizeBytes: number;
+            }[];
+            readonly compatibility: {
+                readonly serverContractVersion: {
+                    readonly maximum: number;
+                    readonly minimum: number;
+                };
+            };
+            readonly configurationReferences: readonly {
+                readonly name: string;
+                /** @description A reference, never a value: the worker resolves it at execution time. */
+                readonly reference: string;
+            }[];
+            readonly dependencyLock: {
+                readonly path: string;
+                readonly sha256: string;
+            };
+            readonly generatedAt: string;
+            readonly process: {
+                readonly contract: {
+                    readonly inputSchemaSha256: string;
+                    readonly outputSchemaSha256: string;
+                };
+                readonly entrypoint: string;
+                readonly name: string;
+                /** @enum {string} */
+                readonly runtime: "python" | "dotnet";
+                readonly version: string;
+            };
+            readonly runtimeImage: {
+                readonly digest: string;
+                readonly reference: string;
+            };
+            /** @enum {string} */
+            readonly schema: "honua.gp-process-release-lock/v1";
+            readonly source: {
+                readonly descriptorPath: string;
+                readonly repository: string;
+                readonly sha: string;
+            };
+            readonly targets: readonly {
+                readonly chartVersion?: string;
+                readonly jobDefinitionName?: string;
+                /** @enum {string} */
+                readonly kind: "kubernetes-job" | "aws-batch";
+                readonly workerImageDigest: string;
+            }[];
+            readonly validation: {
+                readonly receipts: readonly {
+                    readonly name: string;
+                    readonly sha256: string;
+                    /** @enum {string} */
+                    readonly status: "pass";
+                }[];
+            };
+            readonly workflowVersion: string;
+        };
+        readonly GpProcessReleaseResponse: {
+            readonly created?: boolean | null;
+            readonly lockDigest?: string;
+            readonly process?: string;
+            /** Format: date-time */
+            readonly publishedAt?: string;
+            readonly publishedBy?: string;
+            readonly sourceSha?: string;
+            readonly version?: string;
+        };
         /** @description A single RBAC permission grant. Each component accepts `*` as a wildcard. */
         readonly IdentityPermissionGrant: {
             /** @description Layer identifier, or `*` for all layers. */
@@ -10551,161 +12179,41 @@ export type components = {
         readonly ImportActiveUploadsResponse: {
             readonly uploads: readonly components["schemas"]["ImportUploadProgress"][];
         };
-        /** @description Request body for recording an ArcGIS migration manifest artifact. `sourceUrl` and `manifest` are validated as required by the handler. */
-        readonly ImportArcGisMigrationManifestIngestionRequest: {
-            readonly actor?: string | null;
-            /**
-             * Format: date-time
-             * @description Instant to store on the run record. Defaults to server receive time.
-             */
-            readonly createdAt?: string | null;
-            readonly manifest?: components["schemas"]["ImportMigrationManifestArtifact"];
-            readonly sourceDisplayName?: string | null;
-            /** @description Canonical source URL the manifest was generated from. Required. */
-            readonly sourceUrl?: string;
-            readonly sourceVersion?: string | null;
-        };
-        /** @description Deterministic post-apply parity outcome for an ArcGIS migration source. */
-        readonly ImportArcGisMigrationParityArtifact: {
-            /** @example honua.migration.arcgis-parity */
-            readonly artifactKind?: string;
-            /** @example 1.0 */
-            readonly artifactVersion?: string;
-            /**
-             * @description Overall classification aggregated with the worst-state rule across all probes.
-             * @enum {string}
-             */
-            readonly classification: "pass" | "warn" | "fail";
-            /** @description Sorted, distinct, trimmed reasons justifying the overall classification. */
-            readonly reasons?: readonly string[];
-            /** @description Per-target-resource probe outcomes, sorted by targetResourceId. */
-            readonly resourceProbes?: readonly components["schemas"]["ImportArcGisMigrationParityResourceProbe"][];
-            readonly source: components["schemas"]["ImportMigrationSourceIdentity"];
-            /** @example arcgis-geoservices-rest */
-            readonly sourceKind: string;
-        };
-        /** @description Generic coverage probe. Bands: pass when coverage >= 0.99, warn when >= 0.80 and < 0.99, fail when < 0.80. A zero denominator reports pass. */
-        readonly ImportArcGisMigrationParityCoverageProbe: {
-            /** @enum {string} */
-            readonly classification: "pass" | "warn" | "fail";
-            /**
-             * Format: double
-             * @description observed / expected clamped to [0, 1]; 1.0 when expected is zero.
-             */
-            readonly coverage?: number;
-            /** Format: int32 */
-            readonly expected?: number;
-            readonly missingIds?: readonly string[];
-            /** Format: int32 */
-            readonly observed?: number;
-            readonly reason?: string | null;
-        };
-        /** @description Feature-count probe. Bands: pass when the absolute delta ratio is <= 5%, warn when > 5% and <= 20% (or when the source advertised no count), fail when > 20%. */
-        readonly ImportArcGisMigrationParityFeatureCountProbe: {
-            /** @enum {string} */
-            readonly classification: "pass" | "warn" | "fail";
-            /**
-             * Format: int64
-             * @description targetCount - sourceCount.
-             */
-            readonly delta?: number | null;
-            /** Format: double */
-            readonly deltaRatio?: number | null;
-            readonly reason?: string | null;
-            /** Format: int64 */
-            readonly sourceCount?: number | null;
-            /** Format: int64 */
-            readonly targetCount?: number;
-        };
-        /** @description Request body for recording an ArcGIS migration parity artifact. `parity` is validated as required by the handler. */
-        readonly ImportArcGisMigrationParityIngestionRequest: {
-            readonly parity?: components["schemas"]["ImportArcGisMigrationParityArtifact"];
-        };
-        /** @description Per-target-resource parity probe bundle. */
-        readonly ImportArcGisMigrationParityResourceProbe: {
-            readonly attachmentCoverage: components["schemas"]["ImportArcGisMigrationParityCoverageProbe"];
-            /** @enum {string} */
-            readonly classification: "pass" | "warn" | "fail";
-            readonly featureCount: components["schemas"]["ImportArcGisMigrationParityFeatureCountProbe"];
-            readonly identityCoverage: components["schemas"]["ImportArcGisMigrationParityCoverageProbe"];
-            readonly relationshipCoverage: components["schemas"]["ImportArcGisMigrationParityCoverageProbe"];
-            readonly schema: components["schemas"]["ImportArcGisMigrationParitySchemaProbe"];
-            readonly sourceResourceId: string;
-            readonly targetResourceId: string;
-        };
-        /** @description Schema match probe. Bands: pass when no expected field is missing from the target, fail otherwise. There is no warn band. */
-        readonly ImportArcGisMigrationParitySchemaProbe: {
-            /** @enum {string} */
-            readonly classification: "pass" | "fail";
-            readonly expectedFieldNames?: readonly string[];
-            readonly missingFieldNames?: readonly string[];
-            readonly reason?: string | null;
-            readonly targetFieldNames?: readonly string[];
-        };
-        /** @description Page of ArcGIS migration run summaries. */
-        readonly ImportArcGisMigrationRunListResult: {
-            /** @description Run summaries on this page, newest first. */
-            readonly items?: readonly components["schemas"]["ImportArcGisMigrationRunSummary"][];
-            /**
-             * Format: int32
-             * @description Echoed page index.
-             */
-            readonly page?: number;
-            /**
-             * Format: int32
-             * @description Echoed (clamped) page size.
-             */
-            readonly pageSize?: number;
-            /**
-             * Format: int32
-             * @description Total runs matching the filter across all pages.
-             */
-            readonly totalCount?: number;
-        };
-        /** @description Run-level metadata persisted alongside the manifest and parity artifacts. */
-        readonly ImportArcGisMigrationRunRecord: {
-            readonly actor?: string | null;
-            /** Format: date-time */
-            readonly createdAt: string;
-            readonly runId: string;
-            readonly sourceDisplayName?: string | null;
-            /** @description Trimmed canonical source URL the manifest was generated from. */
-            readonly sourceUrl: string;
-            readonly sourceVersion?: string | null;
-        };
-        /** @description Lightweight ArcGIS migration run summary returned by the admin list endpoint. */
-        readonly ImportArcGisMigrationRunSummary: {
-            /** @description Operator or service-account identifier. */
-            readonly actor?: string | null;
-            /**
-             * Format: date-time
-             * @description Wall-clock time the run was recorded.
-             */
-            readonly createdAt: string;
-            /** @description True when the run has a parity artifact persisted. */
-            readonly hasParity?: boolean;
-            /** @description Stable run identifier. */
-            readonly runId: string;
-            readonly sourceDisplayName?: string | null;
-            /** @description Canonical source URL. */
-            readonly sourceUrl: string;
-            readonly sourceVersion?: string | null;
-            /**
-             * @description Parity status of the run.
-             * @enum {string}
-             */
-            readonly status: "manifest-only" | "pass" | "warn" | "fail";
-            /**
-             * Format: int32
-             * @description Number of target resources in the manifest.
-             */
-            readonly targetResourceCount?: number;
-        };
         /** @description Returned when an upload is cancelled. */
         readonly ImportCancelUploadResponse: {
             /** @example Upload cancelled */
             readonly message: string;
             readonly uploadId: string;
+        };
+        readonly ImportFileFromObjectStoreRequest: {
+            /**
+             * @deprecated
+             * @description Not accepted. The connection carries its role.
+             */
+            readonly assumeRoleArn?: string;
+            /**
+             * Format: uuid
+             * @description Object storage connection to read from.
+             */
+            readonly connectionId?: string;
+            /** @description Object key; must lie under the connection prefix. */
+            readonly key?: string;
+            /** @default false */
+            readonly overwriteExisting?: boolean;
+            /** Format: int32 */
+            readonly sourceSrid?: number;
+            /**
+             * @deprecated
+             * @description Not accepted. Import through a connection with connectionId and key.
+             */
+            readonly sourceUri?: string;
+            readonly tableName: string;
+            readonly targetSchema?: string;
+            /**
+             * Format: int32
+             * @default 4326
+             */
+            readonly targetSrid?: number;
         };
         readonly ImportFileFromUrlRequest: {
             /** @description Optional filename hint when the URL path does not contain a usable extension. */
@@ -10733,7 +12241,7 @@ export type components = {
             /** Format: int32 */
             readonly detectedSrid?: number | null;
             /** @enum {string} */
-            readonly format: "GeoJson" | "Shapefile" | "GeoPackage" | "Gpx" | "Kml" | "Gml" | "Wkt" | "Csv" | "FileGdb" | "FlatGeobuf" | "GeoParquet" | "EsriJson" | "Wkb";
+            readonly format: "GeoJson" | "Shapefile" | "GeoPackage" | "Gpx" | "Kml" | "Gml" | "Wkt" | "Csv" | "FileGdb" | "FlatGeobuf" | "GeoParquet" | "GeoServicesJson" | "Wkb";
             readonly sampleProperties: {
                 readonly [key: string]: unknown;
             };
@@ -10976,6 +12484,7 @@ export type components = {
             readonly jobId: string;
             /** @example Import job queued for processing */
             readonly message: string;
+            readonly plan?: components["schemas"]["ImportGeoservicesPlan"];
             /** @example jobs/ab12cd34ef56 */
             readonly statusUrl: string;
         };
@@ -10994,6 +12503,178 @@ export type components = {
             readonly id?: number;
             readonly name: string;
         };
+        /** @description Request body for recording an ArcGIS migration manifest artifact. `sourceUrl` and `manifest` are validated as required by the handler. */
+        readonly ImportGeoServicesMigrationManifestIngestionRequest: {
+            readonly actor?: string | null;
+            /**
+             * Format: date-time
+             * @description Instant to store on the run record. Defaults to server receive time.
+             */
+            readonly createdAt?: string | null;
+            readonly manifest?: components["schemas"]["ImportMigrationManifestArtifact"];
+            readonly sourceDisplayName?: string | null;
+            /** @description Canonical source URL the manifest was generated from. Required. */
+            readonly sourceUrl?: string;
+            readonly sourceVersion?: string | null;
+        };
+        /** @description Deterministic post-apply parity outcome for an ArcGIS migration source. */
+        readonly ImportGeoServicesMigrationParityArtifact: {
+            /** @example honua.migration.arcgis-parity */
+            readonly artifactKind?: string;
+            /** @example 1.0 */
+            readonly artifactVersion?: string;
+            /**
+             * @description Overall classification aggregated with the worst-state rule across all probes.
+             * @enum {string}
+             */
+            readonly classification: "pass" | "warn" | "fail";
+            /** @description Sorted, distinct, trimmed reasons justifying the overall classification. */
+            readonly reasons?: readonly string[];
+            /** @description Per-target-resource probe outcomes, sorted by targetResourceId. */
+            readonly resourceProbes?: readonly components["schemas"]["ImportGeoServicesMigrationParityResourceProbe"][];
+            readonly source: components["schemas"]["ImportMigrationSourceIdentity"];
+            /** @example geoservices-rest */
+            readonly sourceKind: string;
+        };
+        /** @description Generic coverage probe. Bands: pass when coverage >= 0.99, warn when >= 0.80 and < 0.99, fail when < 0.80. A zero denominator reports pass. */
+        readonly ImportGeoServicesMigrationParityCoverageProbe: {
+            /** @enum {string} */
+            readonly classification: "pass" | "warn" | "fail";
+            /**
+             * Format: double
+             * @description observed / expected clamped to [0, 1]; 1.0 when expected is zero.
+             */
+            readonly coverage?: number;
+            /** Format: int32 */
+            readonly expected?: number;
+            readonly missingIds?: readonly string[];
+            /** Format: int32 */
+            readonly observed?: number;
+            readonly reason?: string | null;
+        };
+        /** @description Feature-count probe. Bands: pass when the absolute delta ratio is <= 5%, warn when > 5% and <= 20% (or when the source advertised no count), fail when > 20%. */
+        readonly ImportGeoServicesMigrationParityFeatureCountProbe: {
+            /** @enum {string} */
+            readonly classification: "pass" | "warn" | "fail";
+            /**
+             * Format: int64
+             * @description targetCount - sourceCount.
+             */
+            readonly delta?: number | null;
+            /** Format: double */
+            readonly deltaRatio?: number | null;
+            readonly reason?: string | null;
+            /** Format: int64 */
+            readonly sourceCount?: number | null;
+            /** Format: int64 */
+            readonly targetCount?: number;
+        };
+        /** @description Request body for recording an ArcGIS migration parity artifact. `parity` is validated as required by the handler. */
+        readonly ImportGeoServicesMigrationParityIngestionRequest: {
+            readonly parity?: components["schemas"]["ImportGeoServicesMigrationParityArtifact"];
+        };
+        /** @description Per-target-resource parity probe bundle. */
+        readonly ImportGeoServicesMigrationParityResourceProbe: {
+            readonly attachmentCoverage: components["schemas"]["ImportGeoServicesMigrationParityCoverageProbe"];
+            /** @enum {string} */
+            readonly classification: "pass" | "warn" | "fail";
+            readonly featureCount: components["schemas"]["ImportGeoServicesMigrationParityFeatureCountProbe"];
+            readonly identityCoverage: components["schemas"]["ImportGeoServicesMigrationParityCoverageProbe"];
+            readonly relationshipCoverage: components["schemas"]["ImportGeoServicesMigrationParityCoverageProbe"];
+            readonly schema: components["schemas"]["ImportGeoServicesMigrationParitySchemaProbe"];
+            readonly sourceResourceId: string;
+            readonly targetResourceId: string;
+        };
+        /** @description Schema match probe. Bands: pass when no expected field is missing from the target, fail otherwise. There is no warn band. */
+        readonly ImportGeoServicesMigrationParitySchemaProbe: {
+            /** @enum {string} */
+            readonly classification: "pass" | "fail";
+            readonly expectedFieldNames?: readonly string[];
+            readonly missingFieldNames?: readonly string[];
+            readonly reason?: string | null;
+            readonly targetFieldNames?: readonly string[];
+        };
+        /** @description Page of ArcGIS migration run summaries. */
+        readonly ImportGeoServicesMigrationRunListResult: {
+            /** @description Run summaries on this page, newest first. */
+            readonly items?: readonly components["schemas"]["ImportGeoServicesMigrationRunSummary"][];
+            /**
+             * Format: int32
+             * @description Echoed page index.
+             */
+            readonly page?: number;
+            /**
+             * Format: int32
+             * @description Echoed (clamped) page size.
+             */
+            readonly pageSize?: number;
+            /**
+             * Format: int32
+             * @description Total runs matching the filter across all pages.
+             */
+            readonly totalCount?: number;
+        };
+        /** @description Run-level metadata persisted alongside the manifest and parity artifacts. */
+        readonly ImportGeoServicesMigrationRunRecord: {
+            readonly actor?: string | null;
+            /** Format: date-time */
+            readonly createdAt: string;
+            readonly runId: string;
+            readonly sourceDisplayName?: string | null;
+            /** @description Trimmed canonical source URL the manifest was generated from. */
+            readonly sourceUrl: string;
+            readonly sourceVersion?: string | null;
+        };
+        /** @description Lightweight ArcGIS migration run summary returned by the admin list endpoint. */
+        readonly ImportGeoServicesMigrationRunSummary: {
+            /** @description Operator or service-account identifier. */
+            readonly actor?: string | null;
+            /**
+             * Format: date-time
+             * @description Wall-clock time the run was recorded.
+             */
+            readonly createdAt: string;
+            /** @description True when the run has a parity artifact persisted. */
+            readonly hasParity?: boolean;
+            /** @description Stable run identifier. */
+            readonly runId: string;
+            readonly sourceDisplayName?: string | null;
+            /** @description Canonical source URL. */
+            readonly sourceUrl: string;
+            readonly sourceVersion?: string | null;
+            /**
+             * @description Parity status of the run.
+             * @enum {string}
+             */
+            readonly status: "manifest-only" | "pass" | "warn" | "fail";
+            /**
+             * Format: int32
+             * @description Number of target resources in the manifest.
+             */
+            readonly targetResourceCount?: number;
+        };
+        /** @description Selected GeoServices publication mapping returned by artifact-set scan or auto-publish admission. Resubmit unchanged with the same source URL to preserve selected IDs. Every supplied mapping is revalidated against the current catalog and resolved publication scope; it grants no authority. */
+        readonly ImportGeoservicesPlan: {
+            /**
+             * @description Whether this mapping targets an existing logical service.
+             * @default false
+             */
+            readonly existingService?: boolean;
+            /** @description Selected folder identity; omitted or null in the plan means root. */
+            readonly folderId?: string | null;
+            /** @description Selected folder path segment; omitted or null for root. */
+            readonly folderName?: string | null;
+            /** @description Optional publication namespace. Omitted means unscoped. A supplied namespace uses the authenticated request's resolved tenant; tenant IDs are not accepted as target authority. */
+            readonly namespace?: string | null;
+            /** @description Immutable public URL leaf. */
+            readonly publicName: string;
+            /** @description Selected stable service facet identity, retained across retry. */
+            readonly serviceId: string;
+            /** @description Logical Admin service identity; collision allocation does not change the public leaf. */
+            readonly serviceName: string;
+            /** Format: uri */
+            readonly serviceUrl: string;
+        };
         /** @description Progress record for one GeoServices import job. */
         readonly ImportGeoservicesProgress: {
             /** Format: int32 */
@@ -11007,6 +12688,8 @@ export type components = {
             /** Format: date-time */
             readonly completedAt?: string | null;
             readonly currentPhase?: string | null;
+            /** @description Stable failure code. IMPORT_TARGET_NOT_OWNED means an unmarked target or staging table was refused without modifying that table. */
+            readonly errorCode?: string | null;
             readonly errorMessage?: string | null;
             /** Format: int32 */
             readonly estimatedTotalFeatures?: number | null;
@@ -11016,6 +12699,13 @@ export type components = {
             readonly failedFeatures?: number;
             /** Format: int32 */
             readonly featuresProcessed?: number;
+            /** @description Per-resource differences that produced `fidelityVerdict`, ordered by code then subject. */
+            readonly fidelityDifferences?: readonly components["schemas"]["ImportMigrationFidelityDifference"][];
+            /**
+             * @description Migration fidelity verdict for the imported layer. `status` says whether the job finished; this says whether the migrated layer is proven equivalent to the source. Null until the job has run its fidelity evaluation; persisted on the final job record, including `needs-review` runs.
+             * @enum {string|null}
+             */
+            readonly fidelityVerdict?: "full-fidelity" | "unverified" | "incomplete" | null;
             readonly jobId: string;
             /**
              * Format: int32
@@ -11031,7 +12721,7 @@ export type components = {
                 readonly [key: string]: unknown;
             } | null;
             readonly serviceName?: string | null;
-            /** @example arcgis-geoservices-rest */
+            /** @example geoservices-rest */
             readonly sourceKind?: string;
             /** Format: int32 */
             readonly sourceLayerId: number;
@@ -11060,6 +12750,8 @@ export type components = {
             /** Format: int32 */
             readonly batchSize?: number | null;
             readonly credentials?: components["schemas"]["ImportGeoservicesCredentialRequest"];
+            /** @description Omit to preserve one source folder for a new service; explicit null selects root; a supplied ID selects an existing folder in the resolved publication scope. Existing services retain their membership. */
+            readonly folderId?: string | null;
             /**
              * Format: int32
              * @description Layer id within the service.
@@ -11070,9 +12762,14 @@ export type components = {
              * @default 3
              */
             readonly maxRetries?: number | null;
+            /** @description Optional publication namespace. Omitted means unscoped. A supplied namespace uses the authenticated request's resolved tenant; tenant IDs are not accepted as target authority. */
+            readonly namespace?: string | null;
             readonly outputFields?: readonly string[] | null;
             /** @default false */
             readonly overwriteExisting?: boolean | null;
+            readonly plan?: components["schemas"]["ImportGeoservicesPlan"];
+            /** @description Immutable public service leaf for auto-publication. Defaults to the selected service name or source leaf; existing services retain their public name. */
+            readonly publicName?: string | null;
             /**
              * Format: int32
              * @default 120
@@ -11096,6 +12793,11 @@ export type components = {
         /** @description Per-child progress within a batch migration run. */
         readonly ImportMigrationBatchChildResponse: {
             readonly dependsOn?: readonly string[];
+            /**
+             * @description Per-layer migration fidelity verdict reported by the child import job; null until the child is terminal.
+             * @enum {string|null}
+             */
+            readonly fidelityVerdict?: "full-fidelity" | "unverified" | "incomplete" | null;
             /** @description Per-layer import job id once queued. */
             readonly jobId?: string | null;
             /**
@@ -11119,11 +12821,18 @@ export type components = {
         readonly ImportMigrationBatchLayerSpec: {
             /** @description Source resource ids imported before this layer. */
             readonly dependsOn?: readonly string[] | null;
+            /** @description Omit to preserve one source folder for a new service; explicit null selects root; a supplied ID selects an existing folder in the resolved publication scope. Existing services retain their membership. */
+            readonly folderId?: string | null;
             /**
              * Format: int32
              * @description Source layer id within the service.
              */
             readonly layerId?: number;
+            /** @description Optional publication namespace. Omitted means unscoped. A supplied namespace uses the authenticated request's resolved tenant; tenant IDs are not accepted as target authority. */
+            readonly namespace?: string | null;
+            readonly plan?: components["schemas"]["ImportGeoservicesPlan"];
+            /** @description Immutable public service leaf for auto-publication. Defaults to the selected service name or source leaf; existing services retain their public name. */
+            readonly publicName?: string | null;
             readonly serviceName?: string | null;
             /** @description Source ArcGIS service URL. Required. */
             readonly serviceUrl?: string;
@@ -11132,6 +12841,11 @@ export type components = {
             /** @description Target PostGIS table name. Required; letters, numbers, and underscores only. */
             readonly tableName?: string;
             readonly targetSchema?: string | null;
+        };
+        /** @description Returned with 422 when `requireFullFidelity` refuses a selection before any layer is queued. */
+        readonly ImportMigrationBatchRefusedResponse: {
+            readonly constructAccounting: components["schemas"]["ImportMigrationConstructAccountingReport"];
+            readonly error: string;
         };
         /** @description Batch migration run aggregate plus per-child progress. */
         readonly ImportMigrationBatchResponse: {
@@ -11143,8 +12857,16 @@ export type components = {
             readonly children?: readonly components["schemas"]["ImportMigrationBatchChildResponse"][];
             /** Format: date-time */
             readonly completedAt?: string | null;
+            readonly constructAccounting?: components["schemas"]["ImportMigrationConstructAccountingReport"];
             /** Format: int32 */
             readonly failedChildren?: number;
+            /** @description Per-resource differences that produced `fidelityVerdict`, ordered by code then subject. */
+            readonly fidelityDifferences?: readonly components["schemas"]["ImportMigrationFidelityDifference"][];
+            /**
+             * @description Service-level migration fidelity verdict. `status` says whether the batch finished; this says whether the migrated service is proven equivalent to the source. Null while running.
+             * @enum {string|null}
+             */
+            readonly fidelityVerdict?: "full-fidelity" | "unverified" | "incomplete" | null;
             readonly relationshipsApplied?: boolean;
             readonly sourceDisplayName?: string | null;
             readonly sourceKind: string;
@@ -11166,13 +12888,79 @@ export type components = {
             readonly applyRelationships?: boolean | null;
             /** @description Footprint layer-import specifications. At least one and at most 500 entries. */
             readonly layers?: readonly components["schemas"]["ImportMigrationBatchLayerSpec"][];
-            /** @description Manifest JSON body used for post-publish relationship application. */
+            /** @description Scan manifest JSON for the source service. Every construct it discovered is accounted against the selected layers before apply, and its relationship classes are applied after publish when `applyRelationships` is true. Without it, construct accounting does not run and the run cannot prove full fidelity. */
             readonly manifestBody?: string | null;
+            /**
+             * @description Refuse the run with 422, before any layer is queued, when construct accounting finds a blocking construct (an unselected or undiscovered layer or table, an unsupported service type or construct) or has no readable manifest to account from.
+             * @default false
+             */
+            readonly requireFullFidelity?: boolean | null;
             readonly sourceDisplayName?: string | null;
-            /** @description Source kind identifier such as arcgis-geoservices-rest. Required. */
+            /** @description Source kind identifier such as geoservices-rest. Required. */
             readonly sourceKind?: string;
             /** @description Redacted source URL describing the footprint origin (display only). */
             readonly sourceUrl?: string | null;
+        };
+        /** @description One source construct and how the migration disposes of it. */
+        readonly ImportMigrationConstructAccountingEntry: {
+            /** @enum {string} */
+            readonly automationStatus: "automated" | "assisted" | "manual-review" | "unsupported";
+            readonly codes: readonly string[];
+            /** @description Construct matrix key, e.g. `service.resource`, `resource.geometry`, `resource.relationships` or `unmapped` for a discovered category without a matrix row. */
+            readonly construct: string;
+            /** @enum {string} */
+            readonly disposition: "migrated" | "review" | "blocker" | "unselected" | "undiscovered";
+            /** @description Source layers or tables that own the construct; empty for service-level constructs. */
+            readonly resourceIds: readonly string[];
+            /** @description Source resource, style, label class or service identifier. */
+            readonly sourceId: string;
+            /** @description Planned target resource id from the manifest. */
+            readonly targetResourceId?: string | null;
+            /** @description Target table the selection imports the owning layer or table into. */
+            readonly targetTable?: string | null;
+            /**
+             * @description The check that verifies the construct on the target after apply.
+             * @enum {string}
+             */
+            readonly verification: "selection-accounting" | "data-reconciliation" | "catalog-reconciliation" | "attachment-reconciliation" | "relationship-apply" | "operator-review";
+        };
+        /** @description Pre-apply accounting of every construct discovered on the source against the run's selection, replayed from the persisted manifest and layers. Its differences fold into `fidelityVerdict` when the run finishes. */
+        readonly ImportMigrationConstructAccountingReport: {
+            /** @description Differences the accounting contributes to the verdict, ordered by code then subject. */
+            readonly differences: readonly components["schemas"]["ImportMigrationFidelityDifference"][];
+            /**
+             * Format: int32
+             * @description Layers and tables the scan discovered.
+             */
+            readonly discoveredResourceCount: number;
+            /** @description One entry per accounted construct, ordered by source id then construct. */
+            readonly entries: readonly components["schemas"]["ImportMigrationConstructAccountingEntry"][];
+            /** @description False when there was no readable ArcGIS scan manifest to account from. */
+            readonly executed: boolean;
+            /** @description True when at least one difference is blocking. */
+            readonly isBlocking: boolean;
+            /**
+             * @description Version of the source-to-target construct matrix the accounting ran against.
+             * @example 2026.1
+             */
+            readonly matrixVersion: string;
+            readonly notExecutedReason?: string | null;
+            /**
+             * Format: int32
+             * @description Layers and tables in the selection.
+             */
+            readonly selectedResourceCount: number;
+        };
+        /** @description One actionable source-to-target difference, or a required check that did not execute. */
+        readonly ImportMigrationFidelityDifference: {
+            readonly actual?: string | null;
+            /** @description Stable finding code, e.g. `fidelity.service.layer-incomplete` or `fidelity.relationship.omitted`. */
+            readonly code: string;
+            readonly expected?: string | null;
+            /** @enum {string} */
+            readonly severity: "blocking" | "unverified";
+            readonly subject?: string | null;
+            readonly summary: string;
         };
         /** @description Deterministic intermediate artifact that translates a source inventory into target Honua migration intent. */
         readonly ImportMigrationManifestArtifact: {
@@ -11197,15 +12985,17 @@ export type components = {
                 readonly [key: string]: unknown;
             }[];
             /** @description Service-level migration plans for protocol surfaces that require operator review. */
-            readonly servicePlans?: readonly {
+            readonly servicePlans?: readonly ({
+                readonly identity?: components["schemas"]["ImportMigrationTargetIdentity"];
+            } & {
                 readonly [key: string]: unknown;
-            }[];
+            })[];
             readonly source: components["schemas"]["ImportMigrationSourceIdentity"];
             /** @example honua.migration.source-inventory */
             readonly sourceArtifactKind?: string;
             /** @example 1.0 */
             readonly sourceArtifactVersion?: string;
-            /** @description Source kind identifier such as geoserver-rest or arcgis-geoservices-rest. */
+            /** @description Source kind identifier such as geoserver-rest or geoservices-rest. */
             readonly sourceKind: string;
             /** @description Target style actions. Unsupported styles appear here as manual-review actions rather than being claimed as migrated. */
             readonly styleActions?: readonly {
@@ -11216,13 +13006,23 @@ export type components = {
                 readonly [key: string]: unknown;
             };
             /** @description Target resources that can be published or staged from the source inventory. */
-            readonly targetResources?: readonly {
+            readonly targetResources?: readonly ({
+                readonly identity?: components["schemas"]["ImportMigrationTargetIdentity"];
+            } & {
                 readonly [key: string]: unknown;
-            }[];
+            })[];
             /** @description Items that cannot be translated into target Honua intent. */
             readonly unsupportedItems?: readonly {
                 readonly [key: string]: unknown;
             }[];
+        };
+        readonly ImportMigrationScanArtifactSet: {
+            readonly inventory: components["schemas"]["MigrationSourceInventoryArtifact"];
+            readonly manifest: components["schemas"]["ImportMigrationManifestArtifact"];
+            /** @description Parity evidence generated from the inventory and planned manifest. */
+            readonly parityEvidence: {
+                readonly [key: string]: unknown;
+            };
         };
         /** @description Identity and version information for a scanned migration source. */
         readonly ImportMigrationSourceIdentity: {
@@ -11238,6 +13038,17 @@ export type components = {
             readonly serviceType?: string | null;
             /** @description Reported source version. */
             readonly version?: string | null;
+        };
+        readonly ImportMigrationTargetIdentity: {
+            readonly importPlan?: components["schemas"]["ImportGeoservicesPlan"];
+            /** @description Original source folder provenance, independent of target mapping. */
+            readonly sourceFolderPath?: string | null;
+            /** @description Effective selected public folder path; omitted or null for root. */
+            readonly targetFolderPath?: string | null;
+            /** @description Selected public service leaf. */
+            readonly targetPublicName?: string | null;
+        } & {
+            readonly [key: string]: unknown;
         };
         /** @description Request body for importing one OGC API Features collection. `serviceUrl`, `collectionId`, and `targetSchema` are validated as required by the handler. */
         readonly ImportOgcApiFeaturesCollectionRequest: {
@@ -11551,6 +13362,8 @@ export type components = {
         readonly ImportOgcWfsResult: {
             /** @description Serialized as a .NET TimeSpan string. */
             readonly duration?: string;
+            /** @description Stable failure code. IMPORT_TARGET_NOT_OWNED means an unmarked target or staging table was refused without modifying that table. */
+            readonly errorCode?: string | null;
             readonly errorMessage?: string | null;
             /** Format: int32 */
             readonly featuresCopied?: number;
@@ -11830,7 +13643,7 @@ export type components = {
              * @description Linked resource kind, camel-cased on the wire.
              * @enum {string}
              */
-            readonly resourceKind?: "alert" | "job" | "release" | "changeSet";
+            readonly resourceKind?: "alert" | "job" | "release" | "changeSet" | "incident";
         };
         /** @description A cursor-paginated page of investigation summaries. */
         readonly InvestigationPageResponse: {
@@ -11852,7 +13665,7 @@ export type components = {
              * @description Event kind, camel-cased on the wire.
              * @enum {string}
              */
-            readonly eventKind?: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log";
+            readonly eventKind?: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log" | "incident";
             /**
              * @description Source-prefixed event reference (e.g. alert:42).
              * @example alert:42
@@ -11966,17 +13779,57 @@ export type components = {
             readonly document?: components["schemas"]["LayerAuthoringDocument"] | null;
             /**
              * Format: int32
-             * @description Layer identifier.
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
+            /**
+             * Format: int32
+             * @description Layer identifier.
+             */
+            readonly storageLayerId?: number;
+        };
+        readonly LayerDisplayResponse: {
+            readonly defaultVisibility?: boolean;
+            readonly displayField?: string | null;
+            readonly hasM?: boolean;
+            readonly hasZ?: boolean;
+            /** Format: double */
+            readonly maxScale?: number | null;
+            /** Format: double */
+            readonly minScale?: number | null;
+            readonly queryable?: boolean;
+            /** Format: int32 */
+            readonly storageLayerId?: number;
+        };
+        /** @description Omitted or null values preserve existing display metadata. */
+        readonly LayerDisplayUpdateRequest: {
+            readonly defaultVisibility?: boolean | null;
+            readonly displayField?: string | null;
+            readonly hasM?: boolean | null;
+            readonly hasZ?: boolean | null;
+            /** Format: double */
+            readonly maxScale?: number | null;
+            /** Format: double */
+            readonly minScale?: number | null;
+            readonly queryable?: boolean | null;
         };
         readonly LayerExtentRefreshLayerSummary: {
             /** Format: int32 */
             readonly extentSrid?: number | null;
             readonly hasExtent?: boolean;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
+             */
             readonly layerId?: number;
             readonly layerName?: string;
+            /**
+             * Format: int32
+             * @description Layer ID
+             */
+            readonly storageLayerId?: number;
         };
         readonly LayerExtentRefreshSummary: {
             readonly layers?: readonly components["schemas"]["LayerExtentRefreshLayerSummary"][];
@@ -11989,6 +13842,24 @@ export type components = {
             readonly serviceExtentUpdated?: boolean;
             readonly serviceName?: string;
         };
+        /** @description 3D extrusion for scene generation and FeatureServer extrusionInfo. An invalid block is rejected with 422 and stable EXTRUSION_* codes. */
+        readonly LayerExtrusion: {
+            /** @description Optional numeric field holding the base elevation. */
+            readonly baseHeightField?: string | null;
+            /**
+             * Format: double
+             * @description Height used when the height field is null.
+             */
+            readonly defaultHeight?: number | null;
+            /** @description Numeric field holding the feature height. */
+            readonly heightField: string;
+            readonly materialHint?: string | null;
+            /**
+             * @description Vertical unit; defaults to meters.
+             * @enum {string|null}
+             */
+            readonly unit?: "meters" | "feet" | "usSurveyFeet" | null;
+        } | null;
         /** @description Single entry in a coded-value domain. */
         readonly LayerFieldCodedValue: {
             /** @description Code value, JSON-typed to match the field's value type. */
@@ -12015,9 +13886,15 @@ export type components = {
             readonly fields?: readonly components["schemas"]["LayerFieldConfigurationItem"][];
             /**
              * Format: int32
-             * @description Layer identifier.
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
+            /**
+             * Format: int32
+             * @description Layer identifier.
+             */
+            readonly storageLayerId?: number;
         };
         /** @description Field configuration update. Fields omitted from the request keep their current configuration. */
         readonly LayerFieldConfigurationUpdateItem: {
@@ -12054,11 +13931,17 @@ export type components = {
         readonly LayerFilterConfigurationResponse: {
             /**
              * Format: int32
-             * @description Layer identifier.
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
             /** @description Saved permanent filter, or null when none is saved. */
             readonly permanentFilter?: components["schemas"]["LayerPermanentFilterConfiguration"] | null;
+            /**
+             * Format: int32
+             * @description Layer identifier.
+             */
+            readonly storageLayerId?: number;
         };
         /** @description Sets or clears the layer permanent filter. */
         readonly LayerFilterConfigurationUpdateRequest: {
@@ -12069,8 +13952,14 @@ export type components = {
             readonly accessPolicy?: components["schemas"]["AccessPolicyResponse"];
             /** @description Public attribution, when authored */
             readonly attribution?: string;
-            /** Format: int32 */
-            readonly layerId: number;
+            readonly editing?: components["schemas"]["MetadataV2ResourceEditing"];
+            readonly extrusion?: components["schemas"]["LayerExtrusion"];
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of serviceLayerIndex. Published clients still read this name.
+             */
+            readonly layerId?: number;
             readonly layerName: string;
             /** @description SPDX license expression or proprietary, when authored */
             readonly license?: string;
@@ -12079,6 +13968,8 @@ export type components = {
             /** @description Data producer or source organization, when authored */
             readonly publisher?: string;
             readonly rasterMosaic?: components["schemas"]["RasterMosaicResponse"];
+            /** Format: int32 */
+            readonly serviceLayerIndex: number;
             /** @description Absolute source documentation URL, when authored */
             readonly sourceUrl?: string;
             readonly timeInfo?: components["schemas"]["TimeInfoResponse"];
@@ -12094,6 +13985,77 @@ export type components = {
              */
             readonly language?: "arcgis-sql" | "cql2-text" | "cql2-json";
         };
+        readonly LayerPublishAcceptedResponse: {
+            readonly jobId: string;
+            /** Format: int64 */
+            readonly rowsTotal: number;
+            /** @enum {string} */
+            readonly status: "Queued";
+            /** @description Relative URL for polling publication progress. */
+            readonly statusUrl: string;
+        };
+        readonly LayerPublishJobStatusResponse: {
+            readonly errorMessage?: string | null;
+            readonly jobId: string;
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
+             */
+            readonly layerId?: number | null;
+            /**
+             * Format: int64
+             * @description Confirmed materialized rows. If live progress expires before completion, zero is a conservative lower bound rather than a current copy measurement; completion uses the recorded actual count.
+             */
+            readonly rowsMaterialized: number;
+            /**
+             * Format: int64
+             * @description Source count, updated to the actual materialization observation when reported by the worker.
+             */
+            readonly rowsTotal: number;
+            /** @enum {string} */
+            readonly status: "Queued" | "Processing" | "Completed" | "Failed" | "Cancelled";
+            /**
+             * Format: int32
+             * @description Published layer identifier after the transaction commits. Null on a Failed job.
+             */
+            readonly storageLayerId?: number | null;
+        };
+        readonly LayerPublishUnavailableProblem: components["schemas"]["ProblemDetails"] & {
+            /** @enum {string} */
+            readonly capability: "jobs.runner";
+            /** @enum {string} */
+            readonly code: "durable-runner-required";
+            /** @enum {string} */
+            readonly missingDependency: "layer-publish-runner";
+            readonly remediation: string;
+            /** Format: uri */
+            readonly remediationRef: string;
+            /** @enum {integer} */
+            readonly status: 503;
+        };
+        readonly LayerRelationshipBatchResponse: {
+            readonly layers?: readonly components["schemas"]["LayerRelationshipResponse"][];
+        };
+        /** @description Complete desired relationship set for one global storage-layer id. */
+        readonly LayerRelationshipBatchUpdateItem: {
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated input alias of storageLayerId, accepted from published clients. Send storageLayerId; when both are sent they must agree.
+             */
+            readonly layerId?: number;
+            /** @description Full replacement relationship set. */
+            readonly relationships?: readonly components["schemas"]["LayerRelationshipUpdateItem"][];
+            /**
+             * Format: int32
+             * @description Required, under this name or its deprecated alias layerId.
+             */
+            readonly storageLayerId?: number;
+        };
+        readonly LayerRelationshipBatchUpdateRequest: {
+            readonly layers: readonly components["schemas"]["LayerRelationshipBatchUpdateItem"][];
+        };
         /** @description A persisted relationship, with the related resource resolved back to its global layer id. */
         readonly LayerRelationshipItem: {
             /**
@@ -12101,6 +14063,11 @@ export type components = {
              * @enum {string}
              */
             readonly cardinality: "one-to-one" | "one-to-many" | "many-to-many";
+            /**
+             * @description Composite ownership metadata. Both resources require reciprocal declarations and must remain read-only.
+             * @default false
+             */
+            readonly composite?: boolean;
             /** @description Relationship description. */
             readonly description?: string | null;
             /** @description Destination field on the related layer. */
@@ -12118,9 +14085,15 @@ export type components = {
             readonly originField: string;
             /**
              * Format: int32
-             * @description Global layer id of the related layer, or -1 when the related resource has no numeric publication.
+             * @deprecated
+             * @description Deprecated alias of relatedStorageLayerId. Published clients still read this name.
              */
             readonly relatedLayerId?: number;
+            /**
+             * Format: int32
+             * @description Global storage-layer id of the related resource, distinct from its service-local publication index. Returns -1 if no storage-layer handle exists.
+             */
+            readonly relatedStorageLayerId?: number;
             /** @description Relationship role, typically origin or destination. */
             readonly role: string;
         };
@@ -12128,11 +14101,17 @@ export type components = {
         readonly LayerRelationshipResponse: {
             /**
              * Format: int32
-             * @description Layer identifier.
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
             /** @description Persisted relationships. */
             readonly relationships?: readonly components["schemas"]["LayerRelationshipItem"][];
+            /**
+             * Format: int32
+             * @description Layer identifier.
+             */
+            readonly storageLayerId?: number;
         };
         /** @description A single relationship to author on a layer. The related layer is given by its global layer id. */
         readonly LayerRelationshipUpdateItem: {
@@ -12142,6 +14121,11 @@ export type components = {
              * @enum {string}
              */
             readonly cardinality?: "one-to-one" | "one-to-many" | "many-to-many";
+            /**
+             * @description Composite ownership metadata. Both resources require reciprocal declarations and must remain read-only.
+             * @default false
+             */
+            readonly composite?: boolean;
             /** @description Relationship description. */
             readonly description?: string | null;
             /** @description Destination field; must exist on the related layer. */
@@ -12159,11 +14143,17 @@ export type components = {
             readonly originField: string;
             /**
              * Format: int32
-             * @description Global layer id of the related layer; resolved to its resource id server-side.
+             * @deprecated
+             * @description Deprecated input alias of relatedStorageLayerId, accepted from published clients. Send relatedStorageLayerId; when both are sent they must agree.
              */
-            readonly relatedLayerId: number;
+            readonly relatedLayerId?: number;
             /**
-             * @description Relationship role, typically origin or destination. Blank defaults to origin.
+             * Format: int32
+             * @description Global storage-layer id of the related resource, distinct from its service-local publication index. Required, under this name or its deprecated alias relatedLayerId.
+             */
+            readonly relatedStorageLayerId?: number;
+            /**
+             * @description Origin or destination role; also accepts esriRelRoleOrigin and esriRelRoleDestination. Blank defaults to origin.
              * @default origin
              */
             readonly role?: string;
@@ -12172,6 +14162,34 @@ export type components = {
         readonly LayerRelationshipUpdateRequest: {
             /** @description Full replacement relationship set. */
             readonly relationships?: readonly components["schemas"]["LayerRelationshipUpdateItem"][];
+        };
+        readonly LayerSpatialReference: {
+            readonly crs?: string | null;
+            readonly isGeographic?: boolean;
+            readonly srid?: number | null;
+        };
+        readonly LayerSpatialResponse: {
+            /** @enum {string} */
+            readonly geometryType?: "unknown" | "none" | "point" | "multipoint" | "linestring" | "multilinestring" | "polygon" | "multipolygon" | "geometrycollection" | "mixed";
+            readonly spatialReference?: components["schemas"]["LayerSpatialReference"];
+            readonly storageCrs?: components["schemas"]["LayerSpatialReference"];
+            /** Format: double */
+            readonly storageCrsCoordinateEpoch?: number | null;
+            /** Format: int32 */
+            readonly storageLayerId?: number;
+            readonly supportedCrs?: readonly components["schemas"]["LayerSpatialReference"][];
+        };
+        /** @description Omitted or null values preserve existing metadata; explicit clear flags remove storage CRS or epoch. */
+        readonly LayerSpatialUpdateRequest: {
+            readonly clearStorageCrs?: boolean;
+            readonly clearStorageCrsCoordinateEpoch?: boolean;
+            /** @enum {string|null} */
+            readonly geometryType?: "none" | "point" | "multipoint" | "linestring" | "multilinestring" | "polygon" | "multipolygon" | "geometrycollection" | "mixed" | null;
+            readonly spatialReference?: components["schemas"]["LayerSpatialReference"];
+            readonly storageCrs?: components["schemas"]["LayerSpatialReference"];
+            /** Format: double */
+            readonly storageCrsCoordinateEpoch?: number | null;
+            readonly supportedCrs?: readonly components["schemas"]["LayerSpatialReference"][] | null;
         };
         readonly LayerStylePayload: {
             /** @description Operator-supplied description of the most recent revision. */
@@ -12251,6 +14269,11 @@ export type components = {
             readonly name?: string;
         };
         readonly LayerTableValidateRequest: {
+            /**
+             * @description Preview the exact decimal and offset-timestamp field types.
+             * @default false
+             */
+            readonly exactTypes?: boolean;
             /** @description Attribute fields to publish. Empty means all discovered columns. */
             readonly fields?: readonly string[];
             readonly geometryColumn?: string | null;
@@ -12288,84 +14311,24 @@ export type components = {
             readonly isValid?: boolean;
             /**
              * Format: int32
-             * @description Layer identifier.
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
             /** @description Layer name. */
             readonly layerName: string;
             /** @description Overall validation status. */
             readonly status: string;
+            /**
+             * Format: int32
+             * @description Layer identifier.
+             */
+            readonly storageLayerId?: number;
             /** @description Backing storage schema. */
             readonly storageSchema?: string | null;
             /** @description Backing storage table. */
             readonly storageTable?: string | null;
         };
-        readonly LicenseCapacitySnapshot: {
-            /** Format: double */
-            readonly burstCeilingServingUnits?: number | null;
-            /** Format: double */
-            readonly burstMultiplier?: number;
-            /** Format: double */
-            readonly currentServingUnits?: number;
-            /** Format: int32 */
-            readonly excludedInstanceCount?: number;
-            /** Format: date-time */
-            readonly graceExpiresAt?: string | null;
-            /** Format: int32 */
-            readonly gracePeriodDays?: number;
-            /** Format: date-time */
-            readonly graceStartedAt?: string | null;
-            /** Format: int32 */
-            readonly liveInstanceCount?: number;
-            /**
-             * Format: int32
-             * @description Numeric LicenseDeploymentRole: 0 Production, 1 Development, 2 Test, 3 Staging, 4 ColdDr.
-             * @enum {integer}
-             */
-            readonly localDeploymentRole?: 0 | 1 | 2 | 3 | 4;
-            readonly localRoleExcluded?: boolean;
-            /** Format: double */
-            readonly localServingUnits?: number;
-            /**
-             * Format: int32
-             * @description Numeric LicenseServingTopology: 0 SingleNode, 1 VirtualMachine, 2 ReplicaSet, 3 Serverless.
-             * @enum {integer}
-             */
-            readonly localTopology?: 0 | 1 | 2 | 3;
-            /** @description Safe operator-facing state messages. */
-            readonly messages?: readonly string[];
-            /** @description True when enforcement is suspended because the coordinated meter is unavailable. */
-            readonly meteringGap?: boolean;
-            /** Format: double */
-            readonly p95ServingUnits?: number;
-            /** Format: int32 */
-            readonly productionInstanceCount?: number;
-            readonly redisConfigured?: boolean;
-            readonly redisCoordinated?: boolean;
-            readonly registrationEnforced?: boolean;
-            /**
-             * Format: int32
-             * @description Numeric LicenseCapacityBandState: 0 NotConfigured, 1 Excluded, 2 Normal, 3 ApproachingBand, 4 Burst, 5 Grace, 6 GraceExpired, 7 Surge.
-             * @enum {integer}
-             */
-            readonly state?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-            readonly surge?: components["schemas"]["LicenseSurgeState"];
-            readonly terms?: components["schemas"]["LicenseCapacityTermsView"];
-            readonly warning80Percent?: boolean;
-            readonly warning100Percent?: boolean;
-        };
-        /** @description Capacity terms encoded in the active license; omitted when the license declares none. */
-        readonly LicenseCapacityTermsView: {
-            /**
-             * Format: int32
-             * @description Null means unlimited.
-             */
-            readonly annualSurgeDays?: number | null;
-            /** Format: double */
-            readonly maxSustainedServingUnits?: number;
-            /** @description Human-readable surge allowance tier. */
-            readonly surgeAllowance?: string;
-        } | null;
         readonly LicenseEntitlementsResponse: {
             /** @description Active platform edition label. */
             readonly edition: string;
@@ -12377,49 +14340,33 @@ export type components = {
              * @description Ceiling day count until expiresAt, or null when no expiry is present.
              */
             readonly daysUntilExpiry?: number | null;
-            /** @description Active platform edition label. */
+            /** @description Active platform edition label, or Unlicensed-2026.1 when licensing is disabled. */
             readonly edition: string;
             /** @description Known FeatureCatalog entitlement inventory with active/inactive state. */
             readonly entitlements?: readonly components["schemas"]["EntitlementResponse"][];
             /**
              * Format: date-time
-             * @description License expiry timestamp, or null for Community/perpetual licenses.
+             * @description License expiry timestamp, or null for disabled licensing and Community/perpetual licenses.
              */
             readonly expiresAt?: string | null;
             /** @description True when daysUntilExpiry is within Licensing:ExpiryWarningDays. */
             readonly expiryWarning?: boolean;
             /** Format: date-time */
             readonly issuedAt?: string | null;
-            /** @description Whether the active configured license validated successfully. */
+            /** @description True when licensing is disabled or the active licensing snapshot is valid. */
             readonly isValid: boolean;
             readonly licensedTo?: string | null;
             readonly licenseId?: string | null;
             /**
+             * @description Runtime licensing mode. Disabled grants all catalog entitlements without license validation or expiry.
+             * @enum {string}
+             */
+            readonly mode?: "enabled" | "disabled";
+            /**
              * @description Runtime validation state for the active license snapshot.
              * @enum {string}
              */
-            readonly validationState: "NoLicenseConfigured" | "Valid" | "MissingFile" | "Malformed" | "UnknownKey" | "InvalidSignature" | "Expired";
-        };
-        readonly LicenseSurgeModeUpdateRequest: {
-            /** @description Whether surge mode should be active. */
-            readonly enabled: boolean;
-            /** @description Optional operator-facing reason for the surge declaration. */
-            readonly reason?: string | null;
-        };
-        readonly LicenseSurgeState: {
-            /** Format: date-time */
-            readonly activatedAt?: string | null;
-            /**
-             * Format: int32
-             * @description Null means unlimited.
-             */
-            readonly annualAllowanceDays?: number | null;
-            readonly isActive?: boolean;
-            readonly reason?: string | null;
-            /** Format: double */
-            readonly remainingDaysThisYear?: number | null;
-            /** Format: double */
-            readonly usedDaysThisYear?: number;
+            readonly validationState: "NoLicenseConfigured" | "Valid" | "MissingFile" | "Malformed" | "UnknownKey" | "InvalidSignature" | "Expired" | "Disabled";
         };
         readonly LicenseUploadResponse: {
             /** @description Sanitized upload result or rejection message. */
@@ -12444,12 +14391,21 @@ export type components = {
             readonly maxImageWidth: number;
         };
         readonly MaterializedFeatureRefreshSummary: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
+             */
             readonly layerId?: number;
             readonly layerName?: string;
             /** Format: int32 */
             readonly materializedFeatureCount?: number;
             readonly schema?: string;
+            /**
+             * Format: int32
+             * @description Layer ID
+             */
+            readonly storageLayerId?: number;
             readonly table?: string;
         };
         readonly MetadataAffectedDependent: {
@@ -12530,6 +14486,29 @@ export type components = {
             readonly label: string;
             readonly value?: string;
         };
+        readonly MetadataCustomFieldSchema: {
+            readonly allowedValues?: readonly string[] | null;
+            readonly appliesTo?: readonly string[] | null;
+            readonly description?: string | null;
+            readonly facetable?: boolean;
+            readonly name: string;
+            readonly required?: boolean;
+            readonly title?: string | null;
+            readonly type: string;
+        };
+        readonly MetadataCustomFieldSchemasEnvelope: {
+            readonly data?: components["schemas"]["MetadataCustomFieldSchemasResponse"];
+            readonly success?: boolean;
+        };
+        readonly MetadataCustomFieldSchemasResponse: {
+            readonly environment: string;
+            readonly etag: string;
+            readonly schemas: readonly components["schemas"]["MetadataCustomFieldSchema"][];
+        };
+        readonly MetadataCustomFieldSchemasUpdateRequest: {
+            readonly etag: string;
+            readonly schemas: readonly components["schemas"]["MetadataCustomFieldSchema"][];
+        };
         readonly MetadataDataScriptContract: {
             /** @description Semantic artifact contracts. Omit for an empty contract; explicit null arrays or entries are rejected. */
             readonly resources?: readonly components["schemas"]["MetadataScriptResourceContract"][];
@@ -12596,6 +14575,28 @@ export type components = {
             readonly refId: string;
             readonly uri?: string;
         };
+        readonly MetadataFieldHistoryEntry: {
+            readonly actor: string;
+            /** Format: date-time */
+            readonly changedAt: string;
+            readonly fieldPath: readonly string[];
+            /** Format: int64 */
+            readonly id: number;
+            readonly itemId: string;
+            readonly itemKind: string;
+            readonly newValue?: unknown;
+            readonly oldValue?: unknown;
+        };
+        readonly MetadataFieldHistoryEnvelope: {
+            readonly data?: components["schemas"]["MetadataFieldHistoryResponse"];
+            readonly success?: boolean;
+        };
+        readonly MetadataFieldHistoryResponse: {
+            readonly hasMore: boolean;
+            readonly items: readonly components["schemas"]["MetadataFieldHistoryEntry"][];
+            /** Format: int64 */
+            readonly nextBeforeId?: number | null;
+        };
         /** @description Request body for Metadata v2 release-package compatibility prevalidation. Exactly one of releasePackageId or releasePackage is required. */
         readonly MetadataPrevalidateRequest: {
             /** @description Optional declared data script contracts. Omit for no scripts; explicit null arrays or entries are rejected. Prevalidation analyzes these declarations but never executes scripts. */
@@ -12623,6 +14624,8 @@ export type components = {
             /** Format: uri */
             readonly prUrl?: string;
             readonly rollbackPlan?: components["schemas"]["MetadataRollbackPlanResponse"];
+            /** @description Verified provisioning root from the DevOps handoff. Matches the top-level field on the operation. */
+            readonly rootProvisioningOperationId?: string | null;
             readonly targetEnvironment: string;
             readonly warnings: readonly string[];
         };
@@ -12866,6 +14869,44 @@ export type components = {
             /** Format: int64 */
             readonly revision: number;
         };
+        readonly MetadataV2EditingPatch: {
+            /** @description Create policy for the selected publication; null preserves it. */
+            readonly create?: boolean | null;
+            /** @description Date, DateTime, TimestampOffset, String, BigInteger or Double field that records the creation time; null preserves it and an empty string clears it. */
+            readonly createdAtField?: string | null;
+            /** @description String field that records the creating user; null preserves it and an empty string clears it. */
+            readonly creatorField?: string | null;
+            /** @description Delete policy for the selected publication; null preserves it. */
+            readonly delete?: boolean | null;
+            /** @description String field that records the last editing user; null preserves it and an empty string clears it. */
+            readonly editorField?: string | null;
+            /** @description Declared UUID field; null preserves the binding and an empty string clears it. */
+            readonly globalIdField?: string | null;
+            /** @description Attachment support; null preserves the existing declaration. */
+            readonly supportsAttachments?: boolean | null;
+            /** @description Update policy for the selected publication; null preserves it. */
+            readonly update?: boolean | null;
+            /** @description Date, DateTime, TimestampOffset, String, BigInteger or Double field that records the last edit time; null preserves it and an empty string clears it. */
+            readonly updatedAtField?: string | null;
+        } | null;
+        readonly MetadataV2ObjectEditing: {
+            /** @default true */
+            readonly canModify?: boolean;
+            /** @description Field tracking the creation timestamp. */
+            readonly createdAtField?: string | null;
+            /** @description Field tracking the creating user. */
+            readonly creatorField?: string | null;
+            /** @description Field tracking the last editing user. */
+            readonly editorField?: string | null;
+            /** @description UUID field used as an edit-stable identifier. */
+            readonly globalIdField?: string | null;
+            /** @default false */
+            readonly supportsAttachments?: boolean;
+            /** @default true */
+            readonly supportsRelatedRecords?: boolean;
+            /** @description Field tracking the last update timestamp. */
+            readonly updatedAtField?: string | null;
+        } | null;
         readonly MetadataV2ObjectMetadata: {
             readonly annotations?: {
                 readonly [key: string]: string;
@@ -12878,8 +14919,26 @@ export type components = {
             readonly namespace?: string;
             readonly title?: string;
         };
+        readonly MetadataV2ResourceEditing: {
+            /** @default true */
+            readonly canModify?: boolean;
+            /** @description Field tracking the creation timestamp. */
+            readonly createdAtField?: string | null;
+            /** @description Field tracking the creating user. */
+            readonly creatorField?: string | null;
+            /** @description Field tracking the last editing user. */
+            readonly editorField?: string | null;
+            /** @description UUID field used as an edit-stable identifier. */
+            readonly globalIdField?: string | null;
+            /** @default false */
+            readonly supportsAttachments?: boolean;
+            /** @default true */
+            readonly supportsRelatedRecords?: boolean;
+            /** @description Field tracking the last update timestamp. */
+            readonly updatedAtField?: string | null;
+        } | null;
         readonly MigrationCompatibilityAssessment: {
-            /** @description Optional stable machine-readable compatibility code such as COMPATIBLE, MANUAL_REVIEW, ARCGIS_UNSUPPORTED_RENDERER, or ARCGIS_TOKEN_REQUIRED when the scanner can assign one deterministically. Source-specific codes are namespaced per source kind so downstream automation can branch deterministically. Omitted on aggregate assessments where no single code applies and on source-specific assessments that do not yet define a stable code. */
+            /** @description Optional stable machine-readable compatibility code such as COMPATIBLE, MANUAL_REVIEW, GEOSERVICES_UNSUPPORTED_RENDERER, or GEOSERVICES_TOKEN_REQUIRED when the scanner can assign one deterministically. Source-specific codes are namespaced per source kind so downstream automation can branch deterministically. Omitted on aggregate assessments where no single code applies and on source-specific assessments that do not yet define a stable code. */
             readonly code?: string;
             /**
              * @description Compatibility classification.
@@ -13004,7 +15063,7 @@ export type components = {
             readonly domainName?: string;
             /** @description Domain category such as codedValue or range when a domain is attached. */
             readonly domainType?: string;
-            /** @description Coded values for codedValue domains. Bounded; coded-value domains exceeding the cap surface as the ARCGIS_DOMAIN_TRUNCATED warning rather than silent truncation. */
+            /** @description Coded values for codedValue domains. Bounded; coded-value domains exceeding the cap surface as the GEOSERVICES_DOMAIN_TRUNCATED warning rather than silent truncation. */
             readonly domainValues?: readonly components["schemas"]["MigrationInventoryCodedValue"][];
             /** @description Source-provided field type token (e.g. esriFieldTypeString). */
             readonly fieldType: string;
@@ -13041,23 +15100,34 @@ export type components = {
             readonly title?: string;
         };
         readonly MigrationInventoryScanRequest: {
+            /** @description Use all to return inventory, manifest and parityEvidence together. Otherwise the response is the inventory artifact. */
+            readonly artifactSet?: string | null;
+            /** @description Omit to preserve one source folder for a new service; explicit null selects root; a supplied ID selects an existing folder in the resolved publication scope. Existing services retain their membership. */
+            readonly folderId?: string | null;
             /**
              * @description GeoServer-only. Fetches SLD documents for deeper classification and external graphic detection without returning raw style documents in the artifact.
              * @default false
              */
             readonly includeStyleContent?: boolean;
+            /** @description Optional publication namespace. Omitted means unscoped. A supplied namespace uses the authenticated request's resolved tenant; tenant IDs are not accepted as target authority. */
+            readonly namespace?: string | null;
             /** @description Optional GeoServer basic-auth password. Both username and password are required to send GeoServer basic auth; otherwise the scan proceeds anonymously and records a note. Ignored for GeoServices scans. */
             readonly password?: string;
+            readonly plan?: components["schemas"]["ImportGeoservicesPlan"];
+            /** @description Immutable public service leaf for auto-publication. Defaults to the selected service name or source leaf; existing services retain their public name. */
+            readonly publicName?: string | null;
             /**
-             * @description Source kind alias. Accepted values normalize to either geoserver-rest or arcgis-geoservices-rest in the response artifact.
+             * @description Source kind alias. Accepted values normalize to either geoserver-rest or geoservices-rest in the response artifact; the legacy value arcgis-geoservices-rest is still accepted.
              * @enum {string}
              */
-            readonly sourceKind: "geoserver" | "geoserver-rest" | "geoservices" | "arcgis-geoservices-rest";
+            readonly sourceKind: "geoserver" | "geoserver-rest" | "geoservices" | "geoservices-rest" | "arcgis-geoservices-rest";
             /**
              * Format: uri
              * @description Source URL to scan. GeoServices requires an HTTPS ArcGIS service root ending in FeatureServer or MapServer and rejects layer/table URLs, embedded credentials, plus private, loopback, or unresolvable targets. GeoServer follows the same HTTPS and address-safety rules outside the test-only unsafe local URL mode and also rejects embedded credentials.
              */
             readonly sourceUrl: string;
+            /** @description Optional logical target service identity for manifest planning. Existing-service plans retain current public name and folder. */
+            readonly targetServiceName?: string | null;
             /**
              * Format: int32
              * @description Optional scan timeout in seconds. Defaults to 120 for GeoServer and 30 for GeoServices.
@@ -13368,7 +15438,7 @@ export type components = {
             readonly source?: components["schemas"]["MigrationRunMetricsSourceSummary"];
             /** @description Source family classification. */
             readonly sourceFamily?: string;
-            /** @description Source kind identifier such as `geoserver-rest` or `arcgis-geoservices-rest`. */
+            /** @description Source kind identifier such as `geoserver-rest` or `geoservices-rest`. */
             readonly sourceKind?: string;
             /**
              * Format: date-time
@@ -13570,7 +15640,7 @@ export type components = {
             readonly runId: string;
             /** @description Operator-visible source display name. */
             readonly sourceDisplayName?: string | null;
-            /** @description Source kind identifier, for example `arcgis-geoservices-rest`. Required. */
+            /** @description Source kind identifier, for example `geoservices-rest`. Required. */
             readonly sourceKind: string;
             /** @description Redacted source URL. Optional for offline-manifest runs. */
             readonly sourceUrl?: string | null;
@@ -13680,7 +15750,7 @@ export type components = {
              * @description Canonical source kind returned by the scanner.
              * @enum {string}
              */
-            readonly sourceKind: "geoserver-rest" | "arcgis-geoservices-rest";
+            readonly sourceKind: "geoserver-rest" | "geoservices-rest";
             /** @description Deterministically ordered GeoServer styles or GeoServices renderers. */
             readonly styles?: readonly components["schemas"]["MigrationInventoryStyle"][];
             readonly summary: components["schemas"]["MigrationInventorySummary"];
@@ -13720,6 +15790,9 @@ export type components = {
              * @example https://honua.io/problems/admin
              */
             readonly type?: string;
+        };
+        readonly MoveServiceRequest: {
+            readonly folderId: string | null;
         };
         /** @description A registered cloud-hosted HDF5 / NetCDF4 / GRIB coverage source. */
         readonly MultidimCoverageResponse: {
@@ -13796,6 +15869,8 @@ export type components = {
              * @example /api/v1/admin/multidim-coverages/jobs/covscan-1
              */
             readonly statusUrl?: string;
+            /** @description Non-fatal scan warnings. Includes a failed coordinate enrichment when the structural scan still succeeded. */
+            readonly warnings?: readonly string[];
         };
         /** @description A network-dataset registry entry. */
         readonly NetworkDatasetResponse: {
@@ -14093,6 +16168,37 @@ export type components = {
             /** @example features:read */
             readonly scope: string;
         };
+        readonly ObjectStorageBrowseResponse: {
+            readonly bucket: string;
+            readonly folders: readonly string[];
+            readonly objects: readonly components["schemas"]["ObjectStorageObject"][];
+            readonly prefix: string;
+            /** @description True when the folder holds more than one page (200 entries). */
+            readonly truncated: boolean;
+        };
+        readonly ObjectStorageObject: {
+            /** Format: int64 */
+            readonly bytes?: number | null;
+            readonly key: string;
+            /**
+             * @description Detected from the first bytes of the object.
+             * @enum {string}
+             */
+            readonly kind: "cog" | "geotiff" | "pmtiles" | "geoparquet" | "other";
+            /** Format: date-time */
+            readonly lastModified?: string | null;
+        };
+        readonly ObjectStorageSetupResponse: {
+            /** @description Single-use external id for the customer role trust policy. Expires after 24 hours unless used by create. */
+            readonly externalId: string;
+            /** @description CloudFormation quick-create link for the read-only role, when a template URL is configured. */
+            readonly quickCreateUrl?: string | null;
+            /**
+             * @description Required name prefix of the customer role.
+             * @example honua-connection-
+             */
+            readonly roleNamePrefix: string;
+        };
         /** @description Body for the alert acknowledge action. */
         readonly ObservabilityAlertAcknowledgeBody: {
             /** @description Optional operator note. Rejected with 400 when longer than 1024 characters. */
@@ -14203,8 +16309,57 @@ export type components = {
              */
             readonly suppressUntil: string;
         };
+        /** @description A written downgrade-gap attestation. */
+        readonly ObservabilityAuditGapAttestation: {
+            /**
+             * Format: int64
+             * @description The last hashed row before the gap.
+             */
+            readonly anchorAuditId: number;
+            /**
+             * Format: int64
+             * @description The audit id of the declaration row.
+             */
+            readonly attestationAuditId: number;
+            /**
+             * Format: int64
+             * @description The first unhashed row of the gap.
+             */
+            readonly gapFirstAuditId: number;
+            /**
+             * Format: int64
+             * @description The last unhashed row of the gap.
+             */
+            readonly gapLastAuditId: number;
+            /**
+             * Format: int64
+             * @description The number of rows in the gap.
+             */
+            readonly gapRowCount: number;
+            /**
+             * Format: int64
+             * @description The first hashed row after the gap.
+             */
+            readonly resumeAuditId: number;
+            readonly verification: components["schemas"]["ObservabilityAuditIntegrity"];
+        };
+        /** @description Request to attest one downgrade gap in the audit hash chain. */
+        readonly ObservabilityAuditGapAttestationBody: {
+            /**
+             * Format: int64
+             * @description The first unhashed row of the gap; must be the first broken audit id that verification reports.
+             */
+            readonly gapFirstAuditId: number;
+            /** @description Why the gap exists, for example the rollback that caused it. */
+            readonly reason: string;
+        };
         /** @description Result of an audit hash-chain integrity verification pass. */
         readonly ObservabilityAuditIntegrity: {
+            /**
+             * Format: int64
+             * @description Unhashed rows after the chain started that a keyed downgrade-gap attestation declares. They carry no tamper evidence of their own.
+             */
+            readonly attestedGapRows?: number;
             /** @description Human-readable failure description, if any. */
             readonly failureReason?: string | null;
             /**
@@ -14424,7 +16579,7 @@ export type components = {
              * @description Event category.
              * @enum {string}
              */
-            readonly kind: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log";
+            readonly kind: "alert" | "audit" | "job" | "release" | "syncConflict" | "temporalOp" | "log" | "incident";
             /**
              * Format: int32
              * @description Layer identifier when scoped to a layer.
@@ -14524,6 +16679,11 @@ export type components = {
         };
         /** @description Alert-dispatch backlog and dead-letter summary. */
         readonly ObservabilityOpsAlertDispatch: {
+            /**
+             * Format: date-time
+             * @description Timestamp of the most recent successfully collected backlog, when known.
+             */
+            readonly backlogObservedAt?: string | null;
             /** @description Privacy-safe active backlog health grouped by configured channel identifier. */
             readonly channels?: readonly components["schemas"]["ObservabilityOpsAlertDispatchChannel"][];
             /**
@@ -14537,7 +16697,7 @@ export type components = {
             readonly dispatcherRunning: boolean;
             /**
              * Format: date-time
-             * @description Timestamp of the most recent successful dispatch pass, when known.
+             * @description Timestamp of the most recent dispatch attempt, including failed attempts.
              */
             readonly lastPollAt?: string | null;
             /**
@@ -14695,8 +16855,15 @@ export type components = {
             readonly message?: string | null;
             /** @description Created proposal identifier when the gateway required approval. */
             readonly proposalId?: string | null;
+            /** @description Verified provisioning root from the DevOps handoff. Null when the proposal was not federated. */
+            readonly rootProvisioningOperationId?: string | null;
             /** @description Proposal outcome status (for example Executed, ProposalCreated, Blocked, NotSupported). */
             readonly status: string;
+        };
+        /** @description Optional body for proposing a finding action. An empty body remains valid. */
+        readonly ObservabilityOpsFindingProposeRequest: {
+            /** @description Verified provisioning root from the DevOps handoff (urn:honua:provisioning: plus 32 lowercase hex digits). */
+            readonly rootProvisioningOperationId?: string | null;
         };
         /** @description Active deterministic ops findings. */
         readonly ObservabilityOpsFindingsList: {
@@ -15055,7 +17222,6 @@ export type components = {
             readonly cacheEnabled?: boolean;
             /** Format: int32 */
             readonly defaultTtlSeconds?: number;
-            readonly fallbackEnabled?: boolean;
             /** Format: date-time */
             readonly generatedAt?: string;
             readonly isHealthy?: boolean;
@@ -15064,9 +17230,6 @@ export type components = {
             readonly keyPrefix?: string | null;
             /** @example /api/v1/admin/operations/cache/statistics */
             readonly metricsEndpoint?: string | null;
-            readonly redisServerInfo?: components["schemas"]["OpsRedisServerInfo"] | null;
-            /** Format: int32 */
-            readonly retryIntervalSeconds?: number;
         };
         /** @description Cache invalidation request. At least one of keyPattern, serviceId or scope must be supplied. */
         readonly OpsCacheInvalidationRequest: {
@@ -15119,11 +17282,6 @@ export type components = {
             readonly misses?: number;
             /** Format: double */
             readonly missRatio?: number;
-            /** Format: int64 */
-            readonly redisDatabaseSize?: number | null;
-            /** Format: int64 */
-            readonly redisUsedMemoryBytes?: number | null;
-            readonly redisUsedMemoryHuman?: string | null;
             /** @description Per-cache-type counters keyed by cache type name. */
             readonly types?: {
                 readonly [key: string]: components["schemas"]["OpsCacheTypeStatistics"];
@@ -15200,6 +17358,64 @@ export type components = {
             /** Format: double */
             readonly responseTimeMs?: number | null;
         };
+        readonly OpsIncidentContext: {
+            readonly episode: components["schemas"]["OpsIncidentEpisode"];
+            readonly evidence: components["schemas"]["OpsIncidentObservationPage"];
+            /**
+             * @description Available means the recorded page is present without truncation; it does not establish current health or source completeness.
+             * @enum {string}
+             */
+            readonly evidenceAvailability: "Missing" | "Available" | "Truncated";
+        };
+        readonly OpsIncidentContextResponse: {
+            /** @enum {string} */
+            readonly affectedScope: "Unknown";
+            /** @enum {string} */
+            readonly causeConfidence: "Unknown";
+            readonly context: components["schemas"]["OpsIncidentContext"];
+            /** @enum {string} */
+            readonly impact: "Unknown";
+            /** Format: date-time */
+            readonly readAt: string;
+            readonly safeNextStep: string;
+        };
+        readonly OpsIncidentEpisode: {
+            readonly authorityScope: string;
+            /** Format: date-time */
+            readonly closedAt?: string;
+            /** Format: uuid */
+            readonly episodeId: string;
+            readonly findingId: string;
+            /** Format: int64 */
+            readonly lifecycleVersion: number;
+            /** Format: date-time */
+            readonly observedAt: string;
+            /** Format: date-time */
+            readonly startedAt: string;
+            /** @enum {string} */
+            readonly state: "Active" | "Recovered" | "Unknown";
+        };
+        readonly OpsIncidentObservation: {
+            readonly authorityScope: string;
+            /** @description Immutable source evidence encoded as JSON text; not verified diagnosis. */
+            readonly evidenceJson: string;
+            readonly findingId: string;
+            readonly observationId: string;
+            /** Format: date-time */
+            readonly observedAt: string;
+            readonly sourceId: string;
+            /** @enum {string} */
+            readonly state: "Active" | "Recovered" | "Unknown";
+        };
+        readonly OpsIncidentObservationPage: {
+            readonly observations: readonly components["schemas"]["OpsIncidentObservation"][];
+            /**
+             * Format: int64
+             * @description Count of recorded observations matching the episode window before applying the limit; not source completeness.
+             */
+            readonly totalCount: number;
+            readonly truncated: boolean;
+        };
         /** @description One operation in a list payload: the concrete progress record, normalized so `operationId` and `type` are always present as lowercase keys. */
         readonly OpsOperationListItem: {
             readonly operationId?: string;
@@ -15248,35 +17464,6 @@ export type components = {
             readonly OperationType?: number;
             /** Format: int32 */
             readonly TotalCount?: number;
-        };
-        /** @description Redis connection metrics. When Redis is not configured only `generatedAt`, `isConfigured` and `isConnected` are present. */
-        readonly OpsRedisConnectionMetricsResponse: {
-            readonly clientName?: string | null;
-            /** Format: int32 */
-            readonly endpointCount?: number | null;
-            /** Format: date-time */
-            readonly generatedAt?: string;
-            readonly isConfigured?: boolean;
-            readonly isConnected?: boolean;
-            readonly serverInfo?: components["schemas"]["OpsRedisServerInfo"] | null;
-            /** Format: int64 */
-            readonly totalOutstanding?: number | null;
-        };
-        /** @description Redis server connection and statistics information. */
-        readonly OpsRedisServerInfo: {
-            /** Format: int32 */
-            readonly connectedClients?: number | null;
-            /**
-             * Format: int64
-             * @description Number of keys in the current database.
-             */
-            readonly databaseSize?: number | null;
-            readonly isConnected?: boolean;
-            readonly redisVersion?: string | null;
-            /** Format: int64 */
-            readonly uptimeSeconds?: number | null;
-            /** @description Human-readable memory usage reported by Redis. */
-            readonly usedMemory?: string | null;
         };
         /** @description Message-only admin envelope; no data payload is emitted. */
         readonly OpsStreamingSubscriberDisconnectResponse: {
@@ -16051,6 +18238,8 @@ export type components = {
             readonly correlationId?: string | null;
             /** @description Operator reason recorded on every deploy operation the converge creates. Defaults to a generated message naming the release version. */
             readonly reason?: string | null;
+            /** @description Optional release the caller expects to converge to (for example `2026.1-rc.3`). `honua-` and `v` prefixes and a zero patch are normalized. A value that does not name the declared release returns 409 `platform_release_version_mismatch`. */
+            readonly targetVersion?: string | null;
         };
         readonly PlatformReleaseConvergeResult: {
             /** @description True when the serving plane was already fully converged and no operation or proposal was created. */
@@ -16131,6 +18320,10 @@ export type components = {
         readonly ProposalDetailResponse: {
             /** @description Registered action discriminator, without its hidden execution payload. */
             readonly actionDiscriminator?: string | null;
+            /** @description Verified human approval channel recorded with the execution claim. */
+            readonly approvalChannel?: string | null;
+            /** @description Guidance for obtaining a fresh proposal when required. */
+            readonly approvalRemediation?: string | null;
             /** @description Finding rule when the proposal originated from deterministic ops findings. */
             readonly autonomyRule?: string | null;
             /** @description Reasons blocking application. */
@@ -16150,17 +18343,23 @@ export type components = {
             readonly findingId?: string | null;
             /** @description Guardrail tier that routed this operation to approval. */
             readonly guardrailTier?: string | null;
+            /** @description Server-recorded initiation classification; missing legacy evidence is Unknown. */
+            readonly initiation: string;
             /**
              * @description Operation class.
              * @enum {string}
              */
             readonly kind: "AdminConfigChange" | "Deploy" | "MetadataRelease" | "Seed" | "Geoprocess";
+            /** @description Digest of the exact persisted proposal plan. */
+            readonly planHash?: string | null;
             /** @description Stable proposal identifier. */
             readonly proposalId: string;
             /** @description Requesting operator or service principal. */
             readonly requestedBy?: string | null;
             /** @description Requesting agent identifier when applicable. */
             readonly requestedByAgent?: string | null;
+            /** @description Whether a legacy pending proposal needs a fresh proposal before approval. */
+            readonly requiresReproposal: boolean;
             /** @description Resolution reason (required on rejection). */
             readonly resolutionReason?: string | null;
             /**
@@ -16176,10 +18375,10 @@ export type components = {
              */
             readonly riskLevel: "Low" | "Medium" | "High";
             /**
-             * @description Current lifecycle status.
+             * @description Approval lifecycle status, or the canonical terminal execution status for an asynchronously submitted proposal. Completed, Failed, Cancelled, and Indeterminate reflect execution outcomes; resolutionReason carries the outcome reason.
              * @enum {string}
              */
-            readonly status: "Planned" | "AwaitingApproval" | "Executing" | "Submitted" | "Reconciling" | "Succeeded" | "Failed" | "Rejected" | "RolledBack";
+            readonly status: "Planned" | "AwaitingApproval" | "Executing" | "Submitted" | "Reconciling" | "Succeeded" | "Failed" | "Rejected" | "RolledBack" | "Completed" | "Cancelled" | "Indeterminate";
             /** @description Single-line summary of the proposed change. */
             readonly summary: string;
             /**
@@ -16187,6 +18386,11 @@ export type components = {
              * @description Last update timestamp.
              */
             readonly updatedAt: string;
+            /**
+             * Format: int64
+             * @description Optimistic-concurrency version of the proposal reviewed for approval.
+             */
+            readonly version: number;
             /** @description Non-blocking advisories. */
             readonly warnings: readonly string[];
         };
@@ -16237,11 +18441,25 @@ export type components = {
              */
             readonly updatedAt: string;
         };
+        readonly PublishedLayerPage: {
+            readonly items: readonly components["schemas"]["PublishedLayerSummary"][];
+            /** Format: int32 */
+            readonly page: number;
+            /** Format: int32 */
+            readonly pageSize: number;
+            /**
+             * Format: int32
+             * @description Matched layers across every page.
+             */
+            readonly total: number;
+        };
         readonly PublishedLayerSummary: {
             /** @description Public attribution, when authored */
-            readonly attribution?: string;
+            readonly attribution?: string | null;
+            /** @description Capability tokens declared on the layer's feature publication. Set on publish responses; null on listings. */
+            readonly capabilities?: readonly string[] | null;
             /** @description Layer description */
-            readonly description?: string;
+            readonly description?: string | null;
             /** @description Whether the layer is enabled */
             readonly enabled?: boolean;
             /**
@@ -16253,36 +18471,99 @@ export type components = {
             readonly geometryType?: string;
             /**
              * Format: int32
-             * @description Layer ID
+             * @deprecated
+             * @description Deprecated alias of storageLayerId. Published clients still read this name.
              */
             readonly layerId?: number;
             /** @description Layer name */
             readonly layerName?: string;
             /** @description SPDX license expression or proprietary, when authored */
-            readonly license?: string;
+            readonly license?: string | null;
             /** @description Absolute license documentation URL, when authored */
-            readonly licenseUrl?: string;
+            readonly licenseUrl?: string | null;
             /** @description Primary key field */
-            readonly primaryKey?: string;
+            readonly primaryKey?: string | null;
             /** @description Data producer or source organization, when authored */
-            readonly publisher?: string;
+            readonly publisher?: string | null;
             /** @description Source schema name */
             readonly schema?: string;
             /** @description Service name */
             readonly serviceName?: string;
             /** @description Absolute source documentation URL, when authored */
-            readonly sourceUrl?: string;
+            readonly sourceUrl?: string | null;
             /**
              * Format: int32
              * @description Layer SRID
              */
             readonly srid?: number;
+            /**
+             * Format: int32
+             * @description Layer ID
+             */
+            readonly storageLayerId?: number;
+            /**
+             * @description Storage the layer was published with. Set on publish responses; null on listings.
+             * @enum {string|null}
+             */
+            readonly storageMode?: "source" | "managed" | null;
             /** @description Source table name */
             readonly table?: string;
         };
+        /** @description Captured source attribute rule. */
+        readonly PublishLayerAttributeRule: {
+            /**
+             * @description Defer the rule to an explicit batch evaluation pass.
+             * @default false
+             */
+            readonly batch?: boolean;
+            /** @description Message surfaced when a constraint or validation rule reports a violation. */
+            readonly errorMessage?: string | null;
+            /** @description Target field; required for calculation rules. */
+            readonly fieldName?: string | null;
+            /**
+             * @description Whether the rule fires on the edit path.
+             * @default true
+             */
+            readonly isEnabled?: boolean;
+            /** @description Rule name, unique within the layer (case-insensitive). */
+            readonly name: string;
+            /** @description Arcade expression text. */
+            readonly scriptExpression: string;
+            /** @description Edit events that trigger the rule (insert, update, delete). Empty means every edit. */
+            readonly triggeringEvents?: readonly string[];
+            /**
+             * @description Rule kind: 0 calculation, 1 constraint, 2 validation, 3 exclusion.
+             * @enum {integer}
+             */
+            readonly type: 0 | 1 | 2 | 3;
+        };
+        /** @description Captured source value domain. Held to the Esri import capture rules: coded-value domains carry at most 100 entries, each with a string, number or boolean code and a name; range domains carry exactly [min, max]. */
+        readonly PublishLayerFieldDomain: {
+            /** @description Coded value entries when type is codedValue. */
+            readonly codedValues?: readonly components["schemas"]["LayerFieldCodedValue"][];
+            /** @description Optional merge policy metadata for Esri-style clients. */
+            readonly mergePolicy?: string | null;
+            /** @description Source domain name. */
+            readonly name?: string | null;
+            /** @description [min, max] when type is range. */
+            readonly range?: readonly unknown[] | null;
+            /** @description Optional split policy metadata for Esri-style clients. */
+            readonly splitPolicy?: string | null;
+            /** @description Domain kind: codedValue, range, or another source kind carried for identity only. */
+            readonly type: string;
+        };
         readonly PublishLayerRequest: {
+            /** @description Captured source attribute rules, limited to 200 per layer (the import capture cap). Rule names must be unique; calculation rules whose fieldName is not published are dropped. */
+            readonly attributeRules?: readonly components["schemas"]["PublishLayerAttributeRule"][] | null;
             /** @description Optional public attribution */
             readonly attribution?: string;
+            /** @description Capability tokens declared on the feature publication (case-insensitive). Omit for the read-only default ["Query","Extract"]. Must include Query. Create, Update, Delete and Editing require storageMode managed; otherwise the request is rejected with 400. */
+            readonly capabilities?: readonly ("Query" | "Extract" | "Create" | "Update" | "Delete" | "Editing")[];
+            /**
+             * @description Create an independent editable copy in the configured managed feature store. Source rows are unchanged; new target object IDs map to source IDs through the read-only honua_source_id field. Attachment and relationship migration must use that mapping. The publication connection must resolve the same database and features table as the managed writer.
+             * @default false
+             */
+            readonly createEditableCopy?: boolean;
             /** @description Optional description */
             readonly description?: string;
             /**
@@ -16290,20 +18571,45 @@ export type components = {
              * @default true
              */
             readonly enabled?: boolean;
+            /**
+             * @description Opt in to exact decimal and offset-timestamp field types. The primary key and temporal column stay on the default mapping.
+             * @default false
+             */
+            readonly exactTypes?: boolean;
+            /** @description Captured source value domains keyed by field name. Entries for fields that are not published are ignored. Each coded-value domain is limited to 100 coded values, the import capture cap; a request over it is rejected with 400. */
+            readonly fieldDomains?: {
+                readonly [key: string]: components["schemas"]["PublishLayerFieldDomain"];
+            } | null;
             /** @description Subset of fields to publish (empty publishes all) */
             readonly fields?: readonly string[];
+            readonly folderId?: string | null;
             /** @description Geometry column name */
             readonly geometryColumn?: string;
             /** @description Geometry type override */
             readonly geometryType?: string;
+            /** @description Existing published UUID column containing edit-stable global IDs. Does not enable editing. */
+            readonly globalIdField?: string | null;
+            /**
+             * @description Whether the source geometries carry measure (M) ordinates. Only valid with a geometry column.
+             * @default false
+             */
+            readonly hasM?: boolean;
+            /**
+             * @description Whether the source geometries carry elevation (Z) ordinates. Only valid with a geometry column.
+             * @default false
+             */
+            readonly hasZ?: boolean;
             /** @description Published layer name */
             readonly layerName: string;
             /** @description Optional SPDX license expression or the literal proprietary */
             readonly license?: string;
             /** @description Optional absolute HTTP(S) URL for license documentation */
             readonly licenseUrl?: string;
+            /** @description Optional case-preserving metadata grouping namespace. Tenant ownership is derived only from the trusted request context; the payload cannot select a tenant. Omitted or null preserves legacy unscoped publication. Existing services must have the same namespace and tenant; mismatches and adoption of shared services return 409. A namespaced request without a resolved tenant returns 400. Namespace grouping does not grant authorization or change the canonical service route. */
+            readonly namespace?: string | null;
             /** @description Primary key column */
             readonly primaryKey?: string;
+            readonly publicName?: string;
             /** @description Optional data producer or source organization */
             readonly publisher?: string;
             /** @description Source schema */
@@ -16314,8 +18620,48 @@ export type components = {
             readonly sourceUrl?: string;
             /** @description Target SRID override */
             readonly srid?: number;
+            /**
+             * @description Where the layer's features live. source serves the live source table read-only. managed copies the source rows into the managed feature store, which is then authoritative for the layer and accepts edits; the layer no longer tracks the source table.
+             * @default source
+             * @enum {string}
+             */
+            readonly storageMode?: "source" | "managed";
+            /** @description Captured source subtype set. Attached only when subtypeField is a published column. */
+            readonly subtypes?: components["schemas"]["PublishLayerSubtypes"] | null;
+            /**
+             * @description Declares attachment support for the published resource. Does not enable editing.
+             * @default false
+             */
+            readonly supportsAttachments?: boolean;
             /** @description Source table */
             readonly table: string;
+            /** @description Published date or date-time column that marks the layer as history-capable for the temporal API. */
+            readonly temporalColumn?: string | null;
+        };
+        /** @description One captured subtype. */
+        readonly PublishLayerSubtype: {
+            /** @description Subtype code: a string, number or boolean. */
+            readonly code: unknown;
+            /** @description Per-field default values and domains for rows of this subtype, keyed by field name. Override domains follow the same limits as fieldDomains. */
+            readonly fieldOverrides?: {
+                readonly [key: string]: {
+                    /** @description Default value for the field on rows of this subtype. */
+                    readonly defaultValue?: unknown;
+                    /** @description Distinguishes an explicit null default from no default. */
+                    readonly defaultValueIsNull?: boolean;
+                    readonly domain?: components["schemas"]["PublishLayerFieldDomain"] | null;
+                };
+            };
+            /** @description Subtype display name. */
+            readonly name: string;
+        };
+        /** @description Captured source subtype set, limited to 100 subtypes (the import capture cap). */
+        readonly PublishLayerSubtypes: {
+            /** @description Subtype code applied when none is supplied: a string, number or boolean. */
+            readonly defaultSubtypeCode?: unknown;
+            /** @description Field that selects the subtype for each row. */
+            readonly subtypeField: string;
+            readonly subtypes: readonly components["schemas"]["PublishLayerSubtype"][];
         };
         readonly RasterMosaicResponse: {
             /**
@@ -16456,6 +18802,11 @@ export type components = {
             /** @description Filesystem path containing the root tileset document. Required. */
             readonly assetRoot: string;
             readonly cachePolicy?: components["schemas"]["SceneDatasetCachePolicy"];
+            /**
+             * @description Scene content classification.
+             * @enum {string}
+             */
+            readonly contentKind?: "unclassified" | "mesh" | "buildings" | "point-cloud" | "terrain" | "vector-3d";
             /** @description Optional CRS authority token. */
             readonly crs?: string | null;
             /**
@@ -16479,6 +18830,11 @@ export type components = {
             readonly name: string;
             /** @description Whether the dataset requires authentication. */
             readonly requiresAuth?: boolean;
+            /**
+             * @description Scene delivery format.
+             * @enum {string}
+             */
+            readonly servingFormat?: "3d-tiles" | "i3s" | "copc" | "quantized-mesh" | "terrain-rgb";
             /** @description Filename of the root tileset document. Defaults to tileset.json. */
             readonly tilesetFileName?: string | null;
         };
@@ -16673,11 +19029,15 @@ export type components = {
             readonly syncModel?: string;
         };
         readonly RlsPolicyCreateRequest: {
+            /** @description WGS84 GeoJSON polygon or multipolygon text constraining readable geometry. */
+            readonly areaGeometry?: string | null;
             readonly attribute: string;
             readonly claimType: string;
             /** @description Accepts `in` (default when omitted or blank), `equals`, `eq`, or `=`. Any other value returns 400. */
             readonly comparison?: string | null;
             readonly description?: string | null;
+            /** @description Additional CQL2 text predicate combined with the claim constraint. */
+            readonly filterExpression?: string | null;
             /** @description Layer identifier, or `*` for any layer. */
             readonly layer: string;
             /** @description Role name, or `*` for any role. */
@@ -16686,6 +19046,8 @@ export type components = {
             readonly service: string;
         };
         readonly RlsPolicyDetail: {
+            /** @description WGS84 GeoJSON polygon or multipolygon text constraining readable geometry. */
+            readonly areaGeometry?: string | null;
             /** @description Layer attribute the predicate filters on. */
             readonly attribute?: string;
             /** @description Claim type whose value(s) constrain the attribute. */
@@ -16698,6 +19060,8 @@ export type components = {
             /** Format: date-time */
             readonly createdAt?: string;
             readonly description?: string | null;
+            /** @description Additional CQL2 text predicate combined with the claim constraint. */
+            readonly filterExpression?: string | null;
             /** @description Layer the policy applies to, or `*`. */
             readonly layer?: string;
             /** Format: uuid */
@@ -16725,6 +19089,66 @@ export type components = {
         readonly RollbackDeployOperationRequest: {
             /** @description Optional reason for rollback */
             readonly reason?: string;
+        };
+        readonly SceneArchiveIngestResponse: {
+            readonly extent?: {
+                /** Format: double */
+                readonly xMax?: number | null;
+                /** Format: double */
+                readonly xMin?: number | null;
+                /** Format: double */
+                readonly yMax?: number | null;
+                /** Format: double */
+                readonly yMin?: number | null;
+            } | null;
+            /** Format: int32 */
+            readonly fileCount?: number;
+            readonly i3sUrl?: string;
+            readonly sceneId?: string;
+            readonly tilesetFileName?: string;
+            readonly tilesetUrl?: string;
+            readonly tilesetVersion?: string;
+            /** Format: int64 */
+            readonly totalBytes?: number;
+            readonly warnings?: readonly string[];
+        };
+        readonly SceneAssetLifecycleResponse: {
+            /** Format: int64 */
+            readonly byteSize?: number;
+            /** Format: date-time */
+            readonly createdAt?: string;
+            readonly crs?: string | null;
+            /** Format: uuid */
+            readonly datasetId?: string | null;
+            readonly datasetType?: string;
+            readonly description?: string | null;
+            readonly extent?: {
+                /** Format: double */
+                readonly xMax?: number | null;
+                /** Format: double */
+                readonly xMin?: number | null;
+                /** Format: double */
+                readonly yMax?: number | null;
+                /** Format: double */
+                readonly yMin?: number | null;
+            } | null;
+            /** Format: int32 */
+            readonly fileCount?: number;
+            readonly i3sUrl?: string | null;
+            readonly isPublic?: boolean;
+            readonly jobStatus?: string | null;
+            readonly latestJobId?: string | null;
+            readonly lifecycleStatus?: string;
+            readonly name?: string;
+            /** Format: int32 */
+            readonly publishedRevision?: number | null;
+            readonly requiresAuth?: boolean;
+            readonly sceneId?: string;
+            readonly sourceKind?: string;
+            readonly tilesetUrl?: string | null;
+            /** Format: date-time */
+            readonly updatedAt?: string | null;
+            readonly warnings?: readonly string[];
         };
         /** @description Result of a CityGML/BIM scene ingest. */
         readonly SceneCityGmlIngestResponse: {
@@ -16773,6 +19197,11 @@ export type components = {
             readonly assetRoot?: string;
             readonly cachePolicy?: components["schemas"]["SceneDatasetCachePolicy"];
             /**
+             * @description Scene content classification.
+             * @enum {string}
+             */
+            readonly contentKind?: "unclassified" | "mesh" | "buildings" | "point-cloud" | "terrain" | "vector-3d";
+            /**
              * Format: date-time
              * @description Creation timestamp.
              */
@@ -16809,6 +19238,11 @@ export type components = {
              * @description Revision counter.
              */
             readonly revision?: number;
+            /**
+             * @description Scene delivery format.
+             * @enum {string}
+             */
+            readonly servingFormat?: "3d-tiles" | "i3s" | "copc" | "quantized-mesh" | "terrain-rgb";
             /**
              * @description Lifecycle state.
              * @enum {string}
@@ -16855,6 +19289,16 @@ export type components = {
             readonly cachePolicy?: components["schemas"]["SceneDatasetCachePolicy"];
             /** @description CesiumJS initialization snippet for the tileset. */
             readonly cesiumJsSnippet?: string;
+            /**
+             * @description Scene content classification.
+             * @enum {string}
+             */
+            readonly contentKind?: "unclassified" | "mesh" | "buildings" | "point-cloud" | "terrain" | "vector-3d";
+            /**
+             * Format: uri
+             * @description Absolute URL of the COPC object when served as COPC.
+             */
+            readonly copcUrl?: string | null;
             /** @description Optional CRS authority token. */
             readonly crs?: string | null;
             /**
@@ -16862,6 +19306,21 @@ export type components = {
              * @description Database primary key.
              */
             readonly datasetId?: string;
+            /** @description Serving endpoints and any required access session. */
+            readonly endpoints?: readonly {
+                readonly accessSession?: {
+                    /** Format: uri */
+                    readonly href?: string;
+                    /** @enum {string} */
+                    readonly method?: "POST";
+                } | null;
+                readonly endpointFormat?: string;
+                readonly kind?: string;
+                readonly mediaType?: string | null;
+                readonly requiresAuthentication?: boolean;
+                /** Format: uri */
+                readonly url?: string;
+            }[];
             readonly extent?: components["schemas"]["SceneDatasetExtent"];
             /** @description Honua scene custom-element snippet for the tileset. */
             readonly honuaSceneSnippet?: string;
@@ -16874,15 +19333,25 @@ export type components = {
             /** @description Whether the dataset requires authentication. */
             readonly requiresAuth?: boolean;
             /**
+             * @description Scene delivery format.
+             * @enum {string}
+             */
+            readonly servingFormat?: "3d-tiles" | "i3s" | "copc" | "quantized-mesh" | "terrain-rgb";
+            /**
              * @description Lifecycle state.
              * @enum {string}
              */
             readonly status?: "active" | "inactive" | "validation_failed";
-            /** @description Absolute URL of the root tileset document. */
+            /** @description Absolute URL of the root tileset document when available. Empty otherwise. */
             readonly tilesetUrl?: string;
         };
         /** @description Lightweight scene dataset projection used in list responses. */
         readonly SceneDatasetSummary: {
+            /**
+             * @description Scene content classification.
+             * @enum {string}
+             */
+            readonly contentKind?: "unclassified" | "mesh" | "buildings" | "point-cloud" | "terrain" | "vector-3d";
             /**
              * Format: date-time
              * @description Creation timestamp.
@@ -16914,6 +19383,11 @@ export type components = {
              */
             readonly revision?: number;
             /**
+             * @description Scene delivery format.
+             * @enum {string}
+             */
+            readonly servingFormat?: "3d-tiles" | "i3s" | "copc" | "quantized-mesh" | "terrain-rgb";
+            /**
              * @description Lifecycle state.
              * @enum {string}
              */
@@ -16924,11 +19398,65 @@ export type components = {
              */
             readonly updatedAt?: string | null;
         };
+        readonly SceneJobAcceptedResponse: {
+            /** Format: date-time */
+            readonly createdAt?: string;
+            readonly jobId?: string;
+            readonly sceneId?: string | null;
+            readonly sourceKind?: string;
+            readonly status?: string;
+            readonly statusUrl?: string;
+        };
+        readonly SceneJobStatusResponse: {
+            /** Format: int64 */
+            readonly byteSize?: number | null;
+            /** Format: date-time */
+            readonly completedAt?: string | null;
+            /** Format: date-time */
+            readonly createdAt?: string;
+            readonly errorCode?: string | null;
+            readonly errorMessage?: string | null;
+            /** Format: int32 */
+            readonly fileCount?: number | null;
+            readonly i3sUrl?: string | null;
+            readonly jobId?: string;
+            readonly sceneId?: string | null;
+            readonly sourceKind?: string;
+            /** Format: date-time */
+            readonly startedAt?: string | null;
+            readonly status?: string;
+            readonly statusUrl?: string;
+            /** Format: int32 */
+            readonly tileCount?: number | null;
+            readonly tilesetUrl?: string | null;
+            readonly warnings?: readonly string[];
+        };
+        readonly SceneModelIngestResponse: {
+            readonly boundingRegionDegrees?: readonly number[];
+            /** Format: int64 */
+            readonly byteSize?: number;
+            readonly i3sUrl?: string;
+            /** Format: double */
+            readonly maxHeightMeters?: number;
+            /** Format: double */
+            readonly minHeightMeters?: number;
+            readonly sceneId?: string;
+            readonly sourceFormat?: string;
+            readonly tilesetUrl?: string;
+            readonly warnings?: readonly string[];
+        };
         /** @description Result of a LAS/LAZ/COPC point-cloud scene ingest. */
         readonly ScenePointCloudIngestResponse: {
-            /** @description Bounding region in WGS-84 degrees, ordered [west, south, east, north]. */
+            /** @description Bounding region in WGS-84 degrees, ordered [west, south, east, north]. Omitted for direct COPC ingest. */
             readonly boundingRegionDegrees?: readonly number[];
-            /** @description True when the source carried per-point RGB preserved in the output tiles. */
+            /** @enum {string} */
+            readonly contentKind?: "point-cloud";
+            /**
+             * Format: uri
+             * @description Absolute URL of the COPC object when served as COPC.
+             */
+            readonly copcUrl?: string | null;
+            /** @description True when the served point cloud carries per-point RGB. */
             readonly hasColor?: boolean;
             /**
              * Format: int32
@@ -16937,12 +19465,14 @@ export type components = {
             readonly pointCount?: number;
             /** @description Stable identifier used in the resulting scene URL. */
             readonly sceneId?: string;
+            /** @enum {string} */
+            readonly servingFormat?: "3d-tiles" | "copc";
             /**
              * Format: int32
-             * @description Number of .pnts tile content files written under the scene asset root.
+             * @description Number of generated .pnts tiles, or 1 for direct COPC ingest.
              */
             readonly tileCount?: number;
-            /** @description Routable URL for the generated point tileset's root document. */
+            /** @description URL of the generated root tileset document. Empty for direct COPC ingest. */
             readonly tilesetUrl?: string;
         };
         readonly SecureConnectionDetail: components["schemas"]["ConnectionSummary"] & {
@@ -16959,6 +19489,16 @@ export type components = {
              */
             readonly updatedAt?: string;
         };
+        readonly ServiceFolder: {
+            readonly deleted?: boolean;
+            readonly metadata?: {
+                readonly id?: string | null;
+                readonly name?: string | null;
+                readonly tenant?: string | null;
+                readonly title?: string | null;
+            };
+            readonly previousNames?: readonly string[];
+        };
         /** @description Returned when a layer export exceeds the synchronous threshold and is queued as a background job. */
         readonly ServiceLayerExportAcceptedResponse: {
             readonly message?: string;
@@ -16968,6 +19508,23 @@ export type components = {
             readonly statusUrl?: string;
             /** Format: int64 */
             readonly totalFeatures?: number;
+        };
+        readonly ServiceListPage: {
+            readonly items: readonly components["schemas"]["ServiceSummary"][];
+            /**
+             * Format: int32
+             * @description Sum of layer counts for every matching service, including services outside this page.
+             */
+            readonly layerTotal: number;
+            /** Format: int32 */
+            readonly page: number;
+            /** Format: int32 */
+            readonly pageSize: number;
+            /**
+             * Format: int32
+             * @description Services matching the query across every page.
+             */
+            readonly total: number;
         };
         readonly ServiceSettingsResponse: {
             readonly accessPolicy?: components["schemas"]["AccessPolicyResponse"];
@@ -16979,10 +19536,16 @@ export type components = {
         };
         readonly ServiceSummary: {
             readonly description: string;
-            readonly enabledProtocols?: readonly string[];
+            readonly enabledProtocols?: readonly string[] | null;
+            readonly folderId?: string | null;
+            /** @description Preflight diagnostics for legacy identities before folder mutations. */
+            readonly folderMutationIssues?: readonly string[];
+            readonly folderName?: string | null;
             /** Format: int32 */
             readonly layerCount: number;
+            readonly publicName?: string | null;
             readonly serviceName: string;
+            readonly title?: string | null;
         };
         readonly SetLayerEnabledRequest: {
             /** @description Enable or disable the layer */
@@ -16991,6 +19554,24 @@ export type components = {
         readonly SetRolePermissionsRequest: {
             /** @description The complete, authoritative list of permission grants for the role. */
             readonly permissions: readonly components["schemas"]["IdentityPermissionGrant"][];
+        };
+        /** @description Metadata for a recorded settings change. Stored values and credentials are never returned. */
+        readonly SettingsRevisionResponse: {
+            /** @enum {string} */
+            readonly change?: "baseline" | "created" | "updated" | "deleted";
+            /** Format: date-time */
+            readonly changedAt?: string;
+            /** Format: int64 */
+            readonly documentRevision?: number | null;
+            /** Format: int64 */
+            readonly generation?: number;
+            /**
+             * Format: int64
+             * @description Revision undone by this change, when applicable.
+             */
+            readonly restoredFrom?: number | null;
+            /** Format: int64 */
+            readonly revisionId?: number;
         };
         /** @description RFC 7807 problem payload emitted by the admin Share, replica, and export surfaces (`application/problem+json`). */
         readonly ShareAdminProblemDetails: {
@@ -17028,9 +19609,10 @@ export type components = {
             readonly format: string;
             /**
              * Format: int32
-             * @description Service-local layer id. Must be zero or greater.
+             * @deprecated
+             * @description Deprecated input alias of serviceLayerIndex, accepted from published clients. Send serviceLayerIndex; when both are sent they must agree.
              */
-            readonly layerId: number;
+            readonly layerId?: number;
             /** @description Optional Share resource identifier the export is bound to. */
             readonly resourceId?: string | null;
             /** @description Schedule expression the export fires on. */
@@ -17040,6 +19622,11 @@ export type components = {
              * @enum {string|null}
              */
             readonly scheduleState?: "Active" | "Paused" | null;
+            /**
+             * Format: int32
+             * @description Service-local layer id. Must be zero or greater. Required, under this name or its deprecated alias layerId.
+             */
+            readonly serviceLayerIndex?: number;
             /** @description Owning service name. */
             readonly serviceName: string;
         };
@@ -17062,7 +19649,11 @@ export type components = {
             readonly format?: string;
             /** Format: date-time */
             readonly lastRunAt?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of serviceLayerIndex. Published clients still read this name.
+             */
             readonly layerId?: number;
             /** Format: date-time */
             readonly nextRunAt?: string | null;
@@ -17070,6 +19661,8 @@ export type components = {
             readonly schedule?: string;
             /** @enum {string} */
             readonly scheduleState?: "Active" | "Paused";
+            /** Format: int32 */
+            readonly serviceLayerIndex?: number;
             readonly serviceName?: string;
             /** Format: date-time */
             readonly updatedAt?: string;
@@ -17102,9 +19695,15 @@ export type components = {
         };
         /** @description Reference to the shared item traffic was projected for. */
         readonly ShareItemRefResponse: {
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @deprecated
+             * @description Deprecated alias of serviceLayerIndex. Published clients still read this name.
+             */
             readonly layerId?: number;
             readonly resourceId?: string | null;
+            /** Format: int32 */
+            readonly serviceLayerIndex?: number;
             readonly serviceName?: string;
         };
         /** @description One time bucket of a Share traffic series. */
@@ -17316,107 +19915,74 @@ export type components = {
         readonly TenantUsageResponse: {
             readonly records: readonly components["schemas"]["TenantUsageRecordResponse"][];
         };
-        /** @description Response property names are PascalCase. */
-        readonly TileCacheEvictionResult: {
-            /** @description Whether eviction was enabled and a live tile-key index was available. */
-            readonly Enabled?: boolean;
-            /**
-             * Format: int32
-             * @description Least-recently-used tiles evicted from the cache store and index.
-             */
-            readonly Evicted?: number;
-            readonly Message?: string;
-            /**
-             * Format: int32
-             * @description Tracked tile entries scanned at the start of the sweep.
-             */
-            readonly Scanned?: number;
-        };
-        /** @description Response property names are PascalCase. */
-        readonly TileCacheInventoryResult: {
-            /** @description Whether a live tile-key index was available. */
-            readonly Enabled: boolean;
-            /** Format: int32 */
-            readonly EntryCount: number;
-            readonly Gridset?: string | null;
-            readonly PerZoom: readonly components["schemas"]["TileCacheZoomCoverage"][];
-            readonly ServiceId?: string | null;
-            /** Format: int64 */
-            readonly TotalBytes: number;
-        };
-        readonly TileCacheZoomCoverage: {
-            /** Format: int64 */
-            readonly Bytes: number;
-            /** Format: int32 */
-            readonly Count: number;
-            /** Format: int32 */
-            readonly Zoom: number;
-        };
-        /** @description Response property names are PascalCase. */
+        /** @description Response property names are camelCase. */
         readonly TileOperationCancelResult: {
-            readonly JobId?: string;
-            readonly Message?: string;
+            readonly jobId?: string;
+            readonly message?: string;
         };
-        /** @description Response property names are PascalCase. */
+        /** @description Response property names are camelCase. */
         readonly TileOperationListResult: {
-            readonly Jobs?: readonly components["schemas"]["TileOperationProgressView"][];
+            readonly jobs?: readonly components["schemas"]["TileOperationProgressView"][];
             /** Format: int32 */
-            readonly TotalCount?: number;
+            readonly totalCount?: number;
         };
-        /** @description Progress record for an asynchronous tile lifecycle operation. Property names are PascalCase. */
+        /** @description Progress record for an asynchronous tile lifecycle operation. Property names are camelCase. */
         readonly TileOperationProgressView: {
-            readonly ArchiveFileId?: string | null;
+            readonly archiveFileId?: string | null;
             /** Format: int64 */
-            readonly ArchiveSizeBytes?: number;
+            readonly archiveSizeBytes?: number;
             /** Format: date-time */
-            readonly CompletedAt?: string | null;
-            readonly CurrentPhase?: string | null;
-            readonly DownloadUrl?: string | null;
+            readonly completedAt?: string | null;
+            readonly currentPhase?: string | null;
+            readonly downloadUrl?: string | null;
             /** @description Elapsed time serialized as a .NET TimeSpan string (for example `00:01:23.4560000`). */
-            readonly Duration?: string;
-            readonly ErrorMessage?: string | null;
+            readonly duration?: string;
+            readonly errorMessage?: string | null;
+            /** @description The Export this job writes a Version of; null for tile operations. */
+            readonly exportId?: string | null;
             /** Format: int64 */
-            readonly FailedTiles?: number;
-            readonly JobId?: string;
+            readonly failedTiles?: number;
+            readonly jobId?: string;
             /** Format: int32 */
-            readonly LayerId?: number | null;
-            readonly Operation?: string;
+            readonly layerId?: number | null;
+            readonly operation?: string;
             /**
              * Format: double
              * @description Computed completion percentage; null while the total tile count is unknown.
              */
-            readonly PercentComplete?: number | null;
+            readonly percentComplete?: number | null;
             /** Format: int64 */
-            readonly ProcessedTiles?: number;
-            readonly PublishedArtifact?: components["schemas"]["TileOpsPublishedArtifact"];
-            readonly ServiceId?: string | null;
+            readonly processedTiles?: number;
+            readonly publishedArtifact?: components["schemas"]["TileOpsPublishedArtifact"];
+            readonly publishedExportVersion?: components["schemas"]["TileOpsPublishedExportVersion"];
+            readonly serviceId?: string | null;
             /** Format: date-time */
-            readonly StartedAt?: string;
+            readonly startedAt?: string;
             /**
              * Format: int32
              * @description Numeric OperationStatus: 0 Queued, 1 Processing, 2 Completed, 3 Failed, 4 Cancelled.
              * @enum {integer}
              */
-            readonly Status?: 0 | 1 | 2 | 3 | 4;
+            readonly status?: 0 | 1 | 2 | 3 | 4;
             /** Format: int64 */
-            readonly SuccessfulTiles?: number;
-            readonly TileMatrixSetId?: string | null;
+            readonly successfulTiles?: number;
+            /** @description Tile compression written to the PMTiles header (`none` or `gzip`) for archive and publish jobs; null for other operations. */
+            readonly tileCompression?: string | null;
+            readonly tileMatrixSetId?: string | null;
             /** Format: int64 */
-            readonly TotalTiles?: number;
-            readonly Warnings?: readonly string[];
+            readonly totalTiles?: number;
+            readonly warnings?: readonly string[];
         };
-        /** @description Response property names are PascalCase. */
+        /** @description Response property names are camelCase. */
         readonly TileOperationRetryResult: {
-            readonly OriginalJobId?: string;
-            readonly RetryJobId?: string;
-            readonly StatusUrl?: string;
+            readonly originalJobId?: string;
+            readonly retryJobId?: string;
+            readonly statusUrl?: string;
         };
         /** @description Tile operation submission payload. Property names bind case-insensitively. */
         readonly TileOperationStartRequestPayload: {
             /** @description [minLon, minLat, maxLon, maxLat]. Must contain exactly four values when supplied. */
             readonly bbox?: readonly number[] | null;
-            /** @description Optional generated-tile format window. ImageServer aliases such as `jpeg`, `tiff`, and `cog` map to their canonical cache extensions. */
-            readonly format?: string | null;
             /** @description Stable generation identifier for a resumable seed/warm run. When omitted the in-process submission path stamps one; a retry forwards it so the generation resumes rather than restarting. */
             readonly generationId?: string | null;
             /** Format: int32 */
@@ -17427,54 +19993,65 @@ export type components = {
             readonly maxZoom?: number | null;
             /** Format: int32 */
             readonly minZoom?: number | null;
-            /** @description One of `seed`, `warm`, `invalidate`, `purge`, `archive`, `publish`, `expire`, `delete`. */
+            /** @description One of `seed`, `warm`, `invalidate`, `purge`, `archive`, `publish`, `paired-publish`. */
             readonly operation: string;
             readonly serviceId?: string | null;
             /** @description Optional generated-tile style window. Defaults to `default`. */
             readonly style?: string | null;
+            /** @description `none` or `gzip`: tile payload compression for `archive`, `publish` and `paired-publish` PMTiles output, case-insensitive. Defaults to `none`, which writes the same bytes as earlier releases. Rejected for other operations. */
+            readonly tileCompression?: string | null;
             readonly tileMatrixSetId?: string | null;
         };
-        /** @description Response property names are PascalCase. */
+        /** @description Response property names are camelCase. */
         readonly TileOperationStartResult: {
-            readonly CancelUrl?: string;
-            readonly JobId?: string;
-            readonly Message?: string;
-            readonly StatusUrl?: string;
+            readonly cancelUrl?: string;
+            readonly jobId?: string;
+            readonly message?: string;
+            readonly statusUrl?: string;
         };
-        /** @description PMTiles artifact descriptor emitted by a `publish` operation. Property names are PascalCase. */
+        /** @description PMTiles artifact descriptor emitted by a `publish` operation. Property names are camelCase. */
         readonly TileOpsPublishedArtifact: {
             /** @description Absolute public/presigned URL, or the root-relative `/api/v1/tiles/pmtiles/{artifactId}` proxy path. */
-            readonly AccessUrl?: string;
+            readonly accessUrl?: string;
             /** Format: date-time */
-            readonly AccessUrlExpiresAt?: string | null;
-            readonly ArtifactId?: string;
+            readonly accessUrlExpiresAt?: string | null;
+            readonly artifactId?: string;
             /** @description WGS84 bounding box as [west, south, east, north]. */
-            readonly Bounds?: readonly number[] | null;
-            readonly Bucket?: string;
+            readonly bounds?: readonly number[] | null;
+            readonly bucket?: string;
             /** @example application/vnd.pmtiles */
-            readonly ContentType?: string;
+            readonly contentType?: string;
             /** Format: int32 */
-            readonly LayerId?: number | null;
+            readonly layerId?: number | null;
             /** Format: int32 */
-            readonly MaxZoom?: number;
+            readonly maxZoom?: number;
             /** Format: int32 */
-            readonly MinZoom?: number;
-            readonly ObjectKey?: string;
+            readonly minZoom?: number;
+            readonly objectKey?: string;
             /** Format: date-time */
-            readonly PublishedAt?: string;
-            readonly ServiceId?: string | null;
+            readonly publishedAt?: string;
+            readonly serviceId?: string | null;
             /** Format: int64 */
-            readonly SizeBytes?: number;
+            readonly sizeBytes?: number;
             /**
-             * Format: int32
-             * @description Numeric CloudStorageProvider value.
+             * @description CloudStorageProvider name.
+             * @enum {string}
              */
-            readonly StorageProvider?: number;
+            readonly storageProvider?: "Local" | "AwsS3" | "AzureBlob";
             /**
-             * Format: int32
-             * @description Numeric PMTilesUrlStrategy value (public URL, signed URL, or range proxy).
+             * @description PMTilesUrlStrategy name.
+             * @enum {string}
              */
-            readonly UrlStrategy?: number;
+            readonly urlStrategy?: "PublicUrl" | "SignedUrl" | "RangeProxy";
+        } | null;
+        /** @description The Export Version a completed export job made current. Property names are PascalCase. */
+        readonly TileOpsPublishedExportVersion: {
+            readonly captureId?: string;
+            /** @description Storage key of the Version's STAC collection document (collection.json). */
+            readonly collectionKey?: string;
+            readonly exportId?: string;
+            readonly pointerKey?: string;
+            readonly version?: string;
         } | null;
         readonly TimeInfoResponse: {
             readonly endTimeField?: string | null;
@@ -17593,6 +20170,13 @@ export type components = {
             /** @description Tools with no executable native mapping. */
             readonly unsupportedCount: number;
         };
+        readonly UndoSettingsChangeRequest: {
+            /**
+             * Format: int64
+             * @description Newest revision observed by the caller. A later change causes a conflict.
+             */
+            readonly expectedRevisionId: number;
+        };
         /** @description Describes a single symbolizer input that the style engine could not translate to the canonical MapLibre Style Spec v8 form. */
         readonly UnsupportedSymbolizerInfo: {
             /** @description Stable machine-readable code from StyleErrorCodes. Values: RENDERER_TYPE_UNSUPPORTED, SYMBOL_TYPE_UNSUPPORTED, PICTURE_MARKER_PARTIAL, RENDERER_PAYLOAD_INCOMPLETE. */
@@ -17608,6 +20192,13 @@ export type components = {
             readonly allowedRoles?: readonly string[];
             readonly allowedWriteRoles?: readonly string[];
         };
+        /** @description Replacement restrictions. Null or empty lists remove that restriction. Does not accept or return key material. */
+        readonly UpdateAdminApiKeyRestrictionsRequest: {
+            /** @description CIDR allow-list that replaces the current IP restriction. Null or empty removes it. */
+            readonly allowedIpRanges?: readonly string[] | null;
+            /** @description Origin allow-list that replaces the current referrer restriction. Null or empty removes it. */
+            readonly allowedReferrers?: readonly string[] | null;
+        };
         readonly UpdateConnectionRequest: {
             /** @description Database name */
             readonly databaseName?: string;
@@ -17617,10 +20208,16 @@ export type components = {
             readonly host?: string;
             /** @description Whether connection is active */
             readonly isActive?: boolean;
+            /** @description Object storage: new display name. */
+            readonly name?: string;
             /** @description New password (re-encrypt managed credentials) */
             readonly password?: string;
             /** @description Database port */
             readonly port?: number;
+            /** @description Object storage: AWS region of the bucket. */
+            readonly region?: string;
+            /** @description Object storage: arn:aws:iam::<account>:role/honua-connection-*. */
+            readonly roleArn?: string;
             /**
              * @description SSL mode
              * @enum {string}
@@ -17647,6 +20244,8 @@ export type components = {
             readonly accessPolicy?: components["schemas"]["UpdateAccessPolicyRequest"];
             /** @description Attribution text; null preserves and an empty string clears */
             readonly attribution?: string | null;
+            readonly editing?: components["schemas"]["MetadataV2EditingPatch"];
+            readonly extrusion?: components["schemas"]["LayerExtrusion"];
             /** @description SPDX license expression or proprietary; null preserves and an empty string clears */
             readonly license?: string | null;
             /** @description License documentation HTTP(S) URL; null preserves and an empty string clears */
@@ -17711,7 +20310,8 @@ export type components = {
             readonly name?: string | null;
         };
         readonly UpdateProtocolsRequest: {
-            readonly enabledProtocols: readonly ("FeatureServer" | "MapServer" | "OgcFeatures" | "OData" | "Grpc")[];
+            /** @description Protocols the service exposes. Replaces the existing set rather than adding to it. These are the per-service toggles only; instance-level surfaces (Geometry Service, geocoding, OGC API Processes/Records/Styles, EDR, WPS, MCP, PMTiles, 3D scenes) and licence-gated ones (NAServer, VersionManagementServer) are not set here. */
+            readonly enabledProtocols: readonly ("FeatureServer" | "MapServer" | "ImageServer" | "GPServer" | "VectorTileServer" | "OgcFeatures" | "OGC-API-Maps" | "OGC-API-Coverages" | "OGC-API-Tiles" | "Wfs20" | "Wms" | "Wmts" | "Wcs" | "OData" | "Grpc" | "Stac" | "SensorThings" | "Terrain" | "Elevation")[];
         };
         readonly UpdateRasterMosaicRequest: {
             /** @description Merge strategy applied when overlapping rasters mosaic together. Allowed values (case-insensitive): newest, oldest, average, max, min. Stored values are normalized to lowercase. An empty string clears the field. Unknown values are rejected with 400 Bad Request. */
@@ -17737,6 +20337,11 @@ export type components = {
             readonly clearEditionGate?: boolean | null;
             /** @description Pass true to clear the extent. */
             readonly clearExtent?: boolean | null;
+            /**
+             * @description Scene content classification.
+             * @enum {string}
+             */
+            readonly contentKind?: "unclassified" | "mesh" | "buildings" | "point-cloud" | "terrain" | "vector-3d";
             /** @description Updated CRS authority token. */
             readonly crs?: string | null;
             /**
@@ -17755,6 +20360,11 @@ export type components = {
             readonly name?: string | null;
             /** @description Updated authentication requirement. */
             readonly requiresAuth?: boolean | null;
+            /**
+             * @description Scene delivery format.
+             * @enum {string}
+             */
+            readonly servingFormat?: "3d-tiles" | "i3s" | "copc" | "quantized-mesh" | "terrain-rgb";
             /** @description Updated tileset filename. */
             readonly tilesetFileName?: string | null;
         };
@@ -17993,6 +20603,17 @@ export type components = {
                 readonly "application/json": components["schemas"]["ErrorResponse"];
             };
         };
+        /** @description Too many failed authentication attempts from this source, or request admission throttled. Retry after the indicated delay. */
+        readonly TooManyRequests: {
+            headers: {
+                /** @description Seconds to wait before retrying authentication or the throttled operation. */
+                readonly "Retry-After"?: number;
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Unauthorized - authentication required */
         readonly Unauthorized: {
             headers: {
@@ -18004,7 +20625,7 @@ export type components = {
         };
     };
     parameters: {
-        /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
+        /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
         readonly AdminAuthoringLayerId: number;
         /** @description Operation proposal identifier (opaque string). */
         readonly AdminProposalId: string;
@@ -18019,6 +20640,90 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+    readonly getAgentAuthorityCeiling: {
+        readonly parameters: {
+            readonly query: {
+                /** @description Agent principal the ceiling applies to. */
+                readonly principalId: string;
+                /** @description Tenant scope; omit for the deployment-wide ceiling. */
+                readonly tenantId?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Stored ceiling. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AgentAuthorityCeiling"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly setAgentAuthorityCeiling: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["AgentAuthorityCeiling"];
+            };
+        };
+        readonly responses: {
+            /** @description Ceiling stored. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly deleteAgentAuthorityCeiling: {
+        readonly parameters: {
+            readonly query: {
+                /** @description Agent principal the ceiling applies to. */
+                readonly principalId: string;
+                /** @description Tenant scope; omit for the deployment-wide ceiling. */
+                readonly tenantId?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Ceiling removed. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly listAlertChannelStates: {
         readonly parameters: {
             readonly query?: never;
@@ -18039,6 +20744,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly pauseAlertChannel: {
@@ -18065,6 +20771,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly resumeAlertChannel: {
@@ -18091,6 +20798,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly redriveAlertDeadLetters: {
@@ -18116,6 +20824,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listAlertRules: {
@@ -18143,6 +20852,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createAlertRule: {
@@ -18170,6 +20880,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAlertRule: {
@@ -18196,6 +20907,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateAlertRule: {
@@ -18227,6 +20939,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteAlertRule: {
@@ -18253,6 +20966,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setAlertRuleEnabled: {
@@ -18284,6 +20998,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listAlertRuleEvents: {
@@ -18318,6 +21033,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAlertRuleHealth: {
@@ -18344,6 +21060,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly testAlertRule: {
@@ -18371,6 +21088,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listAlertZones: {
@@ -18396,6 +21114,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createAlertZone: {
@@ -18423,6 +21142,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAlertZone: {
@@ -18449,6 +21169,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateAlertZone: {
@@ -18480,6 +21201,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteAlertZone: {
@@ -18506,6 +21228,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listAdminApiKeys: {
@@ -18528,6 +21251,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createAdminApiKey: {
@@ -18555,6 +21279,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminApiKeyEffectivePermissions: {
@@ -18581,6 +21306,39 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateAdminApiKeyRestrictions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description API key identifier. */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateAdminApiKeyRestrictionsRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description API key restrictions replaced. The response contains key metadata only. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseAdminApiKeyResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly revokeAdminApiKey: {
@@ -18607,6 +21365,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly rotateAdminApiKey: {
@@ -18630,9 +21389,11 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ApiResponseAdminApiKeySecretResponse"];
                 };
             };
+            readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly issueAdminOperatorBearer: {
@@ -18693,6 +21454,33 @@ export interface operations {
             };
         };
     };
+    readonly getAdminBrowserCsrfToken: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Antiforgery request token issued; the antiforgery cookie is set. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AdminCsrfResponse"];
+                };
+            };
+            /** @description The request was not made over HTTPS. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly logoutAdminAuthSession: {
         readonly parameters: {
             readonly query?: never;
@@ -18711,7 +21499,65 @@ export interface operations {
                     readonly "application/json": components["schemas"]["AdminAuthLogoutUrlResponse"];
                 };
             };
-            /** @description `Public:BaseUrl` is not configured outside development and test environments, so a post-logout redirect URI cannot be built. */
+            /** @description The shared session store could not revoke the session; the cookie is preserved and logout must be retried after recovery. Also returned after successful local termination when `Public:BaseUrl` is not configured outside development and test environments, so a post-logout redirect URI cannot be built. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["AdminAuthProblemResponse"];
+                };
+            };
+        };
+    };
+    readonly createAdminPasswordBearer: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["AdminPasswordSignInRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Operator bearer issued; it expires 30 minutes after issuance. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AdminOperatorBearerResponse"];
+                };
+            };
+            /** @description Not HTTPS, origin not explicitly allowed, an admin session cookie is present, or an empty or over-long password. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The password is not valid, or no administrator password is configured. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many failed attempts from this client address; the source is refused until the `Retry-After` interval elapses. */
+            readonly 429: {
+                headers: {
+                    /** @description Seconds until the client address may try again. */
+                    readonly "Retry-After"?: number;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["AdminAuthProblemResponse"];
+                };
+            };
+            /** @description The configured administrator password could not be resolved, or operator bearer issuance is not configured on this server. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -18883,6 +21729,65 @@ export interface operations {
             };
         };
     };
+    readonly createAdminPasswordSession: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header: {
+                /** @description Request token returned by `GET /auth/csrf` for this browser. */
+                readonly "X-Honua-CSRF": string;
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["AdminPasswordSignInRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Signed in; the admin session cookie is set. */
+            readonly 204: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not HTTPS, cross-origin, missing or invalid CSRF token, or an empty or over-long password. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The password is not valid, or no administrator password is configured. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many failed attempts from this client address; the source is refused until the `Retry-After` interval elapses. */
+            readonly 429: {
+                headers: {
+                    /** @description Seconds until the client address may try again. */
+                    readonly "Retry-After"?: number;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["AdminAuthProblemResponse"];
+                };
+            };
+            /** @description Administrator sign-in is unavailable: the configured administrator password could not be resolved, or the shared session store could not create the session. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["AdminAuthProblemResponse"];
+                };
+            };
+        };
+    };
     readonly invalidateAdminCache: {
         readonly parameters: {
             readonly query?: never;
@@ -18908,6 +21813,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Invalidation failed. The envelope reports `success: false` with a generic message; details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -18939,6 +21845,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminCapabilities: {
@@ -18987,6 +21894,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerCloudRaster: {
@@ -19016,6 +21924,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getCloudRaster: {
@@ -19042,6 +21951,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly unregisterCloudRaster: {
@@ -19066,6 +21976,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly refreshCloudRaster: {
@@ -19093,6 +22004,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getComplianceDashboard: {
@@ -19115,6 +22027,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly rotateComplianceEncryptionKey: {
@@ -19137,6 +22050,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly exportComplianceReport: {
@@ -19171,6 +22085,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly evaluateResidencyPolicy: {
@@ -19198,6 +22113,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConfiguration: {
@@ -19220,6 +22136,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConfigurationAuditInfo: {
@@ -19242,6 +22159,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConfigurationAutoDocumentation: {
@@ -19264,6 +22182,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly discoverConfiguration: {
@@ -19286,6 +22205,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConfigurationDiscoveryMetadata: {
@@ -19308,6 +22228,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly validateConfigurationSecrets: {
@@ -19330,6 +22251,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConfigurationSummary: {
@@ -19352,6 +22274,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConnections: {
@@ -19374,6 +22297,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createConnection: {
@@ -19401,6 +22325,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getConnection: {
@@ -19427,6 +22352,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateConnection: {
@@ -19458,6 +22384,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteConnection: {
@@ -19485,11 +22412,18 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getPublishedLayers: {
         readonly parameters: {
             readonly query?: {
+                /** @description One-based page number. Defaults to 1; values below 1 return 400. */
+                readonly page?: number;
+                /** @description Page size. Defaults to 100; values outside 1 to 100 return 400. */
+                readonly pageSize?: number;
+                /** @description Case-insensitive layer name filter. Longer than 200 characters returns 400. */
+                readonly q?: string;
                 /** @description Service name filter */
                 readonly serviceName?: string;
             };
@@ -19502,19 +22436,20 @@ export interface operations {
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Published layers */
+            /** @description One page of published layers */
             readonly 200: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
                 content: {
-                    readonly "application/json": components["schemas"]["ApiResponsePublishedLayerSummaryArray"];
+                    readonly "application/json": components["schemas"]["ApiResponsePublishedLayerPage"];
                 };
             };
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly publishLayer: {
@@ -19542,11 +22477,32 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ApiResponsePublishedLayerSummary"];
                 };
             };
+            /** @description Publication accepted for background execution. */
+            readonly 202: {
+                headers: {
+                    /** @description Relative URL for polling publication progress. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerPublishAccepted"];
+                };
+            };
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description This host freezes after the response, so a publish above the row threshold is refused. Configure a managed remote execution workload and the system database, or publish from a long-lived host. No publication job is accepted. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["LayerPublishUnavailableProblem"];
+                };
+            };
         };
     };
     readonly setLayerEnabled: {
@@ -19559,8 +22515,8 @@ export interface operations {
             readonly path: {
                 /** @description Connection identifier */
                 readonly id: string;
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -19583,6 +22539,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly refreshConnectionLayerFeatures: {
@@ -19592,8 +22549,8 @@ export interface operations {
             readonly path: {
                 /** @description Secure connection identifier (GUID) or configured connection name. */
                 readonly id: string;
-                /** @description Published layer identifier. */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -19612,6 +22569,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setServiceLayersEnabled: {
@@ -19646,6 +22604,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly refreshConnectionLayerExtents: {
@@ -19676,6 +22635,76 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getLayerPublishJobStatus: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Connection identifier used when publication was accepted. */
+                readonly id: string;
+                /** @description Publication job identifier returned by the 202 response. */
+                readonly jobId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Publication job progress. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerPublishJobStatus"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listConnectionObjects: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Folder under the connection prefix; defaults to the connection prefix. */
+                readonly prefix?: string;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Connection UUID */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description One folder level */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseObjectStorageBrowseResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Object storage is not available on this host. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     readonly getConnectionTables: {
@@ -19703,6 +22732,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly validateConnectionTableForPublish: {
@@ -19734,6 +22764,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly testConnection: {
@@ -19761,6 +22792,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly rotateConnectionEncryptionKey: {
@@ -19784,6 +22816,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly validateConnectionEncryption: {
@@ -19807,6 +22840,45 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createObjectStorageConnectionSetup: {
+        readonly parameters: {
+            readonly query: {
+                /** @description S3 bucket name */
+                readonly bucket: string;
+                /** @description Key prefix */
+                readonly prefix?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Setup values */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseObjectStorageSetupResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description No object storage connection store on this host. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     readonly testDraftConnection: {
@@ -19834,6 +22906,52 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly SearchCoordinateSystemsV1: {
+        readonly parameters: {
+            readonly query: {
+                readonly limit?: number;
+                /** @description Search text; leading and trailing whitespace is removed before validation. */
+                readonly q: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Matching coordinate systems. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CoordinateSystemSearchResult"];
+                };
+            };
+            /** @description Invalid search text or result limit. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description The coordinate-system catalog is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
         };
     };
     readonly listDeployOperations: {
@@ -19866,6 +22984,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Deploy control is temporarily unavailable (no durable control-plane store configured). */
             readonly 503: {
                 headers: {
@@ -19902,6 +23021,14 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Deploy control is temporarily unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly getDeployOperation: {
@@ -19928,6 +23055,14 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Deploy control is temporarily unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly promoteDeployOperation: {
@@ -19959,6 +23094,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Deploy control is temporarily unavailable (no durable control-plane store configured). */
             readonly 503: {
                 headers: {
@@ -19993,10 +23129,33 @@ export interface operations {
                     readonly "application/json": components["schemas"]["DeployOperationResponse"];
                 };
             };
+            readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            /** @description The request body declares a recovery grant whose notAfter has passed (problem code recovery_fence_expired). An expired grant preauthorizes nothing; the operation is left unchanged. */
+            readonly 412: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description The rollback operation failed in the deployment backend. */
+            readonly 502: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Deploy control is temporarily unavailable or the rollback outcome is indeterminate. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly submitDeployOperation: {
@@ -20028,6 +23187,14 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Deploy control is temporarily unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly planDeployOperation: {
@@ -20056,12 +23223,13 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getDeployPreflight: {
         readonly parameters: {
             readonly query?: {
-                /** @description When true, includes serverVersion, environment, deploymentMode, instanceName, readiness, migration, and databaseCompatibility fields in the response. */
+                /** @description When true, includes serverVersion, environment, deploymentMode, instanceName, readiness, migration, databaseCompatibility, and databaseSessionSettings fields in the response. */
                 readonly includeDiagnostics?: boolean;
             };
             readonly header?: never;
@@ -20081,6 +23249,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listEmbedKeys: {
@@ -20103,6 +23272,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createEmbedKey: {
@@ -20132,6 +23302,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getEmbedKey: {
@@ -20158,6 +23329,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly revokeEmbedKey: {
@@ -20184,6 +23356,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly rotateEmbedKey: {
@@ -20210,6 +23383,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getEmbedUsage: {
@@ -20248,6 +23422,170 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listExports: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Maximum Exports to return (1-200, default 50). */
+                readonly limit?: number;
+                /** @description Zero-based offset into the sorted Export list. */
+                readonly offset?: number;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Exports. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportListEnvelope"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ExportCreateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Export job started. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportEnvelope"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description The source is not a routable Layer of that Service. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            /** @description An export job is already running for this Export. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            /** @description The source kind cannot be exported yet. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly exportId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Export. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportEnvelope"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description No Export with this id. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly deleteExport: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly exportId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Export unpublished. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportEnvelope"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description No Export with this id. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            /** @description An export job is already running for this Export. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ExportFailureEnvelope"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly discoverExternalService: {
@@ -20275,6 +23613,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The external service could not be reached, timed out, or returned an unsupported/error response. */
             readonly 502: {
                 headers: {
@@ -20322,6 +23661,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getFeatureOverview: {
@@ -20344,6 +23684,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listFederationSources: {
@@ -20366,6 +23707,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly planFederationSourceQuery: {
@@ -20405,6 +23747,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listFieldMaskPolicies: {
@@ -20427,6 +23770,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createFieldMaskPolicy: {
@@ -20456,6 +23800,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getFieldMaskPolicy: {
@@ -20482,6 +23827,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteFieldMaskPolicy: {
@@ -20508,6 +23854,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listFieldWorkflowExports: {
@@ -20535,6 +23882,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createFieldWorkflowExport: {
@@ -20571,6 +23919,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listFieldWorkflowSubmissions: {
@@ -20617,6 +23966,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getFieldWorkflowSubmission: {
@@ -20643,6 +23993,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly assignFieldWorkflowSubmission: {
@@ -20674,6 +24025,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly commentFieldWorkflowSubmission: {
@@ -20705,6 +24057,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly decideFieldWorkflowSubmission: {
@@ -20742,9 +24095,273 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly listFormPackages: {
+    readonly listFolders: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for unscoped catalog ownership; supply a publication namespace to select the resolved tenant. */
+                readonly namespace?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    /** @description Current graph snapshot ETag */
+                    readonly ETag?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly data?: readonly components["schemas"]["ServiceFolder"][];
+                        readonly success?: boolean;
+                    };
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly createFolder: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for unscoped catalog ownership; supply a publication namespace to select the resolved tenant. */
+                readonly namespace?: string;
+            };
+            readonly header: {
+                /** @description Current graph snapshot ETag, returned by folder/service listing. */
+                readonly "If-Match": string;
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly name: string;
+                    readonly title?: string | null;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 201: {
+                headers: {
+                    /** @description Current graph snapshot ETag */
+                    readonly ETag?: string;
+                    /** @description Created folder Admin resource. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly data?: components["schemas"]["ServiceFolder"];
+                        readonly success?: boolean;
+                    };
+                };
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog or permanent path reservation conflict */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot changed */
+            readonly 412: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description If-Match is required */
+            readonly 428: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Folder mutation is unavailable on a read-only metadata catalog. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly deleteFolder: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for unscoped catalog ownership; supply a publication namespace to select the resolved tenant. */
+                readonly namespace?: string;
+            };
+            readonly header: {
+                /** @description Current graph snapshot ETag, returned by folder/service listing. */
+                readonly "If-Match": string;
+            };
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 204: {
+                headers: {
+                    /** @description Current graph snapshot ETag; pass unchanged as If-Match on the next mutation. */
+                    readonly ETag?: string;
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog or permanent path reservation conflict */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot changed */
+            readonly 412: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description If-Match is required */
+            readonly 428: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Folder mutation is unavailable on a read-only metadata catalog. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly updateFolder: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for unscoped catalog ownership; supply a publication namespace to select the resolved tenant. */
+                readonly namespace?: string;
+            };
+            readonly header: {
+                /** @description Current graph snapshot ETag, returned by folder/service listing. */
+                readonly "If-Match": string;
+            };
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["FolderRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    /** @description Current graph snapshot ETag */
+                    readonly ETag?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly data?: components["schemas"]["ServiceFolder"];
+                        readonly success?: boolean;
+                    };
+                };
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog or permanent path reservation conflict */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot changed */
+            readonly 412: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description If-Match is required */
+            readonly 428: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Folder mutation is unavailable on a read-only metadata catalog. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly listForms: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -20753,7 +24370,7 @@ export interface operations {
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Form package summaries. */
+            /** @description Form summaries. */
             readonly 200: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -20764,9 +24381,10 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly createFormPackageDraft: {
+    readonly createFormDraft: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -20779,7 +24397,7 @@ export interface operations {
             };
         };
         readonly responses: {
-            /** @description Draft package version created. */
+            /** @description Form Draft created. */
             readonly 201: {
                 headers: {
                     /** @description Concurrency token for the created draft version. */
@@ -20793,21 +24411,22 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly getCurrentFormPackage: {
+    readonly getCurrentForm: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
             };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description The current draft or published package version. */
+            /** @description The current Form Draft or Released version. */
             readonly 200: {
                 headers: {
                     /** @description Concurrency token for the returned version. */
@@ -20821,21 +24440,58 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly listFormPackageVersions: {
+    readonly exportFormXlsForm: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
             };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Package versions. */
+            /** @description XLSForm workbook for the current Released Version. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The Released Version uses behavior XLSForm cannot represent; `diagnostics` names the survey row of each field. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["FormsXlsFormProblem"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listFormVersions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Stable Form identifier. */
+                readonly formId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Form Versions. */
             readonly 200: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -20846,23 +24502,24 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly getFormPackageVersion: {
+    readonly getFormVersion: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
-                /** @description Monotonic package version number. */
-                readonly packageVersion: number;
+                /** @description Monotonic Form Version number. */
+                readonly formVersion: number;
             };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description The requested package version. */
+            /** @description The requested Form Version. */
             readonly 200: {
                 headers: {
                     /** @description Concurrency token for the returned version. */
@@ -20876,9 +24533,10 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly updateFormPackageDraft: {
+    readonly updateFormDraft: {
         readonly parameters: {
             readonly query?: never;
             readonly header: {
@@ -20886,10 +24544,10 @@ export interface operations {
                 readonly "If-Match": string;
             };
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
                 /** @description Draft version number to update. */
-                readonly packageVersion: number;
+                readonly formVersion: number;
             };
             readonly cookie?: never;
         };
@@ -20923,23 +24581,24 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["FormsProblemDetails"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly publishFormPackageVersion: {
+    readonly goLiveFormDraft: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
                 /** @description Draft version number to publish. */
-                readonly packageVersion: number;
+                readonly formVersion: number;
             };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description The published package version. */
+            /** @description The Released Form Version. */
             readonly 200: {
                 headers: {
                     /** @description Concurrency token for the published version. */
@@ -20950,7 +24609,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["FormsPackageVersion"];
                 };
             };
-            /** @description The package failed publish validation. The body is the validation result that blocked publishing. */
+            /** @description The Form failed publish validation. The body is the validation result that blocked publishing. */
             readonly 400: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -20963,17 +24622,18 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly reopenFormPackageVersion: {
+    readonly reopenFormVersion: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
-                /** @description Published version number to reopen. */
-                readonly packageVersion: number;
+                /** @description Released Version number to reopen. */
+                readonly formVersion: number;
             };
             readonly cookie?: never;
         };
@@ -20993,23 +24653,24 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
-    readonly validateFormPackageVersion: {
+    readonly validateFormDraft: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Stable form package identifier. */
+                /** @description Stable Form identifier. */
                 readonly formId: string;
-                /** @description Package version number to validate. */
-                readonly packageVersion: number;
+                /** @description Form Version number to validate. */
+                readonly formVersion: number;
             };
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Validation result for the package version. */
+            /** @description Validation result for the Form Version. */
             readonly 200: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -21021,6 +24682,65 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly importFormXlsForm: {
+        readonly parameters: {
+            readonly query: {
+                /** @description Target layer identifier within the service. */
+                readonly layerId: number;
+                /** @description Target service identifier or name. */
+                readonly serviceId: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description XLSForm `.xlsx` workbook of at most 8388608 bytes.
+                     */
+                    readonly file: string;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Form Draft created from the workbook. */
+            readonly 201: {
+                headers: {
+                    /** @description Concurrency token for the created Draft. */
+                    readonly ETag?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["FormsPackageVersion"];
+                };
+            };
+            /** @description Missing target, unreadable upload, or workbook diagnostics. Workbook problems carry a `diagnostics` array; no Draft is created. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["FormsXlsFormProblem"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description The workbook exceeds 8388608 bytes. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["FormsProblemDetails"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getGeocodingProviders: {
@@ -21043,6 +24763,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly importGeocoderReferenceData: {
@@ -21092,6 +24813,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The geocoder reference store is unavailable or incompatible; the import was not applied. */
             readonly 503: {
                 headers: {
@@ -21125,6 +24847,229 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listGpProcessReleases: {
+        readonly parameters: {
+            readonly query?: {
+                readonly process?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessReleaseListResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly publishGpProcessRelease: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["GpProcessReleaseLock"];
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessReleaseResponse"];
+                };
+            };
+            /** @description Release created */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessReleaseResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getGpProcessRelease: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly digest: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessReleaseLock"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listGpProcessBindings: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessBindingListResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getGpProcessBinding: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly process: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessBindingResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly activateGpProcessRelease: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly process: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["GpProcessBindingActivateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessBindingResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description Activation refused */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessBindingRefusedResponse"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly submitGpProcessReleaseJob: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: {
+                /** @description Identical retries return the original job and release pin. */
+                readonly "Idempotency-Key"?: string;
+            };
+            readonly path: {
+                readonly process: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["GpProcessReleaseJobRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Accepted; Location identifies the canonical job status route. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["GpProcessReleaseJobResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description Idempotency key already belongs to different inputs. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Durable jobs or the selected execution backend is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly getIdentityProviders: {
@@ -21147,6 +25092,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly testIdentityProviderConnectivity: {
@@ -21172,153 +25118,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly listArcGisMigrationRuns: {
-        readonly parameters: {
-            readonly query?: {
-                /** @description Zero-based page index. Must be a non-negative integer. */
-                readonly page?: number;
-                /** @description Page size. Must be a positive integer; values above 100 are clamped to 100. */
-                readonly pageSize?: number;
-                /** @description Case-insensitive substring match on the recorded source URL. */
-                readonly sourceUrl?: string;
-                /** @description Parity status filter. Matching is case-insensitive; any other value is rejected with 400. */
-                readonly status?: "manifest-only" | "pass" | "warn" | "fail";
-            };
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Page of ArcGIS migration run summaries. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ImportArcGisMigrationRunListResult"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly getArcGisMigrationManifest: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                /** @description Stable migration run identifier (typically a GUID string). */
-                readonly runId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Persisted migration manifest artifact. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ImportMigrationManifestArtifact"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-            readonly 404: components["responses"]["NotFound"];
-        };
-    };
-    readonly recordArcGisMigrationManifest: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                /** @description Stable migration run identifier (typically a GUID string). */
-                readonly runId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": components["schemas"]["ImportArcGisMigrationManifestIngestionRequest"];
-            };
-        };
-        readonly responses: {
-            /** @description Run record persisted alongside the manifest artifact. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ImportArcGisMigrationRunRecord"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly getArcGisMigrationParity: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                /** @description Stable migration run identifier. */
-                readonly runId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Persisted ArcGIS migration parity artifact. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ImportArcGisMigrationParityArtifact"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-            readonly 404: components["responses"]["NotFound"];
-        };
-    };
-    readonly recordArcGisMigrationParity: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path: {
-                /** @description Stable migration run identifier. */
-                readonly runId: string;
-            };
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": components["schemas"]["ImportArcGisMigrationParityIngestionRequest"];
-            };
-        };
-        readonly responses: {
-            /** @description Parity artifact that was persisted. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ImportArcGisMigrationParityArtifact"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getImportFormats: {
@@ -21346,6 +25146,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly discoverGeoServerService: {
@@ -21382,6 +25183,7 @@ export interface operations {
                 };
             };
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while discovering the GeoServer instance. */
             readonly 500: {
                 headers: {
@@ -21413,6 +25215,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getGeoServerImportJob: {
@@ -21440,6 +25243,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while reading the import job. */
             readonly 500: {
                 headers: {
@@ -21477,6 +25281,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while cancelling the import job. */
             readonly 500: {
                 headers: {
@@ -21522,6 +25327,7 @@ export interface operations {
                 };
             };
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while queueing the import job. Any partially persisted queue state is rolled back. */
             readonly 500: {
                 headers: {
@@ -21531,7 +25337,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ImportProblemDetails"];
                 };
             };
-            /** @description Distributed import coordination is unavailable (Redis unhealthy). Retry when coordination recovers. */
+            /** @description Durable import storage is unavailable. Configure the system database and job worker. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -21540,6 +25346,158 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ImportProblemDetails"];
                 };
             };
+        };
+    };
+    readonly listGeoServicesMigrationRuns: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Zero-based page index. Must be a non-negative integer. */
+                readonly page?: number;
+                /** @description Page size. Must be a positive integer; values above 100 are clamped to 100. */
+                readonly pageSize?: number;
+                /** @description Case-insensitive substring match on the recorded source URL. */
+                readonly sourceUrl?: string;
+                /** @description Parity status filter. Matching is case-insensitive; any other value is rejected with 400. */
+                readonly status?: "manifest-only" | "pass" | "warn" | "fail";
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Page of ArcGIS migration run summaries. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportGeoServicesMigrationRunListResult"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getGeoServicesMigrationManifest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Stable migration run identifier (typically a GUID string). */
+                readonly runId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted migration manifest artifact. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportMigrationManifestArtifact"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly recordGeoServicesMigrationManifest: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Stable migration run identifier (typically a GUID string). */
+                readonly runId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ImportGeoServicesMigrationManifestIngestionRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Run record persisted alongside the manifest artifact. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportGeoServicesMigrationRunRecord"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getGeoServicesMigrationParity: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Stable migration run identifier. */
+                readonly runId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted ArcGIS migration parity artifact. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportGeoServicesMigrationParityArtifact"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly recordGeoServicesMigrationParity: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Stable migration run identifier. */
+                readonly runId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ImportGeoServicesMigrationParityIngestionRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Parity artifact that was persisted. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportGeoServicesMigrationParityArtifact"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly discoverGeoservicesService: {
@@ -21576,6 +25534,7 @@ export interface operations {
                 };
             };
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while discovering the ArcGIS service. */
             readonly 500: {
                 headers: {
@@ -21616,6 +25575,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getGeoservicesImportJob: {
@@ -21643,6 +25603,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly cancelGeoservicesImportJob: {
@@ -21671,6 +25632,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly startGeoservicesImport: {
@@ -21707,6 +25669,25 @@ export interface operations {
                 };
             };
             readonly 403: components["responses"]["Forbidden"];
+            /** @description The selected target folder was not found in the publication scope. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The selected target identity, scope or public path conflicts with the current catalog. Select a new mapping. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while queueing the import job. Any partially persisted queue state is rolled back. */
             readonly 500: {
                 headers: {
@@ -21716,7 +25697,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ImportProblemDetails"];
                 };
             };
-            /** @description Distributed import coordination is unavailable (Redis unhealthy). Retry when coordination recovers. */
+            /** @description Durable import storage is unavailable. Configure the system database and job worker. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -21751,6 +25732,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Import job service is unavailable. */
             readonly 503: {
                 headers: {
@@ -21780,6 +25762,16 @@ export interface operations {
                 };
                 content: {
                     readonly "application/json": {
+                        /** @description Stable failure code. IMPORT_TARGET_NOT_OWNED means an unmarked target or staging table was refused without modifying that table. */
+                        readonly errorCode?: string | null;
+                        /** @description Honua-Instance identity of the process running the import (the AWS Batch job id for `batch`); until a worker claims a durable job, the instance that accepted it. */
+                        readonly instanceId?: string;
+                        /**
+                         * @description Where the background import runs: `batch` (a batch-compute execution worker, AWS Batch on the serverless topology) or `in-process` (a long-lived server process). Absent on records written before 2026.1.
+                         * @enum {string}
+                         */
+                        readonly runner?: "batch" | "in-process";
+                    } & {
                         readonly [key: string]: unknown;
                     };
                 };
@@ -21788,6 +25780,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Import job service is unavailable. */
             readonly 503: {
                 headers: {
@@ -21826,6 +25819,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Import job service is unavailable. */
             readonly 503: {
                 headers: {
@@ -21859,6 +25853,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly startMigrationBatch: {
@@ -21886,6 +25881,34 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description The selected target folder was not found in the publication scope. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The selected target identity, scope or public path conflicts with the current catalog. Select a new mapping. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `requireFullFidelity` was set and construct accounting refused the selection; no run was created. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportMigrationBatchRefusedResponse"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationBatch: {
@@ -21913,6 +25936,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly importOgcApiFeaturesCollection: {
@@ -21948,6 +25972,15 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description Importer ownership conflict. Choose a new target or explicitly adopt a verified legacy import. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportOgcApiFeaturesResult"];
+                };
+            };
             /** @description The source items document could not be consumed (errorCode ogc_api_features.unsupported_items_encoding, .invalid_items_document, or .missing_items_endpoint). */
             readonly 422: {
                 headers: {
@@ -21957,6 +25990,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ImportOgcApiFeaturesResult"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The catalog sink failed (errorCode ogc_api_features.sink_failure) or the importer reported an unclassified error. */
             readonly 500: {
                 headers: {
@@ -22011,6 +26045,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Non-standard client-closed-request status written when the operator cancels the export mid-flight. */
             readonly 499: {
                 headers: {
@@ -22056,6 +26091,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Failed to connect to the WCS source service. */
             readonly 502: {
                 headers: {
@@ -22101,6 +26137,16 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description Importer ownership conflict. Choose a new target or explicitly adopt a verified legacy import. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ImportOgcWfsResult"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Non-standard client-closed-request status written when the operator cancels the import mid-flight. */
             readonly 499: {
                 headers: {
@@ -22146,6 +26192,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Failed to connect to the coverage source service. */
             readonly 502: {
                 headers: {
@@ -22197,6 +26244,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly previewImportFileFromUrl: {
@@ -22229,6 +26277,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly importRasterFile: {
@@ -22265,6 +26314,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ImportProblemDetails"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Unexpected failure while importing the raster. */
             readonly 500: {
                 headers: {
@@ -22298,6 +26348,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateImportedRaster: {
@@ -22337,6 +26388,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRasterImportFormats: {
@@ -22359,6 +26411,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly scanMigrationSource: {
@@ -22383,12 +26436,31 @@ export interface operations {
                     readonly [name: string]: unknown;
                 };
                 content: {
-                    readonly "application/json": components["schemas"]["MigrationSourceInventoryArtifact"];
+                    readonly "application/json": components["schemas"]["MigrationSourceInventoryArtifact"] | components["schemas"]["ImportMigrationScanArtifactSet"];
                 };
             };
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description The selected target folder was not found in the publication scope. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The selected target identity, scope or public path conflicts with the current catalog. Select a new mapping. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Failed to connect to source service. This is currently surfaced primarily for GeoServices transport failures; GeoServer transport failures return a failed inventory artifact with HTTP 200. */
             readonly 502: {
                 headers: {
@@ -22461,6 +26533,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly validateToolboxTranslation: {
@@ -22512,6 +26585,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly uploadImportFile: {
@@ -22581,6 +26655,21 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description Importer ownership conflict. Choose a new target or explicitly adopt a verified legacy import. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @description Stable failure code. IMPORT_TARGET_NOT_OWNED means an unmarked target or staging table was refused without modifying that table. */
+                        readonly errorCode?: string | null;
+                    } & {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Import failed. */
             readonly 500: {
                 headers: {
@@ -22591,6 +26680,85 @@ export interface operations {
                 };
             };
             /** @description Background import dependencies are unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly uploadImportFileFromObjectStore: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ImportFileFromObjectStoreRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Import completed synchronously. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Import accepted for background processing. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description The object or bucket was not found. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The object changed after the preflight ETag was recorded, or the importer refused the target. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description The object exceeds MaxObjectStoreImportBytes. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Background import dependencies are unavailable, or this host has no object-store reader. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -22639,6 +26807,21 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description Importer ownership conflict. Choose a new target or explicitly adopt a verified legacy import. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        /** @description Stable failure code. IMPORT_TARGET_NOT_OWNED means an unmarked target or staging table was refused without modifying that table. */
+                        readonly errorCode?: string | null;
+                    } & {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Background import dependencies are unavailable. */
             readonly 503: {
                 headers: {
@@ -22670,6 +26853,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description No file storage service is available to enumerate uploads. */
             readonly 503: {
                 headers: {
@@ -22706,6 +26890,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description No file storage service is available to cancel the upload. */
             readonly 503: {
                 headers: {
@@ -22742,6 +26927,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description No progress record was found and no file storage service is available to query. */
             readonly 503: {
                 headers: {
@@ -22749,6 +26935,169 @@ export interface operations {
                 };
                 content: {
                     readonly "application/problem+json": components["schemas"]["ImportProblemDetails"];
+                };
+            };
+        };
+    };
+    readonly compatibilityImportFileFromUrl: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ImportFileFromUrlRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Import completed synchronously. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Import accepted for background processing. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Background import dependencies are unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly getCompatibilityActiveImportJobs: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Active import jobs. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly jobs: readonly {
+                            readonly [key: string]: unknown;
+                        }[];
+                    };
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Import job service is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly getCompatibilityImportJobStatus: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly jobId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Import job progress. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly [key: string]: unknown;
+                    };
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Import job service is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readonly cancelCompatibilityImportJob: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly jobId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Import job cancellation was requested. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly jobId: string;
+                        readonly message: string;
+                    };
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Import job service is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -22785,6 +27134,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createInvestigation: {
@@ -22812,6 +27162,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getInvestigation: {
@@ -22838,6 +27189,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateInvestigation: {
@@ -22869,6 +27221,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly addInvestigationLink: {
@@ -22900,6 +27253,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly removeInvestigationLink: {
@@ -22928,6 +27282,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly addInvestigationPin: {
@@ -22959,6 +27314,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly removeInvestigationPin: {
@@ -22987,6 +27343,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listConsoleJobs: {
@@ -23040,6 +27397,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable */
             readonly 503: {
                 headers: {
@@ -23077,6 +27435,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable */
             readonly 503: {
                 headers: {
@@ -23112,6 +27471,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable */
             readonly 503: {
                 headers: {
@@ -23153,6 +27513,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable */
             readonly 503: {
                 headers: {
@@ -23189,6 +27550,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store or backend is unavailable */
             readonly 503: {
                 headers: {
@@ -23200,12 +27562,60 @@ export interface operations {
             };
         };
     };
+    readonly getConsoleJobDiagnostics: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for a tail. Use start to page the retained stream from its beginning, then the returned nextCursor. Append order; not a frozen snapshot. */
+                readonly eventCursor?: string;
+                /** @description Maximum number of recent events. Values outside 1–500 are rejected. */
+                readonly events?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Durable execution job identifier. */
+                readonly jobId: components["parameters"]["ConsoleJobId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Versioned diagnostics for the job. */
+            readonly 200: {
+                headers: {
+                    /** @description Job correlation id when available. */
+                    readonly "X-Correlation-Id"?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ConsoleJobDiagnostics"];
+                };
+            };
+            /** @description Invalid job identifier or event limit. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Execution job store is unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly getConsoleJobLogs: {
         readonly parameters: {
             readonly query?: {
                 /** @description Opaque cursor returned by a previous page. */
                 readonly cursor?: components["parameters"]["ConsoleJobCursor"];
-                /** @description Requested log page size. Defaults to 100 and Redis clamps to 1..500. */
+                /** @description Requested log page size. Defaults to 100. The job log store clamps the value to 1..500. */
                 readonly limit?: number;
             };
             readonly header?: never;
@@ -23230,6 +27640,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable */
             readonly 503: {
                 headers: {
@@ -23266,6 +27677,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Local job queue is unavailable, a local retry queue write failed, the remote retry backend is unavailable, or remote retry capability lookup failed */
             readonly 503: {
                 headers: {
@@ -23303,6 +27715,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Execution job store is unavailable. */
             readonly 503: {
                 headers: {
@@ -23332,6 +27745,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly uploadLicense: {
@@ -23367,55 +27781,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly getLicenseCapacityState: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Current license capacity meter state. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ApiResponseLicenseCapacitySnapshot"];
-                };
-            };
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly setLicenseCapacitySurgeMode: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": components["schemas"]["LicenseSurgeModeUpdateRequest"];
-            };
-        };
-        readonly responses: {
-            /** @description Capacity state after applying the surge declaration. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ApiResponseLicenseCapacitySnapshot"];
-                };
-            };
-            readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getLicenseEntitlements: {
@@ -23438,6 +27804,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getLicenseFeatures: {
@@ -23460,6 +27827,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getPlatformLicenseStatus: {
@@ -23482,6 +27850,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly uploadLicenseFile: {
@@ -23517,6 +27886,118 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly GetAdminLive: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Comma-separated selection of proposals, ops-health, operate-events and deploy-operations. Omission selects all topics. */
+                readonly topics?: string;
+            };
+            readonly header?: {
+                /** @description Replay cursor from a previously processed event, formatted admin:<sequence>. */
+                readonly "Last-Event-ID"?: string;
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Server-sent events containing status, topic event and reset frames. Delivery is at least once; deduplicate events by ID. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "text/event-stream": string;
+                };
+            };
+            /** @description Invalid topic selection or replay cursor. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator authentication required. */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Administrator authorization or live-stream access denied. */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly publishMap: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": {
+                    readonly intent?: {
+                        readonly [key: string]: unknown;
+                    };
+                    readonly map: {
+                        /** @enum {string} */
+                        readonly format: "honua_map.v1";
+                        readonly mapId: string;
+                    } & {
+                        readonly [key: string]: unknown;
+                    };
+                    readonly message?: string;
+                    readonly warningAcknowledgement?: string;
+                    readonly workspaceId?: string;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description Map saved as an immutable version and its publication proposed for approval. */
+            readonly 202: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": {
+                        readonly auditId?: string | null;
+                        readonly contentHash: string;
+                        readonly correlationId: string;
+                        /** Format: uuid */
+                        readonly itemId: string;
+                        readonly map: {
+                            /** @enum {string} */
+                            readonly format: "honua_map.v1";
+                            readonly mapId: string;
+                        } & {
+                            readonly [key: string]: unknown;
+                        };
+                        readonly mapId: string;
+                        readonly operationInstanceId: string;
+                        readonly proposalId: string;
+                        /** @enum {string} */
+                        readonly publicationStatus: "AwaitingApproval";
+                        /** Format: uuid */
+                        readonly versionId: string;
+                    };
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getCoordinatedReleaseOperation: {
@@ -23544,6 +28025,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Coordinated release control is temporarily unavailable (no durable control-plane store configured). */
             readonly 503: {
                 headers: {
@@ -23579,6 +28061,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Coordinated release control is temporarily unavailable (no durable control-plane store configured). */
             readonly 503: {
                 headers: {
@@ -23619,6 +28102,14 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Approval authority or durable control-plane storage is temporarily unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly rollbackCoordinatedReleaseOperation: {
@@ -23649,6 +28140,22 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description The rollback operation failed in the deployment backend. */
+            readonly 502: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The rollback outcome is indeterminate. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly queryMetadataEnvironmentBindings: {
@@ -23676,6 +28183,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMetadataSemanticInventory: {
@@ -23705,6 +28213,242 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminMetadataHistory: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Keyset pagination cursor returning entries with id < beforeId. */
+                readonly beforeId?: number;
+                /** @description Optional field path prefix filter (for example 'title' or 'custom.steward'). */
+                readonly field?: string;
+                /** @description Optional metadata entity identifier filter. */
+                readonly itemId?: string;
+                /** @description Optional item kind filter (for example 'dataset', 'service', 'resources', or 'services'). */
+                readonly itemKind?: string;
+                /** @description Maximum number of history entries to return (default 50). */
+                readonly limit?: number;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Field-level metadata change history page */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MetadataFieldHistoryEnvelope"];
+                };
+            };
+            /** @description Invalid query parameter */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminLayerDiscovery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Stored discovery metadata and affected publications */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["DiscoveryMetadataEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateAdminLayerDiscovery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DiscoveryMetadataUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Stored discovery metadata and affected publications */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["DiscoveryMetadataEnvelope"];
+                };
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Metadata changed; reload before saving */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminLayerDisplay: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted display metadata */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerDisplayResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The layer index resolves to more than one feature or table resource. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly setAdminLayerDisplay: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["LayerDisplayUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Persisted display metadata */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerDisplayResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The layer index resolves to more than one feature or table resource. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerDrawingInfo: {
@@ -23712,8 +28456,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23732,6 +28476,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setAdminLayerDrawingInfo: {
@@ -23739,8 +28484,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23764,6 +28509,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerFields: {
@@ -23771,8 +28517,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23791,6 +28537,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateAdminLayerFields: {
@@ -23798,8 +28545,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23822,6 +28569,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerFilter: {
@@ -23829,8 +28577,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23849,6 +28597,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateAdminLayerFilter: {
@@ -23856,8 +28605,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23880,6 +28629,66 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminLayerMetadataHistory: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Keyset pagination cursor returning entries with id < beforeId. */
+                readonly beforeId?: number;
+                /** @description Optional field path prefix filter (for example 'title' or 'custom.steward'). */
+                readonly field?: string;
+                /** @description Maximum number of history entries to return (default 50). */
+                readonly limit?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Field-level metadata change history page */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MetadataFieldHistoryEnvelope"];
+                };
+            };
+            /** @description Invalid query parameter */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerPopupInfo: {
@@ -23887,8 +28696,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23907,6 +28716,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setAdminLayerPopupInfo: {
@@ -23914,8 +28724,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23939,6 +28749,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerRelationships: {
@@ -23946,8 +28757,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23966,6 +28777,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setAdminLayerRelationships: {
@@ -23973,8 +28785,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -23997,6 +28809,88 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            /** @description Concurrent catalog mutations exhausted the bounded retry; retry against the current catalog. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminLayerSpatial: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted spatial metadata */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerSpatialResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The layer index resolves to more than one feature or table resource. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly setAdminLayerSpatial: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["LayerSpatialUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Persisted spatial metadata */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerSpatialResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The layer index resolves to more than one feature or table resource. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerStyle: {
@@ -24004,8 +28898,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -24023,6 +28917,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateAdminLayerStyle: {
@@ -24030,8 +28925,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -24054,6 +28949,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly exportLayerSldStyle: {
@@ -24061,8 +28957,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -24094,6 +28990,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ApiResponseSldImportFailureResponse"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly importLayerSldStyle: {
@@ -24101,8 +28998,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -24142,6 +29039,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ApiResponseSldImportFailureResponse"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly suggestLayerStyle: {
@@ -24149,8 +29047,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Layer ID */
-                readonly layerId: number;
+                /** @description Internal storage layer identifier. */
+                readonly storageLayerId: number;
             };
             readonly cookie?: never;
         };
@@ -24172,6 +29070,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminLayerValidation: {
@@ -24179,8 +29078,8 @@ export interface operations {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                /** @description Global numeric layer identifier. The route is constrained to an int, so a non-integer segment does not match the route at all. */
-                readonly layerId: components["parameters"]["AdminAuthoringLayerId"];
+                /** @description Internal storage layer identifier, resolved through the storage binding. A service-local index cannot substitute for this identifier. */
+                readonly storageLayerId: components["parameters"]["AdminAuthoringLayerId"];
             };
             readonly cookie?: never;
         };
@@ -24199,6 +29098,42 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly setAdminLayerRelationshipsBatch: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["LayerRelationshipBatchUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Relationship sets from the saved graph snapshot. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerRelationshipBatchResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description Concurrent catalog mutations exhausted the bounded retry; retry against the current catalog. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly prevalidateMetadataReleasePackageCompatibility: {
@@ -24226,6 +29161,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Prevalidation could not be completed */
             readonly 500: {
                 headers: {
@@ -24269,6 +29205,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createMetadataReleasePackage: {
@@ -24298,6 +29235,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMetadataReleasePackage: {
@@ -24324,6 +29262,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMetadataReleaseGitOpsManifest: {
@@ -24350,6 +29289,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMetadataReleaseOperationByPackageId: {
@@ -24377,6 +29317,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createMetadataReleaseOperation: {
@@ -24405,6 +29346,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Metadata release control is temporarily unavailable (no durable control-plane store configured). */
             readonly 503: {
                 headers: {
@@ -24412,6 +29354,94 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    readonly getAdminMetadataSchemas: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Per-environment custom metadata field schemas */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MetadataCustomFieldSchemasEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateAdminMetadataSchemas: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["MetadataCustomFieldSchemasUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Saved custom metadata field schemas */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MetadataCustomFieldSchemasEnvelope"];
+                };
+            };
+            /** @description Invalid schema definitions */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access or human approval required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Metadata changed; reload before saving */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationPerformanceEvidenceById: {
@@ -24439,6 +29469,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listMigrationPerformanceEvidenceHistory: {
@@ -24469,6 +29500,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getLatestMigrationPerformanceEvidence: {
@@ -24498,6 +29530,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listMigrationRuns: {
@@ -24507,7 +29540,7 @@ export interface operations {
                 readonly limit?: number;
                 /** @description Zero-based page offset. Must be non-negative. */
                 readonly offset?: number;
-                /** @description Restrict to a single source kind, for example `geoserver-rest` or `arcgis-geoservices-rest`. */
+                /** @description Restrict to a single source kind, for example `geoserver-rest` or `geoservices-rest`. */
                 readonly sourceKind?: string;
                 /** @description Restrict to a single run status. */
                 readonly status?: "running" | "succeeded" | "failed" | "cancelled";
@@ -24530,6 +29563,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly recordMigrationRunStarted: {
@@ -24557,6 +29591,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationRun: {
@@ -24584,6 +29619,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly cancelMigrationRun: {
@@ -24616,6 +29652,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly completeMigrationRun: {
@@ -24647,6 +29684,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationRunEvidencePack: {
@@ -24682,6 +29720,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationRunScorecard: {
@@ -24715,6 +29754,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly recordMigrationRunScorecard: {
@@ -24746,6 +29786,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listMultidimCoverages: {
@@ -24772,6 +29813,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerMultidimCoverage: {
@@ -24801,6 +29843,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMultidimCoverage: {
@@ -24827,6 +29870,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly unregisterMultidimCoverage: {
@@ -24851,6 +29895,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly refreshMultidimCoverage: {
@@ -24884,6 +29929,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The execution-job substrate is not configured, so the scan cannot be dispatched (problem+json). */
             readonly 503: {
                 headers: {
@@ -24924,6 +29970,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The execution-job substrate is not configured, so scan-job status cannot be read (problem+json). */
             readonly 503: {
                 headers: {
@@ -24956,6 +30003,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerNetworkDataset: {
@@ -24984,6 +30032,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getNetworkDataset: {
@@ -25010,6 +30059,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateNetworkDataset: {
@@ -25041,6 +30091,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteNetworkDataset: {
@@ -25065,6 +30116,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listNetworkTopologyGenerations: {
@@ -25090,6 +30142,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly allocateNetworkTopologyDraftGeneration: {
@@ -25116,6 +30169,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly applyNetworkTopologyEditBatch: {
@@ -25157,6 +30211,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly submitNetworkTopologyRebuild: {
@@ -25190,6 +30245,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Rebuild capacity or the durable job runtime is unavailable; retry later. */
             readonly 503: {
                 headers: {
@@ -25227,6 +30283,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly promoteNetworkTopologyGeneration: {
@@ -25262,6 +30319,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listNetworkTopologyPromotions: {
@@ -25287,6 +30345,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly rollbackNetworkTopologyGeneration: {
@@ -25322,6 +30381,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOAuthClients: {
@@ -25344,6 +30404,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerOAuthClient: {
@@ -25373,6 +30434,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOAuthClient: {
@@ -25399,6 +30461,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteOAuthClient: {
@@ -25425,6 +30488,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOAuthScopes: {
@@ -25447,6 +30511,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly defineOAuthScope: {
@@ -25474,6 +30539,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteOAuthScope: {
@@ -25500,6 +30566,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listObservabilityAlerts: {
@@ -25549,6 +30616,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getObservabilityAlert: {
@@ -25575,12 +30643,16 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly acknowledgeObservabilityAlert: {
         readonly parameters: {
             readonly query?: never;
-            readonly header?: never;
+            readonly header?: {
+                /** @description Operator retry identity. Repeating the same lifecycle action with the same key produces one logical lifecycle transition and one alert domain audit action instead of duplicates. When omitted, the request's own correlation identity is used, so a retry without this header is a NEW action. Maximum 128 characters; a longer value is rejected rather than truncated. */
+                readonly "Idempotency-Key"?: string;
+            };
             readonly path: {
                 /** @description Alert event identifier. */
                 readonly eventId: number;
@@ -25606,12 +30678,16 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly resolveObservabilityAlert: {
         readonly parameters: {
             readonly query?: never;
-            readonly header?: never;
+            readonly header?: {
+                /** @description Operator retry identity. Repeating the same lifecycle action with the same key produces one logical lifecycle transition and one alert domain audit action instead of duplicates. When omitted, the request's own correlation identity is used, so a retry without this header is a NEW action. Maximum 128 characters; a longer value is rejected rather than truncated. */
+                readonly "Idempotency-Key"?: string;
+            };
             readonly path: {
                 /** @description Alert event identifier. */
                 readonly eventId: number;
@@ -25637,12 +30713,16 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly suppressObservabilityAlert: {
         readonly parameters: {
             readonly query?: never;
-            readonly header?: never;
+            readonly header?: {
+                /** @description Operator retry identity. Repeating the same lifecycle action with the same key produces one logical lifecycle transition and one alert domain audit action instead of duplicates. When omitted, the request's own correlation identity is used, so a retry without this header is a NEW action. Maximum 128 characters; a longer value is rejected rather than truncated. */
+                readonly "Idempotency-Key"?: string;
+            };
             readonly path: {
                 /** @description Alert event identifier. */
                 readonly eventId: number;
@@ -25668,6 +30748,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listObservabilityAuditEntries: {
@@ -25716,6 +30797,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly exportObservabilityAudit: {
@@ -25755,6 +30837,43 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly attestObservabilityAuditGap: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ObservabilityAuditGapAttestationBody"];
+            };
+        };
+        readonly responses: {
+            /** @description The written declaration and the verification report after it. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ObservabilityAuditGapAttestation"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description The audit store did not accept the declaration row. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly verifyObservabilityAudit: {
@@ -25777,6 +30896,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOpsAutonomyPolicies: {
@@ -25799,6 +30919,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The durable control plane is unavailable; ops autonomy is inert and policy state cannot be read. */
             readonly 503: {
                 headers: {
@@ -25835,6 +30956,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The durable control plane is unavailable; ops autonomy is inert and policy state cannot be read. */
             readonly 503: {
                 headers: {
@@ -25874,6 +30996,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The durable control plane is unavailable; ops autonomy is inert and policy changes are read-only. */
             readonly 503: {
                 headers: {
@@ -25905,6 +31028,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The durable control plane is unavailable; ops autonomy is inert and settings cannot be read. */
             readonly 503: {
                 headers: {
@@ -25941,6 +31065,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The durable control plane is unavailable; ops autonomy is inert and settings changes are read-only. */
             readonly 503: {
                 headers: {
@@ -25972,6 +31097,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOperateEvents: {
@@ -26026,6 +31152,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOpsFindings: {
@@ -26048,6 +31175,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly proposeOpsFinding: {
@@ -26060,7 +31188,11 @@ export interface operations {
             };
             readonly cookie?: never;
         };
-        readonly requestBody?: never;
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ObservabilityOpsFindingProposeRequest"];
+            };
+        };
         readonly responses: {
             /** @description Proposal outcome. */
             readonly 200: {
@@ -26074,6 +31206,8 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The control-plane operation gateway is unavailable; the recommended action cannot be proposed. */
             readonly 503: {
                 headers: {
@@ -26081,6 +31215,60 @@ export interface operations {
                 };
                 content: {
                     readonly "application/problem+json": components["schemas"]["ObservabilityProblemDetails"];
+                };
+            };
+        };
+    };
+    readonly getOpsIncidentContext: {
+        readonly parameters: {
+            readonly query?: {
+                readonly limit?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                readonly incidentId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted incident context. Recorded state and observation time are preserved; read time does not establish freshness. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["OpsIncidentContextResponse"];
+                };
+            };
+            /** @description Evidence limit must be between 1 and 1000. */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description No incident exists within the server authority. */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Persistence is unavailable; no healthy fallback is returned. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
@@ -26105,6 +31293,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getMigrationStatus: {
@@ -26127,6 +31316,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOpsHealthSnapshot: {
@@ -26149,6 +31339,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOpsHealthHistory: {
@@ -26182,6 +31373,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getTelemetryStatus: {
@@ -26204,6 +31396,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOidcProviders: {
@@ -26226,6 +31419,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createOidcProvider: {
@@ -26255,6 +31449,8 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOidcProvider: {
@@ -26281,6 +31477,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateOidcProvider: {
@@ -26311,6 +31508,8 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteOidcProvider: {
@@ -26337,6 +31536,42 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listOidcProviderRevisions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description OIDC provider registration identifier. */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Recorded settings revisions. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseSettingsRevisionResponseArray"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description History is unavailable for process-memory settings. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly testOidcProvider: {
@@ -26363,6 +31598,45 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly undoOidcProviderChange: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description OIDC provider registration identifier. */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UndoSettingsChangeRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Settings change undone. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseSettingsRevisionResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description History requires PostgreSQL-backed settings. Undo also conflicts when the observed revision is superseded, nothing can be undone, or recreation is refused. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminOpenApi: {
@@ -26416,6 +31690,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly cancelOperation: {
@@ -26444,6 +31719,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The orchestration engine is not available to process the cancellation. */
             readonly 503: {
                 headers: {
@@ -26477,6 +31753,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOperationsCacheHealth: {
@@ -26499,6 +31776,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly invalidateOperationsCache: {
@@ -26526,28 +31804,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly getOperationsCacheRedisMetrics: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Redis connection metrics. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["ApiResponseOpsRedisConnectionMetricsResponse"];
-                };
-            };
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOperationsCacheStatistics: {
@@ -26570,6 +31827,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOperationsGeocodingConfiguration: {
@@ -26592,6 +31850,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOperationsGeocodingProviders: {
@@ -26614,6 +31873,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly streamOperationsAlerts: {
@@ -26638,6 +31898,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listOperationsStreamingSubscribers: {
@@ -26660,6 +31921,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly disconnectOperationsStreamingSubscriber: {
@@ -26686,6 +31948,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getOperationsByType: {
@@ -26712,6 +31975,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly previewPackage: {
@@ -26738,6 +32002,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Package review failed */
             readonly 500: {
                 headers: {
@@ -26773,6 +32038,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Package review failed */
             readonly 500: {
                 headers: {
@@ -26804,6 +32070,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Statistics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -26835,6 +32102,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Metrics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -26878,6 +32146,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Cache invalidation failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -26909,6 +32178,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Statistics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -26940,6 +32210,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Statistics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -26974,6 +32245,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Slow query retrieval failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27010,6 +32282,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Exception retrieval failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27041,6 +32314,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Statistics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27075,6 +32349,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Leak retrieval failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27106,6 +32381,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Leak scan failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27137,6 +32413,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Statistics collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27168,6 +32445,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Summary collection failed. Details are logged server-side only. */
             readonly 500: {
                 headers: {
@@ -27204,6 +32482,16 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            /** @description The requested `targetVersion` does not name the declared platform release. The problem carries `code: platform_release_version_mismatch`, `declaredVersion`, `targetVersion`, `servingArtifactReference`, and the preflight `isCoVersioned` summary. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Deploy control is unavailable because durable control-plane storage is not configured. */
             readonly 503: {
                 headers: {
@@ -27240,6 +32528,14 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Durable proposal storage or the required control plane is unavailable (problem type `capability-unavailable`, code `dependency-unavailable`). */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly getOperationProposal: {
@@ -27266,6 +32562,14 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Durable proposal storage or the required control plane is unavailable (problem type `capability-unavailable`, code `dependency-unavailable`). */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly approveOperationProposal: {
@@ -27293,6 +32597,21 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            /** @description No operation executor is registered for the proposal's operation (problem code `operation-executor-unavailable`). The proposal is not approved and its state is unchanged. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Approval authority or durable control-plane storage is temporarily unavailable. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly rejectOperationProposal: {
@@ -27325,6 +32644,52 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Durable proposal storage or the required control plane is unavailable (problem type `capability-unavailable`, code `dependency-unavailable`). */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly publishCogArtifact: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CogArtifactPublishRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description The published COG artifact. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["CogArtifactDescriptor"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description The raster export or the artifact upload failed. */
+            readonly 500: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     readonly listRateLimitPolicies: {
@@ -27347,6 +32712,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createRateLimitPolicy: {
@@ -27376,6 +32742,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRateLimitPolicy: {
@@ -27402,6 +32769,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateRateLimitPolicy: {
@@ -27433,6 +32801,8 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteRateLimitPolicy: {
@@ -27459,6 +32829,80 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listRateLimitPolicyRevisions: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Rate limit policy identifier. */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Recorded settings revisions. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseSettingsRevisionResponseArray"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description History is unavailable for process-memory settings. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly undoRateLimitPolicyChange: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                /** @description Rate limit policy identifier. */
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UndoSettingsChangeRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Settings change undone. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseSettingsRevisionResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            /** @description History requires PostgreSQL-backed settings. Undo also conflicts when the observed revision is superseded, nothing can be undone, or recreation is refused. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRateLimitStatus: {
@@ -27486,6 +32930,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listRlsPolicies: {
@@ -27508,6 +32953,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createRlsPolicy: {
@@ -27537,6 +32983,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRlsPolicy: {
@@ -27563,6 +33010,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteRlsPolicy: {
@@ -27589,6 +33037,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listRoles: {
@@ -27611,6 +33060,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createRole: {
@@ -27640,6 +33090,8 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRole: {
@@ -27666,6 +33118,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateRole: {
@@ -27696,6 +33149,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteRole: {
@@ -27730,6 +33184,7 @@ export interface operations {
                     readonly "application/json": components["schemas"]["ApiResponseIdentityAck"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getRolePermissions: {
@@ -27756,6 +33211,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly setRolePermissions: {
@@ -27786,6 +33242,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listSceneDatasets: {
@@ -27811,6 +33268,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerSceneDataset: {
@@ -27839,6 +33297,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getSceneDataset: {
@@ -27865,6 +33324,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateSceneDataset: {
@@ -27897,6 +33357,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deactivateSceneDataset: {
@@ -27921,6 +33382,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly resolveSceneDataset: {
@@ -27947,12 +33409,68 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly listSceneAssets: {
+        readonly parameters: {
+            readonly query?: {
+                readonly includeInactive?: boolean;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description List scene assets. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": readonly components["schemas"]["SceneAssetLifecycleResponse"][];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getSceneAsset: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly sceneId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Get a scene asset. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneAssetLifecycleResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly generateScene: {
         readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
+            readonly query?: {
+                readonly async?: boolean;
+            };
+            readonly header?: {
+                readonly Prefer?: string;
+            };
             readonly path?: never;
             readonly cookie?: never;
         };
@@ -27971,12 +33489,88 @@ export interface operations {
                     readonly "application/json": components["schemas"]["GenerateSceneResponse"];
                 };
             };
+            /** @description The scene job was queued. Poll the status URL. */
+            readonly 202: {
+                headers: {
+                    /** @description Job status URL. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobAcceptedResponse"];
+                };
+            };
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Scene generation is temporarily unavailable; retry later (problem+json). */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly ingestArchiveScene: {
+        readonly parameters: {
+            readonly query?: {
+                readonly async?: boolean;
+            };
+            readonly header?: {
+                readonly Prefer?: string;
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "multipart/form-data": {
+                    readonly async?: boolean;
+                    /** Format: int32 */
+                    readonly cacheMaxAgeSeconds?: number;
+                    readonly description?: string;
+                    readonly displayName?: string;
+                    readonly editionGate?: string;
+                    /** Format: binary */
+                    readonly file: string;
+                    readonly requiresAuth?: boolean;
+                    /** @description Explicit scene slug. The server derives one when omitted. */
+                    readonly sceneId?: string;
+                    readonly tilesetFileName?: string;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description The imported scene. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneArchiveIngestResponse"];
+                };
+            };
+            /** @description The scene job was queued. Poll the status URL. */
+            readonly 202: {
+                headers: {
+                    /** @description Job status URL. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobAcceptedResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -27987,14 +33581,20 @@ export interface operations {
     };
     readonly ingestCityGmlScene: {
         readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
+            readonly query?: {
+                readonly async?: boolean;
+            };
+            readonly header?: {
+                readonly Prefer?: string;
+            };
             readonly path?: never;
             readonly cookie?: never;
         };
         readonly requestBody: {
             readonly content: {
                 readonly "multipart/form-data": {
+                    /** @description Queue the ingest and return a job reference. */
+                    readonly async?: boolean;
                     /**
                      * Format: int32
                      * @description Optional cache max-age applied to the registered scene dataset.
@@ -28028,6 +33628,17 @@ export interface operations {
                     readonly "application/json": components["schemas"]["SceneCityGmlIngestResponse"];
                 };
             };
+            /** @description The scene job was queued. Poll the status URL. */
+            readonly 202: {
+                headers: {
+                    /** @description Job status URL. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobAcceptedResponse"];
+                };
+            };
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             /** @description The CityGML/BIM scene ingest entitlement is not active for the current license (problem+json with an upgrade message). */
@@ -28039,18 +33650,115 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
-    readonly ingestPointCloudScene: {
+    readonly ingestModelScene: {
         readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
+            readonly query?: {
+                readonly async?: boolean;
+            };
+            readonly header?: {
+                readonly Prefer?: string;
+            };
             readonly path?: never;
             readonly cookie?: never;
         };
         readonly requestBody: {
             readonly content: {
                 readonly "multipart/form-data": {
+                    readonly async?: boolean;
+                    /** Format: int32 */
+                    readonly cacheMaxAgeSeconds?: number;
+                    readonly description?: string;
+                    readonly displayName?: string;
+                    readonly editionGate?: string;
+                    /** Format: binary */
+                    readonly file: string;
+                    /** Format: double */
+                    readonly headingDegrees?: number;
+                    /** Format: double */
+                    readonly height?: number;
+                    /** Format: double */
+                    readonly latitude: number;
+                    /** Format: double */
+                    readonly longitude: number;
+                    /** Format: double */
+                    readonly pitchDegrees?: number;
+                    readonly requiresAuth?: boolean;
+                    /** Format: double */
+                    readonly rollDegrees?: number;
+                    /** Format: double */
+                    readonly scale?: number;
+                    /** Format: double */
+                    readonly scaleX?: number;
+                    /** Format: double */
+                    readonly scaleY?: number;
+                    /** Format: double */
+                    readonly scaleZ?: number;
+                    /** @description Explicit scene slug. The server derives one when omitted. */
+                    readonly sceneId?: string;
+                };
+            };
+        };
+        readonly responses: {
+            /** @description The imported scene. */
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneModelIngestResponse"];
+                };
+            };
+            /** @description The scene job was queued. Poll the status URL. */
+            readonly 202: {
+                headers: {
+                    /** @description Job status URL. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobAcceptedResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly ingestPointCloudScene: {
+        readonly parameters: {
+            readonly query?: {
+                readonly async?: boolean;
+            };
+            readonly header?: {
+                readonly Prefer?: string;
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "multipart/form-data": {
+                    /** @description Queue the ingest and return a job reference. */
+                    readonly async?: boolean;
                     /**
                      * Format: int32
                      * @description Optional cache max-age applied to the registered scene dataset.
@@ -28072,13 +33780,19 @@ export interface operations {
                     /** @description Optional explicit scene id (slug). */
                     readonly sceneId?: string;
                     /**
-                     * @description Geographic axis order of the source point cloud. Accepts lonlat/longlat/xy or latlon/latlong/yx. Defaults to longitude-first.
+                     * @description Generate a 3D Tiles point tileset or serve the uploaded COPC directly.
+                     * @default 3d-tiles
+                     * @enum {string}
+                     */
+                    readonly servingFormat?: "3d-tiles" | "copc";
+                    /**
+                     * @description Geographic axis order used for 3D Tiles conversion. Accepts lonlat/longlat/xy or latlon/latlong/yx. Defaults to longitude-first.
                      * @default lonlat
                      * @enum {string}
                      */
                     readonly sourceCrsAxisOrder?: "lonlat" | "longlat" | "xy" | "latlon" | "latlong" | "yx";
                     /**
-                     * @description Source CRS as a positive EPSG code or an AUTHORITY:CODE token (e.g. 32610 or EPSG:32610). A projected source triggers reprojection to EPSG:4979 through the translate worker; geographic tokens (EPSG:4326/4979/4269, OGC:CRS84) are treated as pass-through.
+                     * @description Source CRS for 3D Tiles conversion as a positive EPSG code or an AUTHORITY:CODE token (e.g. 32610 or EPSG:32610). A projected source triggers reprojection to EPSG:4979 through the translate worker; geographic tokens (EPSG:4326/4979/4269, OGC:CRS84) are treated as pass-through.
                      * @example EPSG:32610
                      */
                     readonly sourceEpsg?: string;
@@ -28086,13 +33800,24 @@ export interface operations {
             };
         };
         readonly responses: {
-            /** @description The ingested scene, tileset URL, and point/tile counts. */
+            /** @description The ingested scene, serving URL, and point/tile counts. */
             readonly 201: {
                 headers: {
                     readonly [name: string]: unknown;
                 };
                 content: {
                     readonly "application/json": components["schemas"]["ScenePointCloudIngestResponse"];
+                };
+            };
+            /** @description The scene job was queued. Poll the status URL. */
+            readonly 202: {
+                headers: {
+                    /** @description Job status URL. */
+                    readonly Location?: string;
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobAcceptedResponse"];
                 };
             };
             readonly 400: components["responses"]["BadRequest"];
@@ -28106,6 +33831,80 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly listSceneJobs: {
+        readonly parameters: {
+            readonly query?: {
+                readonly sceneId?: string;
+                readonly status?: string;
+            };
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description List scene jobs. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": readonly components["schemas"]["SceneJobStatusResponse"][];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly getSceneJob: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly jobId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Get a scene job. */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["SceneJobStatusResponse"];
+                };
+            };
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Experimental asynchronous scene jobs are disabled on this server. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     readonly listClientCertificateTrustProfiles: {
@@ -28128,6 +33927,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createClientCertificateTrustProfile: {
@@ -28155,6 +33955,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getClientCertificateTrustProfile: {
@@ -28180,6 +33981,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateClientCertificateTrustProfile: {
@@ -28209,6 +34011,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly disableClientCertificateTrustProfile: {
@@ -28234,6 +34037,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listClientCertificatePrincipalMappings: {
@@ -28259,6 +34063,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createClientCertificatePrincipalMapping: {
@@ -28289,6 +34094,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateClientCertificatePrincipalMapping: {
@@ -28320,6 +34126,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly disableClientCertificatePrincipalMapping: {
@@ -28346,6 +34153,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listClientCertificateRevocations: {
@@ -28371,6 +34179,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly addClientCertificateRevocation: {
@@ -28401,6 +34210,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly removeClientCertificateRevocation: {
@@ -28427,6 +34237,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly validateClientCertificate: {
@@ -28454,28 +34265,46 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listServices: {
         readonly parameters: {
-            readonly query?: never;
+            readonly query?: {
+                /** @description Connection UUID; supply with storageLayerId to select services exposing that storage layer. Filtering happens before pagination. */
+                readonly connectionId?: string;
+                /** @description Omit for all services; root selects services without a folder. */
+                readonly folderId?: string;
+                /** @description One-based page number. Defaults to 1; values below 1 return 400. */
+                readonly page?: number;
+                /** @description Page size. Defaults to 100; values outside 1 to 100 return 400. */
+                readonly pageSize?: number;
+                /** @description Case-insensitive service name filter. Longer than 200 characters returns 400. */
+                readonly q?: string;
+                /** @description Nonnegative storage layer ID; supply with connectionId. Both filters must have exactly one value. */
+                readonly storageLayerId?: number;
+            };
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
         readonly requestBody?: never;
         readonly responses: {
-            /** @description Service list */
+            /** @description One page of services */
             readonly 200: {
                 headers: {
+                    /** @description Current graph snapshot ETag; pass unchanged as If-Match on the next mutation. */
+                    readonly ETag?: string;
                     readonly [name: string]: unknown;
                 };
                 content: {
-                    readonly "application/json": components["schemas"]["ApiResponseServiceSummaryArray"];
+                    readonly "application/json": components["schemas"]["ApiResponseServiceListPage"];
                 };
             };
+            readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listServiceReplicas: {
@@ -28512,6 +34341,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getServiceReplica: {
@@ -28550,6 +34380,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listServiceReplicaConflicts: {
@@ -28591,6 +34422,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Conflict review is not supported by this service's data provider. */
             readonly 501: {
                 headers: {
@@ -28640,6 +34472,7 @@ export interface operations {
             };
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Conflict review is not supported by this service's data provider. */
             readonly 501: {
                 headers: {
@@ -28694,6 +34527,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description Conflict review is not supported by this service's data provider, or the resolution requires committing a feature state and no replica-capable edit pipeline is registered. */
             readonly 501: {
                 headers: {
@@ -28751,6 +34585,247 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly getAdminServiceDiscovery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly serviceName: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Stored discovery metadata and affected publications */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["DiscoveryMetadataEnvelope"];
+                };
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly updateAdminServiceDiscovery: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly serviceName: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DiscoveryMetadataUpdateRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Stored discovery metadata and affected publications */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["DiscoveryMetadataEnvelope"];
+                };
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Metadata changed; reload before saving */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
+    readonly moveService: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Omit for unscoped catalog ownership; supply a publication namespace to select the resolved tenant. */
+                readonly namespace?: string;
+            };
+            readonly header: {
+                /** @description Current graph snapshot ETag, returned by folder/service listing. */
+                readonly "If-Match": string;
+            };
+            readonly path: {
+                readonly serviceName: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["MoveServiceRequest"];
+            };
+        };
+        readonly responses: {
+            /** @description Success */
+            readonly 204: {
+                headers: {
+                    /** @description Current graph snapshot ETag; pass unchanged as If-Match on the next mutation. */
+                    readonly ETag?: string;
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid input */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog or permanent path reservation conflict */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Snapshot changed */
+            readonly 412: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description If-Match is required */
+            readonly 428: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description Folder mutation is unavailable on a read-only metadata catalog. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly getAdminServiceMetadataHistory: {
+        readonly parameters: {
+            readonly query?: {
+                /** @description Keyset pagination cursor returning entries with id < beforeId. */
+                readonly beforeId?: number;
+                /** @description Optional field path prefix filter (for example 'title' or 'custom.steward'). */
+                readonly field?: string;
+                /** @description Maximum number of history entries to return (default 50). */
+                readonly limit?: number;
+            };
+            readonly header?: never;
+            readonly path: {
+                /** @description Logical service name. */
+                readonly serviceName: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Field-level metadata change history page */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["MetadataFieldHistoryEnvelope"];
+                };
+            };
+            /** @description Invalid query parameter */
+            readonly 400: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            readonly 401: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Admin access required */
+            readonly 403: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not found */
+            readonly 404: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly exportServiceLayer: {
@@ -28758,7 +34833,7 @@ export interface operations {
             readonly query: {
                 /** @description Spatial filter as `xmin,ymin,xmax,ymax` in the layer's spatial reference. Coordinates must be finite with xmin < xmax and ymin < ymax. */
                 readonly bbox?: string;
-                /** @description Output format: `csv`, `shapefile`, `gpkg`, or the id of an active licensed plugin output format. */
+                /** @description Output format: `csv`, `shapefile`, `gpkg`, `geoparquet` (alias `parquet`), or the id of an active licensed plugin output format. */
                 readonly format: string;
                 /** @description Comma-separated attribute field names to include, or `*` for all attribute fields. */
                 readonly outFields?: string;
@@ -28769,8 +34844,8 @@ export interface operations {
             };
             readonly header?: never;
             readonly path: {
-                /** @description Service-local layer id. */
-                readonly layerId: number;
+                /** @description Layer index within the named service. */
+                readonly serviceLayerIndex: number;
                 /** @description Service name. */
                 readonly serviceName: string;
             };
@@ -28787,6 +34862,7 @@ export interface operations {
                 };
                 content: {
                     readonly "application/geopackage+sqlite3": string;
+                    readonly "application/vnd.apache.parquet": string;
                     readonly "application/zip": string;
                     readonly "text/csv": string;
                 };
@@ -28804,7 +34880,22 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
-            /** @description A large export was requested but the background export service, durable job storage, or cloud storage is not configured, or the export queue is full. */
+            /** @description The GeoParquet export exceeds a configured encoding budget. */
+            readonly 413: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description GeoParquet encoding is unavailable on this host. */
+            readonly 501: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A large export was requested but the background export service, durable job storage, or cloud storage is not configured, or five exports are already queued or running, or temporary GeoParquet spool storage is full. */
             readonly 503: {
                 headers: {
                     readonly [name: string]: unknown;
@@ -28815,12 +34906,48 @@ export interface operations {
             };
         };
     };
+    readonly getLayerMetadata: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly serviceLayerIndex: number;
+                readonly serviceName: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Persisted layer metadata */
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["ApiResponseLayerMetadataResponse"];
+                };
+            };
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 401: components["responses"]["Unauthorized"];
+            readonly 403: components["responses"]["Forbidden"];
+            readonly 404: components["responses"]["NotFound"];
+            /** @description The service has no FeatureServer publication, or the layer index resolves to multiple resources. */
+            readonly 409: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
+        };
+    };
     readonly updateLayerMetadata: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
             readonly path: {
-                readonly layerId: number;
+                /** @description Layer index within the named service. */
+                readonly serviceLayerIndex: number;
                 readonly serviceName: string;
             };
             readonly cookie?: never;
@@ -28844,6 +34971,16 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            /** @description The extrusion block is invalid. The problem's `code` is the first stable EXTRUSION_* code; `detail` lists every code. */
+            readonly 422: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getLayerShareTrafficSummary: {
@@ -28858,8 +34995,8 @@ export interface operations {
             };
             readonly header?: never;
             readonly path: {
-                /** @description Service-local layer id. */
-                readonly layerId: number;
+                /** @description Layer index within the named service. */
+                readonly serviceLayerIndex: number;
                 /** @description Service name. */
                 readonly serviceName: string;
             };
@@ -28879,6 +35016,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share traffic store is not available. */
             readonly 503: {
                 headers: {
@@ -28904,8 +35042,8 @@ export interface operations {
             };
             readonly header?: never;
             readonly path: {
-                /** @description Service-local layer id. */
-                readonly layerId: number;
+                /** @description Layer index within the named service. */
+                readonly serviceLayerIndex: number;
                 /** @description Service name. */
                 readonly serviceName: string;
             };
@@ -28925,6 +35063,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share traffic store is not available. */
             readonly 503: {
                 headers: {
@@ -28964,6 +35103,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateServiceProtocols: {
@@ -28994,6 +35134,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getServiceSettings: {
@@ -29019,6 +35160,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateServiceTimeInfo: {
@@ -29049,6 +35191,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listShareExports: {
@@ -29058,7 +35201,10 @@ export interface operations {
                 readonly cursor?: string;
                 /** @description Filter by destination family. Parsed case-insensitively; numeric values are rejected. */
                 readonly destinationType?: "S3" | "Sftp" | "Webhook" | "AuditSnapshot";
-                /** @description Filter by service-local layer id. */
+                /**
+                 * @deprecated
+                 * @description Deprecated alias of serviceLayerIndex, accepted from published clients. When both are sent they must agree.
+                 */
                 readonly layerId?: number;
                 /** @description Page size. Clamped to 1..200; defaults to 50. */
                 readonly limit?: number;
@@ -29066,6 +35212,8 @@ export interface operations {
                 readonly resourceId?: string;
                 /** @description Filter by schedule state. Parsed case-insensitively; numeric values are rejected. */
                 readonly scheduleState?: "Active" | "Paused";
+                /** @description Layer index within the named service. */
+                readonly serviceLayerIndex?: number;
                 /** @description Filter by owning service name. */
                 readonly serviceName?: string;
             };
@@ -29087,6 +35235,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29126,6 +35275,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29161,6 +35311,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29201,6 +35352,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29234,6 +35386,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29269,6 +35422,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29304,6 +35458,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29345,6 +35500,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29382,6 +35538,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store is not available. */
             readonly 503: {
                 headers: {
@@ -29426,6 +35583,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["ShareAdminProblemDetails"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share export store or the durable job runner is not available, or the job could not be dispatched. */
             readonly 503: {
                 headers: {
@@ -29463,6 +35621,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share traffic store is not available. */
             readonly 503: {
                 headers: {
@@ -29502,6 +35661,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The Share traffic store is not available. */
             readonly 503: {
                 headers: {
@@ -29533,6 +35693,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
             /** @description The configured controlled-conformance source could not be resolved as a writable layer. */
             readonly 503: {
                 headers: {
@@ -29564,6 +35725,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly disconnectFeatureStreamSession: {
@@ -29598,6 +35760,7 @@ export interface operations {
                     readonly "application/problem+json": components["schemas"]["MonitoringProblemDetails"];
                 };
             };
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listTenants: {
@@ -29620,6 +35783,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly createTenant: {
@@ -29650,6 +35814,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getTenant: {
@@ -29676,6 +35841,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deleteTenant: {
@@ -29704,6 +35870,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly resumeTenant: {
@@ -29732,6 +35899,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly suspendTenant: {
@@ -29760,6 +35928,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly exportTenantUsage: {
@@ -29782,64 +35951,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
-        };
-    };
-    readonly getTileCacheInventory: {
-        readonly parameters: {
-            readonly query?: {
-                /** @description Tile matrix set identifier used to scope the inventory. */
-                readonly gridset?: string;
-                /** @description Service whose published layers scope the inventory. */
-                readonly serviceId?: string;
-            };
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Generated tile-cache inventory. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["TileCacheInventoryResult"];
-                };
-            };
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
-            /** @description The generated tile-cache index is unavailable. */
-            readonly 503: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/problem+json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    readonly evictTileCache: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody?: never;
-        readonly responses: {
-            /** @description Eviction sweep outcome. */
-            readonly 200: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": components["schemas"]["TileCacheEvictionResult"];
-                };
-            };
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listTileOperationJobs: {
@@ -29865,6 +35977,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly startTileOperationJob: {
@@ -29892,6 +36005,16 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
+            /** @description This host has no system database job store, so no tile operation is accepted. */
+            readonly 503: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
         };
     };
     readonly getTileOperationJob: {
@@ -29918,6 +36041,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly cancelTileOperationJob: {
@@ -29945,6 +36069,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly retryTileOperationJob: {
@@ -29971,6 +36096,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listManagedUsers: {
@@ -30004,6 +36130,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getManagedUser: {
@@ -30030,6 +36157,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly deprovisionManagedUser: {
@@ -30056,6 +36184,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getManagedUserEffectivePermissions: {
@@ -30082,6 +36211,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly updateManagedUserRoles: {
@@ -30112,6 +36242,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getAdminVersion: {
@@ -30134,6 +36265,7 @@ export interface operations {
             };
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly listZarrStores: {
@@ -30160,6 +36292,7 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly registerZarrStore: {
@@ -30189,6 +36322,7 @@ export interface operations {
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
             readonly 409: components["responses"]["Conflict"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly getZarrStore: {
@@ -30215,6 +36349,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly unregisterZarrStore: {
@@ -30239,6 +36374,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
     readonly refreshZarrStore: {
@@ -30266,6 +36402,7 @@ export interface operations {
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
             readonly 404: components["responses"]["NotFound"];
+            readonly 429: components["responses"]["TooManyRequests"];
         };
     };
 }

@@ -65,7 +65,7 @@ REQUEST OPTIONS
   --admin-key <key>         Root admin key (or HONUA_ADMIN_KEY)
   --json                    Machine-readable output
 
-The api escape hatch exposes every operation in the pinned 396-operation Admin OpenAPI contract.
+The api escape hatch exposes every operation in the pinned 456-operation Admin OpenAPI contract.
 See docs/admin-cli-reference.md for the generated inventory.`;
 
 export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
@@ -181,7 +181,7 @@ async function handleSecretPersistenceFailure(
   const rollback = rollbackOperation(error.operationId, error.resource);
   if (!rollback) {
     return new ArgError(
-      error.operationId === "issueAdminOperatorBearer"
+      error.operationId === "issueAdminOperatorBearer" || error.operationId === "createAdminPasswordBearer"
         ? `Admin operation ${error.operationId} completed, but its one-time material could not be persisted. The short-lived bearer cannot be revoked; wait for it to expire before retrying.`
         : `Admin operation ${error.operationId} completed, but its resource identity could not be verified for compensating rollback. Inspect server state before retrying.`,
     );
@@ -214,7 +214,8 @@ function isRecoveryPreferred(operationId: AdminOneTimeSecretOperationId): boolea
   return (
     operationId === "rotateAdminApiKey" ||
     operationId === "rotateEmbedKey" ||
-    operationId === "issueAdminOperatorBearer"
+    operationId === "issueAdminOperatorBearer" ||
+    operationId === "createAdminPasswordBearer"
   );
 }
 

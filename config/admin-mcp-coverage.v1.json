@@ -2,9 +2,9 @@
   "schemaVersion": "honua.admin-mcp-coverage.v1",
   "source": "docs/developer/api-specs/admin-api.json",
   "summary": {
-    "openApiOperationCount": 396,
-    "projectedOperationCount": 385,
-    "excludedOperationCount": 11
+    "openApiOperationCount": 456,
+    "projectedOperationCount": 442,
+    "excludedOperationCount": 14
   },
   "projected": [
     {
@@ -27,6 +27,13 @@
       "toolName": "honua_admin_api_key_revoke",
       "method": "POST",
       "path": "/api/v1/admin/api-keys/{id}/revoke"
+    },
+    {
+      "operationId": "admin.api-key.update-restrictions",
+      "openApiOperationId": "updateAdminApiKeyRestrictions",
+      "toolName": "honua_admin_api_key_update_restrictions",
+      "method": "PATCH",
+      "path": "/api/v1/admin/api-keys/{id}/restrictions"
     },
     {
       "operationId": "admin.cache.invalidate",
@@ -103,7 +110,7 @@
       "openApiOperationId": "refreshConnectionLayerFeatures",
       "toolName": "honua_admin_connection_refresh_features",
       "method": "POST",
-      "path": "/api/v1/admin/connections/{id}/layers/{layerId}/features/refresh"
+      "path": "/api/v1/admin/connections/{id}/layers/{storageLayerId}/features/refresh"
     },
     {
       "operationId": "admin.connection.test",
@@ -190,6 +197,34 @@
       "path": "/api/v1/admin/field-mask-policies"
     },
     {
+      "operationId": "admin.folder.create",
+      "openApiOperationId": "createFolder",
+      "toolName": "honua_admin_folder_create",
+      "method": "POST",
+      "path": "/api/v1/admin/folders"
+    },
+    {
+      "operationId": "admin.folder.delete",
+      "openApiOperationId": "deleteFolder",
+      "toolName": "honua_admin_folder_delete",
+      "method": "DELETE",
+      "path": "/api/v1/admin/folders/{id}"
+    },
+    {
+      "operationId": "admin.folder.list",
+      "openApiOperationId": "listFolders",
+      "toolName": "honua_admin_folder_list",
+      "method": "GET",
+      "path": "/api/v1/admin/folders"
+    },
+    {
+      "operationId": "admin.folder.update",
+      "openApiOperationId": "updateFolder",
+      "toolName": "honua_admin_folder_update",
+      "method": "PATCH",
+      "path": "/api/v1/admin/folders/{id}"
+    },
+    {
       "operationId": "admin.import.cancel-job",
       "openApiOperationId": "cancelImportJob",
       "toolName": "honua_admin_import_cancel_job",
@@ -274,53 +309,67 @@
       "path": "/api/v1/admin/import/upload-url"
     },
     {
+      "operationId": "admin.layer.display.get",
+      "openApiOperationId": "getAdminLayerDisplay",
+      "toolName": "honua_admin_layer_display_get",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/display"
+    },
+    {
+      "operationId": "admin.layer.display.set",
+      "openApiOperationId": "setAdminLayerDisplay",
+      "toolName": "honua_admin_layer_display_set",
+      "method": "PUT",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/display"
+    },
+    {
       "operationId": "admin.layer.export-sld",
       "openApiOperationId": "exportLayerSldStyle",
       "toolName": "honua_admin_layer_export_sld",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/style/export-sld"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/style/export-sld"
     },
     {
       "operationId": "admin.layer.get-drawing-info",
       "openApiOperationId": "getAdminLayerDrawingInfo",
       "toolName": "honua_admin_layer_get_drawing_info",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/drawing-info"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/drawing-info"
     },
     {
       "operationId": "admin.layer.get-fields",
       "openApiOperationId": "getAdminLayerFields",
       "toolName": "honua_admin_layer_get_fields",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/fields"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/fields"
     },
     {
       "operationId": "admin.layer.get-filter",
       "openApiOperationId": "getAdminLayerFilter",
       "toolName": "honua_admin_layer_get_filter",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/filter"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/filter"
     },
     {
       "operationId": "admin.layer.get-popup-info",
       "openApiOperationId": "getAdminLayerPopupInfo",
       "toolName": "honua_admin_layer_get_popup_info",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/popup-info"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/popup-info"
     },
     {
       "operationId": "admin.layer.get-style",
       "openApiOperationId": "getAdminLayerStyle",
       "toolName": "honua_admin_layer_get_style",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/style"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/style"
     },
     {
       "operationId": "admin.layer.import-sld",
       "openApiOperationId": "importLayerSldStyle",
       "toolName": "honua_admin_layer_import_sld",
       "method": "POST",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/style/import-sld"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/style/import-sld"
     },
     {
       "operationId": "admin.layer.publish",
@@ -334,42 +383,56 @@
       "openApiOperationId": "setAdminLayerDrawingInfo",
       "toolName": "honua_admin_layer_set_drawing_info",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/drawing-info"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/drawing-info"
     },
     {
       "operationId": "admin.layer.set-enabled",
       "openApiOperationId": "setLayerEnabled",
       "toolName": "honua_admin_layer_set_enabled",
       "method": "PUT",
-      "path": "/api/v1/admin/connections/{id}/layers/{layerId}/enabled"
+      "path": "/api/v1/admin/connections/{id}/layers/{storageLayerId}/enabled"
     },
     {
       "operationId": "admin.layer.set-fields",
       "openApiOperationId": "updateAdminLayerFields",
       "toolName": "honua_admin_layer_set_fields",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/fields"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/fields"
     },
     {
       "operationId": "admin.layer.set-filter",
       "openApiOperationId": "updateAdminLayerFilter",
       "toolName": "honua_admin_layer_set_filter",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/filter"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/filter"
     },
     {
       "operationId": "admin.layer.set-popup-info",
       "openApiOperationId": "setAdminLayerPopupInfo",
       "toolName": "honua_admin_layer_set_popup_info",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/popup-info"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/popup-info"
     },
     {
       "operationId": "admin.layer.set-style",
       "openApiOperationId": "updateAdminLayerStyle",
       "toolName": "honua_admin_layer_set_style",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/style"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/style"
+    },
+    {
+      "operationId": "admin.layer.spatial.get",
+      "openApiOperationId": "getAdminLayerSpatial",
+      "toolName": "honua_admin_layer_spatial_get",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/spatial"
+    },
+    {
+      "operationId": "admin.layer.spatial.set",
+      "openApiOperationId": "setAdminLayerSpatial",
+      "toolName": "honua_admin_layer_spatial_set",
+      "method": "PUT",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/spatial"
     },
     {
       "operationId": "admin.license.entitlements",
@@ -391,6 +454,20 @@
       "toolName": "honua_admin_license_upload",
       "method": "POST",
       "path": "/api/v1/admin/license"
+    },
+    {
+      "operationId": "admin.metadata.layer-discovery.set",
+      "openApiOperationId": "updateAdminLayerDiscovery",
+      "toolName": "honua_admin_metadata_layer_discovery_set",
+      "method": "PUT",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/discovery"
+    },
+    {
+      "operationId": "admin.metadata.service-discovery.set",
+      "openApiOperationId": "updateAdminServiceDiscovery",
+      "toolName": "honua_admin_metadata_service_discovery_set",
+      "method": "PUT",
+      "path": "/api/v1/admin/services/{serviceName}/discovery"
     },
     {
       "operationId": "admin.oauth-client.delete",
@@ -463,11 +540,25 @@
       "path": "/api/v1/admin/oidc/providers"
     },
     {
+      "operationId": "admin.oidc-provider.revisions",
+      "openApiOperationId": "listOidcProviderRevisions",
+      "toolName": "honua_admin_oidc_provider_revisions",
+      "method": "GET",
+      "path": "/api/v1/admin/oidc/providers/{id}/revisions"
+    },
+    {
       "operationId": "admin.oidc-provider.test",
       "openApiOperationId": "testOidcProvider",
       "toolName": "honua_admin_oidc_provider_test",
       "method": "POST",
       "path": "/api/v1/admin/oidc/providers/{id}/test"
+    },
+    {
+      "operationId": "admin.oidc-provider.undo",
+      "openApiOperationId": "undoOidcProviderChange",
+      "toolName": "honua_admin_oidc_provider_undo",
+      "method": "POST",
+      "path": "/api/v1/admin/oidc/providers/{id}/undo"
     },
     {
       "operationId": "admin.oidc-provider.update",
@@ -482,6 +573,13 @@
       "toolName": "honua_admin_openapi_acknowledge_observability_alert",
       "method": "POST",
       "path": "/api/v1/admin/observability/alerts/{eventId}/acknowledge"
+    },
+    {
+      "operationId": "admin.openapi.activate-gp-process-release",
+      "openApiOperationId": "activateGpProcessRelease",
+      "toolName": "honua_admin_openapi_activate_gp_process_release",
+      "method": "POST",
+      "path": "/api/v1/admin/gp/process-releases/bindings/{process}/activate"
     },
     {
       "operationId": "admin.openapi.add-client-certificate-revocation",
@@ -533,6 +631,20 @@
       "path": "/api/v1/admin/field-workflows/submissions/{submissionId}/assignment"
     },
     {
+      "operationId": "admin.openapi.attest-observability-audit-gap",
+      "openApiOperationId": "attestObservabilityAuditGap",
+      "toolName": "honua_admin_openapi_attest_observability_audit_gap",
+      "method": "POST",
+      "path": "/api/v1/admin/observability/audit/gap-attestations"
+    },
+    {
+      "operationId": "admin.openapi.cancel-compatibility-import-job",
+      "openApiOperationId": "cancelCompatibilityImportJob",
+      "toolName": "honua_admin_openapi_cancel_compatibility_import_job",
+      "method": "POST",
+      "path": "/api/v1/admin/imports/jobs/{jobId}/cancel"
+    },
+    {
       "operationId": "admin.openapi.cancel-console-job",
       "openApiOperationId": "cancelConsoleJob",
       "toolName": "honua_admin_openapi_cancel_console_job",
@@ -582,6 +694,13 @@
       "path": "/api/v1/admin/field-workflows/submissions/{submissionId}/comments"
     },
     {
+      "operationId": "admin.openapi.compatibility-import-file-from-url",
+      "openApiOperationId": "compatibilityImportFileFromUrl",
+      "toolName": "honua_admin_openapi_compatibility_import_file_from_url",
+      "method": "POST",
+      "path": "/api/v1/admin/imports"
+    },
+    {
       "operationId": "admin.openapi.complete-migration-run",
       "openApiOperationId": "completeMigrationRun",
       "toolName": "honua_admin_openapi_complete_migration_run",
@@ -624,6 +743,13 @@
       "path": "/api/v1/admin/security/client-certificates/profiles"
     },
     {
+      "operationId": "admin.openapi.create-export",
+      "openApiOperationId": "createExport",
+      "toolName": "honua_admin_openapi_create_export",
+      "method": "POST",
+      "path": "/api/v1/admin/exports"
+    },
+    {
       "operationId": "admin.openapi.create-field-workflow-export",
       "openApiOperationId": "createFieldWorkflowExport",
       "toolName": "honua_admin_openapi_create_field_workflow_export",
@@ -631,11 +757,11 @@
       "path": "/api/v1/admin/field-workflows/exports"
     },
     {
-      "operationId": "admin.openapi.create-form-package-draft",
-      "openApiOperationId": "createFormPackageDraft",
-      "toolName": "honua_admin_openapi_create_form_package_draft",
+      "operationId": "admin.openapi.create-form-draft",
+      "openApiOperationId": "createFormDraft",
+      "toolName": "honua_admin_openapi_create_form_draft",
       "method": "POST",
-      "path": "/api/v1/admin/forms/packages"
+      "path": "/api/v1/admin/forms"
     },
     {
       "operationId": "admin.openapi.create-investigation",
@@ -650,6 +776,13 @@
       "toolName": "honua_admin_openapi_create_metadata_release_operation",
       "method": "POST",
       "path": "/api/v1/admin/metadata/releases/operations"
+    },
+    {
+      "operationId": "admin.openapi.create-object-storage-connection-setup",
+      "openApiOperationId": "createObjectStorageConnectionSetup",
+      "toolName": "honua_admin_openapi_create_object_storage_connection_setup",
+      "method": "POST",
+      "path": "/api/v1/admin/connections/object-storage/setup"
     },
     {
       "operationId": "admin.openapi.create-share-export",
@@ -673,6 +806,13 @@
       "path": "/api/v1/admin/field-workflows/submissions/{submissionId}/decision"
     },
     {
+      "operationId": "admin.openapi.delete-agent-authority-ceiling",
+      "openApiOperationId": "deleteAgentAuthorityCeiling",
+      "toolName": "honua_admin_openapi_delete_agent_authority_ceiling",
+      "method": "DELETE",
+      "path": "/api/v1/admin/agent-authority"
+    },
+    {
       "operationId": "admin.openapi.delete-alert-rule",
       "openApiOperationId": "deleteAlertRule",
       "toolName": "honua_admin_openapi_delete_alert_rule",
@@ -685,6 +825,13 @@
       "toolName": "honua_admin_openapi_delete_alert_zone",
       "method": "DELETE",
       "path": "/api/v1/admin/alerts/zones/{zoneId}"
+    },
+    {
+      "operationId": "admin.openapi.delete-export",
+      "openApiOperationId": "deleteExport",
+      "toolName": "honua_admin_openapi_delete_export",
+      "method": "DELETE",
+      "path": "/api/v1/admin/exports/{exportId}"
     },
     {
       "operationId": "admin.openapi.delete-imported-raster",
@@ -771,18 +918,18 @@
       "path": "/api/v1/admin/compliance/residency/evaluate"
     },
     {
-      "operationId": "admin.openapi.evict-tile-cache",
-      "openApiOperationId": "evictTileCache",
-      "toolName": "honua_admin_openapi_evict_tile_cache",
-      "method": "POST",
-      "path": "/api/v1/admin/tile-operations/evict"
-    },
-    {
       "operationId": "admin.openapi.export-compliance-report",
       "openApiOperationId": "exportComplianceReport",
       "toolName": "honua_admin_openapi_export_compliance_report",
       "method": "GET",
       "path": "/api/v1/admin/compliance/report"
+    },
+    {
+      "operationId": "admin.openapi.export-form-xls-form",
+      "openApiOperationId": "exportFormXlsForm",
+      "toolName": "honua_admin_openapi_export_form_xls_form",
+      "method": "GET",
+      "path": "/api/v1/admin/forms/{formId}/export"
     },
     {
       "operationId": "admin.openapi.export-observability-audit",
@@ -803,7 +950,7 @@
       "openApiOperationId": "exportServiceLayer",
       "toolName": "honua_admin_openapi_export_service_layer",
       "method": "GET",
-      "path": "/api/v1/admin/services/{serviceName}/layers/{layerId}/export"
+      "path": "/api/v1/admin/services/{serviceName}/layers/{serviceLayerIndex}/export"
     },
     {
       "operationId": "admin.openapi.export-tenant-usage",
@@ -827,18 +974,53 @@
       "path": "/api/v1/admin/auth/config"
     },
     {
+      "operationId": "admin.openapi.get-admin-layer-discovery",
+      "openApiOperationId": "getAdminLayerDiscovery",
+      "toolName": "honua_admin_openapi_get_admin_layer_discovery",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/discovery"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-layer-metadata-history",
+      "openApiOperationId": "getAdminLayerMetadataHistory",
+      "toolName": "honua_admin_openapi_get_admin_layer_metadata_history",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/history"
+    },
+    {
       "operationId": "admin.openapi.get-admin-layer-relationships",
       "openApiOperationId": "getAdminLayerRelationships",
       "toolName": "honua_admin_openapi_get_admin_layer_relationships",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/relationships"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/relationships"
     },
     {
       "operationId": "admin.openapi.get-admin-layer-validation",
       "openApiOperationId": "getAdminLayerValidation",
       "toolName": "honua_admin_openapi_get_admin_layer_validation",
       "method": "GET",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/validation"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/validation"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-live",
+      "openApiOperationId": "GetAdminLive",
+      "toolName": "honua_admin_openapi_get_admin_live",
+      "method": "GET",
+      "path": "/api/v1/admin/live"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-metadata-history",
+      "openApiOperationId": "getAdminMetadataHistory",
+      "toolName": "honua_admin_openapi_get_admin_metadata_history",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/history"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-metadata-schemas",
+      "openApiOperationId": "getAdminMetadataSchemas",
+      "toolName": "honua_admin_openapi_get_admin_metadata_schemas",
+      "method": "GET",
+      "path": "/api/v1/admin/metadata/schemas"
     },
     {
       "operationId": "admin.openapi.get-admin-open-api",
@@ -846,6 +1028,27 @@
       "toolName": "honua_admin_openapi_get_admin_open_api",
       "method": "GET",
       "path": "/api/v1/admin/openapi.json"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-service-discovery",
+      "openApiOperationId": "getAdminServiceDiscovery",
+      "toolName": "honua_admin_openapi_get_admin_service_discovery",
+      "method": "GET",
+      "path": "/api/v1/admin/services/{serviceName}/discovery"
+    },
+    {
+      "operationId": "admin.openapi.get-admin-service-metadata-history",
+      "openApiOperationId": "getAdminServiceMetadataHistory",
+      "toolName": "honua_admin_openapi_get_admin_service_metadata_history",
+      "method": "GET",
+      "path": "/api/v1/admin/services/{serviceName}/history"
+    },
+    {
+      "operationId": "admin.openapi.get-agent-authority-ceiling",
+      "openApiOperationId": "getAgentAuthorityCeiling",
+      "toolName": "honua_admin_openapi_get_agent_authority_ceiling",
+      "method": "GET",
+      "path": "/api/v1/admin/agent-authority"
     },
     {
       "operationId": "admin.openapi.get-alert-rule",
@@ -869,20 +1072,6 @@
       "path": "/api/v1/admin/alerts/zones/{zoneId}"
     },
     {
-      "operationId": "admin.openapi.get-arc-gis-migration-manifest",
-      "openApiOperationId": "getArcGisMigrationManifest",
-      "toolName": "honua_admin_openapi_get_arc_gis_migration_manifest",
-      "method": "GET",
-      "path": "/api/v1/admin/import/arcgis/migrations/{runId}/manifest"
-    },
-    {
-      "operationId": "admin.openapi.get-arc-gis-migration-parity",
-      "openApiOperationId": "getArcGisMigrationParity",
-      "toolName": "honua_admin_openapi_get_arc_gis_migration_parity",
-      "method": "GET",
-      "path": "/api/v1/admin/import/arcgis/migrations/{runId}/parity"
-    },
-    {
       "operationId": "admin.openapi.get-client-certificate-trust-profile",
       "openApiOperationId": "getClientCertificateTrustProfile",
       "toolName": "honua_admin_openapi_get_client_certificate_trust_profile",
@@ -895,6 +1084,20 @@
       "toolName": "honua_admin_openapi_get_cloud_raster",
       "method": "GET",
       "path": "/api/v1/admin/cloud-rasters/{id}"
+    },
+    {
+      "operationId": "admin.openapi.get-compatibility-active-import-jobs",
+      "openApiOperationId": "getCompatibilityActiveImportJobs",
+      "toolName": "honua_admin_openapi_get_compatibility_active_import_jobs",
+      "method": "GET",
+      "path": "/api/v1/admin/imports/jobs"
+    },
+    {
+      "operationId": "admin.openapi.get-compatibility-import-job-status",
+      "openApiOperationId": "getCompatibilityImportJobStatus",
+      "toolName": "honua_admin_openapi_get_compatibility_import_job_status",
+      "method": "GET",
+      "path": "/api/v1/admin/imports/jobs/{jobId}"
     },
     {
       "operationId": "admin.openapi.get-compliance-dashboard",
@@ -953,6 +1156,13 @@
       "path": "/api/v1/admin/jobs/{jobId}/artifacts"
     },
     {
+      "operationId": "admin.openapi.get-console-job-diagnostics",
+      "openApiOperationId": "getConsoleJobDiagnostics",
+      "toolName": "honua_admin_openapi_get_console_job_diagnostics",
+      "method": "GET",
+      "path": "/api/v1/admin/jobs/{jobId}/diagnostics"
+    },
+    {
       "operationId": "admin.openapi.get-console-job-logs",
       "openApiOperationId": "getConsoleJobLogs",
       "toolName": "honua_admin_openapi_get_console_job_logs",
@@ -967,11 +1177,11 @@
       "path": "/api/v1/admin/jobs/{jobId}/steps"
     },
     {
-      "operationId": "admin.openapi.get-current-form-package",
-      "openApiOperationId": "getCurrentFormPackage",
-      "toolName": "honua_admin_openapi_get_current_form_package",
+      "operationId": "admin.openapi.get-current-form",
+      "openApiOperationId": "getCurrentForm",
+      "toolName": "honua_admin_openapi_get_current_form",
       "method": "GET",
-      "path": "/api/v1/admin/forms/packages/{formId}"
+      "path": "/api/v1/admin/forms/{formId}"
     },
     {
       "operationId": "admin.openapi.get-database-query-cache-statistics",
@@ -1065,6 +1275,13 @@
       "path": "/api/v1/admin/performance/enhanced/database/slow-queries"
     },
     {
+      "operationId": "admin.openapi.get-export",
+      "openApiOperationId": "getExport",
+      "toolName": "honua_admin_openapi_get_export",
+      "method": "GET",
+      "path": "/api/v1/admin/exports/{exportId}"
+    },
+    {
       "operationId": "admin.openapi.get-field-workflow-submission",
       "openApiOperationId": "getFieldWorkflowSubmission",
       "toolName": "honua_admin_openapi_get_field_workflow_submission",
@@ -1072,11 +1289,11 @@
       "path": "/api/v1/admin/field-workflows/submissions/{submissionId}"
     },
     {
-      "operationId": "admin.openapi.get-form-package-version",
-      "openApiOperationId": "getFormPackageVersion",
-      "toolName": "honua_admin_openapi_get_form_package_version",
+      "operationId": "admin.openapi.get-form-version",
+      "openApiOperationId": "getFormVersion",
+      "toolName": "honua_admin_openapi_get_form_version",
       "method": "GET",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions/{packageVersion}"
+      "path": "/api/v1/admin/forms/{formId}/versions/{formVersion}"
     },
     {
       "operationId": "admin.openapi.get-geo-server-import-job",
@@ -1084,6 +1301,20 @@
       "toolName": "honua_admin_openapi_get_geo_server_import_job",
       "method": "GET",
       "path": "/api/v1/admin/import/geoserver/jobs/{jobId}"
+    },
+    {
+      "operationId": "admin.openapi.get-geo-services-migration-manifest",
+      "openApiOperationId": "getGeoServicesMigrationManifest",
+      "toolName": "honua_admin_openapi_get_geo_services_migration_manifest",
+      "method": "GET",
+      "path": "/api/v1/admin/import/geoservices-rest/migrations/{runId}/manifest"
+    },
+    {
+      "operationId": "admin.openapi.get-geo-services-migration-parity",
+      "openApiOperationId": "getGeoServicesMigrationParity",
+      "toolName": "honua_admin_openapi_get_geo_services_migration_parity",
+      "method": "GET",
+      "path": "/api/v1/admin/import/geoservices-rest/migrations/{runId}/parity"
     },
     {
       "operationId": "admin.openapi.get-geocoding-providers",
@@ -1107,6 +1338,20 @@
       "path": "/api/v1/admin/import/geoservices/jobs/{jobId}"
     },
     {
+      "operationId": "admin.openapi.get-gp-process-binding",
+      "openApiOperationId": "getGpProcessBinding",
+      "toolName": "honua_admin_openapi_get_gp_process_binding",
+      "method": "GET",
+      "path": "/api/v1/admin/gp/process-releases/bindings/{process}"
+    },
+    {
+      "operationId": "admin.openapi.get-gp-process-release",
+      "openApiOperationId": "getGpProcessRelease",
+      "toolName": "honua_admin_openapi_get_gp_process_release",
+      "method": "GET",
+      "path": "/api/v1/admin/gp/process-releases/{digest}"
+    },
+    {
       "operationId": "admin.openapi.get-identity-providers",
       "openApiOperationId": "getIdentityProviders",
       "toolName": "honua_admin_openapi_get_identity_providers",
@@ -1128,25 +1373,32 @@
       "path": "/api/v1/admin/migration/performance-evidence/latest"
     },
     {
+      "operationId": "admin.openapi.get-layer-metadata",
+      "openApiOperationId": "getLayerMetadata",
+      "toolName": "honua_admin_openapi_get_layer_metadata",
+      "method": "GET",
+      "path": "/api/v1/admin/services/{serviceName}/layers/{serviceLayerIndex}/metadata"
+    },
+    {
+      "operationId": "admin.openapi.get-layer-publish-job-status",
+      "openApiOperationId": "getLayerPublishJobStatus",
+      "toolName": "honua_admin_openapi_get_layer_publish_job_status",
+      "method": "GET",
+      "path": "/api/v1/admin/connections/{id}/layers/jobs/{jobId}"
+    },
+    {
       "operationId": "admin.openapi.get-layer-share-traffic-series",
       "openApiOperationId": "getLayerShareTrafficSeries",
       "toolName": "honua_admin_openapi_get_layer_share_traffic_series",
       "method": "GET",
-      "path": "/api/v1/admin/services/{serviceName}/layers/{layerId}/share/traffic/series"
+      "path": "/api/v1/admin/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic/series"
     },
     {
       "operationId": "admin.openapi.get-layer-share-traffic-summary",
       "openApiOperationId": "getLayerShareTrafficSummary",
       "toolName": "honua_admin_openapi_get_layer_share_traffic_summary",
       "method": "GET",
-      "path": "/api/v1/admin/services/{serviceName}/layers/{layerId}/share/traffic"
-    },
-    {
-      "operationId": "admin.openapi.get-license-capacity-state",
-      "openApiOperationId": "getLicenseCapacityState",
-      "toolName": "honua_admin_openapi_get_license_capacity_state",
-      "method": "GET",
-      "path": "/api/v1/admin/license/capacity"
+      "path": "/api/v1/admin/services/{serviceName}/layers/{serviceLayerIndex}/share/traffic"
     },
     {
       "operationId": "admin.openapi.get-license-features",
@@ -1275,13 +1527,6 @@
       "path": "/api/v1/admin/operations/cache/health"
     },
     {
-      "operationId": "admin.openapi.get-operations-cache-redis-metrics",
-      "openApiOperationId": "getOperationsCacheRedisMetrics",
-      "toolName": "honua_admin_openapi_get_operations_cache_redis_metrics",
-      "method": "GET",
-      "path": "/api/v1/admin/operations/cache/redis"
-    },
-    {
       "operationId": "admin.openapi.get-operations-cache-statistics",
       "openApiOperationId": "getOperationsCacheStatistics",
       "toolName": "honua_admin_openapi_get_operations_cache_statistics",
@@ -1331,6 +1576,13 @@
       "path": "/api/v1/admin/observability/ops-health"
     },
     {
+      "operationId": "admin.openapi.get-ops-incident-context",
+      "openApiOperationId": "getOpsIncidentContext",
+      "toolName": "honua_admin_openapi_get_ops_incident_context",
+      "method": "GET",
+      "path": "/api/v1/admin/observability/incidents/{incidentId}"
+    },
+    {
       "operationId": "admin.openapi.get-platform-license-status",
       "openApiOperationId": "getPlatformLicenseStatus",
       "toolName": "honua_admin_openapi_get_platform_license_status",
@@ -1359,11 +1611,25 @@
       "path": "/api/v1/admin/observability/errors"
     },
     {
+      "operationId": "admin.openapi.get-scene-asset",
+      "openApiOperationId": "getSceneAsset",
+      "toolName": "honua_admin_openapi_get_scene_asset",
+      "method": "GET",
+      "path": "/api/v1/admin/scenes/assets/{sceneId}"
+    },
+    {
       "operationId": "admin.openapi.get-scene-dataset",
       "openApiOperationId": "getSceneDataset",
       "toolName": "honua_admin_openapi_get_scene_dataset",
       "method": "GET",
       "path": "/api/v1/admin/scenes/{id}"
+    },
+    {
+      "operationId": "admin.openapi.get-scene-job",
+      "openApiOperationId": "getSceneJob",
+      "toolName": "honua_admin_openapi_get_scene_job",
+      "method": "GET",
+      "path": "/api/v1/admin/scenes/jobs/{jobId}"
     },
     {
       "operationId": "admin.openapi.get-service-replica",
@@ -1415,13 +1681,6 @@
       "path": "/api/v1/admin/observability/telemetry"
     },
     {
-      "operationId": "admin.openapi.get-tile-cache-inventory",
-      "openApiOperationId": "getTileCacheInventory",
-      "toolName": "honua_admin_openapi_get_tile_cache_inventory",
-      "method": "GET",
-      "path": "/api/v1/admin/tile-operations/cache/inventory"
-    },
-    {
       "operationId": "admin.openapi.get-tile-operation-job",
       "openApiOperationId": "getTileOperationJob",
       "toolName": "honua_admin_openapi_get_tile_operation_job",
@@ -1434,6 +1693,20 @@
       "toolName": "honua_admin_openapi_get_zarr_store",
       "method": "GET",
       "path": "/api/v1/admin/zarr-stores/{id}"
+    },
+    {
+      "operationId": "admin.openapi.go-live-form-draft",
+      "openApiOperationId": "goLiveFormDraft",
+      "toolName": "honua_admin_openapi_go_live_form_draft",
+      "method": "POST",
+      "path": "/api/v1/admin/forms/{formId}/versions/{formVersion}/publish"
+    },
+    {
+      "operationId": "admin.openapi.import-form-xls-form",
+      "openApiOperationId": "importFormXlsForm",
+      "toolName": "honua_admin_openapi_import_form_xls_form",
+      "method": "POST",
+      "path": "/api/v1/admin/forms/import"
     },
     {
       "operationId": "admin.openapi.import-geocoder-reference-data",
@@ -1478,11 +1751,25 @@
       "path": "/api/v1/admin/import/tile-package"
     },
     {
+      "operationId": "admin.openapi.ingest-archive-scene",
+      "openApiOperationId": "ingestArchiveScene",
+      "toolName": "honua_admin_openapi_ingest_archive_scene",
+      "method": "POST",
+      "path": "/api/v1/admin/scenes/ingest/archive"
+    },
+    {
       "operationId": "admin.openapi.ingest-city-gml-scene",
       "openApiOperationId": "ingestCityGmlScene",
       "toolName": "honua_admin_openapi_ingest_city_gml_scene",
       "method": "POST",
       "path": "/api/v1/admin/scenes/ingest/citygml"
+    },
+    {
+      "operationId": "admin.openapi.ingest-model-scene",
+      "openApiOperationId": "ingestModelScene",
+      "toolName": "honua_admin_openapi_ingest_model_scene",
+      "method": "POST",
+      "path": "/api/v1/admin/scenes/ingest/model"
     },
     {
       "operationId": "admin.openapi.ingest-point-cloud-scene",
@@ -1541,13 +1828,6 @@
       "path": "/api/v1/admin/alerts/zones"
     },
     {
-      "operationId": "admin.openapi.list-arc-gis-migration-runs",
-      "openApiOperationId": "listArcGisMigrationRuns",
-      "toolName": "honua_admin_openapi_list_arc_gis_migration_runs",
-      "method": "GET",
-      "path": "/api/v1/admin/import/arcgis/migrations"
-    },
-    {
       "operationId": "admin.openapi.list-client-certificate-principal-mappings",
       "openApiOperationId": "listClientCertificatePrincipalMappings",
       "toolName": "honua_admin_openapi_list_client_certificate_principal_mappings",
@@ -1576,6 +1856,13 @@
       "path": "/api/v1/admin/cloud-rasters"
     },
     {
+      "operationId": "admin.openapi.list-connection-objects",
+      "openApiOperationId": "listConnectionObjects",
+      "toolName": "honua_admin_openapi_list_connection_objects",
+      "method": "GET",
+      "path": "/api/v1/admin/connections/{id}/objects"
+    },
+    {
       "operationId": "admin.openapi.list-console-jobs",
       "openApiOperationId": "listConsoleJobs",
       "toolName": "honua_admin_openapi_list_console_jobs",
@@ -1588,6 +1875,13 @@
       "toolName": "honua_admin_openapi_list_embed_keys",
       "method": "GET",
       "path": "/api/v1/admin/embed/keys"
+    },
+    {
+      "operationId": "admin.openapi.list-exports",
+      "openApiOperationId": "listExports",
+      "toolName": "honua_admin_openapi_list_exports",
+      "method": "GET",
+      "path": "/api/v1/admin/exports"
     },
     {
       "operationId": "admin.openapi.list-feature-stream-sessions",
@@ -1618,18 +1912,18 @@
       "path": "/api/v1/admin/field-workflows/submissions"
     },
     {
-      "operationId": "admin.openapi.list-form-package-versions",
-      "openApiOperationId": "listFormPackageVersions",
-      "toolName": "honua_admin_openapi_list_form_package_versions",
+      "operationId": "admin.openapi.list-form-versions",
+      "openApiOperationId": "listFormVersions",
+      "toolName": "honua_admin_openapi_list_form_versions",
       "method": "GET",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions"
+      "path": "/api/v1/admin/forms/{formId}/versions"
     },
     {
-      "operationId": "admin.openapi.list-form-packages",
-      "openApiOperationId": "listFormPackages",
-      "toolName": "honua_admin_openapi_list_form_packages",
+      "operationId": "admin.openapi.list-forms",
+      "openApiOperationId": "listForms",
+      "toolName": "honua_admin_openapi_list_forms",
       "method": "GET",
-      "path": "/api/v1/admin/forms/packages"
+      "path": "/api/v1/admin/forms"
     },
     {
       "operationId": "admin.openapi.list-geo-server-import-jobs",
@@ -1639,11 +1933,32 @@
       "path": "/api/v1/admin/import/geoserver/jobs"
     },
     {
+      "operationId": "admin.openapi.list-geo-services-migration-runs",
+      "openApiOperationId": "listGeoServicesMigrationRuns",
+      "toolName": "honua_admin_openapi_list_geo_services_migration_runs",
+      "method": "GET",
+      "path": "/api/v1/admin/import/geoservices-rest/migrations"
+    },
+    {
       "operationId": "admin.openapi.list-geoservices-import-jobs",
       "openApiOperationId": "listGeoservicesImportJobs",
       "toolName": "honua_admin_openapi_list_geoservices_import_jobs",
       "method": "GET",
       "path": "/api/v1/admin/import/geoservices/jobs"
+    },
+    {
+      "operationId": "admin.openapi.list-gp-process-bindings",
+      "openApiOperationId": "listGpProcessBindings",
+      "toolName": "honua_admin_openapi_list_gp_process_bindings",
+      "method": "GET",
+      "path": "/api/v1/admin/gp/process-releases/bindings"
+    },
+    {
+      "operationId": "admin.openapi.list-gp-process-releases",
+      "openApiOperationId": "listGpProcessReleases",
+      "toolName": "honua_admin_openapi_list_gp_process_releases",
+      "method": "GET",
+      "path": "/api/v1/admin/gp/process-releases"
     },
     {
       "operationId": "admin.openapi.list-investigations",
@@ -1751,11 +2066,25 @@
       "path": "/api/v1/admin/observability/findings"
     },
     {
+      "operationId": "admin.openapi.list-scene-assets",
+      "openApiOperationId": "listSceneAssets",
+      "toolName": "honua_admin_openapi_list_scene_assets",
+      "method": "GET",
+      "path": "/api/v1/admin/scenes/assets"
+    },
+    {
       "operationId": "admin.openapi.list-scene-datasets",
       "openApiOperationId": "listSceneDatasets",
       "toolName": "honua_admin_openapi_list_scene_datasets",
       "method": "GET",
       "path": "/api/v1/admin/scenes"
+    },
+    {
+      "operationId": "admin.openapi.list-scene-jobs",
+      "openApiOperationId": "listSceneJobs",
+      "toolName": "honua_admin_openapi_list_scene_jobs",
+      "method": "GET",
+      "path": "/api/v1/admin/scenes/jobs"
     },
     {
       "operationId": "admin.openapi.list-service-replica-conflicts",
@@ -1849,11 +2178,25 @@
       "path": "/api/v1/admin/observability/findings/{findingId}/propose"
     },
     {
-      "operationId": "admin.openapi.publish-form-package-version",
-      "openApiOperationId": "publishFormPackageVersion",
-      "toolName": "honua_admin_openapi_publish_form_package_version",
+      "operationId": "admin.openapi.publish-cog-artifact",
+      "openApiOperationId": "publishCogArtifact",
+      "toolName": "honua_admin_openapi_publish_cog_artifact",
       "method": "POST",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions/{packageVersion}/publish"
+      "path": "/api/v1/admin/raster-artifacts/cog"
+    },
+    {
+      "operationId": "admin.openapi.publish-gp-process-release",
+      "openApiOperationId": "publishGpProcessRelease",
+      "toolName": "honua_admin_openapi_publish_gp_process_release",
+      "method": "POST",
+      "path": "/api/v1/admin/gp/process-releases"
+    },
+    {
+      "operationId": "admin.openapi.publish-map",
+      "openApiOperationId": "publishMap",
+      "toolName": "honua_admin_openapi_publish_map",
+      "method": "POST",
+      "path": "/api/v1/admin/maps"
     },
     {
       "operationId": "admin.openapi.query-metadata-environment-bindings",
@@ -1863,18 +2206,18 @@
       "path": "/api/v1/admin/metadata/environment-bindings/query"
     },
     {
-      "operationId": "admin.openapi.record-arc-gis-migration-manifest",
-      "openApiOperationId": "recordArcGisMigrationManifest",
-      "toolName": "honua_admin_openapi_record_arc_gis_migration_manifest",
+      "operationId": "admin.openapi.record-geo-services-migration-manifest",
+      "openApiOperationId": "recordGeoServicesMigrationManifest",
+      "toolName": "honua_admin_openapi_record_geo_services_migration_manifest",
       "method": "POST",
-      "path": "/api/v1/admin/import/arcgis/migrations/{runId}/manifest"
+      "path": "/api/v1/admin/import/geoservices-rest/migrations/{runId}/manifest"
     },
     {
-      "operationId": "admin.openapi.record-arc-gis-migration-parity",
-      "openApiOperationId": "recordArcGisMigrationParity",
-      "toolName": "honua_admin_openapi_record_arc_gis_migration_parity",
+      "operationId": "admin.openapi.record-geo-services-migration-parity",
+      "openApiOperationId": "recordGeoServicesMigrationParity",
+      "toolName": "honua_admin_openapi_record_geo_services_migration_parity",
       "method": "POST",
-      "path": "/api/v1/admin/import/arcgis/migrations/{runId}/parity"
+      "path": "/api/v1/admin/import/geoservices-rest/migrations/{runId}/parity"
     },
     {
       "operationId": "admin.openapi.record-migration-run-scorecard",
@@ -1982,11 +2325,11 @@
       "path": "/api/v1/admin/investigations/{investigationId}/pins/{pinId}"
     },
     {
-      "operationId": "admin.openapi.reopen-form-package-version",
-      "openApiOperationId": "reopenFormPackageVersion",
-      "toolName": "honua_admin_openapi_reopen_form_package_version",
+      "operationId": "admin.openapi.reopen-form-version",
+      "openApiOperationId": "reopenFormVersion",
+      "toolName": "honua_admin_openapi_reopen_form_version",
       "method": "POST",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions/{packageVersion}/reopen"
+      "path": "/api/v1/admin/forms/{formId}/versions/{formVersion}/reopen"
     },
     {
       "operationId": "admin.openapi.replay-feature-change-events",
@@ -2094,11 +2437,32 @@
       "path": "/api/v1/admin/import/scan"
     },
     {
+      "operationId": "admin.openapi.search-coordinate-systems-v1",
+      "openApiOperationId": "SearchCoordinateSystemsV1",
+      "toolName": "honua_admin_openapi_search_coordinate_systems_v1",
+      "method": "GET",
+      "path": "/api/v1/admin/coordinate-systems"
+    },
+    {
       "operationId": "admin.openapi.set-admin-layer-relationships",
       "openApiOperationId": "setAdminLayerRelationships",
       "toolName": "honua_admin_openapi_set_admin_layer_relationships",
       "method": "PUT",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/relationships"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/relationships"
+    },
+    {
+      "operationId": "admin.openapi.set-admin-layer-relationships-batch",
+      "openApiOperationId": "setAdminLayerRelationshipsBatch",
+      "toolName": "honua_admin_openapi_set_admin_layer_relationships_batch",
+      "method": "PUT",
+      "path": "/api/v1/admin/metadata/layers/relationships/batch"
+    },
+    {
+      "operationId": "admin.openapi.set-agent-authority-ceiling",
+      "openApiOperationId": "setAgentAuthorityCeiling",
+      "toolName": "honua_admin_openapi_set_agent_authority_ceiling",
+      "method": "PUT",
+      "path": "/api/v1/admin/agent-authority"
     },
     {
       "operationId": "admin.openapi.set-alert-rule-enabled",
@@ -2106,13 +2470,6 @@
       "toolName": "honua_admin_openapi_set_alert_rule_enabled",
       "method": "PUT",
       "path": "/api/v1/admin/alerts/rules/{ruleId}/enabled"
-    },
-    {
-      "operationId": "admin.openapi.set-license-capacity-surge-mode",
-      "openApiOperationId": "setLicenseCapacitySurgeMode",
-      "toolName": "honua_admin_openapi_set_license_capacity_surge_mode",
-      "method": "POST",
-      "path": "/api/v1/admin/license/capacity/surge"
     },
     {
       "operationId": "admin.openapi.set-ops-autonomy-policy",
@@ -2178,6 +2535,13 @@
       "path": "/api/v1/admin/operations/streaming/alerts"
     },
     {
+      "operationId": "admin.openapi.submit-gp-process-release-job",
+      "openApiOperationId": "submitGpProcessReleaseJob",
+      "toolName": "honua_admin_openapi_submit_gp_process_release_job",
+      "method": "POST",
+      "path": "/api/v1/admin/gp/process-releases/bindings/{process}/jobs"
+    },
+    {
       "operationId": "admin.openapi.submit-network-topology-rebuild",
       "openApiOperationId": "submitNetworkTopologyRebuild",
       "toolName": "honua_admin_openapi_submit_network_topology_rebuild",
@@ -2189,7 +2553,7 @@
       "openApiOperationId": "suggestLayerStyle",
       "toolName": "honua_admin_openapi_suggest_layer_style",
       "method": "POST",
-      "path": "/api/v1/admin/metadata/layers/{layerId}/suggest-style"
+      "path": "/api/v1/admin/metadata/layers/{storageLayerId}/suggest-style"
     },
     {
       "operationId": "admin.openapi.suppress-observability-alert",
@@ -2241,6 +2605,13 @@
       "path": "/api/v1/admin/zarr-stores/{id}"
     },
     {
+      "operationId": "admin.openapi.update-admin-metadata-schemas",
+      "openApiOperationId": "updateAdminMetadataSchemas",
+      "toolName": "honua_admin_openapi_update_admin_metadata_schemas",
+      "method": "PUT",
+      "path": "/api/v1/admin/metadata/schemas"
+    },
+    {
       "operationId": "admin.openapi.update-alert-rule",
       "openApiOperationId": "updateAlertRule",
       "toolName": "honua_admin_openapi_update_alert_rule",
@@ -2269,11 +2640,11 @@
       "path": "/api/v1/admin/security/client-certificates/profiles/{profileId}"
     },
     {
-      "operationId": "admin.openapi.update-form-package-draft",
-      "openApiOperationId": "updateFormPackageDraft",
-      "toolName": "honua_admin_openapi_update_form_package_draft",
+      "operationId": "admin.openapi.update-form-draft",
+      "openApiOperationId": "updateFormDraft",
+      "toolName": "honua_admin_openapi_update_form_draft",
       "method": "PUT",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions/{packageVersion}"
+      "path": "/api/v1/admin/forms/{formId}/versions/{formVersion}"
     },
     {
       "operationId": "admin.openapi.update-imported-raster",
@@ -2311,6 +2682,13 @@
       "path": "/api/v1/admin/share/exports/{exportId}"
     },
     {
+      "operationId": "admin.openapi.upload-import-file-from-object-store",
+      "openApiOperationId": "uploadImportFileFromObjectStore",
+      "toolName": "honua_admin_openapi_upload_import_file_from_object_store",
+      "method": "POST",
+      "path": "/api/v1/admin/import/upload-object"
+    },
+    {
       "operationId": "admin.openapi.upload-license-file",
       "openApiOperationId": "uploadLicenseFile",
       "toolName": "honua_admin_openapi_upload_license_file",
@@ -2332,11 +2710,11 @@
       "path": "/api/v1/admin/connections/encryption/validate"
     },
     {
-      "operationId": "admin.openapi.validate-form-package-version",
-      "openApiOperationId": "validateFormPackageVersion",
-      "toolName": "honua_admin_openapi_validate_form_package_version",
+      "operationId": "admin.openapi.validate-form-draft",
+      "openApiOperationId": "validateFormDraft",
+      "toolName": "honua_admin_openapi_validate_form_draft",
       "method": "POST",
-      "path": "/api/v1/admin/forms/packages/{formId}/versions/{packageVersion}/validate"
+      "path": "/api/v1/admin/forms/{formId}/versions/{formVersion}/validate"
     },
     {
       "operationId": "admin.openapi.validate-package",
@@ -2358,6 +2736,20 @@
       "toolName": "honua_admin_openapi_verify_observability_audit",
       "method": "GET",
       "path": "/api/v1/admin/observability/audit/verify"
+    },
+    {
+      "operationId": "admin.rate-limit-policy.revisions",
+      "openApiOperationId": "listRateLimitPolicyRevisions",
+      "toolName": "honua_admin_rate_limit_policy_revisions",
+      "method": "GET",
+      "path": "/api/v1/admin/rate-limits/{id}/revisions"
+    },
+    {
+      "operationId": "admin.rate-limit-policy.undo",
+      "openApiOperationId": "undoRateLimitPolicyChange",
+      "toolName": "honua_admin_rate_limit_policy_undo",
+      "method": "POST",
+      "path": "/api/v1/admin/rate-limits/{id}/undo"
     },
     {
       "operationId": "admin.rate-limit.create",
@@ -2598,6 +2990,13 @@
       "path": "/api/v1/admin/services"
     },
     {
+      "operationId": "admin.service.move",
+      "openApiOperationId": "moveService",
+      "toolName": "honua_admin_service_move",
+      "method": "PUT",
+      "path": "/api/v1/admin/services/{serviceName}/folder"
+    },
+    {
       "operationId": "admin.service.set-access-policy",
       "openApiOperationId": "updateServiceAccessPolicy",
       "toolName": "honua_admin_service_set_access_policy",
@@ -2609,7 +3008,7 @@
       "openApiOperationId": "updateLayerMetadata",
       "toolName": "honua_admin_service_set_layer_metadata",
       "method": "PUT",
-      "path": "/api/v1/admin/services/{serviceName}/layers/{layerId}/metadata"
+      "path": "/api/v1/admin/services/{serviceName}/layers/{serviceLayerIndex}/metadata"
     },
     {
       "operationId": "admin.service.set-mapserver",
@@ -2729,6 +3128,18 @@
       "reason": "The response contains one-time OIDC state and requires an HttpOnly pending-session cookie."
     },
     {
+      "operationId": "admin.openapi.create-admin-password-bearer",
+      "openApiOperationId": "createAdminPasswordBearer",
+      "code": "one-time-secret-result",
+      "reason": "The endpoint exchanges the administrator password for a forwardable operator bearer."
+    },
+    {
+      "operationId": "admin.openapi.create-admin-password-session",
+      "openApiOperationId": "createAdminPasswordSession",
+      "code": "session-bound-auth-flow",
+      "reason": "The endpoint accepts the administrator password and sets an HttpOnly browser admin session cookie."
+    },
+    {
       "operationId": "admin.openapi.create-embed-key",
       "openApiOperationId": "createEmbedKey",
       "code": "one-time-secret-result",
@@ -2744,7 +3155,13 @@
       "operationId": "admin.openapi.get-admin-auth-session",
       "openApiOperationId": "getAdminAuthSession",
       "code": "session-bound-auth-flow",
-      "reason": "The endpoint reads the caller\u0027s authenticated browser cookie session, which the internal MCP invoker cannot supply."
+      "reason": "The endpoint reads the caller's authenticated browser cookie session, which the internal MCP invoker cannot supply."
+    },
+    {
+      "operationId": "admin.openapi.get-admin-browser-csrf-token",
+      "openApiOperationId": "getAdminBrowserCsrfToken",
+      "code": "session-bound-auth-flow",
+      "reason": "The endpoint issues a browser antiforgery token and sets an HttpOnly SameSite=Strict cookie."
     },
     {
       "operationId": "admin.openapi.issue-admin-operator-bearer",
@@ -2756,7 +3173,7 @@
       "operationId": "admin.openapi.logout-admin-auth-session",
       "openApiOperationId": "logoutAdminAuthSession",
       "code": "session-bound-auth-flow",
-      "reason": "The endpoint requires the caller\u0027s authenticated cookie session and its logout URL can contain an OIDC ID-token hint."
+      "reason": "The endpoint requires the caller's authenticated cookie session and its logout URL can contain an OIDC ID-token hint."
     },
     {
       "operationId": "admin.openapi.request-admin-auth-token",

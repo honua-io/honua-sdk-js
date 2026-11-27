@@ -6,7 +6,7 @@ the working-candidate contract is pinned to.
 
 - **Source repo:** https://github.com/honua-io/honua-server
 - **Source path:** `docs/gis/data/mcp-tool-roster.v1.json`
-- **Server commit:** `93cad86ec4fb28fba3ff0b9358059d86aa55dde5`
+- **Server commit:** `786dc6e3094dab77dd2a8c98d297524e97bd3980`
   (`ADMIN_RELEASE_SERVER_SHA` in `src/control-plane/generated/admin-operations.ts`)
 
 The customer installer image (`ADMIN_LOCAL_SERVER_IMAGE`) follows the separate
