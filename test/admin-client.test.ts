@@ -20,6 +20,23 @@ import {
   MCP_DEFAULT_TOTAL_TOOL_COUNT,
 } from "../src/control-plane/index.js";
 
+const EXPECTED_EXCLUDED_ADMIN_OPERATION_IDS = [
+  "admin.api-key.create",
+  "admin.api-key.rotate",
+  "admin.oauth-client.create",
+  "admin.openapi.create-admin-auth-authorize-url",
+  "admin.openapi.create-admin-password-bearer",
+  "admin.openapi.create-admin-password-session",
+  "admin.openapi.create-embed-key",
+  "admin.openapi.get-admin-auth-logout-url",
+  "admin.openapi.get-admin-auth-session",
+  "admin.openapi.get-admin-browser-csrf-token",
+  "admin.openapi.issue-admin-operator-bearer",
+  "admin.openapi.logout-admin-auth-session",
+  "admin.openapi.request-admin-auth-token",
+  "admin.openapi.rotate-embed-key",
+] as const;
+
 describe("generated admin REST client", () => {
   it("keeps the complete 456-operation inventory pinned to a server commit", () => {
     expect(Object.keys(ADMIN_OPERATIONS)).toHaveLength(456);
@@ -40,22 +57,9 @@ describe("generated admin REST client", () => {
     expect(MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_PUBLISHED_OPERATION_COUNT).toBe(MCP_DEFAULT_TOTAL_TOOL_COUNT);
     expect(ADMIN_MCP_COVERAGE_SHA256).toMatch(/^[0-9a-f]{64}$/);
     expect(ADMIN_MCP_EXCLUSION_ROSTER_SHA256).toMatch(/^[0-9a-f]{64}$/);
-    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.operationId)).toEqual([
-      "admin.api-key.create",
-      "admin.api-key.rotate",
-      "admin.oauth-client.create",
-      "admin.openapi.create-admin-auth-authorize-url",
-      "admin.openapi.create-admin-password-bearer",
-      "admin.openapi.create-admin-password-session",
-      "admin.openapi.create-embed-key",
-      "admin.openapi.get-admin-auth-logout-url",
-      "admin.openapi.get-admin-auth-session",
-      "admin.openapi.get-admin-browser-csrf-token",
-      "admin.openapi.issue-admin-operator-bearer",
-      "admin.openapi.logout-admin-auth-session",
-      "admin.openapi.request-admin-auth-token",
-      "admin.openapi.rotate-embed-key",
-    ]);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.operationId)).toEqual(
+      EXPECTED_EXCLUDED_ADMIN_OPERATION_IDS,
+    );
     const publishedNames = new Set<string>(ADMIN_MCP_PUBLISHED_TOOL_NAMES);
     expect(ADMIN_MCP_EXCLUDED_OPERATIONS.every((operation) => !publishedNames.has(operation.toolName))).toBe(true);
     expect([...ADMIN_ONE_TIME_SECRET_OPERATION_IDS].sort()).toEqual(
