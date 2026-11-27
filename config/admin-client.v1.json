@@ -1,21 +1,21 @@
 {
   "schemaVersion": "honua.admin-client-source.v1",
   "serverRepository": "honua-io/honua-server",
-  "serverSha": "07b8206a101f4a3c2e9ec0db46650c8cdb63aa4a",
+  "serverSha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
   "specPath": "docs/developer/api-specs/admin-api.json",
-  "specBlobSha": "397cf171112490007c090cf23bb9d7e84a2769f2",
-  "specSha256": "65a68c1eac73639b98e5e27e9a572cd833b92053e20d3a85f8f1709eac9cd511",
-  "operationCount": 396,
+  "specBlobSha": "a618990e841b9ca85cf7dceec6cf1edf4a9bd626",
+  "specSha256": "9c882e79efe9a87a05096ea369eb30d577993bd79b4026f367ad1e9f46b44d6f",
+  "operationCount": 456,
   "adminMcpContract": {
     "serverSha": null,
-    "reviewServerSha": "c810ef3df29269527d4eceb26151921c8c5d5eab",
+    "reviewServerSha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
     "coveragePath": "config/admin-mcp-coverage.v1.json",
-    "coverageSha256": "0b24f61feefe18177e0abc76c491b2c86827b30a5dd45092a595cd595376f088",
-    "exclusionRosterSha256": "d93bdf6c31e6c532d5483b08315fed5decdd8f5cc56900e59e45be2eddb2fb6f",
-    "publishedOperationCount": 385,
-    "excludedOperationCount": 11,
+    "coverageSha256": "492898e4ce300a3ba13e22948d57001a5e5e1ee37d58da7689feb8adc7f2a660",
+    "exclusionRosterSha256": "49af9b41c46b47c1a6d63034775bea73420ff352c107e852dec1fc8ddcc98cdc",
+    "publishedOperationCount": 442,
+    "excludedOperationCount": 14,
     "defaultStaticToolCount": 47,
-    "defaultTotalToolCount": 432,
+    "defaultTotalToolCount": 489,
     "status": "review-head-validated-awaiting-merged-trunk-pin"
   },
   "adminBasePath": "/api/v1/admin",
@@ -29,7 +29,7 @@
   "serverImage": "ghcr.io/honua-io/honua-server:nightly-87966c3@sha256:069f196bfa5c7201223d4d89868934242c4ace8805a6e48c122a88d84fa6eb1a",
   "localServerSourceSha": "87966c3f7b6c840ffc4d4da0b451714ab717b18a",
   "releaseManifestStatus": "compatible",
-  "releaseManifestServerSha": "93cad86ec4fb28fba3ff0b9358059d86aa55dde5",
-  "releaseManifestOperationCount": 403,
-  "releaseManifestSpecSha256": "0650af26c258270ce1ab95153f283e36c9c1ee4657e361afaa7f59b83fd4e826"
+  "releaseManifestServerSha": "786dc6e3094dab77dd2a8c98d297524e97bd3980",
+  "releaseManifestOperationCount": 456,
+  "releaseManifestSpecSha256": "9c882e79efe9a87a05096ea369eb30d577993bd79b4026f367ad1e9f46b44d6f"
 }

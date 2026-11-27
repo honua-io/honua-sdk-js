@@ -401,7 +401,7 @@ function renderReference(source, operations, coverage) {
     "`--dry-run` preserves request structure but replaces credential-bearing header,",
     "query, and nested body values with `[REDACTED]`.",
     "",
-    `The six one-time-secret operations (${oneTimeSecretOperations.join(", ")}) fail closed unless`,
+    `The ${oneTimeSecretOperations.length} one-time-secret operations (${oneTimeSecretOperations.join(", ")}) fail closed unless`,
     "`--secret-output <new-private-file>` is supplied. The CLI atomically creates that file with",
     "private permissions, refuses overwrite/reuse, and prints only allowlisted resource metadata plus",
     "the sink path and SHA-256 digest; plaintext material is never written to stdout or stderr.",

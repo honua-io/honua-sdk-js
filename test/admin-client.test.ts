@@ -20,39 +20,46 @@ import {
   MCP_DEFAULT_TOTAL_TOOL_COUNT,
 } from "../src/control-plane/index.js";
 
+const EXPECTED_EXCLUDED_ADMIN_OPERATION_IDS = [
+  "admin.api-key.create",
+  "admin.api-key.rotate",
+  "admin.oauth-client.create",
+  "admin.openapi.create-admin-auth-authorize-url",
+  "admin.openapi.create-admin-password-bearer",
+  "admin.openapi.create-admin-password-session",
+  "admin.openapi.create-embed-key",
+  "admin.openapi.get-admin-auth-logout-url",
+  "admin.openapi.get-admin-auth-session",
+  "admin.openapi.get-admin-browser-csrf-token",
+  "admin.openapi.issue-admin-operator-bearer",
+  "admin.openapi.logout-admin-auth-session",
+  "admin.openapi.request-admin-auth-token",
+  "admin.openapi.rotate-embed-key",
+] as const;
+
 describe("generated admin REST client", () => {
-  it("keeps the complete 396-operation inventory pinned to a server commit", () => {
-    expect(Object.keys(ADMIN_OPERATIONS)).toHaveLength(396);
-    expect(ADMIN_API_OPERATION_COUNT).toBe(396);
+  it("keeps the complete 456-operation inventory pinned to a server commit", () => {
+    expect(Object.keys(ADMIN_OPERATIONS)).toHaveLength(456);
+    expect(ADMIN_API_OPERATION_COUNT).toBe(456);
     expect(ADMIN_API_SERVER_SHA).toMatch(/^[0-9a-f]{40}$/);
     expect(ADMIN_OPERATIONS.createConnection).toMatchObject({ method: "POST", path: "/connections" });
   });
 
   it("classifies every REST operation into the complete default Admin MCP roster", () => {
-    expect(ADMIN_PUBLISHED_OPERATION_COUNT).toBe(385);
-    expect(ADMIN_MCP_PUBLISHED_TOOL_NAMES).toHaveLength(385);
-    expect(new Set(ADMIN_MCP_PUBLISHED_TOOL_NAMES)).toHaveProperty("size", 385);
-    expect(ADMIN_MCP_EXCLUDED_OPERATION_COUNT).toBe(11);
-    expect(ADMIN_MCP_EXCLUDED_OPERATIONS).toHaveLength(11);
+    expect(ADMIN_PUBLISHED_OPERATION_COUNT).toBe(442);
+    expect(ADMIN_MCP_PUBLISHED_TOOL_NAMES).toHaveLength(442);
+    expect(new Set(ADMIN_MCP_PUBLISHED_TOOL_NAMES)).toHaveProperty("size", 442);
+    expect(ADMIN_MCP_EXCLUDED_OPERATION_COUNT).toBe(14);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS).toHaveLength(14);
     expect(ADMIN_PUBLISHED_OPERATION_COUNT + ADMIN_MCP_EXCLUDED_OPERATION_COUNT).toBe(ADMIN_API_OPERATION_COUNT);
     expect(MCP_DEFAULT_STATIC_TOOL_COUNT).toBe(47);
-    expect(MCP_DEFAULT_TOTAL_TOOL_COUNT).toBe(432);
+    expect(MCP_DEFAULT_TOTAL_TOOL_COUNT).toBe(489);
     expect(MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_PUBLISHED_OPERATION_COUNT).toBe(MCP_DEFAULT_TOTAL_TOOL_COUNT);
     expect(ADMIN_MCP_COVERAGE_SHA256).toMatch(/^[0-9a-f]{64}$/);
     expect(ADMIN_MCP_EXCLUSION_ROSTER_SHA256).toMatch(/^[0-9a-f]{64}$/);
-    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.operationId)).toEqual([
-      "admin.api-key.create",
-      "admin.api-key.rotate",
-      "admin.oauth-client.create",
-      "admin.openapi.create-admin-auth-authorize-url",
-      "admin.openapi.create-embed-key",
-      "admin.openapi.get-admin-auth-logout-url",
-      "admin.openapi.get-admin-auth-session",
-      "admin.openapi.issue-admin-operator-bearer",
-      "admin.openapi.logout-admin-auth-session",
-      "admin.openapi.request-admin-auth-token",
-      "admin.openapi.rotate-embed-key",
-    ]);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.operationId)).toEqual(
+      EXPECTED_EXCLUDED_ADMIN_OPERATION_IDS,
+    );
     const publishedNames = new Set<string>(ADMIN_MCP_PUBLISHED_TOOL_NAMES);
     expect(ADMIN_MCP_EXCLUDED_OPERATIONS.every((operation) => !publishedNames.has(operation.toolName))).toBe(true);
     expect([...ADMIN_ONE_TIME_SECRET_OPERATION_IDS].sort()).toEqual(
@@ -64,7 +71,7 @@ describe("generated admin REST client", () => {
     if (ADMIN_MCP_CONTRACT_SERVER_SHA === null) {
       expect(ADMIN_MCP_CONTRACT_STATUS).toBe("review-head-validated-awaiting-merged-trunk-pin");
       expect(ADMIN_MCP_CONTRACT_SERVER_SHA).toBeNull();
-      expect(ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA).toBe("c810ef3df29269527d4eceb26151921c8c5d5eab");
+      expect(ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA).toBe("786dc6e3094dab77dd2a8c98d297524e97bd3980");
     }
   });
 

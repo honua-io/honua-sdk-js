@@ -13,6 +13,7 @@ export const ADMIN_ONE_TIME_SECRET_OPERATION_IDS = [
   "createEmbedKey",
   "rotateEmbedKey",
   "issueAdminOperatorBearer",
+  "createAdminPasswordBearer",
 ] as const satisfies readonly AdminOperationId[];
 
 export type AdminOneTimeSecretOperationId = (typeof ADMIN_ONE_TIME_SECRET_OPERATION_IDS)[number];
@@ -242,7 +243,7 @@ function extractSecretResponse(
   response: unknown,
 ): { readonly secret: string | null; readonly resource: Readonly<Record<string, unknown>> } {
   const root = record(response);
-  if (operationId === "issueAdminOperatorBearer") {
+  if (operationId === "issueAdminOperatorBearer" || operationId === "createAdminPasswordBearer") {
     return {
       secret: requiredSecret(root.accessToken, operationId),
       resource: pick(root, ["expiresAt", "expiresIn", "tokenType"]),

@@ -51,6 +51,8 @@ export interface SchemaIndex {
  */
 export const REFERENCE_TOOL_ALIASES: Readonly<Record<string, string>> = {
   honua_dry_run_plan: "honua_validate_plan",
+  honua_create_map: "honua_create_map_package",
+  honua_create_app: "honua_create_app_package",
 };
 
 /**

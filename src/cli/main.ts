@@ -274,7 +274,7 @@ SUPPORT DIAGNOSTICS
 ADMIN CONTROL PLANE
   honua admin <group> <operationId> [options]  Typed admin operation (connect/import/publish/
                                                configure/secure/release/operate)
-  honua admin api <operationId> [options]      Complete 396-operation escape hatch
+  honua admin api <operationId> [options]      Complete 456-operation escape hatch
   honua admin operations [group]               List generated operation inventory
   honua admin qualify --manifest <file> --manifest-sha256 <digest> --catalog-receipt <file>
       Qualify local setup, the bounded workflow view, and style/render.

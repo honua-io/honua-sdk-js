@@ -206,16 +206,16 @@ test("rendering is deterministic and clock-free", () => {
 test("publishes the complete classified admin family without claiming an unrun candidate pass", () => {
   const artifact = JSON.parse(fs.readFileSync(path.join(root, ADMIN_FAMILY_PATH), "utf8"));
   const markdown = generateScorecardMarkdown(root);
-  assert.equal(artifact.restOperationCount, 396);
-  assert.equal(artifact.expectedPublishedTools, 385);
-  assert.equal(artifact.expectedExcludedOperations, 11);
+  assert.equal(artifact.restOperationCount, 456);
+  assert.equal(artifact.expectedPublishedTools, 442);
+  assert.equal(artifact.expectedExcludedOperations, 14);
   assert.equal(artifact.defaultStaticToolCount, 47);
-  assert.equal(artifact.expectedDefaultTotalTools, 432);
+  assert.equal(artifact.expectedDefaultTotalTools, 489);
   assert.equal(artifact.expectedPublishedTools + artifact.expectedExcludedOperations, artifact.restOperationCount);
   assert.equal(artifact.defaultStaticToolCount + artifact.expectedPublishedTools, artifact.expectedDefaultTotalTools);
   assert.match(markdown, /## Admin operation family/);
   assert.match(markdown, /honua_admin_\*/);
-  assert.match(markdown, /432 tools/);
+  assert.match(markdown, /489 tools/);
   assert.match(markdown, /one-time-secret\/session operations are explicitly excluded/);
   const adminTable = tables(markdown).find((table) => table[0]?.some((cell) => cell.trim() === "Candidate status"));
   assert.ok(adminTable, "expected the admin operation family table");

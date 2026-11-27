@@ -167,7 +167,7 @@ export const ADMIN_JOURNEY_OPERATIONS = Object.freeze(
       stage: null,
       group: "publish",
       operationId: "getAdminLayerStyle",
-      pathParams: { layerId: "packed-layer" },
+      pathParams: { storageLayerId: "packed-layer" },
       expectedPath: "/metadata/layers/packed-layer/style",
     },
     { stage: null, group: "configure", operationId: "listServices", expectedPath: "/services" },

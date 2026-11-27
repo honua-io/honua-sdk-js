@@ -38,6 +38,10 @@ type ParameterValue<
   Id extends AdminOperationId,
   Kind extends "header" | "path" | "query",
 > = OperationParameters<Id> extends { [Key in Kind]?: infer Value } ? Exclude<Value, undefined> : never;
+type RequiredParameterValue<
+  Id extends AdminOperationId,
+  Kind extends "header" | "path" | "query",
+> = OperationParameters<Id> extends { readonly [Key in Kind]: infer Value } ? Value : never;
 type RequiredRequestBody<Id extends AdminOperationId> = Operation<Id> extends {
   requestBody: infer RequestBody;
 }
@@ -77,9 +81,13 @@ type BodyField<Id extends AdminOperationId> = [RequiredRequestBody<Id>] extends 
       readonly contentType?: AdminOperationContentType<Id>;
     };
 
+type HeaderField<Id extends AdminOperationId> = [RequiredParameterValue<Id, "header">] extends [never]
+  ? OptionalField<"headers", ParameterValue<Id, "header"> & HeadersInit>
+  : RequiredField<"headers", RequiredParameterValue<Id, "header"> & HeadersInit>;
+
 export type AdminOperationRequest<Id extends AdminOperationId> = RequiredField<"path", ParameterValue<Id, "path">> &
   OptionalField<"query", ParameterValue<Id, "query">> &
-  OptionalField<"headers", ParameterValue<Id, "header"> & HeadersInit> &
+  HeaderField<Id> &
   BodyField<Id> & {
     readonly signal?: AbortSignal;
   };

@@ -87,7 +87,7 @@ describe("MCP certification harness — offline operator upstream", () => {
     expect(names).toContain("honua_plan_analysis");
     expect(names).toContain("honua_execute_plan");
     expect(names).toContain("honua_dry_run_plan");
-    expect(names).toContain("honua_create_map_package");
+    expect(names).toContain("honua_create_map");
     // honua_publish_service conforms to the standard's publish_service entry
     // (documented divergence), never to the known-gap publish_result family.
     const publishService = mapped.find((t) => t.name === "honua_publish_service");
@@ -269,7 +269,7 @@ describe("read-only classification", () => {
   });
 
   it("treats mutation-shaped names as not read-only by default", () => {
-    expect(isReadOnlyTool({ name: "honua_create_map_package" })).toBe(false);
+    expect(isReadOnlyTool({ name: "honua_create_map" })).toBe(false);
     expect(isReadOnlyTool({ name: "honua_propose_rollback" })).toBe(false);
     expect(isReadOnlyTool({ name: "honua_query_features" })).toBe(true);
   });

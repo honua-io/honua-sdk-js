@@ -135,6 +135,18 @@ const ADMIN_SECRET_CASES = [
     rollbackPath: null,
     recoveryPreferred: true,
   },
+  {
+    operationId: "createAdminPasswordBearer",
+    secret: "password-bearer-secret",
+    response: {
+      accessToken: "password-bearer-secret",
+      tokenType: "Bearer",
+      expiresIn: 1800,
+      expiresAt: "2026-08-20T12:30:00Z",
+    },
+    rollbackPath: null,
+    recoveryPreferred: true,
+  },
 ] as const;
 
 describe("honua admin", () => {
