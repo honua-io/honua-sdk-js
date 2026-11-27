@@ -11,12 +11,12 @@ const TERM_PATTERNS = Object.freeze([
   new RegExp(["\\.", "atbx"].join(""), "i"),
 ]);
 
-// R30's hash gate stays line-exact for nominative references.
+// Line-exact SHA-256 allowlist for nominative desktop-client references.
 export const ALLOWED_LINE_HASHES = new Map([
   [
     "src/control-plane/generated/admin-api.ts",
     new Set([
-      // Generated publishCogArtifact OpenAPI description from honua-server@786dc6e309.
+      // Generated publishCogArtifact OpenAPI description.
       "39d878e2c24b68c0acdb7e1c32d5e0aecea337115014253ef8d7995233b3cbeb",
     ]),
   ],
