@@ -11,11 +11,14 @@ const projectPath = ["test/fixtures/client.", "aprx"].join("");
 const toolboxPath = ["test/fixtures/tool.", "atbx"].join("");
 
 test("rejects references outside the nominative allowlist", () => {
-  const result = inspectDesktopClientContainment([
-    { path: "docs/compatibility.md", content: `Compatibility with ${desktopProduct}.` },
-    { path: "docs/scripting.md", content: scriptingInterface },
-    { path: "docs/hyphen.md", content: `${hyphenatedProduct} project` },
-  ]);
+  const result = inspectDesktopClientContainment(
+    [
+      { path: "docs/compatibility.md", content: `Compatibility with ${desktopProduct}.` },
+      { path: "docs/scripting.md", content: scriptingInterface },
+      { path: "docs/hyphen.md", content: `${hyphenatedProduct} project` },
+    ],
+    { allowedLineHashes: new Map() },
+  );
 
   assert.deepEqual(result.unexpected, [
     { path: "docs/compatibility.md", line: 1 },
@@ -26,12 +29,15 @@ test("rejects references outside the nominative allowlist", () => {
 });
 
 test("does not treat provider, property, or provenance as the desktop product", () => {
-  const result = inspectDesktopClientContainment([
-    { path: "bundle-budgets.json", content: "ArcGIS provider mapping" },
-    { path: "test/feature-filter-compat.test.ts", content: "projects onto the ArcGIS property shape" },
-    { path: "src/migration/oss-corpus.ts", content: "export interface OssArcGisProvenance {" },
-    { path: "docs/hyphen-prefix.md", content: "ArcGIS-property and ArcGIS-provenance stay" },
-  ]);
+  const result = inspectDesktopClientContainment(
+    [
+      { path: "bundle-budgets.json", content: "ArcGIS provider mapping" },
+      { path: "test/feature-filter-compat.test.ts", content: "projects onto the ArcGIS property shape" },
+      { path: "src/migration/oss-corpus.ts", content: "export interface OssArcGisProvenance {" },
+      { path: "docs/hyphen-prefix.md", content: "ArcGIS-property and ArcGIS-provenance stay" },
+    ],
+    { allowedLineHashes: new Map() },
+  );
 
   assert.deepEqual(result.unexpected, []);
   assert.deepEqual(result.missing, []);

@@ -11,9 +11,16 @@ const TERM_PATTERNS = Object.freeze([
   new RegExp(["\\.", "atbx"].join(""), "i"),
 ]);
 
-// R30's hash gate stays line-exact for a future nominative exception. The five
-// previous entries were prefix collisions and are not exceptions.
-export const ALLOWED_LINE_HASHES = new Map();
+// R30's hash gate stays line-exact for nominative references.
+export const ALLOWED_LINE_HASHES = new Map([
+  [
+    "src/control-plane/generated/admin-api.ts",
+    new Set([
+      // Generated publishCogArtifact OpenAPI description from honua-server@786dc6e309.
+      "39d878e2c24b68c0acdb7e1c32d5e0aecea337115014253ef8d7995233b3cbeb",
+    ]),
+  ],
+]);
 
 function lineHash(line) {
   return createHash("sha256").update(line).digest("hex");
