@@ -263,18 +263,16 @@ classes. These are reachable via the `@honua/sdk-js/contract` and
 - [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) — `loadMapDocument(...)` and `HonuaMapRuntime`
   for the MapLibre GL JS-first map document runtime.
 
-## Esri Migration
+## Migration Tooling
 
-The npm program is `@honua/honua-migrate` (`npx honua-js-migrate`).
-`@honua/sdk-js/migration` forwards to that package. `src/migration/codemod.ts`
-is the in-repo suite, not the npm program. The forwarder keeps the old import
-working:
+The standalone migration CLI is published as `@honua/honua-migrate` (`npx honua-js-migrate`).
+`@honua/sdk-js/migration` forwards to that optional package when installed alongside the SDK;
+`src/migration/codemod.ts` is the in-repo suite, not the npm program.
 
-```typescript doc-test=compile
-import { runEsriCompatCodemod, scanArcGisUsage } from "@honua/sdk-js/migration";
+```typescript doc-test=skip reason="requires the optional @honua/honua-migrate package installed separately"
+import * as migration from "@honua/sdk-js/migration";
 
-const report = scanArcGisUsage("./src");
-const migration = runEsriCompatCodemod({ rootDir: "./src", write: true });
+// Install @honua/honua-migrate separately to invoke the programmatic migration helpers.
 ```
 
 ## Version Policy
