@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.6.3](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.6.2...mcp-server-v0.6.3) (2026-11-28)
+
+
+### Features
+
+* **control-plane:** regenerate Admin client for folders and paged list envelopes ([#2788](https://github.com/honua-io/honua-sdk-js/issues/2788)) ([78a9fc5](https://github.com/honua-io/honua-sdk-js/commit/78a9fc5674eb4ac347e1a4fece66453fc5bd90f5))
+
+
+### Bug Fixes
+
+* **docs,mcp:** skip optional migration snippet in INSTALL.md and widen mcp app-platform peer range ([#2789](https://github.com/honua-io/honua-sdk-js/issues/2789)) ([c76a8c1](https://github.com/honua-io/honua-sdk-js/commit/c76a8c1d24ffa22fbb84b5117470ae15acc7b7fe))
+* **release:** pin MCP 0.6.2 for SDK publication ([f11d01e](https://github.com/honua-io/honua-sdk-js/commit/f11d01e210b9a5fbda6f45a8f6b8716d57333583))
+* **release:** pin MCP 0.6.2 for SDK publication ([53695d2](https://github.com/honua-io/honua-sdk-js/commit/53695d2e8cf800c9e2ea6ce00abaa43a98af0ca4))
+* **sdk,cli,mcp:** harden GeoServices envelopes, admin transport, MCP bounds, and zero-Redis installer ([#2786](https://github.com/honua-io/honua-sdk-js/issues/2786)) ([8f3682d](https://github.com/honua-io/honua-sdk-js/commit/8f3682d7adc377e52b1049293a26b083135eff64))
+* **sdk,mcp:** harden header merge, retryable headers, command errors, and proxy diagnostics ([#2785](https://github.com/honua-io/honua-sdk-js/issues/2785)) ([332c466](https://github.com/honua-io/honua-sdk-js/commit/332c466186c14ffbaec4792d0e93bd2e833fcbd3))
+
+
+### Dependencies
+
+* **mcp:** bump vitest to 4.1.12 and refresh vite in lockfile ([#2693](https://github.com/honua-io/honua-sdk-js/issues/2693)) ([e34721f](https://github.com/honua-io/honua-sdk-js/commit/e34721f9fbb8956ba95760cf7679631b1d90200e))
+
 ## [0.6.2](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.6.1...mcp-server-v0.6.2) (2026-11-21)
 
 
