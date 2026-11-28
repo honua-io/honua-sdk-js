@@ -448,27 +448,22 @@ subset of these errors when configured:
 
 ### Retry defaults are narrower than the `retryable` classification
 
-Two HTTP status sets exist, and they are deliberately different:
+The retry loop and the two HTTP error types use these status sets.
 
 | Set | Value | Role |
 |-----|-------|------|
-| Retry-loop default (`DEFAULT_RETRY_STATUSES`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
-| Transient classification (`core.http.transient`, and `runtime.query-tiles.transient` for query tiles) | `408, 429, 500, 502, 503, 504` | The statuses whose error instance carries `retryable: true` metadata. |
+| Retry-loop default (`DEFAULT_RETRY_STATUSES`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and neither `retryStatuses` nor an explicit server retry hint overrides the defaults. |
+| Core HTTP transient classification (`core.http.transient`) | `408, 429, 502, 503, 504` | The HTTP statuses or numeric protocol error codes that yield `retryable: true` metadata for core HTTP errors without an explicit server retry hint. |
+| Query-tile transient classification (`runtime.query-tiles.transient`) | `408, 429, 500, 502, 503, 504` | The statuses whose query-tile errors carry `retryable: true` metadata. |
 
-The loop default is the narrower set on purpose: `429`, `502`, `503`, and `504`
-all carry an explicit "this exact request may succeed if sent again" signal (and
-frequently a `Retry-After` header). `408` and `500` are classified transient so
-triage and telemetry can group them with the recoverable failures, but they are
-not replayed automatically — a `500` is an unexplained server fault that a blind
-replay usually just reproduces, and a `408` normally means the request was never
-fully received. Applications that want the broader set opt in explicitly, e.g.
+Applications can explicitly add `408` or `500` to the retry status list with
 `retry: { maxRetries: 2, retryStatuses: [408, 429, 500, 502, 503, 504] }`.
 
-The registry's `retryable` metadata does **not** drive the retry loop. The loop
-reads only the configured `retryStatuses` (or the default above), the replay-safe
-method gate, and the transient network/timeout error types; the classification is
-descriptive metadata for callers that implement their own backoff. Changing an
-`sdkCode`'s `retryable` flag therefore changes reporting, not request behavior.
+For eligible requests, the retry loop honors an explicit server retryability
+directive before consulting the configured or default status list. It also
+enforces the replay-safe method gate and handles transient network and timeout
+errors. The registry's `retryable` flag describes the error for callers that
+implement their own backoff. Editing that registry flag only changes reporting.
 
 ## Capability policy
 
