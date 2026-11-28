@@ -65,19 +65,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-26 at commit `7c2c0fa20`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-11-28 at commit `90d054489`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 780.3 KiB | 210.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 242.0 KiB | 61.9 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 781.9 KiB | 211.0 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 243.6 KiB | 62.5 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 50.3 KiB | 15.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 398.8 KiB | 109.5 KiB |
-| Client compatibility layer (drop-in migration surface) | 1093.6 KiB | 278.0 KiB |
-| Geocoding client | 34.3 KiB | 9.8 KiB |
-| Routing client | 29.0 KiB | 8.7 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 399.0 KiB | 109.5 KiB |
+| Client compatibility layer (drop-in migration surface) | 1095.2 KiB | 278.5 KiB |
+| Geocoding client | 34.5 KiB | 9.8 KiB |
+| Routing client | 29.2 KiB | 8.8 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.19.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1618.0 KiB minified / **446.9 KiB gzip**.
@@ -87,8 +87,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1618.0 KiB + Honua root 780.3 KiB ≈ **2.34 MB**.
-- **Gzip:** engine 446.9 KiB + Honua root 210.4 KiB ≈ **0.64 MB**.
+- **Minified:** engine 1618.0 KiB + Honua root 781.9 KiB ≈ **2.34 MB**.
+- **Gzip:** engine 446.9 KiB + Honua root 211.0 KiB ≈ **0.64 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
